@@ -13,10 +13,6 @@ import type { AddContactDto, ContactNoteDto, MatchContactsDto, RemoveContactDto,
 
 const MAX_PHONES_PER_REQUEST = 1000;
 
-const localNameOf = (raw: unknown): string | null => (typeof raw === "string" ? raw.trim().slice(0, 80) : null);
-// Id не строкой не найдётся ни в одной строке таблицы.
-const idOf = (raw: unknown): string => (typeof raw === "string" ? raw : "");
-
 // Контакты (/api/contacts) — как server/routes/contacts.js.
 @Injectable()
 export class ContactsService {
@@ -51,26 +47,24 @@ export class ContactsService {
   }
 
   public add(uid: string, { userId, localName, sharePhone }: AddContactDto) {
-    if (!userId || userId === uid) throw new ApiError(400, "Некорректный контакт");
-    const target = this.users.findById(idOf(userId));
+    if (userId === uid) throw new ApiError(400, "Некорректный контакт");
+    const target = this.users.findById(userId);
     if (!target) throw new ApiError(404, "Пользователь не найден");
     const contact = this.contacts.add({
       id: `ct_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       ownerId: uid,
       userId: target.id,
       addedAt: new Date().toISOString(),
-      localName: localNameOf(localName),
+      localName,
     });
     // «Поделиться моим номером», как в Telegram: этот человек увидит ваш номер,
     // даже если в приватности он скрыт (исключение «Всегда показывать»).
-    if (sharePhone === true) this.sharePhoneWith(uid, target.id);
+    if (sharePhone) this.sharePhoneWith(uid, target.id);
     // Уже существующий контакт приходит строкой из базы — заметку расшифровываем, как в /rename.
     return { contact: "note" in contact ? { ...contact, note: contactNote(contact) } : contact };
   }
 
-  public setNote(uid: string, dto: ContactNoteDto) {
-    const userId = idOf(dto.userId);
-    const note = typeof dto.note === "string" ? dto.note.trim().slice(0, 1000) : "";
+  public setNote(uid: string, { userId, note }: ContactNoteDto) {
     if (!this.contacts.setNote(uid, userId, sealContactNote(uid, userId, note || null))) {
       throw new ApiError(404, "Сначала добавьте человека в контакты");
     }
@@ -78,19 +72,18 @@ export class ContactsService {
   }
 
   public rename(uid: string, { userId, localName }: RenameContactDto) {
-    const contact = this.contacts.rename(uid, idOf(userId), localNameOf(localName));
+    const contact = this.contacts.rename(uid, userId, localName);
     if (!contact) throw new ApiError(404, "Контакт не найден");
     return { contact: { ...contact, note: contactNote(contact) } };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {
-    this.contacts.remove(uid, idOf(userId));
+    this.contacts.remove(uid, userId);
     return { ok: true };
   }
 
   /** Кто из записной книжки есть в Shalter; скрытые приватностью, блокировкой или баном — в notFound. */
-  public async match(uid: string, dto: MatchContactsDto) {
-    const entries: any[] = Array.isArray(dto.contacts) ? dto.contacts : [];
+  public async match(uid: string, { contacts: entries }: MatchContactsDto) {
     if (entries.length > MAX_PHONES_PER_REQUEST) {
       throw new ApiError(413, `За один раз можно проверить не больше ${MAX_PHONES_PER_REQUEST} номеров`);
     }
@@ -104,12 +97,12 @@ export class ContactsService {
     const notFound: { phone: string; name: string }[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
-      const key = phoneKey(entry?.phone);
+      const key = phoneKey(entry.phone);
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      const name = typeof entry?.name === "string" ? entry.name.slice(0, 120) : "";
+      const name = typeof entry.name === "string" ? entry.name.slice(0, 120) : "";
       const user = index.get(key);
-      const phone = String(entry?.phone ?? "").slice(0, 40);
+      const phone = String(entry.phone ?? "").slice(0, 40);
       if (user) candidates.push({ user, name, phone });
       else notFound.push({ phone, name });
     }

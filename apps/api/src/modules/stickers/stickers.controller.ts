@@ -3,7 +3,16 @@ import type { Request } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { AuthGuard } from "../auth/guards/auth.guard.js";
 import { CustomEmojiService } from "./custom-emoji.service.js";
-import { emojiSchema, packSchema, type EmojiDto, type PackDto } from "./model/schemas/stickers.schema.js";
+import {
+  createEmojiSchema,
+  createPackSchema,
+  patchEmojiSchema,
+  patchPackSchema,
+  type CreateEmojiDto,
+  type CreatePackDto,
+  type PatchEmojiDto,
+  type PatchPackDto,
+} from "./model/schemas/stickers.schema.js";
 import { StickerPacksService } from "./sticker-packs.service.js";
 
 @Controller("api/stickers/packs")
@@ -18,12 +27,12 @@ export class StickerPacksController {
 
   @Post()
   @HttpCode(200)
-  public create(@Req() req: Request, @Body(new ZodValidationPipe(packSchema)) dto: PackDto) {
+  public create(@Req() req: Request, @Body(new ZodValidationPipe(createPackSchema)) dto: CreatePackDto) {
     return this.packs.create(req.uid!, dto);
   }
 
   @Patch(":id")
-  public update(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(packSchema)) dto: PackDto) {
+  public update(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(patchPackSchema)) dto: PatchPackDto) {
     return this.packs.update(req.uid!, id, dto);
   }
 
@@ -45,12 +54,12 @@ export class CustomEmojiController {
 
   @Post()
   @HttpCode(200)
-  public create(@Req() req: Request, @Body(new ZodValidationPipe(emojiSchema)) dto: EmojiDto) {
+  public create(@Req() req: Request, @Body(new ZodValidationPipe(createEmojiSchema)) dto: CreateEmojiDto) {
     return this.emoji.create(req.uid!, dto);
   }
 
   @Patch(":id")
-  public update(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(emojiSchema)) dto: EmojiDto) {
+  public update(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(patchEmojiSchema)) dto: PatchEmojiDto) {
     return this.emoji.update(req.uid!, id, dto);
   }
 

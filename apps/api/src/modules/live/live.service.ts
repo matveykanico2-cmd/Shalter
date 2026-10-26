@@ -13,10 +13,7 @@ import { LiveRepository } from "./live.repository.js";
 import type { LiveMessageRow, LiveStream } from "./model/domain.js";
 import type { HandDto, LiveMessageDto, MuteDto, RoleDto, StartLiveDto } from "./model/schemas/live.schema.js";
 
-const MAX_MESSAGE_LEN = 500;
-
 const canStop = (stream: LiveStream, chat: Chat, userId: string) => stream.hostId === userId || isStaff(chat, userId);
-const messageText = (text: unknown) => String(text ?? "").trim().slice(0, MAX_MESSAGE_LEN);
 
 // Прямые эфиры в каналах и группах (server/routes/live.js): из приложения (WebRTC между
 // участниками, сигналы — по WS) или из OBS (RTMP, server/rtmp.js), с чатом эфира.
@@ -30,20 +27,19 @@ export class LiveService {
   ) {}
 
   /** Начать эфир; в чате уже идёт — тот же, с already. host — заголовок Host запроса (адрес для OBS). */
-  public start(uid: string, host: string | undefined, dto: StartLiveDto) {
-    const chat = this.memberChat(uid, dto.chatId);
+  public start(uid: string, host: string | undefined, { chatId, title, withVideo, source }: StartLiveDto) {
+    const chat = this.memberChat(uid, chatId);
     if (chat.type === "dm") throw new ApiError(400, "Эфир бывает в канале или группе — для двоих есть звонок");
     if (!isStaff(chat, uid)) throw new ApiError(403, "Начать эфир может только администратор");
 
     const already = this.live.findLiveForChat(chat.id);
     if (already) return { stream: already, already: true, ingest: this.ingestFor(already, uid, host) };
 
-    const source = dto.source === "rtmp" ? "rtmp" : "webrtc";
     const stream = this.live.createStream({
       chatId: chat.id,
       hostId: uid,
-      title: String(dto.title ?? "").trim().slice(0, 80),
-      withVideo: dto.withVideo !== false,
+      title,
+      withVideo,
       source,
       streamKey: source === "rtmp" ? randomBytes(16).toString("hex") : null,
     });
@@ -96,29 +92,28 @@ export class LiveService {
     return { ok: true };
   }
 
-  public hand(uid: string, id: string, dto: HandDto) {
+  public hand(uid: string, id: string, { raised }: HandDto) {
     const { stream } = this.load(uid, id);
     if (!this.live.findParticipant(stream.id, uid)) throw new ApiError(404, "Вы не в эфире");
-    this.live.setParticipant(stream.id, uid, { handRaised: dto.raised !== false });
+    this.live.setParticipant(stream.id, uid, { handRaised: raised });
     this.broadcastState(stream);
     return { ok: true };
   }
 
   /** Ведущий даёт слово (speaker) или забирает (viewer); рука опускается, запрет микрофона снимается. */
-  public setRole(uid: string, id: string, userId: string, dto: RoleDto) {
+  public setRole(uid: string, id: string, userId: string, { role }: RoleDto) {
     const stream = this.hostStream(uid, id);
-    const role = dto.role === "speaker" ? "speaker" : "viewer";
     this.guestOf(stream, userId);
     this.live.setParticipant(stream.id, userId, { role, handRaised: false, mutedByHost: false });
     this.broadcastState(stream);
     return { ok: true };
   }
 
-  public mute(uid: string, id: string, userId: string, dto: MuteDto) {
+  public mute(uid: string, id: string, userId: string, { muted }: MuteDto) {
     const stream = this.hostStream(uid, id);
     // Свой микрофон ведущий выключает сам, у себя: «заглушить» — только для других.
     this.guestOf(stream, userId);
-    this.live.setParticipant(stream.id, userId, { mutedByHost: dto.muted !== false });
+    this.live.setParticipant(stream.id, userId, { mutedByHost: muted });
     this.broadcastState(stream);
     return { ok: true };
   }
@@ -133,10 +128,9 @@ export class LiveService {
     return { stream: ended };
   }
 
-  public sendMessage(uid: string, id: string, dto: LiveMessageDto) {
+  public sendMessage(uid: string, id: string, { text }: LiveMessageDto) {
     const { stream } = this.load(uid, id);
     if (stream.status !== "live") throw new ApiError(410, "Эфир завершён");
-    const text = messageText(dto.text);
     if (!text) throw new ApiError(400, "Пустое сообщение");
 
     const saved = this.live.addMessage(stream.id, uid, text);
@@ -145,10 +139,9 @@ export class LiveService {
     return { message };
   }
 
-  public editMessage(uid: string, id: string, messageId: string, dto: LiveMessageDto) {
+  public editMessage(uid: string, id: string, messageId: string, { text }: LiveMessageDto) {
     const { stream, message: existing } = this.loadMessage(uid, id, messageId);
     if (existing.userId !== uid) throw new ApiError(403, "Править можно только своё сообщение");
-    const text = messageText(dto.text);
     if (!text) throw new ApiError(400, "Пустое сообщение");
 
     const saved = this.live.editMessage(existing.id, text);
@@ -197,8 +190,8 @@ export class LiveService {
     if (target.role === "host") throw new ApiError(400, "Ведущего нельзя лишить слова");
   }
 
-  private memberChat(uid: string, chatId: unknown): Chat {
-    const chat = typeof chatId === "string" ? this.chats.findById(chatId) : undefined;
+  private memberChat(uid: string, chatId: string | undefined): Chat {
+    const chat = chatId === undefined ? undefined : this.chats.findById(chatId);
     if (!chat || !chat.memberIds.includes(uid)) throw new ApiError(404, "Чат не найден");
     return chat;
   }

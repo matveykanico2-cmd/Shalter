@@ -4,7 +4,7 @@ import { PREMIUM_GRANT_DAYS, isAdminPhone } from "../../common/config/accounts.j
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import { hashPassword, passwordMatches } from "../../common/lib/password.js";
-import { EMAIL_RE, PHONE_RE, normalizeBirthday, normalizePhone } from "../../common/lib/validators.js";
+import { EMAIL_RE, PHONE_RE, normalizeBirthday } from "../../common/lib/validators.js";
 import { checkUsername, deleteAccount, findOrCreateDm, sendMail, sendMessageAndBroadcast } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { selfUser } from "../users/lib/user.presenter.js";
@@ -35,16 +35,11 @@ export class AccountService {
   ) {}
 
   public async register(req: Request, res: Response, dto: RegisterEmailDto) {
-    const { name, email, password, phone, username, referralCode, birthday } = dto;
-    if (!name.trim()) throw new ApiError(400, "Введите имя");
-    const cleanLast = dto.lastName.trim().slice(0, 60);
-    const fullName = [name.trim(), cleanLast].filter(Boolean).join(" ");
-    if (!EMAIL_RE.test(email)) throw new ApiError(400, "Некорректный email");
-    if (!password || password.length < 6) throw new ApiError(400, "Пароль должен быть не короче 6 символов");
-    const handle = username.trim().replace(/^@/, "");
+    // Имя, почта и длина пароля проверены схемой.
+    const { name, lastName: cleanLast, email, password, phone: normalizedPhone, username: handle, referralCode, birthday } = dto;
+    const fullName = [name, cleanLast].filter(Boolean).join(" ");
     const usernameProblem = await checkUsername(handle);
     if (usernameProblem) throw new ApiError(usernameProblem.status, usernameProblem.error);
-    const normalizedPhone = normalizePhone(phone);
     if (!PHONE_RE.test(normalizedPhone)) throw new ApiError(400, "Введите номер телефона в формате +79991234567");
     if (this.usersRepository.findByEmail(email)) throw new ApiError(409, "Аккаунт с таким email уже существует");
     if (this.usersRepository.findByPhone(normalizedPhone)) throw new ApiError(409, "Аккаунт с таким номером телефона уже существует");
@@ -99,8 +94,7 @@ export class AccountService {
     return { user: selfUser(user) };
   }
 
-  public async usernameAvailable(raw: string) {
-    const handle = raw.trim().replace(/^@/, "");
+  public async usernameAvailable(handle: string) {
     const problem = await checkUsername(handle);
     return { username: handle, available: !problem, error: problem?.error ?? null };
   }
@@ -136,7 +130,7 @@ export class AccountService {
 
   public async startEmailChange(userId: string, dto: EmailStartDto) {
     const user = this.usersRepository.findById(userId);
-    const email = dto.email.trim().toLowerCase();
+    const { email } = dto;
     if (!passwordMatches(dto.password, user?.passwordHash, user?.passwordSalt)) throw new ApiError(401, "Неверный пароль");
     if (!EMAIL_RE.test(email)) throw new ApiError(400, "Введите корректный адрес почты");
     if (email === (user?.email ?? "").toLowerCase()) throw new ApiError(400, "Это уже ваш адрес");

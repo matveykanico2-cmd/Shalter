@@ -17,7 +17,6 @@ import { TwoFactorTicketsStore } from "./stores/two-factor-tickets.store.js";
 import { SystemNoticesService } from "./system-notices.service.js";
 
 const MIN_CLOUD_PASSWORD = 6;
-const MAX_CLOUD_HINT = 100;
 
 // Второй шаг входа. Три способа: код из приложения-аутентификатора (totp), код в чат
 // «Shalter» (chat) и облачный пароль (password).
@@ -46,7 +45,7 @@ export class TwoFactorService {
     };
   }
 
-  public async setup(userId: string, method: string | undefined) {
+  public async setup(userId: string, method: "chat" | "totp") {
     const me = this.me(userId);
     if (me.twoFactorEnabled) throw new ApiError(400, "Двухфакторная аутентификация уже включена");
     if (method === "chat") {
@@ -94,7 +93,7 @@ export class TwoFactorService {
     if (password === dto.accountPassword) {
       throw new ApiError(400, "Облачный пароль должен отличаться от пароля аккаунта — иначе второй шаг ничего не добавляет");
     }
-    const hint = dto.hint.trim().slice(0, MAX_CLOUD_HINT);
+    const { hint } = dto;
     if (hint && hint.toLowerCase() === password.toLowerCase()) {
       throw new ApiError(400, "Подсказка не должна повторять сам пароль — её видно до входа");
     }
@@ -179,14 +178,13 @@ export class TwoFactorService {
     return { enabled: false };
   }
 
-  // Второй шаг входа: код (или код восстановления) по билету из первого шага.
-  public async login(req: Request, res: Response, ticket: string, code: string) {
+  // Второй шаг входа: код (или код восстановления) по билету из первого шага; код уже без пробелов по краям.
+  public async login(req: Request, res: Response, ticket: string, cleaned: string) {
     const expired = "Время на ввод кода истекло — войдите заново";
     const entry = this.tickets.peek(ticket);
     if (!entry) throw new ApiError(400, expired);
     const user = this.usersRepository.findById(entry.userId);
     if (!user) throw new ApiError(400, expired);
-    const cleaned = code.trim();
     const ok = this.verifySecondFactor(user, cleaned) || this.usersRepository.consumeRecoveryCode(user.id, hashRecoveryCode(cleaned));
     if (!ok) {
       const attemptsLeft = this.tickets.countFailure(ticket);

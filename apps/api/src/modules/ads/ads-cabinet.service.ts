@@ -60,16 +60,15 @@ export class AdsCabinetService {
     const me = this.users.findById(uid)!;
     if (!me.isAdsActive) throw new ApiError(403, "Кабинет рекламы не активен");
 
-    const { text, attachments } = dto;
-    // Ссылку обрезаем до проверки: « https://…» — та же ссылка, что и без пробела.
-    const url = typeof dto.url === "string" ? dto.url.trim() : dto.url;
-    if (typeof text !== "string" || !text.trim()) throw new ApiError(400, "Введите текст объявления");
+    // Ссылку схема обрезает до проверки: « https://…» — та же ссылка, что и без пробела.
+    const { text, url, attachments } = dto;
+    if (!text) throw new ApiError(400, "Введите текст объявления");
     if (url && (typeof url !== "string" || !/^https?:\/\//.test(url))) throw new ApiError(400, "Ссылка должна начинаться с http:// или https://");
 
     const adAttachments = sanitizeAdAttachments(attachments);
     if (usesForeignUpload(uid, [url, adAttachments], [me.adUrl, me.adAttachments])) throw new ApiError(400, "Некорректная ссылка на файл");
     const updated = this.users.setAdContent(uid, {
-      adText: text.trim().slice(0, AD_TEXT_MAX),
+      adText: text.slice(0, AD_TEXT_MAX),
       adUrl: (url as string) || null,
       adAttachments,
     });
@@ -81,11 +80,11 @@ export class AdsCabinetService {
     if (!isAdminPhone(this.users.findById(uid)?.phone)) throw new ApiError(403, "Недостаточно прав");
 
     const { userId, active, days, forever } = dto;
-    const target = typeof userId === "string" ? this.users.findById(userId) : undefined;
+    const target = userId === undefined ? undefined : this.users.findById(userId);
     if (!target) throw new ApiError(404, "Пользователь не найден");
 
-    const grant = active !== false;
-    const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : adsPricing().days;
+    const grant = active;
+    const dayCount = days ?? adsPricing().days;
     if (grant) this.users.grantAdsDays(target.id, forever ? null : dayCount);
     else this.users.revokeAds(target.id);
 

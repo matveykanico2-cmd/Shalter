@@ -23,15 +23,15 @@ export class ProfileTrackService {
     const { url, name, size, mimeType, duration } = dto;
     const current = this.current(userId);
     // Только свой загруженный файл (уже добавленный трек можно поднять наверх повторно).
-    if (typeof url !== "string" || (!current.some((t) => t.url === url) && !(await isOwnUploadUrl(userId, url)))) {
+    if (!current.some((t) => t.url === url) && !(await isOwnUploadUrl(userId, url))) {
       throw new ApiError(400, "Загрузите файл через /api/uploads и передайте полученную ссылку");
     }
     const track: ProfileTrack = {
       url,
-      name: String(name ?? "Трек").slice(0, 200),
-      size: Number.isFinite(size) ? (size as number) : undefined,
-      mimeType: mimeType ? String(mimeType).slice(0, 120) : undefined,
-      duration: Number.isFinite(duration) && (duration as number) > 0 ? Math.round(duration as number) : undefined,
+      name,
+      size,
+      mimeType,
+      duration,
       at: new Date().toISOString(),
     };
     const tracks = [track, ...current.filter((t) => t.url !== url)];

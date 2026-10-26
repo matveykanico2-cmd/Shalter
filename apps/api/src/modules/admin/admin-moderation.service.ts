@@ -20,16 +20,15 @@ import type {
   BulkDeleteDto,
   DeleteUserDto,
   DeveloperDto,
+  ChatLookupQuery,
   DirectoryQuery,
   LabelUserDto,
-  LookupQuery,
   ReasonDto,
   ResetPasswordDto,
   VerifyDto,
 } from "./model/schemas/admin.schema.js";
 import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 
-const MAX_BAN_SEC = 10 * 365 * 24 * 3600;
 const BULK_DELETE_MAX = 100;
 const DIRECTORY_LIMIT = 100;
 
@@ -37,9 +36,8 @@ const DIRECTORY_LIMIT = 100;
 const formatBanUntil = (iso: string) =>
   new Date(iso).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** Причина действия модерации: до 500 символов, обязательна. */
-function requireReason(raw: unknown, error: string): string {
-  const reason = String(raw ?? "").trim().slice(0, 500);
+/** Причина действия модерации обязательна (обрезку до 500 символов делает схема). */
+function requireReason(reason: string, error: string): string {
   if (!reason) throw new ApiError(400, error);
   return reason;
 }
@@ -63,10 +61,9 @@ export class AdminModerationService {
   ) {}
 
   /** Группа, канал или бот по ссылке, @нику, id или коду приглашения. */
-  public lookupChat(uid: string, query: LookupQuery) {
+  public lookupChat(uid: string, query: ChatLookupQuery) {
     this.access.require(uid, "moderation");
-    const raw = String(query.q ?? "").trim();
-    const tail = raw.replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";
+    const tail = query.q.replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";
     const handle = tail.replace(/^@/, "");
     const chat = this.chats.findById(tail) ?? this.chats.findByUsername(handle) ?? this.chats.findByInviteCode(tail);
     if (!chat || chat.type === "dm" || chat.type === "bot") {
@@ -123,14 +120,10 @@ export class AdminModerationService {
     if (target.id === admin.id) throw new ApiError(400, "Нельзя заблокировать самого себя");
     this.access.assertOutranks(admin, target);
 
-    const banned = dto.banned !== false;
-    const reason = String(dto.reason ?? "").trim();
+    const { banned, reason, durationSec } = dto;
     if (banned && !reason) throw new ApiError(400, "Укажите причину блокировки — её увидит пользователь");
-    const durationSec = dto.durationSec ?? null;
-    if (durationSec !== null && !(Number.isSafeInteger(durationSec) && (durationSec as number) > 0 && (durationSec as number) <= MAX_BAN_SEC)) {
-      throw new ApiError(400, "Срок блокировки — целое число секунд, не больше 10 лет");
-    }
-    const until = banned && durationSec ? new Date(Date.now() + (durationSec as number) * 1000).toISOString() : null;
+    if (Number.isNaN(durationSec)) throw new ApiError(400, "Срок блокировки — целое число секунд, не больше 10 лет");
+    const until = banned && durationSec ? new Date(Date.now() + durationSec * 1000).toISOString() : null;
 
     const updated = (banned ? this.users.ban(target.id, reason, until) : this.users.unban(target.id))!;
     await this.access.notify(
@@ -148,7 +141,7 @@ export class AdminModerationService {
     const admin = this.access.require(uid, "moderation");
     const target = this.access.target(id);
     if (target.id !== admin.id) this.access.assertOutranks(admin, target);
-    const label = dto.label ? String(dto.label) : "";
+    const { label } = dto;
     if (label && !this.labels.findById(label)) throw new ApiError(400, "Неизвестная метка");
     const updated = this.users.setSafetyLabel(target.id, label)!;
     return { user: { ...userLabel(updated), safetyLabelAt: updated.safetyLabelAt || null } };
@@ -157,7 +150,7 @@ export class AdminModerationService {
   public async verifyUser(uid: string, id: string, dto: VerifyDto) {
     this.access.require(uid, "moderation");
     const target = this.access.target(id);
-    const verified = !!dto.verified;
+    const { verified } = dto;
     const updated = this.users.setVerified(target.id, verified)!;
     await this.access.notify(
       target.id,
@@ -171,7 +164,7 @@ export class AdminModerationService {
   public setDeveloper(uid: string, id: string, dto: DeveloperDto) {
     this.access.require(uid, "server");
     const target = this.access.target(id);
-    return { user: userLabel(this.users.setDeveloper(target.id, !!dto.developer)) };
+    return { user: userLabel(this.users.setDeveloper(target.id, dto.developer)) };
   }
 
   /** Удаление бота за нарушение: бот и его аккаунт, владельцу — уведомление с причиной. */
@@ -192,7 +185,7 @@ export class AdminModerationService {
   public async bulkDelete(uid: string, dto: BulkDeleteDto) {
     this.access.require(uid, "moderation");
     const reason = requireReason(dto.reason, "Укажите причину — она попадёт в журнал и придёт владельцам");
-    const items: unknown[] = Array.isArray(dto.items) ? dto.items : [];
+    const { items } = dto;
     if (!items.length) throw new ApiError(400, "Ничего не выбрано");
     if (items.length > BULK_DELETE_MAX) throw new ApiError(400, `Не больше ${BULK_DELETE_MAX} за раз`);
 
@@ -227,7 +220,7 @@ export class AdminModerationService {
     const chat = this.chats.findById(id);
     if (!chat) throw new ApiError(404, "Чат не найден");
     if (chat.type === "dm") throw new ApiError(400, "Верифицировать можно группы, каналы и аккаунты");
-    const updated = this.chats.update(chat.id, { isVerified: !!dto.verified })!;
+    const updated = this.chats.update(chat.id, { isVerified: dto.verified })!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
   }
@@ -259,10 +252,10 @@ export class AdminModerationService {
     if (target.id !== uid) this.access.assertOutranks(admin, target);
     this.access.assertConfirmed(target, dto.confirm);
     const reason = requireReason(dto.reason, "Укажите основание — оно попадёт в журнал");
-    const password = String(dto.password ?? "");
+    const { password } = dto;
     if (password.length < 6) throw new ApiError(400, "Пароль — не короче 6 символов");
 
-    const liftTwoFactor = dto.disableTwoFactor === true && !!target.twoFactorEnabled;
+    const liftTwoFactor = dto.disableTwoFactor && !!target.twoFactorEnabled;
     this.exports.log({
       adminId: uid,
       targetUserId: target.id,
@@ -286,8 +279,7 @@ export class AdminModerationService {
   /** Каталог аккаунтов, ботов, групп и каналов с поиском; первые 100 по алфавиту и сколько всего. */
   public directory(uid: string, query: DirectoryQuery) {
     this.access.require(uid, "moderation");
-    const type = typeof query.type === "string" && ["users", "bots", "groups", "channels"].includes(query.type) ? query.type : "users";
-    const q = String(query.q ?? "").trim().toLowerCase();
+    const { type, q } = query;
 
     if (type === "users" || type === "bots") {
       const wantBot = type === "bots";

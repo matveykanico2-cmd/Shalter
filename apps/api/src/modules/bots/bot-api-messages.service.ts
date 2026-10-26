@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { botMessaging, findOrCreateDm, isSafeUrl, typing, uploadAccess, type Attachment } from "../../legacy/legacy.js";
+import { botMessaging, findOrCreateDm, typing, uploadAccess, type Attachment } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
 import { GamesService } from "../games/games.service.js";
@@ -15,7 +15,7 @@ import { publicUser } from "../users/lib/user.presenter.js";
 import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { BotApiAccessService } from "./bot-api-access.service.js";
-import { audienceOf, str, timedId } from "./lib/bot-api.js";
+import { audienceOf, timedId } from "./lib/bot-api.js";
 import type { Bot } from "./model/domain.js";
 import type {
   ChatActionDto,
@@ -44,9 +44,7 @@ import type {
 } from "./model/schemas/bot-api.schema.js";
 import { NEW_DIALOGS_PER_HOUR, NewDialogsStore } from "./stores/new-dialogs.store.js";
 
-const LONG_POLL_MAX_SEC = 50;
 const LONG_POLL_STEP_MS = 250;
-const MEDIA_GROUP_KINDS = ["image", "video", "file", "voice", "video-note"];
 
 /** Текст есть и не пустой (`text?.trim()` в server/). */
 const hasText = (value: unknown): value is string => typeof value === "string" && !!value.trim();
@@ -69,9 +67,7 @@ export class BotApiMessagesService {
 
   /** Новые сообщения; timeout — long polling до 50 с, пока клиент на связи (isAlive). */
   public async updates(bot: Bot, query: UpdatesQueryDto, isAlive: () => boolean): Promise<{ messages: Message[] } | undefined> {
-    const after = str(query.after) || "1970-01-01T00:00:00.000Z";
-    const limit = Math.min(200, Math.max(1, Number(query.limit) || 200));
-    const timeoutSec = Math.min(LONG_POLL_MAX_SEC, Math.max(0, Number(query.timeout) || 0));
+    const { after, limit, timeout: timeoutSec } = query;
     const read = () => this.messages.listNewForBot(bot.userId, after, limit);
 
     let messages = read();
@@ -93,11 +89,9 @@ export class BotApiMessagesService {
   }
 
   public editText(bot: Bot, dto: EditTextDto) {
-    const text = dto.text;
-    if (!hasText(text)) throw new ApiError(400, "text is required");
     const found = this.access.ownMessage(bot, dto.messageId);
     if (found.message.forwardedFrom) throw new ApiError(400, "Forwarded messages can't be edited");
-    const message = this.messages.mutate(found.message.id, (m) => editText(m, text.slice(0, 4096)));
+    const message = this.messages.mutate(found.message.id, (m) => editText(m, dto.text.slice(0, 4096)));
     this.realtime.broadcastToUsers(audienceOf(found.chat, found.message), { type: "message:updated", chatId: found.chat.id, message });
     return { message };
   }
@@ -109,19 +103,18 @@ export class BotApiMessagesService {
   }
 
   public pin(bot: Bot, dto: PinDto) {
-    const message = this.messages.findById(str(dto.messageId));
+    const message = this.messages.findById(dto.messageId);
     if (!message) throw new ApiError(404, "Message not found");
     const chat = this.chats.findById(message.chatId);
     if (!chat || !chat.memberIds.includes(bot.userId)) throw new ApiError(404, "Bot is not a member of this chat");
     if (!(chat.adminIds ?? []).includes(bot.userId) && chat.type !== "dm") throw new ApiError(403, "Bot must be an admin to pin messages");
-    const pinned = dto.pinned === undefined ? true : !!dto.pinned;
-    const updated = this.messages.mutate(message.id, (m) => setPinned(m, pinned));
+    const updated = this.messages.mutate(message.id, (m) => setPinned(m, dto.pinned));
     this.realtime.broadcastToUsers(audienceOf(chat, message), { type: "message:updated", chatId: chat.id, message: updated });
     return { message: updated };
   }
 
   public unpin(bot: Bot, dto: MessageIdDto) {
-    const message = this.messages.findById(str(dto.messageId));
+    const message = this.messages.findById(dto.messageId);
     if (!message) throw new ApiError(404, "Message not found");
     const chat = this.access.memberChat(bot, message.chatId);
     if (!(chat.adminIds ?? []).includes(bot.userId) && chat.type !== "dm") throw new ApiError(403, "Bot must be an admin to unpin messages");
@@ -142,21 +135,18 @@ export class BotApiMessagesService {
   }
 
   public sendPhoto(bot: Bot, dto: SendFileDto) {
-    const { chatId, url, caption = "", replyToId } = dto;
-    this.checkFileUrl(url);
+    const { chatId, url, caption, replyToId } = dto;
     return this.access.send(bot, chatId, caption || "🖼", { replyToId, attachments: [{ kind: "image", url, name: "photo" }] });
   }
 
   public sendDocument(bot: Bot, dto: SendFileDto) {
-    const { chatId, url, name = "file", caption = "", replyToId } = dto;
-    this.checkFileUrl(url);
+    const { chatId, url, name = "file", caption, replyToId } = dto;
     return this.access.send(bot, chatId, caption || `📎 ${name as string}`, { replyToId, attachments: [{ kind: "file", url, name }] });
   }
 
   /** Видео, голосовое, кружок; durationSec сохраняется у голосовых и кружков (sanitizeAttachments). */
   public sendMedia(bot: Bot, kind: string, defaultText: string, dto: SendFileDto) {
-    const { chatId, url, caption = "", name, replyToId, durationSec } = dto;
-    this.checkFileUrl(url);
+    const { chatId, url, caption, name, replyToId, durationSec } = dto;
     return this.access.send(bot, chatId, caption || defaultText, {
       replyToId,
       attachments: [{ kind, url, name: name ? String(name).slice(0, 200) : undefined, durationSec }],
@@ -164,57 +154,39 @@ export class BotApiMessagesService {
   }
 
   public sendMediaGroup(bot: Bot, dto: MediaGroupDto) {
-    const { chatId, items, caption = "", replyToId } = dto;
-    const list = (Array.isArray(items) ? (items as { url?: unknown; kind?: unknown; name?: unknown }[]) : [])
-      .filter((i) => i && typeof i.url === "string" && i.url)
-      .slice(0, 10)
-      .map((i) => ({
-        kind: MEDIA_GROUP_KINDS.includes(i.kind as string) ? i.kind : "image",
-        url: i.url as string,
-        name: String(i.name ?? i.kind ?? "file").slice(0, 120),
-      }));
-    if (!list.length) throw new ApiError(400, "items is required");
-    if (list.some((i) => !isSafeUrl(i.url))) throw new ApiError(400, "Некорректная ссылка на файл");
-    return this.access.send(bot, chatId, caption || "🖼", { replyToId, attachments: list });
+    const { chatId, items, caption, replyToId } = dto;
+    return this.access.send(bot, chatId, caption || "🖼", { replyToId, attachments: items });
   }
 
   public sendLocation(bot: Bot, dto: SendLocationDto) {
-    const { chatId, lat, lng, caption = "", replyToId } = dto;
-    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) throw new ApiError(400, "lat and lng are required");
+    const { chatId, lat, lng, caption, replyToId } = dto;
     return this.access.send(bot, chatId, caption || "📍 Место", {
       replyToId,
-      attachments: [{ kind: "location", meta: { lat: Number(lat), lng: Number(lng) } }],
+      attachments: [{ kind: "location", meta: { lat, lng } }],
     });
   }
 
   public sendContact(bot: Bot, dto: SendContactDto) {
     const { chatId, name, phone, userId, replyToId } = dto;
-    if (!name && !phone) throw new ApiError(400, "name or phone is required");
     return this.access.send(bot, chatId, `👤 ${(name ?? phone) as string}`, { replyToId, attachments: [{ kind: "contact", meta: { name, phone, userId } }] });
   }
 
   public sendPoll(bot: Bot, dto: SendPollDto) {
     const { chatId, question, options, replyToId } = dto;
-    const list = (Array.isArray(options) ? options : [])
-      .map((o) => String(o).slice(0, 120))
-      .filter(Boolean)
-      .slice(0, 8);
-    if (!hasText(question)) throw new ApiError(400, "question is required");
-    if (list.length < 2) throw new ApiError(400, "at least two options are required");
     return this.access.send(bot, chatId, question, {
       replyToId,
-      attachments: [{ kind: "poll", meta: { options: list, votes: list.map(() => 0), voterIds: list.map(() => []) } }],
+      attachments: [{ kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []) } }],
     });
   }
 
   /** Карточка игры в чат: «▶ Играть» и рекорды этого чата. */
   public sendGame(bot: Bot, dto: SendGameDto) {
-    const game = this.games.find(str(dto.gameId));
+    const game = this.games.find(dto.gameId);
     if (!game) throw new ApiError(404, "Game not found");
     if (!game.builtin && !game.isPublic && game.ownerId !== bot.ownerId) throw new ApiError(403, "Game is private");
     return this.access.send(
       bot,
-      str(dto.chatId),
+      dto.chatId,
       `🎮 ${game.title}`,
       { attachments: [{ kind: "game", meta: { gameId: game.id, title: game.title, emoji: game.emoji || "🎮", description: game.description || "" } }] },
       400
@@ -223,7 +195,6 @@ export class BotApiMessagesService {
 
   public async sendSticker(bot: Bot, dto: SendStickerDto) {
     const { chatId, emoji, name, scene, replyToId } = dto;
-    if (!emoji) throw new ApiError(400, "emoji is required");
     const chat = this.access.memberChat(bot, chatId);
     // Те же проверки, что у sendMessage: блокировка в личке и права в канале.
     await this.access.assertMayPost(bot, chat);
@@ -235,7 +206,7 @@ export class BotApiMessagesService {
       text: "",
       createdAt: new Date().toISOString(),
       replyToId: (replyToId as string | undefined) ?? null,
-      sticker: { emoji: String(emoji).slice(0, 8), name: name ? String(name).slice(0, 60) : undefined, scene: scene ? String(scene).slice(0, 40) : undefined },
+      sticker: { emoji, name, scene },
       readByIds: [],
     });
     this.realtime.broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message });
@@ -243,11 +214,10 @@ export class BotApiMessagesService {
   }
 
   public react(bot: Bot, dto: SendReactionDto) {
-    if (!dto.emoji) throw new ApiError(400, "emoji is required");
-    const target = this.messages.findById(str(dto.messageId));
+    const target = this.messages.findById(dto.messageId);
     if (!target) throw new ApiError(404, "Message not found");
     const chat = this.access.memberChat(bot, target.chatId);
-    const emoji = cleanReaction(String(dto.emoji).slice(0, 8));
+    const emoji = cleanReaction(dto.emoji);
     const message = emoji ? this.messages.mutate(target.id, (m) => toggleReaction(m, emoji, bot.userId, Infinity)) : this.messages.findById(target.id);
     this.realtime.broadcastToUsers(audienceOf(chat, target), { type: "message:updated", chatId: chat.id, message });
     return { message };
@@ -255,7 +225,7 @@ export class BotApiMessagesService {
 
   /** Удаление любого сообщения ботом-админом. */
   public deleteAny(bot: Bot, dto: MessageIdDto) {
-    const target = this.messages.findById(str(dto.messageId));
+    const target = this.messages.findById(dto.messageId);
     if (!target) throw new ApiError(404, "Message not found");
     const chat = this.access.adminChat(bot, target.chatId);
     this.remove(chat, target);
@@ -263,7 +233,7 @@ export class BotApiMessagesService {
   }
 
   public async forward(bot: Bot, dto: ForwardDto) {
-    const source = this.messages.findById(str(dto.messageId));
+    const source = this.messages.findById(dto.messageId);
     if (!source) throw new ApiError(404, "Message not found");
     const from = this.access.memberChat(bot, source.chatId);
     if (from.protectedBy?.length) throw new ApiError(403, "Forwarding is disabled in this chat");
@@ -287,7 +257,7 @@ export class BotApiMessagesService {
   }
 
   public copy(bot: Bot, dto: CopyDto) {
-    const source = this.messages.findById(str(dto.messageId));
+    const source = this.messages.findById(dto.messageId);
     if (!source) throw new ApiError(404, "Message not found");
     const sourceChat = this.chats.findById(source.chatId);
     if (!sourceChat || !sourceChat.memberIds.includes(bot.userId)) throw new ApiError(404, "Bot is not a member of that chat");
@@ -296,7 +266,7 @@ export class BotApiMessagesService {
   }
 
   public get(bot: Bot, query: MessageIdQueryDto) {
-    const message = this.messages.findById(str(query.messageId));
+    const message = this.messages.findById(query.messageId);
     if (!message) throw new ApiError(404, "Message not found");
     this.access.memberChat(bot, message.chatId);
     return { message };
@@ -304,14 +274,13 @@ export class BotApiMessagesService {
 
   public list(bot: Bot, query: ChatMessagesQueryDto) {
     const chat = this.access.memberChat(bot, query.chatId);
-    const limit = Math.min(200, Math.max(1, Number(query.limit) || 60));
-    const page = this.messages.findPage(chat.id, bot.userId, undefined, { limit, before: str(query.before) || null, beforeId: null });
+    const page = this.messages.findPage(chat.id, bot.userId, undefined, { limit: query.limit, before: query.before, beforeId: null });
     return { messages: page.messages, hasMore: page.hasMore };
   }
 
   public search(bot: Bot, query: ChatMessagesQueryDto) {
     const chat = this.access.memberChat(bot, query.chatId);
-    const q = str(query.q).trim().toLowerCase();
+    const { q } = query;
     if (!q) throw new ApiError(400, "q is required");
     const found = this.messages.listFeed(chat.id, bot.userId).filter((m) => (m.text ?? "").toLowerCase().includes(q));
     return { messages: found.slice(-50) };
@@ -358,7 +327,7 @@ export class BotApiMessagesService {
   }
 
   public cancelScheduled(bot: Bot, dto: CancelScheduledDto) {
-    const item = this.scheduled.find(str(dto.scheduledId));
+    const item = this.scheduled.find(dto.scheduledId);
     if (!item || item.senderId !== bot.userId) throw new ApiError(404, "Not found");
     this.scheduled.remove(item.id);
     return { ok: true };
@@ -366,17 +335,17 @@ export class BotApiMessagesService {
 
   /** Пост в канал, где бот — админ: текст и/или картинка по ссылке. */
   public publishPost(bot: Bot, dto: PublishPostDto) {
-    const chat = this.chats.findById(str(dto.chatId));
+    const chat = this.chats.findById(dto.chatId);
     if (!chat || chat.type !== "channel") throw new ApiError(404, "Channel not found");
     if (!(chat.adminIds ?? []).includes(bot.userId)) throw new ApiError(403, "Bot must be an admin of this channel");
-    const { text = "", url } = dto;
-    if (!String(text).trim() && !url) throw new ApiError(400, "text or url is required");
+    const { text, url } = dto;
+    if (!text.trim() && !url) throw new ApiError(400, "text or url is required");
     const post = this.messages.create({
       id: genId("m"),
       chatId: chat.id,
       senderId: bot.userId,
       type: "text",
-      text: String(text).slice(0, 4000),
+      text: text.slice(0, 4000),
       createdAt: new Date().toISOString(),
       attachments: url ? [{ kind: "image", url } as Attachment] : undefined,
       readByIds: [bot.userId],
@@ -391,9 +360,7 @@ export class BotApiMessagesService {
   /** Бот пишет человеку первым: не больше 20 новых разговоров в час, с учётом приватности. */
   public async messageToUser(bot: Bot, dto: MessageToUserDto) {
     const { username, userId, text, keyboard } = dto;
-    if (!hasText(text)) throw new ApiError(400, "text is required");
-
-    const target = userId ? this.users.findById(String(userId)) : this.users.findByUsername(str(username).replace(/^@/, ""));
+    const target = userId ? this.users.findById(userId) : this.users.findByUsername(username);
     if (!target) throw new ApiError(404, "Пользователь не найден");
 
     if (target.isBot) throw new ApiError(403, "Ботам боты не пишут");
@@ -406,11 +373,6 @@ export class BotApiMessagesService {
     const chat = existing ?? (await findOrCreateDm(bot.userId, target.id));
     const message = await botMessaging().sendBotMessage(bot.userId, chat.id, text, { keyboard });
     return { chatId: chat.id, message, user: publicUser(target) };
-  }
-
-  private checkFileUrl(url: unknown): void {
-    if (!url) throw new ApiError(400, "url is required");
-    if (!isSafeUrl(url)) throw new ApiError(400, "Некорректная ссылка на файл");
   }
 
   /** Удаление у всех: файлы, на которые больше никто не ссылается, перестают быть доступны. */

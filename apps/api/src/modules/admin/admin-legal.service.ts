@@ -4,7 +4,7 @@ import { buildUserExport } from "../../legacy/legacy.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminAccessService } from "./admin-access.service.js";
 import { DataExportsRepository } from "./data-exports.repository.js";
-import type { ExportDto, LookupQuery } from "./model/schemas/admin.schema.js";
+import type { ExportDto, LegalLookupQuery } from "./model/schemas/admin.schema.js";
 
 // Юридический отдел (раздел «legal», server/routes/admin.js): поиск аккаунта, выгрузка его
 // данных по адресному запросу с записью в журнал, сам журнал.
@@ -17,9 +17,8 @@ export class AdminLegalService {
   ) {}
 
   /** По id, @нику, номеру или почте. */
-  public lookup(uid: string, query: LookupQuery) {
+  public lookup(uid: string, { q }: LegalLookupQuery) {
     this.access.require(uid, "legal");
-    const q = typeof query.q === "string" ? query.q.trim() : "";
     const target = q
       ? (this.users.findById(q) ?? this.users.findByUsername(q.replace(/^@/, "")) ?? this.users.findByPhone(q) ?? this.users.findByEmail(q))
       : undefined;
@@ -30,12 +29,12 @@ export class AdminLegalService {
   public async export(uid: string, dto: ExportDto) {
     const admin = this.access.require(uid, "legal");
     const { reason } = dto;
-    if (!reason || !String(reason).trim()) {
+    if (!reason) {
       throw new ApiError(400, "Укажите основание (номер дела / реквизиты постановления) — оно записывается в журнал");
     }
     const target = this.access.target(dto.userId);
     const data = (await buildUserExport(target.id, {})) as { stats: { messageCount: number } };
-    const log = this.exports.log({ adminId: admin.id, targetUserId: target.id, reason: String(reason).trim(), messageCount: data.stats.messageCount });
+    const log = this.exports.log({ adminId: admin.id, targetUserId: target.id, reason, messageCount: data.stats.messageCount });
     return { exportId: log.id, data };
   }
 

@@ -6,15 +6,19 @@ import { BotTokenGuard, CurrentBot } from "./guards/bot-token.guard.js";
 import type { Bot } from "./model/domain.js";
 import {
   checkWebAppSchema,
+  resolveUsernameQuerySchema,
   setAvatarSchema,
   setCommandsSchema,
   setProfileSchema,
+  setWebAppCodeSchema,
   setWebAppSchema,
   userQuerySchema,
   type CheckWebAppDto,
+  type ResolveUsernameQueryDto,
   type SetAvatarDto,
   type SetCommandsDto,
   type SetProfileDto,
+  type SetWebAppCodeDto,
   type SetWebAppDto,
   type UserQueryDto,
 } from "./model/schemas/bot-api.schema.js";
@@ -63,7 +67,7 @@ export class BotApiProfileController {
 
   @Post("setWebAppCode")
   @HttpCode(200)
-  public setWebAppCode(@CurrentBot() bot: Bot, @Req() req: Request, @Body(new ZodValidationPipe(setWebAppSchema)) dto: SetWebAppDto) {
+  public setWebAppCode(@CurrentBot() bot: Bot, @Req() req: Request, @Body(new ZodValidationPipe(setWebAppCodeSchema)) dto: SetWebAppCodeDto) {
     return this.profile.setWebAppCode(bot, originOf(req), dto);
   }
 
@@ -84,7 +88,7 @@ export class BotApiProfileController {
   }
 
   @Get("resolveUsername")
-  public resolveUsername(@CurrentBot() bot: Bot, @Query(new ZodValidationPipe(userQuerySchema)) query: UserQueryDto) {
+  public resolveUsername(@CurrentBot() bot: Bot, @Query(new ZodValidationPipe(resolveUsernameQuerySchema)) query: ResolveUsernameQueryDto) {
     return this.profile.resolveUsername(bot, query);
   }
 

@@ -35,11 +35,10 @@ export class UsernameMarketService {
     return { listings: alive, balance: this.stars.balanceOf(userId) };
   }
 
-  public create(userId: string, dto: ListingDto) {
+  public create(userId: string, { priceStars }: ListingDto) {
     const username = normalizeUsername(this.users.findById(userId)?.username);
     if (!username) throw new ApiError(400, "Сначала займите юзернейм — продавать нечего");
 
-    const priceStars = Math.round(Number(dto.priceStars));
     if (!Number.isFinite(priceStars) || priceStars < MIN_LISTING_STARS) throw new ApiError(400, `Цена — от ${MIN_LISTING_STARS} ⭐`);
     if (this.listings.findOpenByUsername(username)) throw new ApiError(409, "Этот юзернейм уже выставлен");
     if (this.auctions.findOpenByUsername(username)) throw new ApiError(409, "Этот юзернейм сейчас на аукционе");

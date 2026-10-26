@@ -8,20 +8,7 @@ import { FoldersRepository } from "./folders.repository.js";
 import type { Folder } from "./model/domain.js";
 import type { CreateFolderDto, PatchFolderDto } from "./model/schemas/folder.schema.js";
 
-const MAX_FOLDER_NAME = 32;
-const MAX_FOLDER_CHATS = 500;
 const INVALID_LINK = "Ссылка недействительна или отозвана";
-
-function cleanFolderName(raw: unknown): string | null {
-  const name = typeof raw === "string" ? raw.trim().slice(0, MAX_FOLDER_NAME) : "";
-  return name || null;
-}
-
-function cleanChatIds(raw: unknown): string[] | null {
-  if (raw == null) return [];
-  if (!Array.isArray(raw) || !raw.every((id) => typeof id === "string")) return null;
-  return [...new Set(raw as string[])].slice(0, MAX_FOLDER_CHATS);
-}
 
 // Папки чатов и ссылки-приглашения в них (/api/folders) — как server/routes/folders.js.
 @Injectable()
@@ -36,30 +23,25 @@ export class FoldersService {
     return { folders: this.folders.findForOwner(uid) };
   }
 
-  public create(uid: string, { name: rawName, chatIds: rawIds }: CreateFolderDto) {
-    const name = cleanFolderName(rawName);
-    if (!name) throw new ApiError(400, "Введите название папки");
-    const chatIds = cleanChatIds(rawIds);
-    if (!chatIds) throw new ApiError(400, "Некорректный список чатов");
+  public create(uid: string, { name, chatIds }: CreateFolderDto) {
     return { folder: this.createFor(uid, name, chatIds) };
   }
 
-  public update(uid: string, id: string, body: PatchFolderDto) {
+  /** Поля уже очищены схемой; null — переданное неверное значение. */
+  public update(uid: string, id: string, { name, chatIds, order }: PatchFolderDto) {
     this.ownFolder(uid, id);
     const patch: { name?: string; chatIds?: string[]; order?: number } = {};
-    if ("name" in body) {
-      const name = cleanFolderName(body.name);
-      if (!name) throw new ApiError(400, "Введите название папки");
+    if (name !== undefined) {
+      if (name === null) throw new ApiError(400, "Введите название папки");
       patch.name = name;
     }
-    if ("chatIds" in body) {
-      const chatIds = cleanChatIds(body.chatIds);
-      if (!chatIds) throw new ApiError(400, "Некорректный список чатов");
+    if (chatIds !== undefined) {
+      if (chatIds === null) throw new ApiError(400, "Некорректный список чатов");
       patch.chatIds = chatIds;
     }
-    if ("order" in body) {
-      if (!Number.isInteger(body.order)) throw new ApiError(400, "Некорректный порядок");
-      patch.order = body.order as number;
+    if (order !== undefined) {
+      if (order === null) throw new ApiError(400, "Некорректный порядок");
+      patch.order = order;
     }
     return { folder: this.folders.update(id, patch) };
   }

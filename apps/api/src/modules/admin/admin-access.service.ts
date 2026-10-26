@@ -32,9 +32,8 @@ export class AdminAccessService {
     return user;
   }
 
-  /** Подтверждение опасного действия: @ник или id цели. */
-  public assertConfirmed(target: User, confirm: unknown): void {
-    const typed = String(confirm ?? "").trim().replace(/^@/, "").toLowerCase();
+  /** Подтверждение опасного действия: @ник или id цели (typed — без «@», в нижнем регистре). */
+  public assertConfirmed(target: User, typed: string): void {
     if (typed !== (target.username || target.id).toLowerCase()) {
       throw new ApiError(400, `Для подтверждения введите @${target.username || target.id}`);
     }

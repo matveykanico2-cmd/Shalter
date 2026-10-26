@@ -19,10 +19,10 @@ export class OAuthService {
   /** Ошибки — в виде OAuth (invalid_client, invalid_grant). */
   public token(dto: TokenDto) {
     const { client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri } = dto;
-    const app = clientId ? this.oauth.findByClientId(String(clientId)) : undefined;
+    const app = clientId === undefined ? undefined : this.oauth.findByClientId(clientId);
     if (!app || !sameSecret(app.clientSecret, clientSecret)) throw new ApiError(401, "invalid_client");
     if (!isAllowedRedirectUri(app.redirectUri)) throw new ApiError(400, "invalid_grant");
-    const redeemed = this.oauth.redeemCode(String(code ?? ""), app.clientId, String(redirectUri ?? ""));
+    const redeemed = this.oauth.redeemCode(code, app.clientId, redirectUri);
     if (!redeemed) throw new ApiError(400, "invalid_grant");
 
     const user = this.users.findById(redeemed.userId);
@@ -46,19 +46,20 @@ export class OAuthService {
    * имя и только при точном совпадении client_id и redirect_uri.
    */
   public appInfo(query: AppInfoQueryDto) {
-    const app = this.oauth.findByClientId(String(query.client_id ?? ""));
+    const app = this.oauth.findByClientId(query.client_id);
     if (!app || app.redirectUri !== query.redirect_uri || !isAllowedRedirectUri(app.redirectUri)) throw new ApiError(404, NOT_FOUND);
     return { name: app.name };
   }
 
   public authorize(uid: string, dto: AuthorizeDto) {
     const { client_id: clientId, redirect_uri: redirectUri, state } = dto;
-    const app = clientId ? this.oauth.findByClientId(String(clientId)) : undefined;
+    const app = clientId === undefined ? undefined : this.oauth.findByClientId(clientId);
     if (!app || app.redirectUri !== redirectUri || !isAllowedRedirectUri(app.redirectUri)) throw new ApiError(404, NOT_FOUND);
-    const code = this.oauth.createCode(app.clientId, uid, String(redirectUri));
-    const url = new URL(String(redirectUri));
+    // redirect_uri уже совпал с адресом приложения.
+    const code = this.oauth.createCode(app.clientId, uid, app.redirectUri);
+    const url = new URL(app.redirectUri);
     url.searchParams.set("code", code);
-    if (state) url.searchParams.set("state", String(state));
+    if (state !== undefined) url.searchParams.set("state", state);
     return { redirectUrl: url.toString() };
   }
 
@@ -66,16 +67,7 @@ export class OAuthService {
     return { apps: this.oauth.listByOwner(uid) };
   }
 
-  public createApp(uid: string, dto: CreateAppDto) {
-    const name = dto.name.trim();
-    const redirectUri = dto.redirectUri.trim();
-    if (!name) throw new ApiError(400, "Укажите название приложения");
-    try {
-      new URL(redirectUri);
-    } catch {
-      throw new ApiError(400, "redirect_uri должен быть полным адресом (https://...)");
-    }
-    if (!isAllowedRedirectUri(redirectUri)) throw new ApiError(400, "redirect_uri должен быть https:// (кроме localhost для разработки)");
+  public createApp(uid: string, { name, redirectUri }: CreateAppDto) {
     return { app: this.oauth.createApp(uid, name, redirectUri) };
   }
 

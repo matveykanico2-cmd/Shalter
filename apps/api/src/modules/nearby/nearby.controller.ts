@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { AuthGuard } from "../auth/guards/auth.guard.js";
 import { GeoService } from "./geo.service.js";
-import { coordsSchema, type CoordsDto } from "./model/schemas/nearby.schema.js";
+import { coordsQuerySchema, coordsSchema, type CoordsDto, type CoordsQuery } from "./model/schemas/nearby.schema.js";
 import { NearbyService } from "./nearby.service.js";
 
 @Controller("api/nearby")
@@ -18,8 +18,8 @@ export class NearbyController {
   }
 
   @Get()
-  public look(@Req() req: Request, @Query("lat") lat: unknown, @Query("lng") lng: unknown) {
-    return this.nearby.look(req.uid!, lat, lng);
+  public look(@Req() req: Request, @Query(new ZodValidationPipe(coordsQuerySchema)) query: CoordsQuery) {
+    return this.nearby.look(req.uid!, query.lat, query.lng);
   }
 
   @Delete()

@@ -8,7 +8,8 @@ import { SecretChatGuard } from "./guards/secret-chat.guard.js";
 import type { Chat } from "./model/domain.js";
 import {
   clearSchema,
-  createCommunitySchema,
+  createChannelSchema,
+  createGroupSchema,
   createDmSchema,
   createSecretSchema,
   deleteChatSchema,
@@ -65,13 +66,13 @@ export class ChatsController {
 
   @Post("channels")
   @HttpCode(200)
-  public createChannel(@Req() req: Request, @Body(new ZodValidationPipe(createCommunitySchema)) dto: CreateCommunityDto) {
+  public createChannel(@Req() req: Request, @Body(new ZodValidationPipe(createChannelSchema)) dto: CreateCommunityDto) {
     return this.chats.createChannel(req.uid!, dto);
   }
 
   @Post("groups")
   @HttpCode(200)
-  public createGroup(@Req() req: Request, @Body(new ZodValidationPipe(createCommunitySchema)) dto: CreateCommunityDto) {
+  public createGroup(@Req() req: Request, @Body(new ZodValidationPipe(createGroupSchema)) dto: CreateCommunityDto) {
     return this.chats.createGroup(req.uid!, dto);
   }
 

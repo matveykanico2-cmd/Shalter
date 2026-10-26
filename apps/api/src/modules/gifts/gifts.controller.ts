@@ -8,15 +8,17 @@ import {
   catalogGiftSchema,
   pinGiftSchema,
   sceneSchema,
+  createUserGiftSchema,
+  patchUserGiftSchema,
   sendGiftSchema,
   supplySchema,
-  userGiftSchema,
   type CatalogGiftDto,
   type PinGiftDto,
   type SceneDto,
   type SendGiftDto,
   type SupplyDto,
-  type UserGiftDto,
+  type CreateUserGiftDto,
+  type PatchUserGiftDto,
 } from "./model/schemas/gift.schema.js";
 
 @Controller("api/gifts")
@@ -114,12 +116,12 @@ export class GiftsController {
 
   @Post("custom")
   @HttpCode(200)
-  public createCustom(@Req() req: Request, @Body(new ZodValidationPipe(userGiftSchema)) dto: UserGiftDto) {
+  public createCustom(@Req() req: Request, @Body(new ZodValidationPipe(createUserGiftSchema)) dto: CreateUserGiftDto) {
     return this.gifts.createCustom(req.uid!, dto);
   }
 
   @Patch("custom/:id")
-  public patchCustom(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(userGiftSchema)) dto: UserGiftDto) {
+  public patchCustom(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(patchUserGiftSchema)) dto: PatchUserGiftDto) {
     return this.gifts.patchCustom(req.uid!, id, dto);
   }
 

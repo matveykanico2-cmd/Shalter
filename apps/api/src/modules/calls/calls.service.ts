@@ -15,11 +15,7 @@ import type { Call, CallPatch } from "./model/domain.js";
 import type { CreateCallDto, PatchCallDto } from "./model/schemas/call.schema.js";
 
 const MAX_RING_ALL = 12;
-const ALLOWED_CALL_STATUSES = new Set<unknown>(["ongoing", "ended", "missed", "completed", "declined"]);
 const FINISHED_CALL_STATUSES = new Set<unknown>(["ended", "missed", "completed", "declined"]);
-// Через POST /api/calls — только обычные звонки; голосовой чат группы («voice-room»)
-// создаётся своим маршрутом /room/:chatId/join. Клиент (chatView.js) шлёт «audio».
-const CALL_KINDS = new Set<unknown>(["audio", "voice", "video"]);
 
 type ColdCallCharge = { ok: true; charged: number } | { ok: false; price: number; balance: number };
 
@@ -66,8 +62,7 @@ export class CallsService {
   }
 
   public async create(uid: string, { chatId, kind, ringAll }: CreateCallDto) {
-    if (!CALL_KINDS.has(kind)) throw new ApiError(400, "Некорректный вид звонка");
-    const chat = typeof chatId === "string" ? this.chats.findById(chatId) : undefined;
+    const chat = chatId === undefined ? undefined : this.chats.findById(chatId);
     if (!chat || !chat.memberIds.includes(uid)) throw new ApiError(404, "not found");
     // Иначе «звонок» в канал обзванивал бы всех подписчиков разом.
     if (chat.type === "channel") throw new ApiError(400, "В канал позвонить нельзя");
@@ -100,7 +95,7 @@ export class CallsService {
     const call = this.calls.create({
       id: genId("cl"),
       chatId: chat.id,
-      kind: kind as string,
+      kind,
       direction: "outgoing",
       callerId: uid,
       participantIds: ringIds ?? (chat.type === "group" ? [uid] : chat.memberIds),
@@ -113,12 +108,12 @@ export class CallsService {
     return { call };
   }
 
-  public async patch(uid: string, id: string, dto: PatchCallDto) {
+  public async patch(uid: string, id: string, { status, durationSec }: PatchCallDto) {
     const existing = this.participantCall(id, uid);
 
     // Не звонящий «завершает» групповой звонок на 3+ — на деле выходит, звонок продолжается.
     if (
-      FINISHED_CALL_STATUSES.has(dto.status) &&
+      FINISHED_CALL_STATUSES.has(status) &&
       existing.status === "ongoing" &&
       existing.kind !== "voice-room" &&
       existing.callerId !== uid &&
@@ -128,10 +123,10 @@ export class CallsService {
     }
 
     // Завершённый звонок обратно не «оживить» — иначе он снова висел бы активным.
-    if (dto.status === "ongoing" && existing.status !== "ongoing") throw new ApiError(400, "Звонок уже завершён");
+    if (status === "ongoing" && existing.status !== "ongoing") throw new ApiError(400, "Звонок уже завершён");
     const patch: CallPatch = {};
-    if (ALLOWED_CALL_STATUSES.has(dto.status)) patch.status = dto.status as string;
-    if (Number.isFinite(dto.durationSec)) patch.durationSec = Math.max(0, Math.floor(dto.durationSec as number));
+    if (status !== undefined) patch.status = status;
+    if (durationSec !== undefined) patch.durationSec = durationSec;
     if (!Object.keys(patch).length) return { call: existing };
 
     const call = this.calls.update(id, patch);

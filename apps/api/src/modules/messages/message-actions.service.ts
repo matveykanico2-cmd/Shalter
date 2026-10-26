@@ -61,7 +61,7 @@ export class MessageActionsService {
    * админы канала в его обсуждении, любой из двоих в личке и модераторы Shalter.
    */
   public async remove(uid: string, chatId: string, messageId: string, dto: DeleteMessageDto) {
-    const forEveryone = !!dto.forEveryone;
+    const { forEveryone } = dto;
     const found = this.access.messageInChat(chatId, messageId, uid, { allowModerator: forEveryone });
     const existing = found.message;
     // Подарок удалить нельзя: запись о нём — часть истории чата. Для всех, включая модераторов.
@@ -166,18 +166,15 @@ export class MessageActionsService {
 
     const { MAX_CHECKLIST_ITEMS } = sanitizers();
     let message: Message | undefined;
-    if (Array.isArray(dto.add)) {
+    if (dto.add) {
       if (!author && !list.meta?.othersCanAdd) throw new ApiError(403, "Добавлять пункты может только автор");
-      const texts = dto.add
-        .map((t) => String(t ?? "").trim().slice(0, 200))
-        .filter(Boolean)
-        .slice(0, MAX_CHECKLIST_ITEMS);
+      const texts = dto.add.slice(0, MAX_CHECKLIST_ITEMS);
       if (!texts.length) throw new ApiError(400, "Введите текст пункта");
       if ((list.meta?.items?.length ?? 0) >= MAX_CHECKLIST_ITEMS) throw new ApiError(400, `Не больше ${MAX_CHECKLIST_ITEMS} пунктов`);
       message = this.messages.mutate(found.message.id, (m) => edits.addChecklistItems(m, texts, MAX_CHECKLIST_ITEMS));
     } else {
       if (!author && list.meta?.othersCanMark === false) throw new ApiError(403, "Отмечать пункты может только автор");
-      const itemId = Number(dto.itemId);
+      const { itemId } = dto;
       if (!list.meta?.items?.some((it: { id: number }) => it.id === itemId)) throw new ApiError(404, "Пункт не найден");
       message = this.messages.mutate(found.message.id, (m) => edits.toggleChecklistItem(m, itemId, uid));
     }
@@ -187,9 +184,7 @@ export class MessageActionsService {
 
   /** Новая точка живой геолокации; обновляет только автор, событие — всем участникам. */
   public location(uid: string, chat: Chat, messageId: string, dto: LocationDto) {
-    const lat = Number(dto.lat);
-    const lng = Number(dto.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new ApiError(400, "invalid coordinates");
+    const { lat, lng } = dto;
     const target = this.messages.findById(messageId);
     if (!target || target.chatId !== chat.id) throw new ApiError(404, "not found");
     const message = this.messages.mutate(messageId, (m) => edits.updateLiveLocation(m, uid, lat, lng));

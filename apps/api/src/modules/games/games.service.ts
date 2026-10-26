@@ -6,7 +6,7 @@ import { ChatsRepository } from "../chats/chats.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { GamesRepository } from "./games.repository.js";
 import { builtinCards, builtinGame, BUILTIN_GAMES, isBuiltinId } from "./lib/game.mapper.js";
-import { MAX_GAME_CODE, MAX_SCORE, parseScore } from "./lib/game-rules.js";
+import { MAX_SCORE } from "./lib/game-rules.js";
 import type { Game } from "./model/domain.js";
 import type { CreateGameDto, GameMetaDto, ScoreDto } from "./model/schemas/game.schema.js";
 
@@ -48,8 +48,7 @@ export class GamesService {
     return [...builtinCards(BUILTIN_GAMES.filter(hit)), ...this.games.search(needle, userId, limit)].slice(0, limit);
   }
 
-  public list(uid: string, query: unknown) {
-    const q = String(query ?? "").trim();
+  public list(uid: string, q: string) {
     return { games: q ? this.search(q, uid, 50) : this.catalog() };
   }
 
@@ -65,12 +64,8 @@ export class GamesService {
   }
 
   public create(uid: string, dto: CreateGameDto) {
-    const title = dto.title.trim().slice(0, 64);
-    const code = dto.code;
-    if (!title) throw new ApiError(400, "Введите название игры");
-    if (code.length > MAX_GAME_CODE) throw new ApiError(400, "Игра слишком большая (до 512 КБ)");
-    const emoji = [...dto.emoji.trim()].slice(0, 2).join("") || "🎮";
-    const game = { title, code, emoji, description: dto.description.trim().slice(0, 200), isPublic: !!dto.isPublic };
+    const { title, code, emoji, description, isPublic } = dto;
+    const game = { title, code, emoji, description, isPublic };
     if (usesForeignUpload(uid, game.code)) throw new ApiError(400, "Некорректная ссылка на файл");
     if (this.games.listByOwner(uid).length >= MAX_OWN_GAMES) throw new ApiError(400, "Не больше 50 своих игр");
     return { game: this.games.save({ id: genId("g"), ownerId: uid, ...game }) };
@@ -79,10 +74,10 @@ export class GamesService {
   /** Частичное обновление: поле, которого нет в теле, остаётся прежним. */
   public updateMeta(uid: string, id: string, b: GameMetaDto) {
     const game = this.ownGame(uid, id);
-    const title = b.title !== undefined ? String(b.title ?? "").trim().slice(0, 64) : game.title;
-    const emoji = b.emoji !== undefined ? [...String(b.emoji ?? "").trim()].slice(0, 2).join("") || "🎮" : game.emoji;
-    const description = b.description !== undefined ? String(b.description ?? "").trim().slice(0, 200) : (game.description ?? "");
-    const isPublic = b.isPublic !== undefined ? !!b.isPublic : !!game.isPublic;
+    const title = b.title ?? game.title;
+    const emoji = b.emoji ?? game.emoji;
+    const description = b.description ?? game.description ?? "";
+    const isPublic = b.isPublic ?? !!game.isPublic;
     if (!title) throw new ApiError(400, "Введите название игры");
     return { game: this.games.updateMeta(game.id, { title, description, emoji, isPublic }) };
   }
@@ -114,7 +109,7 @@ export class GamesService {
 
   public score(uid: string, id: string, dto: ScoreDto) {
     this.existing(id);
-    const score = parseScore(dto.score);
+    const { score } = dto;
     if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) throw new ApiError(400, "Некорректный счёт");
     const scope = this.scopeFor(uid, dto.chatId);
     const global = this.submitScore(id, "", uid, score);

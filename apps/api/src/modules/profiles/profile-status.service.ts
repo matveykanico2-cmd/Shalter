@@ -40,8 +40,8 @@ export class ProfileStatusService {
     let image: string;
     let name: string;
     let catalogId: string | undefined;
-    if (dto.catalogId) {
-      const found = this.catalog.findById(String(dto.catalogId));
+    if (dto.catalogId !== undefined) {
+      const found = this.catalog.findById(dto.catalogId);
       if (!found) throw new ApiError(404, "Такого статуса нет в каталоге");
       image = found.image;
       name = found.name;
@@ -50,7 +50,7 @@ export class ProfileStatusService {
       const checked = validateImage(dto.image);
       if (checked.error !== undefined) throw new ApiError(400, checked.error);
       image = checked.image;
-      name = String(dto.name ?? "").trim().slice(0, 40);
+      name = dto.name;
     }
 
     const entry: StatusEntry = {

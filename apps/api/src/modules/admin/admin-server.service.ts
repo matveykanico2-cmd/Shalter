@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { isPrimaryAdmin, ADMIN_SECTIONS } from "../../common/config/accounts.js";
+import { isPrimaryAdmin } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { collectServerStats, mailCheck, pricing } from "../../legacy/legacy.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
@@ -59,9 +59,7 @@ export class AdminServerService {
     const me = this.users.findById(uid);
     if (!me || !isPrimaryAdmin(me.phone)) throw new ApiError(403, "Недостаточно прав");
     const target = this.access.target(id);
-    const requested: unknown[] = Array.isArray(dto.sections) ? dto.sections : [];
-    const sections = requested.filter((s): s is string => typeof s === "string" && ADMIN_SECTIONS.includes(s));
-    const updated = this.users.setAdminSections(target.id, sections)!;
+    const updated = this.users.setAdminSections(target.id, dto.sections)!;
     const user = { id: updated.id, adminSections: updated.adminSections };
     this.realtime.broadcastToUsers([target.id], { type: "self:updated", user });
     return { user };

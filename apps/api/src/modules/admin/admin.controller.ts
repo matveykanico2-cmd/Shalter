@@ -16,11 +16,13 @@ import {
   directoryQuerySchema,
   exportSchema,
   labelUserSchema,
-  lookupQuerySchema,
+  legalLookupQuerySchema,
+  chatLookupQuerySchema,
   pricingSchema,
   reasonSchema,
   resetPasswordSchema,
-  safetyLabelSchema,
+  updateLabelSchema,
+  createLabelSchema,
   sectionsSchema,
   statusItemSchema,
   verifySchema,
@@ -31,11 +33,13 @@ import {
   type DirectoryQuery,
   type ExportDto,
   type LabelUserDto,
-  type LookupQuery,
+  type LegalLookupQuery,
+  type ChatLookupQuery,
   type PricingDto,
   type ReasonDto,
   type ResetPasswordDto,
-  type SafetyLabelDto,
+  type CreateLabelDto,
+  type UpdateLabelDto,
   type SectionsDto,
   type StatusItemDto,
   type VerifyDto,
@@ -53,12 +57,12 @@ export class AdminController {
   ) {}
 
   @Get("lookup")
-  public lookup(@Req() req: Request, @Query(new ZodValidationPipe(lookupQuerySchema)) query: LookupQuery) {
+  public lookup(@Req() req: Request, @Query(new ZodValidationPipe(legalLookupQuerySchema)) query: LegalLookupQuery) {
     return this.legal.lookup(req.uid!, query);
   }
 
   @Get("chats/lookup")
-  public lookupChat(@Req() req: Request, @Query(new ZodValidationPipe(lookupQuerySchema)) query: LookupQuery) {
+  public lookupChat(@Req() req: Request, @Query(new ZodValidationPipe(chatLookupQuerySchema)) query: ChatLookupQuery) {
     return this.moderation.lookupChat(req.uid!, query);
   }
 
@@ -159,12 +163,12 @@ export class AdminController {
 
   @Post("labels")
   @HttpCode(200)
-  public createLabel(@Req() req: Request, @Body(new ZodValidationPipe(safetyLabelSchema)) dto: SafetyLabelDto) {
+  public createLabel(@Req() req: Request, @Body(new ZodValidationPipe(createLabelSchema)) dto: CreateLabelDto) {
     return this.catalog.createLabel(req.uid!, dto);
   }
 
   @Patch("labels/:id")
-  public updateLabel(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(safetyLabelSchema)) dto: SafetyLabelDto) {
+  public updateLabel(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(updateLabelSchema)) dto: UpdateLabelDto) {
     return this.catalog.updateLabel(req.uid!, id, dto);
   }
 

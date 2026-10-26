@@ -17,8 +17,8 @@ export class HugoService {
     };
   }
 
-  public async check(text: unknown, language: unknown) {
-    const result = await languageTool().checkText(String(text ?? ""), language || "auto");
+  public async check(text: string, language: unknown) {
+    const result = await languageTool().checkText(text, language);
     if (result.error) throw new ApiError(result.status!, result.error);
     return { matches: result.matches, language: result.language };
   }

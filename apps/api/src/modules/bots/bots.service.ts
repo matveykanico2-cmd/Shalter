@@ -22,7 +22,7 @@ import { UsersRepository } from "../users/users.repository.js";
 import { BotsRepository } from "./bots.repository.js";
 import { generateBotUsername } from "./lib/bot-username.js";
 import { buildAppUrl, buildInitData, sameApp, validateAppUrl } from "./lib/mini-app.js";
-import type { Bot, BotCommand } from "./model/domain.js";
+import type { Bot } from "./model/domain.js";
 import type { AppDataDto, BroadcastDto, CommandsDto, CreateBotDto, OpenAppDto, PatchBotDto } from "./model/schemas/bot.schema.js";
 import { BroadcastCooldownStore } from "./stores/broadcast-cooldown.store.js";
 
@@ -51,21 +51,19 @@ export class BotsService {
   }
 
   public async create(uid: string, dto: CreateBotDto) {
-    const name = typeof dto.name === "string" ? dto.name : "";
-    if (!name.trim()) throw new ApiError(400, "Введите имя бота");
-    if (badAvatar(dto.avatarImage) || usesForeignUpload(uid, dto.avatarImage)) throw new ApiError(400, "Некорректная ссылка на файл");
+    const { name, description } = dto;
+    if (usesForeignUpload(uid, dto.avatarImage)) throw new ApiError(400, "Некорректная ссылка на файл");
 
     const botUsername = await generateBotUsername(name);
     if (!botUsername) throw new ApiError(409, "Не удалось подобрать свободный юзернейм для бота — измените имя");
 
-    const description = typeof dto.description === "string" ? dto.description.trim() : "";
     const userId = genId("bot");
     this.users.create({
       id: userId,
       name: name.trim().slice(0, BOT_NAME_MAX),
       username: botUsername,
       avatarColor: "#6E56C6",
-      avatarImage: (dto.avatarImage as string) || null,
+      avatarImage: dto.avatarImage || null,
       bio: description,
       isBot: 1,
       online: 1,
@@ -100,7 +98,7 @@ export class BotsService {
   /** Рассылка: одно сообщение всем, кто запустил бота. */
   public async broadcast(uid: string, id: string, dto: BroadcastDto) {
     const bot = this.ownedBot(uid, id);
-    const text = String(dto.text ?? "").trim();
+    const { text } = dto;
     if (!text) throw new ApiError(400, "Введите текст рассылки");
     if (text.length > BROADCAST_MAX_TEXT) throw new ApiError(400, `Не длиннее ${BROADCAST_MAX_TEXT} символов`);
     const waitMs = this.cooldown.waitMs(bot.id);
@@ -147,10 +145,10 @@ export class BotsService {
     }
 
     const patch: ProfilePatch = {};
-    if (typeof dto.name === "string" && dto.name.trim()) patch.name = dto.name.trim().slice(0, BOT_NAME_MAX);
+    if (dto.name?.trim()) patch.name = dto.name.trim().slice(0, BOT_NAME_MAX);
     if (typeof dto.avatarImage === "string") patch.avatarImage = dto.avatarImage || null;
 
-    if (typeof dto.username === "string" && dto.username.trim()) {
+    if (dto.username?.trim()) {
       const username = normalizeUsername(dto.username);
       if (!/_bot$/i.test(username)) throw new ApiError(400, "Юзернейм бота должен заканчиваться на _bot");
       const problem = await checkUsername(username, { forUserId: bot.userId });
@@ -160,7 +158,7 @@ export class BotsService {
 
     if (Object.keys(patch).length) this.users.updateProfile(bot.userId, patch);
 
-    const appName = String(dto.appName ?? "").trim().slice(0, 40);
+    const { appName } = dto;
     if (typeof dto.appCode === "string" && dto.appCode.trim()) {
       if (dto.appCode.length > APP_CODE_MAX) throw new ApiError(400, "Страница длиннее 200 000 символов");
       if (!this.users.findById(bot.userId)?.username) throw new ApiError(409, "У бота нет юзернейма — по нему строится адрес приложения");
@@ -171,7 +169,7 @@ export class BotsService {
       this.bots.setApp(bot.id, checked.url, appName);
     }
 
-    const updated = typeof dto.description === "string" ? this.bots.setDescription(bot.id, dto.description.trim().slice(0, 300)) : this.bots.findById(bot.id);
+    const updated = dto.description === undefined ? this.bots.findById(bot.id) : this.bots.setDescription(bot.id, dto.description);
     return { bot: this.withUser(updated!) };
   }
 
@@ -181,21 +179,20 @@ export class BotsService {
     const botUser = this.users.findById(bot.userId);
     const baseUrl = bot.appCode ? `${origin}/app/${botUser?.username ?? ""}` : bot.appUrl!;
 
-    const requested = typeof dto.url === "string" && dto.url.trim() ? dto.url.trim() : null;
+    const requested = dto.url;
     if (requested && !sameApp(baseUrl, requested)) throw new ApiError(403, "Кнопка ведёт за пределы приложения бота");
 
     const token = this.bots.token(bot.id);
     if (!token) throw new ApiError(409, "У бота нет токена — приложение нечем подписать");
 
-    const chat = dto.chatId ? this.chats.findById(String(dto.chatId)) : null;
+    const chat = dto.chatId ? this.chats.findById(dto.chatId) : null;
     const sharedChat = chat && chat.memberIds.includes(uid) && chat.memberIds.includes(bot.userId) ? chat : null;
 
     const user = this.users.findById(uid)!;
     const initData = buildInitData({ token, user, chat: sharedChat, botUserId: bot.userId });
-    const theme = dto.theme === "dark" ? "dark" : "light";
 
     return {
-      url: buildAppUrl(requested || baseUrl, initData, { theme }),
+      url: buildAppUrl(requested || baseUrl, initData, { theme: dto.theme }),
       name: bot.appName || botUser?.name || "Приложение",
       botId: bot.userId,
     };
@@ -204,7 +201,7 @@ export class BotsService {
   /** Данные из приложения уходят боту сообщением в личку. */
   public async appData(uid: string, id: string, dto: AppDataDto) {
     const bot = this.botWithApp(id);
-    const data = String(dto.data ?? "").trim();
+    const { data } = dto;
     if (!data) throw new ApiError(400, "Пустые данные");
     if (data.length > APP_DATA_LIMIT) throw new ApiError(400, `Не длиннее ${APP_DATA_LIMIT} символов`);
 
@@ -222,23 +219,7 @@ export class BotsService {
 
   public setCommands(uid: string, id: string, dto: CommandsDto) {
     const bot = this.ownedBot(uid, id);
-    const list: unknown[] = Array.isArray(dto.commands) ? dto.commands : [];
-    const commands: BotCommand[] = list
-      .map((c) => {
-        const item = c as { command?: unknown; description?: unknown } | null;
-        return {
-          command: String(item?.command ?? "")
-            .trim()
-            .replace(/^\//, "")
-            .toLowerCase()
-            .replace(/[^a-z0-9_]/g, "")
-            .slice(0, 32),
-          description: String(item?.description ?? "").trim().slice(0, 120),
-        };
-      })
-      .filter((c) => c.command)
-      .slice(0, 100);
-    return { bot: this.bots.setCommands(bot.id, commands) };
+    return { bot: this.bots.setCommands(bot.id, dto.commands) };
   }
 
   /** Число собеседников бота и есть ли у него приложение — для карточки бота. */

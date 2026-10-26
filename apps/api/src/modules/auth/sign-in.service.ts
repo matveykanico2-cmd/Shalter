@@ -3,7 +3,6 @@ import type { Request, Response } from "express";
 import { ApiError } from "../../common/errors/api-error.js";
 import { parseUserAgent } from "../../common/lib/user-agent.js";
 import { passwordMatches } from "../../common/lib/password.js";
-import { normalizePhone } from "../../common/lib/validators.js";
 import { sendMessagePush } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import type { Session } from "../sessions/model/domain.js";
@@ -44,8 +43,9 @@ export class SignInService {
     return this.finishLogin(req, res, user);
   }
 
+  /** phone и code уже приведены схемой: номер без пробелов и скобок, код без пробелов по краям. */
   public async startCodeLogin(phone: string): Promise<void> {
-    const user = this.usersRepository.findByPhone(normalizePhone(phone));
+    const user = this.usersRepository.findByPhone(phone);
     if (!user) throw new ApiError(404, "Аккаунт с таким номером не найден");
     const code = this.codes.chat.start(user.id, true);
     await this.notices.send(
@@ -55,8 +55,8 @@ export class SignInService {
   }
 
   public async verifyCodeLogin(req: Request, res: Response, phone: string, code: string): Promise<LoginResult> {
-    const user = this.usersRepository.findByPhone(normalizePhone(phone));
-    if (!user || !this.codes.chat.confirm(user.id, code.trim())) throw new ApiError(401, "Неверный или устаревший код");
+    const user = this.usersRepository.findByPhone(phone);
+    if (!user || !this.codes.chat.confirm(user.id, code)) throw new ApiError(401, "Неверный или устаревший код");
     return this.finishLogin(req, res, user);
   }
 

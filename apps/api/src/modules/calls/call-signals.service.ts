@@ -28,15 +28,14 @@ export class CallSignalsService {
 
   public list(uid: string, id: string, { after }: SignalsQueryDto) {
     this.participantCall(id, uid);
-    const from = Number(after ?? "0");
-    return { signals: this.signals.listFor(id, uid, Number.isFinite(from) ? from : 0) };
+    return { signals: this.signals.listFor(id, uid, after) };
   }
 
   public send(uid: string, id: string, { toUserId, kind, data }: SendSignalDto) {
     const call = this.participantCall(id, uid);
-    if (!call.participantIds.includes(toUserId as string)) throw new ApiError(400, "invalid recipient");
+    if (toUserId === undefined || !call.participantIds.includes(toUserId)) throw new ApiError(400, "invalid recipient");
     if (!isSignalKind(kind)) throw new ApiError(400, "invalid kind");
-    return { signal: this.deliver({ callId: id, fromUserId: uid, toUserId: toUserId as string, kind, data }) };
+    return { signal: this.deliver({ callId: id, fromUserId: uid, toUserId, kind, data }) };
   }
 
   /** Сигнал по сокету: чужой звонок, адресат вне звонка или плохой kind — молча отбрасывается. */

@@ -29,10 +29,10 @@ export class ChatAdminService {
     if (chat.type === "dm") throw new ApiError(400, "Только для групп и каналов");
     this.requireStaff(chat, uid);
     const patch: ChatPatch = {};
-    if ("approveJoins" in body) patch.approveJoins = !!body.approveJoins;
-    if ("signMessages" in body) patch.signMessages = !!body.signMessages;
-    if ("commentsOff" in body && chat.type === "channel") patch.commentsOff = !!body.commentsOff;
-    if ("anonymousAdmins" in body && chat.type === "group") patch.anonymousAdmins = !!body.anonymousAdmins;
+    if (body.approveJoins !== undefined) patch.approveJoins = body.approveJoins;
+    if (body.signMessages !== undefined) patch.signMessages = body.signMessages;
+    if (body.commentsOff !== undefined && chat.type === "channel") patch.commentsOff = body.commentsOff;
+    if (body.anonymousAdmins !== undefined && chat.type === "group") patch.anonymousAdmins = body.anonymousAdmins;
     if (!Object.keys(patch).length) throw new ApiError(400, "Нечего менять");
     const updated = this.chats.update(chat.id, patch)!;
     this.adminLog.record(chat.id, uid, "settings", { details: patch });
@@ -55,10 +55,9 @@ export class ChatAdminService {
   }
 
   /** Реакции, доступные под постами канала (до 20); не список — любые. */
-  public setReactions(uid: string, chat: Chat, list: unknown) {
+  public setReactions(uid: string, chat: Chat, allowedReactions: string[] | null) {
     if (chat.type !== "channel") throw new ApiError(400, "Список реакций настраивается только у каналов");
     this.requireStaff(chat, uid);
-    const allowedReactions = Array.isArray(list) ? [...new Set(list.map((e) => String(e).trim()).filter(Boolean))].slice(0, 20) : null;
     const updated = this.chats.update(chat.id, { allowedReactions })!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
@@ -74,7 +73,7 @@ export class ChatAdminService {
       return { chat: updated, discussion: null };
     }
     if (action === "link") {
-      const group = typeof groupId === "string" ? this.chats.findById(groupId) : undefined;
+      const group = groupId !== undefined ? this.chats.findById(groupId) : undefined;
       if (!group || group.type !== "group") throw new ApiError(404, "Группа не найдена");
       if (!isOwnerOrAdminOf(group, uid)) throw new ApiError(403, "Вы не администратор этой группы");
       const taken = this.chats.findLinkedTo(group.id, chat.id);
@@ -101,10 +100,9 @@ export class ChatAdminService {
   }
 
   /** Медленный режим группы: пауза между сообщениями участника, до часа; 0 — выключить. */
-  public async setSlowMode(uid: string, chat: Chat, rawSeconds: unknown) {
+  public async setSlowMode(uid: string, chat: Chat, seconds: number) {
     if (chat.type !== "group") throw new ApiError(400, "Медленный режим есть только у групп");
     this.requireStaff(chat, uid);
-    const seconds = Math.max(0, Math.min(3600, Math.trunc(Number(rawSeconds) || 0)));
     const updated = this.chats.update(chat.id, { slowModeSeconds: seconds || null })!;
     this.adminLog.record(chat.id, uid, "slow_mode", { details: { seconds } });
     if ((chat.slowModeSeconds ?? 0) !== seconds) {
@@ -117,10 +115,9 @@ export class ChatAdminService {
   }
 
   /** Цена комментария в звёздах (до 90 000); обсуждение канала тоже обновляется у клиентов. */
-  public setCommentPrice(uid: string, chat: Chat, rawStars: unknown) {
+  public setCommentPrice(uid: string, chat: Chat, stars: number) {
     if (chat.type !== "channel") throw new ApiError(400, "Платные комментарии есть только у каналов");
     this.requireStaff(chat, uid);
-    const stars = Math.max(0, Math.min(90000, Math.trunc(Number(rawStars) || 0)));
     const updated = this.chats.update(chat.id, { commentPriceStars: stars })!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (updated.linkedDiscussionChatId) {
@@ -130,10 +127,9 @@ export class ChatAdminService {
   }
 
   /** Приветствие новым участникам группы ({name} — имя вступившего); пустое — выключить. */
-  public async setWelcome(uid: string, chat: Chat, rawText: unknown) {
+  public async setWelcome(uid: string, chat: Chat, text: string) {
     if (chat.type !== "group") throw new ApiError(400, "Приветствие есть только у групп");
     this.requireStaff(chat, uid);
-    const text = String(rawText ?? "").trim().slice(0, 1000);
     const updated = this.chats.update(chat.id, { welcomeText: text || null })!;
     this.adminLog.record(chat.id, uid, "welcome", { details: { value: text || null } });
     if ((chat.welcomeText ?? "") !== text) {
@@ -154,10 +150,9 @@ export class ChatAdminService {
       // который по нему уже не найти.
       return { chat: this.chats.update(chat.id, { isPublic: false, username: null }) };
     }
-    const handle = String(username ?? "").trim().replace(/^@/, "");
-    const problem = await checkUsername(handle, { forChatId: chat.id });
+    const problem = await checkUsername(username, { forChatId: chat.id });
     if (problem) throw new ApiError(problem.status, problem.error);
-    return { chat: this.chats.update(chat.id, { isPublic: true, username: handle }) };
+    return { chat: this.chats.update(chat.id, { isPublic: true, username }) };
   }
 
   public banned(uid: string, chat: Chat) {
@@ -166,10 +161,10 @@ export class ChatAdminService {
     return { users: users.filter((u) => u !== undefined).map(publicUser) };
   }
 
-  public log(uid: string, chat: Chat, rawBeforeId: unknown) {
+  public log(uid: string, chat: Chat, beforeId: number | null) {
     if (chat.type === "dm") throw new ApiError(400, "Журнал есть только у групп и каналов");
     if (!isOwnerOrAdminOf(chat, uid) && !chat.moderatorIds.includes(uid)) throw new ApiError(403, "Журнал видят только администраторы");
-    const entries = this.adminLog.list(chat.id, { limit: 100, beforeId: Number(rawBeforeId) || null });
+    const entries = this.adminLog.list(chat.id, { limit: 100, beforeId });
     const ids = entries.flatMap((e) => [e.actorId, e.targetId]);
     return { entries, users: this.users.findByIds(ids).map(publicUser) };
   }

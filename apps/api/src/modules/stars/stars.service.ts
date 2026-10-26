@@ -9,12 +9,15 @@ import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
-import type { MessagePriceDto, StarsGrantDto, StarsRequestDto, StarsTransferDto } from "./model/schemas/stars.schema.js";
+import {
+  MAX_MESSAGE_PRICE,
+  type MessagePriceDto,
+  type StarsGrantDto,
+  type StarsRequestDto,
+  type StarsTransferDto,
+} from "./model/schemas/stars.schema.js";
 
 const BOOST_MINUTES = 60;
-const MAX_MESSAGE_PRICE = 90000;
-
-const idOf = (raw: unknown): string => (typeof raw === "string" ? raw : "");
 
 // Звёзды (/api/stars): баланс, покупка набора, выдача админом, цена входящих, буст и
 // удаление чужого сообщения за звёзды, перевод — как server/routes/stars.js.
@@ -63,12 +66,11 @@ export class StarsService {
   }
 
   /** Начисление или списание админом; получателю — сообщение в личке от админа. */
-  public async grant(uid: string, dto: StarsGrantDto) {
+  public async grant(uid: string, { userId, stars: amount }: StarsGrantDto) {
     if (!isAdminPhone(this.users.findById(uid)?.phone)) throw new ApiError(403, "Недостаточно прав");
 
-    const target = this.users.findById(idOf(dto.userId));
+    const target = this.users.findById(userId);
     if (!target) throw new ApiError(404, "Пользователь не найден");
-    const amount = Math.trunc(Number(dto.stars));
     if (!Number.isFinite(amount) || amount === 0) throw new ApiError(400, "Укажите количество звёзд");
     if (amount < 0 && this.stars.balanceOf(target.id) + amount < 0) {
       throw new ApiError(409, "Нельзя списать больше, чем есть на балансе");
@@ -85,11 +87,7 @@ export class StarsService {
   }
 
   /** Цена входящих от незнакомцев; собеседники по личкам перечитывают чат (chat:updated). */
-  public setMessagePrice(uid: string, dto: MessagePriceDto) {
-    const price = Math.trunc(Number(dto.stars));
-    if (!Number.isFinite(price) || price < 0 || price > MAX_MESSAGE_PRICE) {
-      throw new ApiError(400, `Цена — от 0 до ${MAX_MESSAGE_PRICE} звёзд`);
-    }
+  public setMessagePrice(uid: string, { stars: price }: MessagePriceDto) {
     this.stars.setMessagePrice(uid, price);
     for (const dm of this.chats.findForUser(uid).filter((c) => c.type === "dm")) {
       this.realtime.broadcastToUsers(dm.memberIds, { type: "chat:updated", chat: { id: dm.id } });
@@ -122,12 +120,7 @@ export class StarsService {
     return { ok: true, balance: this.stars.balanceOf(uid) };
   }
 
-  public async transfer(uid: string, dto: StarsTransferDto) {
-    const toId = String(dto.userId ?? "");
-    const amount = Math.floor(Number(dto.amount));
-
-    if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, "Укажите сумму больше нуля");
-    if (amount > 1_000_000) throw new ApiError(400, "Слишком большая сумма за один перевод");
+  public async transfer(uid: string, { userId: toId, amount, note }: StarsTransferDto) {
     if (!toId || toId === uid) throw new ApiError(400, "Себе переводить незачем");
 
     const target = this.users.findById(toId);
@@ -140,7 +133,6 @@ export class StarsService {
       throw new ApiError(402, `Не хватает звёзд: на балансе ${balance} ⭐`, { balance });
     }
 
-    const note = String(dto.note ?? "").trim().slice(0, 200);
     try {
       const chat = await findOrCreateDm(uid, toId);
       await sendMessageAndBroadcast(chat, uid, `⭐ Перевод: ${amount} ⭐${note ? `\n${note}` : ""}`);

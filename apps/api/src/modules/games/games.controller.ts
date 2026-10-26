@@ -6,9 +6,11 @@ import { GamesService } from "./games.service.js";
 import {
   createGameSchema,
   gameMetaSchema,
+  gamesQuerySchema,
   scoreSchema,
   type CreateGameDto,
   type GameMetaDto,
+  type GamesQuery,
   type ScoreDto,
 } from "./model/schemas/game.schema.js";
 
@@ -19,8 +21,8 @@ export class GamesController {
   public constructor(private readonly games: GamesService) {}
 
   @Get()
-  public list(@Req() req: Request, @Query("q") q: unknown) {
-    return this.games.list(req.uid!, q);
+  public list(@Req() req: Request, @Query(new ZodValidationPipe(gamesQuerySchema)) query: GamesQuery) {
+    return this.games.list(req.uid!, query.q);
   }
 
   @Get("mine")

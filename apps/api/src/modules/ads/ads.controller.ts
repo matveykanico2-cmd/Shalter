@@ -8,16 +8,18 @@ import { AdsCabinetService } from "./ads-cabinet.service.js";
 import {
   adContentSchema,
   budgetSchema,
-  campaignSchema,
   campaignStatusSchema,
+  createCampaignSchema,
   grantAdsSchema,
+  patchCampaignSchema,
   reviewSchema,
   serveQuerySchema,
   type AdContentDto,
   type BudgetDto,
-  type CampaignDto,
   type CampaignStatusDto,
+  type CreateCampaignDto,
   type GrantAdsDto,
+  type PatchCampaignDto,
   type ReviewDto,
   type ServeQuery,
 } from "./model/schemas/ads.schema.js";
@@ -60,12 +62,12 @@ export class AdsController {
 
   @Post("campaigns")
   @HttpCode(200)
-  public create(@Req() req: Request, @Body(new ZodValidationPipe(campaignSchema)) dto: CampaignDto) {
+  public create(@Req() req: Request, @Body(new ZodValidationPipe(createCampaignSchema)) dto: CreateCampaignDto) {
     return this.campaigns.create(req.uid!, dto);
   }
 
   @Patch("campaigns/:id")
-  public patch(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(campaignSchema)) dto: CampaignDto) {
+  public patch(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(patchCampaignSchema)) dto: PatchCampaignDto) {
     return this.campaigns.patch(req.uid!, id, dto);
   }
 

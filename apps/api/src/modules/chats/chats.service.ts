@@ -59,14 +59,11 @@ export class ChatsService {
     return { chats: summary.withoutHidden(await summary.attachSummaries(chats, uid), hiddenChats) };
   }
 
-  public async setPinnedOrder(uid: string, ids: unknown) {
-    if (!Array.isArray(ids) || ids.length > 500 || !ids.every((id) => typeof id === "string")) {
-      throw new ApiError(400, "Нужен список чатов");
-    }
+  public async setPinnedOrder(uid: string, ids: string[]) {
     const current = this.userSettings.get(uid);
     const flags = current.chatFlags ?? {};
     const mine = new Set(this.chats.findForUser(uid).map((c) => c.id));
-    const wanted = [...new Set(ids as string[])].filter((id) => mine.has(id) && flags[id]?.pinned === true);
+    const wanted = [...new Set(ids)].filter((id) => mine.has(id) && flags[id]?.pinned === true);
     const rest = (current.pinnedOrder ?? []).filter((id) => !wanted.includes(id));
     this.userSettings.update(uid, { pinnedOrder: [...wanted, ...rest] });
     return { ok: true, pinnedOrder: [...wanted, ...rest] };
@@ -128,7 +125,6 @@ export class ChatsService {
 
   public async createChannel(uid: string, body: CreateCommunityDto) {
     const { title, avatarImage, memberIds, adminIds } = body;
-    if (typeof title !== "string" || !title.trim()) throw new ApiError(400, "Введите название канала");
     if (usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
     const identity = await this.newChatIdentity(body);
     const now = new Date().toISOString();
@@ -136,7 +132,7 @@ export class ChatsService {
     const discussion = this.chats.create({
       id: genId("c"),
       type: "group",
-      title: `${title.trim()} · Обсуждение`,
+      title: `${title} · Обсуждение`,
       avatarColor: "#5C6473",
       memberIds: [uid],
       ownerId: uid,
@@ -149,7 +145,7 @@ export class ChatsService {
     const channel = this.chats.create({
       id: genId("c"),
       type: "channel",
-      title: title.trim(),
+      title,
       ...identity,
       avatarColor: "#D9822E",
       avatarImage: (avatarImage as string) || undefined,
@@ -171,14 +167,13 @@ export class ChatsService {
 
   public async createGroup(uid: string, body: CreateCommunityDto) {
     const { title, avatarImage, memberIds, adminIds } = body;
-    if (typeof title !== "string" || !title.trim()) throw new ApiError(400, "Введите название группы");
     if (usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
     const identity = await this.newChatIdentity(body);
     const members = new Set([uid, ...(await this.invitableIds(memberIds, uid))]);
     const chat = this.chats.create({
       id: genId("c"),
       type: "group",
-      title: title.trim(),
+      title,
       ...identity,
       avatarColor: "#2E56D9",
       avatarImage: (avatarImage as string) || undefined,
@@ -235,24 +230,24 @@ export class ChatsService {
   public async update(uid: string, chat: Chat, body: PatchChatDto) {
     const patch: ChatPatch = {};
     const personal: Partial<Record<PersonalFlag, boolean>> = {};
-    if (typeof body.title === "string") {
-      patch.title = body.title.trim().slice(0, 128);
-      if (!patch.title) throw new ApiError(400, "Название не может быть пустым");
-    }
-    if (typeof body.description === "string") patch.description = body.description.trim().slice(0, 500) || null;
+    if (body.title !== undefined) patch.title = body.title;
+    if (body.description !== undefined) patch.description = body.description;
     if ("avatarImage" in body) {
       if (body.avatarImage && (!(typeof body.avatarImage === "string" && isSafeUrl(body.avatarImage)) || usesForeignUpload(uid, body.avatarImage, chat.avatarImage))) {
         throw new ApiError(400, "Некорректное изображение");
       }
       patch.avatarImage = (body.avatarImage as string) || null;
     }
-    if (typeof body.avatarColor === "string") patch.avatarColor = body.avatarColor.slice(0, 32);
-    if ("autoDeleteSeconds" in body) {
-      const sec = Number(body.autoDeleteSeconds) || 0;
+    if (body.avatarColor !== undefined) patch.avatarColor = body.avatarColor;
+    if (body.autoDeleteSeconds !== undefined) {
+      const sec = body.autoDeleteSeconds;
       if (!Number.isInteger(sec) || sec < 0 || sec > 366 * 86400) throw new ApiError(400, "Некорректный срок автоудаления");
       patch.autoDeleteSeconds = sec || null;
     }
-    for (const k of PERSONAL_FLAGS) if (k in body) personal[k] = !!body[k];
+    for (const k of PERSONAL_FLAGS) {
+      const value = body[k];
+      if (value !== undefined) personal[k] = value;
+    }
 
     if (patch.avatarColor !== undefined && !colorUnlocked(chat, patch.avatarColor)) {
       throw new ApiError(403, lockedColorError(patch.avatarColor));
@@ -285,7 +280,7 @@ export class ChatsService {
   }
 
   /** Удалить для всех: владелец или админ, в личке — любой из двоих; модератор Shalter — с причиной. */
-  public async remove(uid: string, chatId: string, reason: unknown) {
+  public async remove(uid: string, chatId: string, reason: string) {
     const chat = this.chats.findById(chatId);
     if (!chat) throw new ApiError(404, "not found");
     const member = chat.memberIds.includes(uid);
@@ -294,7 +289,7 @@ export class ChatsService {
     if (!member && !moderator) throw new ApiError(404, "not found");
     if (!ownStaff && !moderator) throw new ApiError(403, "Удалить чат для всех может только владелец или админ");
     if (moderator) {
-      await moderateDeleteChat(chat, { adminId: uid, reason: String(reason ?? "").trim().slice(0, 500) });
+      await moderateDeleteChat(chat, { adminId: uid, reason });
       return { ok: true };
     }
     this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
@@ -303,7 +298,7 @@ export class ChatsService {
     return { ok: true };
   }
 
-  public async clear(uid: string, chat: Chat, forEveryone: unknown) {
+  public async clear(uid: string, chat: Chat, forEveryone: boolean) {
     if (forEveryone && chat.type !== "dm" && !isOwnerOrAdminOf(chat, uid)) {
       throw new ApiError(403, "Очистить историю у всех могут только владельцы и админы");
     }
@@ -322,17 +317,16 @@ export class ChatsService {
     if (forEveryone) {
       const updated = this.chats.update(chat.id, { wallpaper: wallpaper ?? null })!;
       this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
-      const what = typeof label === "string" && label.trim() ? label.trim().slice(0, 40) : null;
       await this.notes.note(updated, uid, (name) =>
-        !wallpaper ? `${name} сбросил(а) фон чата` : what ? `${name} поменял(а) фон чата на «${what}»` : `${name} поменял(а) фон чата`
+        !wallpaper ? `${name} сбросил(а) фон чата` : label ? `${name} поменял(а) фон чата на «${label}»` : `${name} поменял(а) фон чата`
       );
       return { chat: updated };
     }
     return { settings: this.userSettings.setChatWallpaper(uid, chat.id, wallpaper ?? null) };
   }
 
-  public async setDraft(uid: string, chatId: string, text: unknown) {
-    this.userSettings.setDraft(uid, chatId, typeof text === "string" ? text.slice(0, 8192) : "");
+  public async setDraft(uid: string, chatId: string, text: string) {
+    this.userSettings.setDraft(uid, chatId, text);
     return { ok: true };
   }
 
@@ -388,11 +382,9 @@ export class ChatsService {
     return { ok: true, deleted: false };
   }
 
-  /** Без звука: на hours часов, навсегда (forever) или снять (off). */
+  /** Без звука: на hours часов, навсегда (forever) или снять (off); без срока схема отвечает 400. */
   public async mute(uid: string, chat: Chat, { hours, forever, off }: MuteDto) {
-    const h = Number(hours);
-    const value = forever === true ? true : off === true ? null : Number.isFinite(h) && h > 0 ? new Date(Date.now() + h * 3600_000).toISOString() : undefined;
-    if (value === undefined) throw new ApiError(400, "Укажите срок");
+    const value = forever ? true : off ? null : new Date(Date.now() + hours * 3600_000).toISOString();
 
     const current = this.userSettings.get(uid);
     const mutedChats = { ...(current.notifications?.mutedChats ?? {}) };
@@ -435,9 +427,9 @@ export class ChatsService {
    * Запрет пересылки и сохранения в личке: включает любой из двоих (с Premium), действует
    * на обоих, снять может только тот, кто включил.
    */
-  public async protect(uid: string, chat: Chat, enabled: unknown) {
+  public async protect(uid: string, chat: Chat, enabled: boolean) {
     if (chat.type !== "dm") throw new ApiError(400, "Только для личных чатов");
-    const on = !!enabled;
+    const on = enabled;
     const list = new Set(chat.protectedBy);
     const me = this.users.findById(uid);
     if (on) {
@@ -521,18 +513,16 @@ export class ChatsService {
 
   // Описание и @юзернейм новой группы или канала; без публичности юзернейм не занимается.
   private async newChatIdentity({ description, username, isPublic }: CreateCommunityDto) {
-    const desc = typeof description === "string" ? description.trim().slice(0, 500) : "";
-    if (!isPublic || !String(username ?? "").trim()) return { description: desc || null, username: null, isPublic: false };
-    const handle = String(username ?? "").trim().replace(/^@/, "");
+    if (!isPublic || !username) return { description: description || null, username: null, isPublic: false };
+    const handle = username.replace(/^@/, "");
     const problem = await checkUsername(handle);
     if (problem) throw new ApiError(problem.status, problem.error);
-    return { description: desc || null, username: handle, isPublic: true };
+    return { description: description || null, username: handle, isPublic: true };
   }
 
   // Создать чат с людьми — то же, что добавить их, поэтому действует та же настройка
   // приватности «кто может добавлять меня в чаты», что и при добавлении участника.
-  private async invitableIds(ids: unknown, actorId: string): Promise<string[]> {
-    if (!Array.isArray(ids)) return [];
+  private async invitableIds(ids: unknown[], actorId: string): Promise<string[]> {
     const out: string[] = [];
     for (const id of new Set(ids)) {
       if (typeof id !== "string" || id === actorId || !this.users.findById(id)) continue;
@@ -550,8 +540,8 @@ export class ChatsService {
 }
 
 // Админы нового чата: создатель и выбранные им из участников.
-function staffOf(members: Set<string>, uid: string, adminIds: unknown): string[] {
-  return [...new Set([uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])])];
+function staffOf(members: Set<string>, uid: string, adminIds: unknown[]): string[] {
+  return [...new Set([uid, ...adminIds.filter((id): id is string => typeof id === "string" && members.has(id))])];
 }
 
 // Подписчику канала список подписчиков не показывается (server/lib/chatForViewer.js).

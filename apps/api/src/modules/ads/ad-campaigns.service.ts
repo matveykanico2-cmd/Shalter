@@ -5,20 +5,12 @@ import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdCampaignsRepository } from "./ad-campaigns.repository.js";
 import { AdReviewService } from "./ad-review.service.js";
-import { CPM_MIN, isPlacement, PLACEMENTS, publicCampaign } from "./lib/ad-campaign.mapper.js";
+import { CPM_MIN, PLACEMENTS, publicCampaign } from "./lib/ad-campaign.mapper.js";
 import type { AdCampaign, AdCampaignPatch } from "./model/domain.js";
-import type { BudgetDto, CampaignDto, CampaignStatusDto, ServeQuery } from "./model/schemas/ads.schema.js";
+import type { BudgetDto, CampaignStatusDto, CreateCampaignDto, PatchCampaignDto, ServeQuery } from "./model/schemas/ads.schema.js";
 import { ProfileImpressionsStore } from "./stores/profile-impressions.store.js";
 
-const MAX_TEXT = 200;
 const FOREIGN_FILE = "Некорректная ссылка на файл";
-
-/** Места показа из тела: `placements: [...]` или старое `placement: "id"`; ни одного — null. */
-function pickPlacements(dto: CampaignDto): string[] | null {
-  const raw: unknown[] = Array.isArray(dto.placements) ? dto.placements : dto.placement != null ? [dto.placement] : [];
-  const valid = raw.filter(isPlacement);
-  return valid.length ? valid : null;
-}
 
 // Рекламные кампании за звёзды (server/routes/ads.js): кабинет рекламодателя, показ и клики.
 @Injectable()
@@ -35,39 +27,35 @@ export class AdCampaignsService {
     return { campaigns: this.campaigns.listByOwner(uid), balanceStars: this.stars.balanceOf(uid), placements: PLACEMENTS, cpmMin: CPM_MIN };
   }
 
-  public async create(uid: string, dto: CampaignDto) {
-    const text = String(dto.text ?? "").trim().slice(0, MAX_TEXT);
-    if (!text) throw new ApiError(400, "Напишите текст объявления");
-    const placement = pickPlacements(dto) ?? ["discover"];
+  public async create(uid: string, dto: CreateCampaignDto) {
     if (usesForeignUpload(uid, [dto.url, dto.imageUrl])) throw new ApiError(400, FOREIGN_FILE);
     const created = this.campaigns.create({
       ownerId: uid,
-      title: String(dto.title ?? "").trim().slice(0, 60),
-      text,
+      title: dto.title,
+      text: dto.text,
       url: String(dto.url ?? "").trim().slice(0, 300) || null,
       imageUrl: String(dto.imageUrl ?? "").trim() || null,
-      placement,
-      cpmStars: Number(dto.cpmStars) || 20,
+      placement: dto.placement,
+      cpmStars: dto.cpmStars,
     });
     await this.review.notifyAdmin(created, uid);
     return { campaign: created };
   }
 
   /** Правка; новый текст, ссылка или картинка снова отправляют объявление на проверку. */
-  public async patch(uid: string, id: string, dto: CampaignDto) {
+  public async patch(uid: string, id: string, dto: PatchCampaignDto) {
     const c = this.own(uid, id);
     const patch: AdCampaignPatch = {};
-    if (typeof dto.title === "string") patch.title = dto.title.trim().slice(0, 60);
-    if (typeof dto.text === "string") {
-      patch.text = dto.text.trim().slice(0, MAX_TEXT);
-      if (!patch.text) throw new ApiError(400, "Напишите текст объявления");
+    if (dto.title !== undefined) patch.title = dto.title;
+    if (dto.text !== undefined) {
+      if (!dto.text) throw new ApiError(400, "Напишите текст объявления");
+      patch.text = dto.text;
     }
-    if (typeof dto.url === "string") patch.url = dto.url.trim().slice(0, 300) || null;
-    if (typeof dto.imageUrl === "string") patch.imageUrl = dto.imageUrl.trim() || null;
+    if (dto.url !== undefined) patch.url = dto.url;
+    if (dto.imageUrl !== undefined) patch.imageUrl = dto.imageUrl;
     if (usesForeignUpload(uid, [patch.url, patch.imageUrl], [c.url, c.imageUrl])) throw new ApiError(400, FOREIGN_FILE);
-    const placements = pickPlacements(dto);
-    if (placements) patch.placement = placements;
-    if (Number.isFinite(Number(dto.cpmStars))) patch.cpmStars = Math.max(CPM_MIN, Number(dto.cpmStars));
+    if (dto.placement) patch.placement = dto.placement;
+    if (dto.cpmStars !== undefined) patch.cpmStars = dto.cpmStars;
     const touchesCreative = "text" in patch || "url" in patch || "imageUrl" in patch;
     if (touchesCreative && c.status !== "review") {
       patch.status = "review";
@@ -85,7 +73,7 @@ export class AdCampaignsService {
 
   public addBudget(uid: string, id: string, dto: BudgetDto) {
     const c = this.own(uid, id);
-    const stars = Math.floor(Number(dto.stars) || 0);
+    const { stars } = dto;
     if (stars <= 0) throw new ApiError(400, "Сколько звёзд добавить?");
     if (!this.stars.spend(uid, stars)) throw new ApiError(402, "Не хватает звёзд на балансе");
     const updated = this.campaigns.update(c.id, { budgetStars: c.budgetStars + stars });
@@ -125,8 +113,8 @@ export class AdCampaignsService {
 
   /** Объявление для места показа; profile — своя кампания владельца страницы (owner). */
   public serve(uid: string, query: ServeQuery) {
-    const placement = isPlacement(query.placement) ? query.placement : "discover";
-    const owner = placement === "profile" ? String(query.owner || "") : "";
+    const { placement } = query;
+    const owner = placement === "profile" ? query.owner : "";
     if (placement === "profile" && !owner) return { ad: null };
     // Как в Telegram: подписчики Premium не видят спонсорских объявлений.
     if (placement !== "profile" && this.users.findById(uid)?.isPremium) return { ad: null, premium: true };

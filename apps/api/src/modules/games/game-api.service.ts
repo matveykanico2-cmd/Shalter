@@ -5,7 +5,7 @@ import { ChatsRepository } from "../chats/chats.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { GamesRepository } from "./games.repository.js";
 import { GamesService } from "./games.service.js";
-import { MAX_GAME_CODE, MAX_SCORE, parseScore } from "./lib/game-rules.js";
+import { MAX_GAME_CODE, MAX_SCORE } from "./lib/game-rules.js";
 import type { Game } from "./model/domain.js";
 import type { DeleteScoreDto, SetScoreDto, UpdateGameDto } from "./model/schemas/game.schema.js";
 
@@ -30,16 +30,17 @@ export class GameApiService {
     const next = {
       id: game.id,
       ownerId: game.ownerId as string,
-      title: b.title != null ? String(b.title).trim().slice(0, 64) : game.title,
-      description: b.description != null ? String(b.description).trim().slice(0, 200) : game.description,
-      emoji: b.emoji != null ? [...String(b.emoji).trim()].slice(0, 2).join("") || "🎮" : game.emoji,
-      code: b.code != null ? String(b.code) : (game.code as string),
-      isPublic: b.isPublic != null ? !!b.isPublic : game.isPublic,
+      title: b.title ?? game.title,
+      description: b.description ?? game.description,
+      emoji: b.emoji ?? game.emoji,
+      code: b.code ?? (game.code as string),
+      isPublic: b.isPublic ?? game.isPublic,
     };
+    // Пустое переданное название отклоняет схема; здесь — пустое прежнее.
     if (!next.title) throw new ApiError(400, "title is required");
     // Код проверяется, только если его передали: игру, созданную в приложении без кода, можно
     // сначала переименовать, а код залить позже.
-    if (b.code != null && (!next.code.trim() || next.code.length > MAX_GAME_CODE)) throw new ApiError(400, "code: от 1 байта до 512 КБ");
+    if (b.code !== undefined && (!next.code.trim() || next.code.length > MAX_GAME_CODE)) throw new ApiError(400, "code: от 1 байта до 512 КБ");
     if (usesForeignUpload(game.ownerId as string, next.code, game.code)) throw new ApiError(400, "Некорректная ссылка на файл");
     return { ok: true, game: publicGame(this.games.save(next)!) };
   }
@@ -59,14 +60,13 @@ export class GameApiService {
 
   /** Рекорд с сервера разработчика. force — записать, даже если меньше прежнего (сброс накрутки). */
   public setScore(game: Game, dto: SetScoreDto) {
-    const { userId, chatId, force } = dto;
-    const score = parseScore(dto.score);
-    if (!userId || !this.users.findById(String(userId))) throw new ApiError(404, "user not found");
+    const { userId, chatId, force, score } = dto;
+    if (!userId || !this.users.findById(userId)) throw new ApiError(404, "user not found");
     if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) throw new ApiError(400, "score: целое от 0");
     const scope = this.scopeOf(chatId, userId);
     const write = (sc: string) => {
-      if (!force) return this.service.submitScore(game.id, sc, String(userId), score);
-      this.games.setScore(game.id, sc, String(userId), score);
+      if (!force) return this.service.submitScore(game.id, sc, userId, score);
+      this.games.setScore(game.id, sc, userId, score);
       return { best: score, improved: true };
     };
     const global = write("");
@@ -75,8 +75,7 @@ export class GameApiService {
   }
 
   public deleteScore(game: Game, dto: DeleteScoreDto) {
-    if (!dto.userId) throw new ApiError(400, "userId is required");
-    this.games.deleteScore(game.id, String(dto.userId));
+    this.games.deleteScore(game.id, dto.userId);
     return { ok: true };
   }
 

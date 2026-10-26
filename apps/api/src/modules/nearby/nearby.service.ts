@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { ApiError } from "../../common/errors/api-error.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { bucketFor, coord, distanceKm, MAX_RADIUS_KM, PRESENCE_TTL_MS, roundCoord, validCoords } from "./lib/nearby-distance.js";
+import { bucketFor, distanceKm, MAX_RADIUS_KM, PRESENCE_TTL_MS, roundCoord } from "./lib/nearby-distance.js";
 import { NearbyRepository } from "./nearby.repository.js";
 
 // «Люди рядом» (/api/nearby) — как server/routes/nearby.js и data/nearby.js: только корзина
@@ -13,29 +12,20 @@ export class NearbyService {
     private readonly users: UsersRepository
   ) {}
 
-  /** Публикует своё место и возвращает людей рядом с ним. */
-  public share(uid: string, rawLat: unknown, rawLng: unknown) {
-    const [lat, lng] = this.coords(rawLat, rawLng);
+  /** Публикует своё место и возвращает людей рядом с ним (координаты проверены схемой). */
+  public share(uid: string, lat: number, lng: number) {
     this.nearby.setLocation(uid, roundCoord(lat), roundCoord(lng));
     return { users: this.around(uid, lat, lng) };
   }
 
   /** Люди рядом с точкой, без публикации своего места. */
-  public look(uid: string, rawLat: unknown, rawLng: unknown) {
-    const [lat, lng] = this.coords(rawLat, rawLng);
+  public look(uid: string, lat: number, lng: number) {
     return { users: this.around(uid, lat, lng) };
   }
 
   public hide(uid: string) {
     this.nearby.clearLocation(uid);
     return { ok: true };
-  }
-
-  private coords(rawLat: unknown, rawLng: unknown): [number, number] {
-    const lat = coord(rawLat);
-    const lng = coord(rawLng);
-    if (!validCoords(lat, lng)) throw new ApiError(400, "invalid coordinates");
-    return [lat, lng];
   }
 
   private around(uid: string, lat: number, lng: number) {

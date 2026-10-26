@@ -4,7 +4,7 @@ import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
-import { cleanRights, DEFAULT_ADMIN_RIGHTS, RIGHTS } from "./lib/community-rights.js";
+import { RIGHTS } from "./lib/community-rights.js";
 import type { Community } from "./model/domain.js";
 import type { AdminRightsDto } from "./model/schemas/community.schema.js";
 
@@ -32,7 +32,7 @@ export class CommunityAdminsService {
     if (target === community.ownerId) throw new ApiError(400, OWNER_RIGHTS);
     if (!this.access.roleOf(community, target)) throw new ApiError(400, "Этот пользователь не участник сообщества");
     const mine = this.access.rightsOf(community, uid);
-    const rights = cleanRights(dto.rights ?? DEFAULT_ADMIN_RIGHTS);
+    const { rights } = dto;
     for (const r of RIGHTS) if (rights[r] && !mine[r]) throw new ApiError(403, "Нельзя выдать право, которого нет у вас");
     this.communities.setAdmin(community.id, target, rights);
     this.access.notifyUsers([target], community.id);

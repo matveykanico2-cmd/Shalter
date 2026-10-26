@@ -8,7 +8,7 @@ import { RealtimeService } from "../realtime/realtime.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
-import { cleanAddMode, cleanAvatarImage, cleanDescription, cleanTitle, cleanVisible, isChatAdmin } from "./lib/community-fields.js";
+import { cleanAvatarImage, isChatAdmin } from "./lib/community-fields.js";
 import type { CommunityPatch } from "./model/domain.js";
 import type { CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
 
@@ -91,21 +91,19 @@ export class CommunitiesService {
   }
 
   public async create(uid: string, dto: CreateCommunityDto) {
-    const title = cleanTitle(dto.title);
-    if (!title) throw new ApiError(400, "Введите название сообщества");
     const first = dto.chatId ? this.access.addableChat(dto.chatId, uid) : null;
     const avatarImage = cleanAvatarImage(dto.avatarImage);
     if (avatarImage === undefined || usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
     const community = this.communities.create({
       id: genId("cm"),
       ownerId: uid,
-      title,
-      description: cleanDescription(dto.description),
-      avatarColor: typeof dto.avatarColor === "string" ? dto.avatarColor.slice(0, 20) : null,
+      title: dto.title,
+      description: dto.description,
+      avatarColor: dto.avatarColor,
       avatarImage,
-      addMode: cleanAddMode(dto.addMode) ?? "all",
+      addMode: dto.addMode,
     });
-    if (first) await this.access.linkChat(community, first, { visible: cleanVisible(dto.chatVisible) ?? true, addedBy: uid });
+    if (first) await this.access.linkChat(community, first, { visible: dto.chatVisible, addedBy: uid });
     return { community: this.access.view(this.access.reload(community.id), uid) };
   }
 
@@ -122,10 +120,10 @@ export class CommunitiesService {
     const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarImage !== undefined;
     if (infoTouched && !rights.editInfo) throw new ApiError(403, "Нет права менять информацию о сообществе");
     if (dto.title !== undefined) {
-      patch.title = cleanTitle(dto.title);
-      if (!patch.title) throw new ApiError(400, "Введите название сообщества");
+      if (!dto.title) throw new ApiError(400, "Введите название сообщества");
+      patch.title = dto.title;
     }
-    if (dto.description !== undefined) patch.description = cleanDescription(dto.description);
+    if (dto.description !== undefined) patch.description = dto.description;
     if (dto.avatarImage !== undefined) {
       const avatarImage = cleanAvatarImage(dto.avatarImage);
       if (avatarImage === undefined || usesForeignUpload(uid, avatarImage, community.avatarImage)) throw new ApiError(400, "Некорректное изображение");
@@ -133,8 +131,8 @@ export class CommunitiesService {
     }
     if (dto.addMode !== undefined) {
       if (!rights.editChats) throw new ApiError(403, "Нет права менять список чатов");
-      patch.addMode = cleanAddMode(dto.addMode);
-      if (!patch.addMode) throw new ApiError(400, "Некорректный режим добавления чатов");
+      if (!dto.addMode) throw new ApiError(400, "Некорректный режим добавления чатов");
+      patch.addMode = dto.addMode;
     }
     // Пустая правка ничего не меняет и никого не оповещает; постороннему — отказ.
     if (!Object.keys(patch).length) {
@@ -183,16 +181,16 @@ export class CommunitiesService {
   /** Закрепить строку / показывать одной строкой (tweb toggleCollapsedInDialogs). */
   public setPrefs(uid: string, id: string, dto: PrefsDto) {
     const community = this.access.load(id, uid, "member");
-    this.communities.setPrefs(community.id, uid, { pinned: cleanVisible(dto.pinned), collapsed: cleanVisible(dto.collapsed) });
+    this.communities.setPrefs(community.id, uid, { pinned: dto.pinned, collapsed: dto.collapsed });
     return { community: this.access.view(community, uid) };
   }
 
   /** Без звука — сразу на все мои чаты сообщества: { forever } | { hours } | { off }. */
   public mute(uid: string, id: string, dto: MuteDto) {
     const community = this.access.load(id, uid, "member");
-    const hours = Number(dto.hours);
+    const { hours } = dto;
     const value =
-      dto.forever === true ? true : dto.off === true ? null : Number.isFinite(hours) && hours > 0 ? new Date(Date.now() + hours * 3600_000).toISOString() : undefined;
+      dto.forever ? true : dto.off ? null : Number.isFinite(hours) && hours > 0 ? new Date(Date.now() + hours * 3600_000).toISOString() : undefined;
     if (value === undefined) throw new ApiError(400, "Укажите срок");
     const settings = this.userSettings.get(uid);
     const mutedChats = { ...(settings.notifications?.mutedChats ?? {}) };
@@ -221,7 +219,7 @@ export class CommunitiesService {
   /** Участники — для выбора админа или удаления; q — поиск по имени и нику. */
   public members(uid: string, id: string, query: MembersQuery) {
     const community = this.access.load(id, uid, "member");
-    const q = String(query.q ?? "").trim().toLowerCase();
+    const { q } = query;
     const admins = new Set(this.communities.listAdmins(community.id).map((a) => a.userId));
     const users = [];
     for (const memberId of this.communities.listMemberIds(community.id)) {

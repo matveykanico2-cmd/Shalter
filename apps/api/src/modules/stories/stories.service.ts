@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { SYSTEM_BOT_ID } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { hasAdminSection } from "../../common/lib/admin-access.js";
-import { findOrCreateDm, isSafeUrl, push, queueJob, sendMessageAndBroadcast, usesForeignUpload } from "../../legacy/legacy.js";
+import { findOrCreateDm, push, queueJob, sendMessageAndBroadcast, usesForeignUpload } from "../../legacy/legacy.js";
 import { storyNeedsMedia } from "../background/lib/media-attachments.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
@@ -14,12 +14,11 @@ import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { STORY_TTL_MS } from "./lib/story.mapper.js";
 import type { Story, StoryItem } from "./model/domain.js";
-import type { CreateStoryDto, EditStoryCommentDto, StoryCommentDto } from "./model/schemas/story.schema.js";
+import type { CreateChannelStoryDto, CreateStoryDto, EditStoryCommentDto, StoryCommentDto } from "./model/schemas/story.schema.js";
 import { StoriesRepository } from "./stories.repository.js";
 import { StoryAudienceService } from "./story-audience.service.js";
 
 // Истории людей и каналов, лайки, комментарии, просмотры — как server/routes/stories.js.
-const MAX_ITEMS = 10;
 
 /** Автор истории в ответе: профиль человека или карточка канала. */
 type Author = ReturnType<typeof publicUser> | ChannelAuthor;
@@ -38,15 +37,6 @@ const isChannelId = (id: unknown): id is string => typeof id === "string" && id.
 const isChannelStaff = (chat: Chat | undefined | null, uid: string): boolean => chat?.ownerId === uid || (chat?.adminIds ?? []).includes(uid);
 
 const newStoryId = (now: number) => `st_${now}_${randomBytes(4).toString("hex")}`;
-
-function sanitizeStoryItems(body: CreateStoryDto): StoryItem[] {
-  const { kind, url } = body;
-  const rawItems: any[] = Array.isArray(body.items) && body.items.length ? body.items : [{ kind, url }];
-  return rawItems
-    .slice(0, MAX_ITEMS)
-    .filter((it) => it && ["image", "video"].includes(it.kind) && it.url && isSafeUrl(it.url))
-    .map((it) => ({ kind: it.kind, url: it.url }));
-}
 
 // Кто посмотрел и лайкнул — видит только автор (или админ канала).
 function storyFor(st: Story, uid: string, author: object | null) {
@@ -130,19 +120,19 @@ export class StoriesService {
     };
   }
 
-  public create(uid: string, body: CreateStoryDto) {
-    const story = this.addStory(uid, uid, body);
+  public create(uid: string, { items }: CreateStoryDto) {
+    const story = this.addStory(uid, uid, items);
     this.realtime.broadcastToUsers(this.audience.audienceOf(uid), { type: "story:new", storyId: story.id, userId: uid });
     this.queueMedia(story);
     this.pushNewStory(uid).catch((err) => console.error("story push failed:", err));
     return { story };
   }
 
-  public createForChannel(uid: string, chatId: string, body: CreateStoryDto) {
+  public createForChannel(uid: string, chatId: string, { items }: CreateChannelStoryDto) {
     const chat = this.chats.findById(chatId);
     if (!chat || chat.type !== "channel") throw new ApiError(400, "Истории есть только у каналов");
     if (!isChannelStaff(chat, uid)) throw new ApiError(403, "Недостаточно прав");
-    const story = this.addStory(uid, chat.id, body);
+    const story = this.addStory(uid, chat.id, items);
     this.realtime.broadcastToUsers(chat.memberIds, { type: "story:new", storyId: story.id, userId: chat.id });
     this.queueMedia(story);
     return { story };
@@ -175,12 +165,12 @@ export class StoriesService {
 
   public addComment(uid: string, id: string, dto: StoryCommentDto) {
     const visible = this.visibleStory(uid, id);
-    const text = dto.text.trim().slice(0, 500);
+    const { text } = dto;
     if (!text) throw new ApiError(400, "empty comment");
 
     let parentId: string | null = null;
     if (dto.parentId) {
-      const parent = this.stories.findComment(String(dto.parentId));
+      const parent = this.stories.findComment(dto.parentId);
       if (parent && parent.storyId === id) parentId = parent.parentId ?? parent.id;
     }
     const comment = this.stories.addComment({
@@ -218,7 +208,7 @@ export class StoriesService {
     // Как и остальные действия с историей — только пока она видна. Удалить свой
     // комментарий (DELETE) можно и после: это уборка своих данных.
     this.visibleStory(uid, found.story.id);
-    const text = dto.text.trim().slice(0, 500);
+    const { text } = dto;
     if (!text) throw new ApiError(400, "empty comment");
 
     const comment = this.stories.editComment(found.comment.id, text);
@@ -300,8 +290,8 @@ export class StoriesService {
     return { ok: true };
   }
 
-  private addStory(uid: string, authorId: string, body: CreateStoryDto): Story {
-    const items = sanitizeStoryItems(body);
+  /** Кадры уже очищены схемой; пустые бывают только у истории канала. */
+  private addStory(uid: string, authorId: string, items: StoryItem[]): Story {
     if (!items.length) throw new ApiError(400, "invalid story");
     if (usesForeignUpload(uid, items)) throw new ApiError(400, "Некорректная ссылка на файл");
     const now = Date.now();

@@ -72,15 +72,15 @@ export class PaidPlansService {
   public async grant(
     uid: string,
     product: PaidProduct,
-    input: { userId: unknown; grant: boolean; days: unknown; forever: unknown },
+    input: { userId: string; grant: boolean; days: number | undefined; forever: boolean },
     defaultDays: number,
     texts: { granted: (span: string) => string; revoked: string }
   ) {
     if (!isAdminPhone(this.users.findById(uid)!.phone)) throw new ApiError(403, "Недостаточно прав");
-    const userId = input.userId == null ? "" : String(input.userId);
+    const { userId } = input;
     if (!this.users.findById(userId)) throw new ApiError(404, "Пользователь не найден");
 
-    const dayCount = Number(input.days) > 0 ? Math.floor(Number(input.days)) : defaultDays;
+    const dayCount = input.days ?? defaultDays;
     if (input.grant) product.grant(userId, input.forever ? null : dayCount);
     else product.revoke(userId);
 

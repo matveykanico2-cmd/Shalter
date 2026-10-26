@@ -11,14 +11,6 @@ import type { TopicPatch } from "./model/domain.js";
 import type { CreateTopicDto, PatchTopicDto, TopicsEnabledDto } from "./model/schemas/topic.schema.js";
 import { MAX_TOPICS, TopicsRepository } from "./topics.repository.js";
 
-const MAX_TITLE = 64;
-
-/** Один эмодзи (с модификаторами) — не больше 16 code units; иначе иконки нет. */
-function cleanIcon(value: unknown): string | null {
-  const icon = String(value ?? "").trim();
-  return icon && icon.length <= 16 && !/[\w<>]/.test(icon) ? icon : null;
-}
-
 // Темы в группах: включает их владелец или админ; создавать темы могут участники, если это
 // не запрещено правом createTopics. Каждое изменение — событие topics:updated участникам.
 @Injectable()
@@ -38,7 +30,7 @@ export class TopicsService {
   public async setEnabled(uid: string, chat: Chat, dto: TopicsEnabledDto) {
     this.group(chat);
     if (!isOwnerOrAdminOf(chat, uid)) throw new ApiError(403, "Включать темы может только администратор");
-    const enabled = !!dto.enabled;
+    const enabled = dto.enabled;
     const updated = this.chats.update(chat.id, { topicsEnabled: enabled })!;
     this.adminLog.record(chat.id, uid, enabled ? "topics_on" : "topics_off");
     if (enabled !== !!chat.topicsEnabled) {
@@ -53,10 +45,10 @@ export class TopicsService {
     this.group(chat);
     if (!chat.topicsEnabled) throw new ApiError(400, "В этой группе темы выключены");
     if (!can(chat, uid, "createTopics")) throw new ApiError(403, DENIED.createTopics);
-    const title = String(dto.title ?? "").trim().slice(0, MAX_TITLE);
+    const { title } = dto;
     if (!title) throw new ApiError(400, "Введите название темы");
     if (this.topics.count(chat.id) >= MAX_TOPICS) throw new ApiError(400, `Не больше ${MAX_TOPICS} тем в группе`);
-    const topic = this.topics.create(chat.id, { title, icon: cleanIcon(dto.icon), color: dto.color }, uid);
+    const topic = this.topics.create(chat.id, { title, icon: dto.icon, color: dto.color }, uid);
     this.adminLog.record(chat.id, uid, "topic_create", { details: { title } });
     await serviceLine(chat, uid, (name) => `${name} создал(а) тему «${title}»`);
     this.notify(chat);
@@ -74,13 +66,12 @@ export class TopicsService {
 
     const patch: TopicPatch = {};
     if (dto.title !== undefined) {
-      const title = String(dto.title).trim().slice(0, MAX_TITLE);
-      if (!title) throw new ApiError(400, "Введите название темы");
-      patch.title = title;
+      if (!dto.title) throw new ApiError(400, "Введите название темы");
+      patch.title = dto.title;
     }
-    if (dto.icon !== undefined) patch.icon = cleanIcon(dto.icon);
+    if (dto.icon !== undefined) patch.icon = dto.icon;
     if (dto.color !== undefined) patch.color = dto.color;
-    if (dto.closed !== undefined) patch.closed = !!dto.closed;
+    if (dto.closed !== undefined) patch.closed = dto.closed;
     const updated = this.topics.update(topic.id, patch)!;
     if (patch.closed !== undefined && patch.closed !== topic.closed) {
       await serviceLine(chat, uid, (name) => `${name} ${patch.closed ? "закрыл(а)" : "открыл(а)"} тему «${updated.title}»`);

@@ -68,7 +68,7 @@ export class PremiumService {
   }
 
   public grant(uid: string, dto: GrantPremiumDto) {
-    return this.plans.grant(uid, this.product, { userId: dto.userId, grant: dto.premium !== false, days: dto.days, forever: dto.forever }, PREMIUM_GRANT_DAYS, {
+    return this.plans.grant(uid, this.product, { userId: dto.userId, grant: dto.premium, days: dto.days, forever: dto.forever }, PREMIUM_GRANT_DAYS, {
       granted: (span) => `🎉 Вам выдан Shalter Premium${span}! Спасибо, что поддерживаете проект.`,
       revoked: "Ваш Shalter Premium был отключён администрацией.",
     });

@@ -13,8 +13,6 @@ import { SummaryStore } from "./stores/summary.store.js";
 
 const SUMMARY_MIN_CHARS = 400;
 
-const queryString = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
-
 /** Цель ответа, которой нет на странице: кратко, или deleted — удалена или скрыта у читателя. */
 type ReplyTarget =
   | { id: string; deleted: true }
@@ -45,11 +43,8 @@ export class MessagesService {
   /** Страница истории; открытие чата отмечает чужие сообщения прочитанными (message:read авторам). */
   public async history(uid: string, chat: Chat, query: HistoryQueryDto) {
     const userSettings = this.userSettings.get(uid);
-    const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
-    const before = queryString(query.before);
-    const beforeId = queryString(query.beforeId);
+    const { limit, before, beforeId, topic: rawTopic } = query;
     // ?topic=general — тема «Общее», ?topic=<id> — одна тема; без параметра — весь чат.
-    const rawTopic = queryString(query.topic);
     const topic = !chat.topicsEnabled || !rawTopic ? undefined : rawTopic === "general" ? null : rawTopic;
     const page = this.messages.findPage(chat.id, uid, userSettings.chatClears?.[chat.id], { limit, before, beforeId, topic });
     // Скрытый ответ бота виден только адресату (и тем, кто вступил позже, тоже не виден).
@@ -97,7 +92,7 @@ export class MessagesService {
 
   /** Поиск по словам и префиксу последнего слова; скрытое у себя и очищенное не находится. */
   public async search(uid: string, chat: Chat, query: SearchQueryDto) {
-    const q = String(query.q ?? "").trim().toLowerCase();
+    const { q } = query;
     if (!q) return { messages: [] };
     const clearedBefore = this.userSettings.get(uid).chatClears?.[chat.id];
     const match = textCrypto().searchQuery(q);
@@ -154,18 +149,12 @@ export class MessagesService {
   }
 
   /** Дни месяца с сообщениями (календарь «перейти к дате»); tz — сдвиг в минутах. */
-  public days(chat: Chat, query: DaysQueryDto) {
-    const month = String(query.month ?? "").slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(month)) throw new ApiError(400, "Нужен месяц в виде ГГГГ-ММ");
-    const tz = Number(query.tz);
-    return { days: this.messages.listDays(chat.id, month, Number.isFinite(tz) ? tz : 0) };
+  public days(chat: Chat, { month, tz }: DaysQueryDto) {
+    return { days: this.messages.listDays(chat.id, month, tz) };
   }
 
   /** Первое сообщение с этой даты. */
-  public at(chat: Chat, query: AtQueryDto) {
-    const day = String(query.day ?? "").slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new ApiError(400, "Нужна дата в виде ГГГГ-ММ-ДД");
-    const tz = Number(query.tz);
-    return { message: this.messages.firstOfDay(chat.id, day, Number.isFinite(tz) ? tz : 0) };
+  public at(chat: Chat, { day, tz }: AtQueryDto) {
+    return { message: this.messages.firstOfDay(chat.id, day, tz) };
   }
 }

@@ -4,7 +4,7 @@ import { genId } from "../../common/lib/gen-id.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
-import { cleanVisible, isChatAdmin } from "./lib/community-fields.js";
+import { isChatAdmin } from "./lib/community-fields.js";
 import type { Community, CommunityRequest } from "./model/domain.js";
 import type { AddChatDto, ChatVisibleDto, DecideRequestDto } from "./model/schemas/community.schema.js";
 
@@ -25,7 +25,7 @@ export class CommunityChatsService {
     const policy = this.access.addPolicy(community, uid);
     if (!policy) throw new ApiError(403, "Добавлять чаты могут только участники сообщества");
     const chat = this.access.addableChat(dto.chatId, uid);
-    const visible = cleanVisible(dto.visible) ?? true;
+    const { visible } = dto;
     if (policy === "suggest") {
       const created = this.communities.addRequest({ id: genId("cr"), communityId: community.id, chatId: chat.id, suggestedBy: uid, visible });
       if (!created) throw new ApiError(409, "Заявка на этот чат уже отправлена");
@@ -43,7 +43,7 @@ export class CommunityChatsService {
   public setVisible(uid: string, id: string, chatId: string, dto: ChatVisibleDto) {
     const community = this.access.load(id, uid, "editChats");
     if (!community.chatIds.includes(chatId)) throw new ApiError(404, NOT_IN_COMMUNITY);
-    const visible = cleanVisible(dto.visible);
+    const { visible } = dto;
     if (visible === undefined) throw new ApiError(400, "Нужно visible: true или false");
     this.communities.setChatVisible(community.id, chatId, visible);
     this.access.notify(community.id);
@@ -75,7 +75,7 @@ export class CommunityChatsService {
   /** { approve } для одной заявки или для всех (requestId === "all"). */
   public async decide(uid: string, id: string, requestId: string, dto: DecideRequestDto) {
     const community = this.access.load(id, uid, "editChats");
-    const approve = dto.approve === true;
+    const { approve } = dto;
     const list =
       requestId === "all"
         ? this.communities.listRequests(community.id)

@@ -20,10 +20,10 @@ export class CallParticipantsService {
 
   public async add(uid: string, id: string, { userId }: AddParticipantDto) {
     const call = this.participantCall(id, uid);
-    if (call.participantIds.includes(userId as string)) return { call };
+    if (userId !== undefined && call.participantIds.includes(userId)) return { call };
     // Не путаем «нет такого человека» с запретом звонков. Заблокировавший
     // по-прежнему выглядит как «ограничил звонки» — блокировку не раскрываем.
-    const target = typeof userId === "string" && userId ? this.users.findById(userId) : undefined;
+    const target = userId ? this.users.findById(userId) : undefined;
     if (!target) throw new ApiError(404, "Пользователь не найден");
     if (target.isBot) throw new ApiError(400, "Боту позвонить нельзя");
     if (!(await this.notify.canCall(uid, target.id))) throw new ApiError(403, "Пользователь ограничил звонки");

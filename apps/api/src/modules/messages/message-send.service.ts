@@ -38,7 +38,7 @@ import {
 import { MessagesRepository } from "./messages.repository.js";
 import { PaidMediaRepository } from "./paid-media.repository.js";
 import type { ForwardedFrom, Message } from "./model/domain.js";
-import type { SendMessageDto } from "./model/schemas/message.schema.js";
+import type { ChatMessageDto, SendMessageDto } from "./model/schemas/message.schema.js";
 
 /**
  * Поля сообщения из запроса. Проверка (gate) заменяет в нём пересылаемое содержимым
@@ -74,12 +74,10 @@ export class MessageSendService {
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
-  public async send(uid: string, chat: Chat, dto: SendMessageDto) {
-    if (dto.text != null && typeof dto.text !== "string") throw new ApiError(400, "Некорректный текст");
+  public async send(uid: string, chat: Chat, dto: ChatMessageDto) {
     // Вложения считаем после очистки: иначе { attachments: [{ kind: "bogus" }] } уходило
     // пустым сообщением. У пересылки текст и вложения берутся из исходного сообщения.
-    const text = dto.text as string | null | undefined;
-    if (!text?.trim() && !sanitizers().sanitizeAttachments(dto.attachments)?.length && !dto.sticker && !dto.forwardedFrom) {
+    if (!dto.text?.trim() && !sanitizers().sanitizeAttachments(dto.attachments)?.length && !dto.sticker && !dto.forwardedFrom) {
       throw new ApiError(400, "empty message");
     }
     const { clientId, ...fields } = dto;

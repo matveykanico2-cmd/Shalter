@@ -4,7 +4,6 @@ import { ApiError } from "../../common/errors/api-error.js";
 import { normalizePhone } from "../../common/lib/validators.js";
 import { checkUsername } from "../../legacy/legacy.js";
 import { publicUser } from "../users/lib/user.presenter.js";
-import { normalizeUsername } from "../users/lib/username.js";
 import type { User } from "../users/model/domain.js";
 import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -41,26 +40,22 @@ export class UsernameAuctionsService {
     return { auctions, balance: this.stars.balanceOf(userId), minStep: MIN_STEP_STARS, isAdmin: isAdminPhone(me?.phone) };
   }
 
-  public async create(userId: string, dto: CreateAuctionDto) {
+  public async create(userId: string, { username, startPriceStars, hours }: CreateAuctionDto) {
     this.requireAdmin(userId);
-    const username = normalizeUsername(dto.username);
     const problem = await checkUsername(username, { ignoreAuctions: true });
     if (problem) throw new ApiError(problem.status, problem.error);
     if (this.auctions.findOpenByUsername(username)) throw new ApiError(409, "Этот юзернейм уже на аукционе");
 
-    const startPriceStars = Math.max(0, Math.trunc(Number(dto.startPriceStars) || 0));
-    const hours = Math.max(1, Math.min(24 * 30, Math.trunc(Number(dto.hours) || 24)));
     const auction = this.auctions.create(username, startPriceStars, new Date(Date.now() + hours * 3600_000).toISOString());
     return { auction };
   }
 
-  public async bid(userId: string, id: string, dto: BidDto) {
+  public async bid(userId: string, id: string, { stars }: BidDto) {
     await this.sweep();
     const auction = this.auctions.find(id);
     if (!auction) throw new ApiError(404, "Аукцион не найден");
     if (auction.status !== "open") throw new ApiError(409, "Аукцион уже завершён");
 
-    const stars = Math.trunc(Number(dto.stars));
     const floor = auction.topBid == null ? auction.startPriceStars : auction.topBid + MIN_STEP_STARS;
     if (!Number.isFinite(stars) || stars < floor) throw new ApiError(400, `Минимальная ставка — ${floor} ⭐`);
     const balance = this.stars.balanceOf(userId);
@@ -101,7 +96,7 @@ export class UsernameAuctionsService {
     const target = dto.phone ? this.users.findByPhone(normalizePhone(dto.phone as string)) : this.users.findById(dto.userId as string);
     if (!target) throw new ApiError(404, "Пользователь с таким номером не найден");
 
-    const username = normalizeUsername(dto.username);
+    const { username } = dto;
     const problem = await checkUsername(username, { forUserId: target.id, ignoreAuctions: true });
     if (problem) throw new ApiError(problem.status, problem.error);
 

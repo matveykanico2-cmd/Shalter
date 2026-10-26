@@ -89,12 +89,11 @@ export class ChatMembersService {
     if (!allowed) throw new ApiError(403, "Недостаточно прав, чтобы менять этот тег");
 
     const titles = { ...chat.memberTitles };
-    const clean = String(title ?? "").trim().slice(0, 24);
-    if (clean) titles[userId] = clean;
+    if (title) titles[userId] = title;
     else delete titles[userId];
 
     const updated = this.chats.update(chat.id, { memberTitles: titles })!;
-    if (!self) this.adminLog.record(chat.id, uid, "member_tag", { targetId: userId, details: { value: clean || null } });
+    if (!self) this.adminLog.record(chat.id, uid, "member_tag", { targetId: userId, details: { value: title || null } });
     this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
   }

@@ -14,13 +14,13 @@ import {
   historyQuerySchema,
   locationSchema,
   searchQuerySchema,
-  sendMessageSchema,
+  chatMessageSchema,
   type AtQueryDto,
   type DaysQueryDto,
   type HistoryQueryDto,
   type LocationDto,
   type SearchQueryDto,
-  type SendMessageDto,
+  type ChatMessageDto,
 } from "./model/schemas/message.schema.js";
 
 // Переписка чата: история, отправка, поиск, календарь, ветки, кто прочитал, сводка,
@@ -41,7 +41,7 @@ export class MessagesController {
 
   @Post()
   @HttpCode(200)
-  public send(@Req() req: Request, @CurrentChat() chat: Chat, @Body(new ZodValidationPipe(sendMessageSchema)) dto: SendMessageDto) {
+  public send(@Req() req: Request, @CurrentChat() chat: Chat, @Body(new ZodValidationPipe(chatMessageSchema)) dto: ChatMessageDto) {
     return this.sender.send(req.uid!, chat, dto);
   }
 

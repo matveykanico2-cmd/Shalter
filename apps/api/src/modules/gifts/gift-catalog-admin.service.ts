@@ -33,7 +33,7 @@ export class GiftCatalogAdminService {
     if (!gift) throw new ApiError(404, "Подарок не найден");
     if (!gift.supply) throw new ApiError(400, "У этого подарка нет тиража — он безлимитный");
 
-    const parsed = parseSupply(dto.supply);
+    const parsed = dto.supply;
     if (parsed.error !== undefined) throw new ApiError(400, parsed.error);
 
     const issued = this.catalog.issuedCount(gift.id);
@@ -65,9 +65,9 @@ export class GiftCatalogAdminService {
     const scene = dto.scene === undefined ? null : sanitizers().sanitizeScene(dto.scene, { requireLayers: true });
     if (dto.scene !== undefined && !scene) throw new ApiError(400, EMPTY_SCENE);
 
-    if (!String(emoji ?? "").trim()) throw new ApiError(400, "Укажите эмодзи подарка");
-    if (!String(name ?? "").trim()) throw new ApiError(400, "Укажите название подарка");
-    const price = Number(priceStars);
+    if (!emoji) throw new ApiError(400, "Укажите эмодзи подарка");
+    if (!name) throw new ApiError(400, "Укажите название подарка");
+    const price = priceStars;
     if (!Number.isInteger(price) || price < 1) throw new ApiError(400, "Цена — целое число от 1 звезды");
 
     let supplyValue: number | null = null;
@@ -81,13 +81,14 @@ export class GiftCatalogAdminService {
     if (gifUrl) mediaUrl = await this.processGif(gifUrl, uid);
 
     const gift = this.catalog.create({
-      id: `custom_${giftSlug(String(name), 24)}_${Date.now().toString(36)}`,
-      emoji: String(emoji).trim().slice(0, 8),
-      name: String(name).trim().slice(0, 60),
+      // Тот же id, что из названия без обрезки по краям: giftSlug отбрасывает крайние «_».
+      id: `custom_${giftSlug(name, 24)}_${Date.now().toString(36)}`,
+      emoji: emoji.slice(0, 8),
+      name: name.slice(0, 60),
       priceStars: price,
-      premiumDays: premiumDays === null ? null : Number.isInteger(Number(premiumDays)) ? Number(premiumDays) : 0,
+      premiumDays,
       supply: supplyValue,
-      exclusive: !!exclusive,
+      exclusive,
       mediaUrl,
       scene,
     });

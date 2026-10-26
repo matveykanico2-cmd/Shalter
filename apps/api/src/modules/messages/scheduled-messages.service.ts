@@ -28,10 +28,9 @@ export class ScheduledMessagesService {
   }
 
   public async create(uid: string, chat: Chat, body: ScheduleDto) {
-    if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
     const { sanitizeAttachments } = sanitizers();
-    if (!(body.text as string | null | undefined)?.trim() && !sanitizeAttachments(body.attachments)?.length) throw new ApiError(400, "empty message");
-    if (body.whenOnline === true) {
+    if (!body.text?.trim() && !sanitizeAttachments(body.attachments)?.length) throw new ApiError(400, "empty message");
+    if (body.whenOnline) {
       if (chat.type !== "dm") throw new ApiError(400, "«Когда будет в сети» — только в личных чатах");
       body.sendAt = WHEN_ONLINE;
       body.repeat = null;
@@ -45,7 +44,7 @@ export class ScheduledMessagesService {
       id: genId("sch"),
       chatId: chat.id,
       senderId: uid,
-      text: (body.text as string | undefined) ?? "",
+      text: body.text ?? "",
       attachments: sanitizeAttachments(body.attachments),
       replyToId: (body.replyToId as string | null | undefined) ?? null,
       topicId: (body.topicId as string | null | undefined) ?? null,
@@ -54,7 +53,7 @@ export class ScheduledMessagesService {
       createdAt: new Date().toISOString(),
     });
     // Собеседник в сети — уходит сразу, после ответа на запрос.
-    if (body.whenOnline === true) setImmediate(() => this.delivery.sendWhenOnline().catch((err) => console.error("when-online send failed:", err)));
+    if (body.whenOnline) setImmediate(() => this.delivery.sendWhenOnline().catch((err) => console.error("when-online send failed:", err)));
     return { scheduled: entry };
   }
 
@@ -62,7 +61,7 @@ export class ScheduledMessagesService {
   public async update(uid: string, chatId: string, scheduledId: string, body: EditScheduledDto) {
     const existing = this.scheduled.find(scheduledId);
     if (!existing || existing.senderId !== uid || existing.chatId !== chatId) throw new ApiError(404, "not found");
-    if (body.sendNow === true) {
+    if (body.sendNow) {
       this.scheduled.edit(scheduledId, { sendAt: new Date().toISOString() });
       await this.delivery.sweepOnce();
       return { ok: true };

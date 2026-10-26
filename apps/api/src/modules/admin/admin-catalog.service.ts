@@ -4,18 +4,10 @@ import { validateImage } from "../profiles/lib/profile-status.js";
 import { ProfileStatusesRepository } from "../profiles/profile-statuses.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminAccessService } from "./admin-access.service.js";
-import type { SafetyLabelDto, StatusItemDto } from "./model/schemas/admin.schema.js";
+import type { CreateLabelDto, StatusItemDto, UpdateLabelDto } from "./model/schemas/admin.schema.js";
 import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 
 const MAX_STATUS_NAME = 40;
-
-/** id метки: латиница, цифры и «_», до 24 символов. */
-const normalizeLabelId = (raw: unknown) =>
-  String(raw ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "")
-    .slice(0, 24);
 
 // Списки модерации (раздел «moderation»): метки безопасности (server/data/safetyLabels.js) и
 // каталог статусов профиля (server/data/profileStatuses.js).
@@ -33,32 +25,24 @@ export class AdminCatalogService {
     return { labels: this.labels.list() };
   }
 
-  public createLabel(uid: string, dto: SafetyLabelDto) {
+  public createLabel(uid: string, dto: CreateLabelDto) {
     this.access.require(uid, "moderation");
-    const wanted = normalizeLabelId(dto.id || dto.short);
-    const row = {
-      id: wanted || `label_${Date.now().toString(36)}`,
-      short: String(dto.short ?? "").trim().slice(0, 16).toUpperCase(),
-      label: String(dto.label ?? "").trim().slice(0, 60),
-      hint: String(dto.hint ?? "").trim().slice(0, 300),
-      color: String(dto.color ?? "#c6403b").trim().slice(0, 24),
-      createdAt: new Date().toISOString(),
-    };
+    const row = { ...dto, id: dto.id || `label_${Date.now().toString(36)}`, createdAt: new Date().toISOString() };
     if (!row.id || !row.short || !row.label) throw new ApiError(400, "Нужны идентификатор, короткая надпись и название");
     if (this.labels.findById(row.id)) throw new ApiError(400, "Метка с таким идентификатором уже есть");
     this.labels.create(row);
     return { label: row };
   }
 
-  public updateLabel(uid: string, id: string, dto: SafetyLabelDto) {
+  public updateLabel(uid: string, id: string, dto: UpdateLabelDto) {
     this.access.require(uid, "moderation");
     const existing = this.labels.findById(id);
     if (!existing) throw new ApiError(404, "Метка не найдена");
     const patch = {
-      short: dto.short === undefined ? existing.short : String(dto.short).trim().slice(0, 16).toUpperCase(),
-      label: dto.label === undefined ? existing.label : String(dto.label).trim().slice(0, 60),
-      hint: dto.hint === undefined ? existing.hint : String(dto.hint).trim().slice(0, 300),
-      color: dto.color === undefined ? existing.color : String(dto.color).trim().slice(0, 24),
+      short: dto.short ?? existing.short,
+      label: dto.label ?? existing.label,
+      hint: dto.hint ?? existing.hint,
+      color: dto.color ?? existing.color,
     };
     if (!patch.short || !patch.label) throw new ApiError(400, "Нужны короткая надпись и название");
     this.labels.update(id, patch);
@@ -80,7 +64,7 @@ export class AdminCatalogService {
     const item = this.statuses.create({
       id: `st_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       image: checked.image,
-      name: String(dto.name ?? "").trim().slice(0, MAX_STATUS_NAME),
+      name: dto.name.slice(0, MAX_STATUS_NAME),
       createdAt: new Date().toISOString(),
     });
     return { item };

@@ -10,7 +10,7 @@ import { MessagesRepository } from "../messages/messages.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { REASON_LABELS, REASON_TO_LABEL, REASONS, responsibleUserId, targetSummary } from "./lib/report-reasons.js";
+import { REASON_LABELS, REASON_TO_LABEL, responsibleUserId, targetSummary } from "./lib/report-reasons.js";
 import type { CreateReportDto, ResolveReportDto } from "./model/schemas/report.schema.js";
 import { ReportsRepository } from "./reports.repository.js";
 
@@ -25,10 +25,7 @@ export class ReportsService {
     private readonly realtime: RealtimeService
   ) {}
 
-  public async create(uid: string, dto: CreateReportDto) {
-    const { targetType, targetId, reason, details } = dto as Record<string, any>;
-    if (!["user", "chat", "message"].includes(targetType)) throw new ApiError(400, "invalid target type");
-    if (!REASONS.has(reason)) throw new ApiError(400, "invalid reason");
+  public async create(uid: string, { targetType, targetId, reason, details }: CreateReportDto) {
 
     let target: any;
     if (targetType === "user") target = this.users.findById(targetId);
@@ -57,7 +54,7 @@ export class ReportsService {
       targetId,
       subjectUserId,
       reason,
-      details: (details ?? "").trim().slice(0, 2000),
+      details: ((details as string | null | undefined) ?? "").trim().slice(0, 2000),
       createdAt: new Date().toISOString(),
       status: "open",
     });
@@ -86,8 +83,8 @@ export class ReportsService {
   public async resolve(uid: string, id: string, dto: ResolveReportDto) {
     const me = this.users.findById(uid);
     if (!hasAdminSection(me, "moderation")) throw new ApiError(403, "Недостаточно прав");
-    const action = dto.action as string;
-    if (!["delete", "ban", "dismiss"].includes(action)) throw new ApiError(400, "invalid action");
+    const { action } = dto;
+    if (!action) throw new ApiError(400, "invalid action");
     const report = this.reports.findById(id);
     if (!report) throw new ApiError(404, "Жалоба не найдена");
     if (report.status !== "open") throw new ApiError(400, "Жалоба уже обработана");

@@ -10,11 +10,10 @@ import { UsersRepository } from "../users/users.repository.js";
 import { GiftCatalogService } from "./gift-catalog.service.js";
 import { GiftDeliveryService, type DeliveryResult } from "./gift-delivery.service.js";
 import { GiftSendersService } from "./gift-senders.service.js";
-import { sanitizeGiftBackground } from "./lib/gift-background.js";
 import { conversionValue, giftSlug } from "./lib/gift-catalog.js";
 import { findShelfEntry, findShelfIndex, giftNote, soldOutError } from "./lib/gift-shelf.js";
 import type { Gift } from "./model/domain.js";
-import type { PinGiftDto, SendGiftDto, UserGiftDto } from "./model/schemas/gift.schema.js";
+import type { CreateUserGiftDto, PatchUserGiftDto, PinGiftDto, SendGiftDto } from "./model/schemas/gift.schema.js";
 
 const MAX_USER_GIFTS = 50;
 const NOT_ON_SHELF = "Подарок не найден на вашей полке";
@@ -134,7 +133,7 @@ export class GiftsService {
   }
 
   public pin(uid: string, entryId: string, dto: PinGiftDto) {
-    const pinned = dto.pinned !== false;
+    const { pinned } = dto;
     const found = this.users.mutateGiftsReceived(uid, (list) => {
       const entry = list[findShelfIndex(list, entryId)];
       if (!entry) return false;
@@ -150,9 +149,8 @@ export class GiftsService {
     return { gifts: this.catalog.listUserGifts(uid) };
   }
 
-  public createCustom(uid: string, dto: UserGiftDto) {
-    const name = String(dto.name ?? "").trim().slice(0, 60);
-    if (!name) throw new ApiError(400, "Назовите подарок");
+  public createCustom(uid: string, dto: CreateUserGiftDto) {
+    const { name } = dto;
     const scene = sanitizers().sanitizeScene(dto.scene, { requireLayers: true });
     if (!scene) throw new ApiError(400, EMPTY_SCENE);
     if (this.catalog.listUserGifts(uid).length >= MAX_USER_GIFTS) {
@@ -163,13 +161,9 @@ export class GiftsService {
     return { gift };
   }
 
-  public patchCustom(uid: string, id: string, dto: UserGiftDto) {
+  public patchCustom(uid: string, id: string, dto: PatchUserGiftDto) {
     const patch: { name?: string; scene?: unknown; emoji?: string } = {};
-    if (dto.name !== undefined) {
-      const name = String(dto.name).trim().slice(0, 60);
-      if (!name) throw new ApiError(400, "Назовите подарок");
-      patch.name = name;
-    }
+    if (dto.name !== undefined) patch.name = dto.name;
     if (dto.scene !== undefined) {
       const scene = sanitizers().sanitizeScene(dto.scene, { requireLayers: true });
       if (!scene) throw new ApiError(400, EMPTY_SCENE);
@@ -209,13 +203,13 @@ export class GiftsService {
 
   /** Подарок от пользователя: с фоном, подписью и, у Premium, анонимно. */
   private send(uid: string, recipientId: string, gift: Gift, dto: SendGiftDto): Promise<DeliveryResult> {
-    const anonymous = !!dto.anonymous && !!this.users.findById(uid)?.isPremium;
+    const anonymous = dto.anonymous && !!this.users.findById(uid)?.isPremium;
     return this.delivery.deliver({
       gift,
       recipientId,
       fromId: uid,
       announceFromId: uid,
-      background: sanitizeGiftBackground(dto.background),
+      background: dto.background,
       anonymous,
       note: giftNote(dto.note),
     });
@@ -243,7 +237,7 @@ export class GiftsService {
     return user && this.senders.withGiftSendersOn(publicUser(user), viewerId);
   }
 
-  private findUser(id: unknown): User | undefined {
-    return typeof id === "string" ? this.users.findById(id) : undefined;
+  private findUser(id: string | undefined): User | undefined {
+    return id === undefined ? undefined : this.users.findById(id);
   }
 }

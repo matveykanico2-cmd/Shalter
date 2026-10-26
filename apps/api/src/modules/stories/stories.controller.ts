@@ -3,9 +3,11 @@ import type { Request } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { AuthGuard } from "../auth/guards/auth.guard.js";
 import {
+  createChannelStorySchema,
   createStorySchema,
   editStoryCommentSchema,
   storyCommentSchema,
+  type CreateChannelStoryDto,
   type CreateStoryDto,
   type EditStoryCommentDto,
   type StoryCommentDto,
@@ -41,7 +43,7 @@ export class StoriesController {
 
   @Post("channel/:chatId")
   @HttpCode(200)
-  public createForChannel(@Req() req: Request, @Param("chatId") chatId: string, @Body(new ZodValidationPipe(createStorySchema)) dto: CreateStoryDto) {
+  public createForChannel(@Req() req: Request, @Param("chatId") chatId: string, @Body(new ZodValidationPipe(createChannelStorySchema)) dto: CreateChannelStoryDto) {
     return this.stories.createForChannel(req.uid!, chatId, dto);
   }
 

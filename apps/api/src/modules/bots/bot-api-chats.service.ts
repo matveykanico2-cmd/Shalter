@@ -10,7 +10,6 @@ import type { Chat, NewChat } from "../chats/model/domain.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
-import { normalizeUsername } from "../users/lib/username.js";
 import type { User } from "../users/model/domain.js";
 import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -83,7 +82,7 @@ export class BotApiChatsService {
 
   public member(bot: Bot, query: ChatIdQueryDto) {
     const chat = this.access.memberChat(bot, query.chatId);
-    const user = this.users.findById(str(query.userId));
+    const user = this.users.findById(query.userId);
     if (!user || !chat.memberIds.includes(user.id)) throw new ApiError(404, "User is not a member");
     return {
       user: publicUser(user),
@@ -138,8 +137,7 @@ export class BotApiChatsService {
     const chat = this.access.adminChat(bot, dto.chatId);
     const userId = dto.userId as string;
     if (userId === chat.ownerId || (chat.adminIds ?? []).includes(userId)) throw new ApiError(400, "Cannot restrict the owner or an admin");
-    const minutes = dto.minutes === undefined ? 60 : dto.minutes;
-    const until = new Date(Date.now() + Math.max(1, Math.min(43200, Number(minutes) || 60)) * 60000).toISOString();
+    const until = new Date(Date.now() + dto.minutes * 60000).toISOString();
     const updated = this.chats.update(chat.id, { restrictions: { ...(chat.restrictions ?? {}), [String(userId)]: until } });
     this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     return { ok: true, until };
@@ -151,7 +149,7 @@ export class BotApiChatsService {
     if (userId === chat.ownerId || (chat.ownerIds ?? []).includes(userId)) throw new ApiError(400, "Cannot change the owner");
     if (!chat.memberIds.includes(userId)) throw new ApiError(404, "User is not a member");
     const current = new Set(chat.adminIds ?? []);
-    if (dto.admin === undefined || dto.admin) current.add(userId);
+    if (dto.admin) current.add(userId);
     else current.delete(userId);
     const updated = this.chats.update(chat.id, { adminIds: [...current] })!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
@@ -180,7 +178,7 @@ export class BotApiChatsService {
 
   public setDescription(bot: Bot, dto: ChatTextDto) {
     const chat = this.access.adminChat(bot, dto.chatId);
-    const updated = this.chats.update(chat.id, { description: str(dto.description).slice(0, 500) })!;
+    const updated = this.chats.update(chat.id, { description: dto.description.slice(0, 500) })!;
     this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     return { chat: { id: updated.id, description: updated.description } };
   }
@@ -210,11 +208,10 @@ export class BotApiChatsService {
 
   /** Группа с ботом-владельцем; позвать можно только тех, с кем бот уже в каком-то чате. */
   public createGroup(bot: Bot, dto: CreateGroupDto) {
-    if (!hasText(dto.title)) throw new ApiError(400, "title is required");
     const known = new Set<string>();
     for (const c of this.chats.findForUser(bot.userId)) for (const id of c.memberIds) known.add(id);
     const invited: string[] = [];
-    for (const id of new Set(Array.isArray(dto.memberIds) ? (dto.memberIds as string[]) : [])) {
+    for (const id of new Set(dto.memberIds)) {
       if (known.has(id) && id !== bot.userId && this.privacy.allowsUser(id, "invites", bot.userId)) invited.push(id);
     }
     const chat = this.create(bot, { type: "group", title: dto.title.trim().slice(0, 120), avatarColor: "#5b8def", memberIds: [bot.userId, ...invited], adminIds: [bot.userId] });
@@ -224,10 +221,8 @@ export class BotApiChatsService {
 
   /** Канал с ботом-владельцем; владелец бота — участник и админ. */
   public async createChannel(bot: Bot, dto: CreateChannelDto) {
-    if (!hasText(dto.title)) throw new ApiError(400, "title is required");
-    let handle: string | null = null;
-    if (dto.username) {
-      handle = normalizeUsername(dto.username);
+    const handle = dto.username;
+    if (handle !== null) {
       const problem = await checkUsername(handle);
       if (problem) throw new ApiError(problem.status, problem.error);
     }
@@ -235,9 +230,9 @@ export class BotApiChatsService {
     const chat = this.create(bot, {
       type: "channel",
       title: dto.title.trim().slice(0, 120),
-      description: str(dto.description).trim().slice(0, 300),
+      description: dto.description,
       username: handle,
-      isPublic: !!dto.isPublic && !!handle,
+      isPublic: dto.isPublic && !!handle,
       avatarColor: "#5b8def",
       memberIds: team,
       adminIds: team,
@@ -249,7 +244,7 @@ export class BotApiChatsService {
   /** Обсуждение канала: создать группу, привязать свою или отвязать. */
   public setDiscussion(bot: Bot, dto: DiscussionDto) {
     const channel = this.access.runsChat(bot, dto.channelId, "channel");
-    const action = dto.action ?? "create";
+    const { action } = dto;
 
     if (action === "unlink") {
       const updated = this.chats.update(channel.id, { linkedDiscussionChatId: null })!;
@@ -270,7 +265,7 @@ export class BotApiChatsService {
       const team = this.team(bot);
       const discussion = this.create(bot, {
         type: "group",
-        title: String(dto.title ?? `${channel.title} · Обсуждение`).trim().slice(0, 120),
+        title: (dto.title ?? `${channel.title} · Обсуждение`).trim().slice(0, 120),
         avatarColor: "#5C6473",
         memberIds: team,
         adminIds: team,
@@ -293,7 +288,7 @@ export class BotApiChatsService {
   }
 
   public channelStats(bot: Bot, query: ChatIdQueryDto) {
-    const chat = this.chats.findById(str(query.chatId));
+    const chat = this.chats.findById(query.chatId);
     if (!chat || chat.type !== "channel") throw new ApiError(404, "Channel not found");
     if (!(chat.adminIds ?? []).includes(bot.userId)) throw new ApiError(403, "Bot must be an admin of this channel");
     const posts = this.messages.listFeed(chat.id, bot.userId).filter((m) => m.type !== "system");

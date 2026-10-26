@@ -137,8 +137,7 @@ export class ProfilesService {
     return { channels: this.pinnableChannelsFor(uid).map((c) => channelCard(c, uid)), max: MAX_PINNED_CHANNELS };
   }
 
-  public async setPinnedChannels(uid: string, dto: PinnedChannelsDto) {
-    const requested = Array.isArray(dto.chatIds) ? dto.chatIds.filter((id): id is string => typeof id === "string") : [];
+  public async setPinnedChannels(uid: string, { chatIds: requested }: PinnedChannelsDto) {
     const allowed = new Set(this.pinnableChannelsFor(uid).map((c) => c.id));
     const chatIds = [...new Set(requested)].filter((id) => allowed.has(id)).slice(0, MAX_PINNED_CHANNELS);
     this.userSettings.update(uid, { pinnedChannelIds: chatIds });

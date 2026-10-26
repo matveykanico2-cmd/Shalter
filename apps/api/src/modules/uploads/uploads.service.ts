@@ -23,16 +23,14 @@ export class UploadsService {
     return { limits: UPLOAD_LIMITS, defaultLimit: DEFAULT_LIMIT };
   }
 
-  public async receive(uid: string, req: Request, query: UploadQueryDto): Promise<UploadResult> {
+  /** Тип файла уже проверен схемой. */
+  public async receive(uid: string, req: Request, { kind, name, mimeType }: UploadQueryDto): Promise<UploadResult> {
     const limits = uploadLimits();
-    const kind = query.kind ?? "file";
-    if (!limits.UPLOADABLE_KINDS.has(kind)) throw new ApiError(400, "Неизвестный тип файла");
 
     const limit = limits.limitFor(kind);
     const declared = Number(req.headers["content-length"]);
     if (Number.isFinite(declared) && declared > limit) throw new ApiError(413, limits.tooLargeError(kind));
 
-    const name = (query.name ?? "file").slice(0, 300);
     const id = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}`;
     const filename = `${id}${safeExtension(name)}`;
 
@@ -101,7 +99,7 @@ export class UploadsService {
       url: `/uploads/${finalName}`,
       name,
       size: written,
-      mimeType: (query.mimeType ?? "").slice(0, 120) || undefined,
+      mimeType,
       kind,
     };
   }

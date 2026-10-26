@@ -2,13 +2,13 @@ import { Injectable } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { ApiError } from "../../common/errors/api-error.js";
 import { hashPassword } from "../../common/lib/password.js";
-import { EMAIL_RE, PHONE_RE, normalizePhone } from "../../common/lib/validators.js";
+import { normalizePhone } from "../../common/lib/validators.js";
 import { sendMail } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { selfUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
-import type { PairRecoveryDto, PhoneRecoveryDto } from "./model/schemas/recovery.schema.js";
+import type { PairCheckDto, PairResetDto, PhoneResetDto } from "./model/schemas/recovery.schema.js";
 import { SignInService, type LoginResult } from "./sign-in.service.js";
 import { AuthCodesStore } from "./stores/auth-codes.store.js";
 import { SystemNoticesService } from "./system-notices.service.js";
@@ -33,7 +33,7 @@ export class RecoveryService {
     private readonly notices: SystemNoticesService
   ) {}
 
-  public async checkPair(dto: PairRecoveryDto) {
+  public async checkPair(dto: PairCheckDto) {
     const user = this.findByPair(dto);
     // Почта и номер — не секреты: сбросить пароль можно только с кодом из письма на адрес аккаунта.
     const code = this.codes.pairRecovery.start(user.id, true);
@@ -48,8 +48,7 @@ export class RecoveryService {
     return { ok: true, name: user.name };
   }
 
-  public async resetByPair(req: Request, res: Response, dto: PairRecoveryDto) {
-    if (dto.password.length < 6) throw new ApiError(400, "Пароль — не короче 6 символов");
+  public async resetByPair(req: Request, res: Response, dto: PairResetDto) {
     const user = this.findByPair(dto);
     if (!this.codes.pairRecovery.confirm(user.id, dto.code)) throw new ApiError(400, "Неверный или устаревший код из письма");
 
@@ -77,10 +76,8 @@ export class RecoveryService {
     return { user: selfUser(user) };
   }
 
-  public async startByPhone(rawPhone: string) {
-    const phone = normalizePhone(rawPhone);
-    if (!PHONE_RE.test(phone)) throw new ApiError(400, "Введите номер телефона полностью");
-
+  /** Номер уже приведён и проверен схемой. */
+  public async startByPhone(phone: string) {
     // Нет такого номера — ответ тот же, что при отправке: номер не выдаёт, есть ли аккаунт.
     const user = this.usersRepository.findByPhone(phone);
     if (!user || user.isBanned) return { ok: true, sent: true };
@@ -96,11 +93,8 @@ export class RecoveryService {
     return { ok: true, sent: true };
   }
 
-  public async resetByPhone(req: Request, res: Response, dto: PhoneRecoveryDto): Promise<LoginResult> {
-    const phone = normalizePhone(dto.phone);
-    if (dto.password.length < 6) throw new ApiError(400, "Пароль — не короче 6 символов");
-
-    const user = this.usersRepository.findByPhone(phone);
+  public async resetByPhone(req: Request, res: Response, dto: PhoneResetDto): Promise<LoginResult> {
+    const user = this.usersRepository.findByPhone(dto.phone);
     if (!user || !this.codes.chat.confirm(user.id, dto.code)) throw new ApiError(400, "Неверный или устаревший код");
     if (user.isBanned) throw new ApiError(403, banError(user));
     if (user.twoFactorEnabled) throw new ApiError(409, "На аккаунте включена двухфакторная аутентификация");
@@ -116,12 +110,8 @@ export class RecoveryService {
     return this.signIn.finishLogin(req, res, this.usersRepository.findById(user.id)!);
   }
 
-  private findByPair(dto: { email: string; phone: string }): User {
-    const email = dto.email.trim().toLowerCase();
-    const phone = normalizePhone(dto.phone);
-    if (!EMAIL_RE.test(email)) throw new ApiError(400, "Введите корректный адрес почты");
-    if (!PHONE_RE.test(phone)) throw new ApiError(400, "Введите номер телефона полностью");
-
+  /** Почта и номер уже приведены и проверены схемой. */
+  private findByPair({ email, phone }: { email: string; phone: string }): User {
     const user = this.usersRepository.findByEmail(email);
     if (!user || !user.phone || normalizePhone(user.phone) !== phone) throw new ApiError(400, "Почта и телефон не совпадают ни с одним аккаунтом");
     if (user.isBanned) throw new ApiError(403, banError(user));

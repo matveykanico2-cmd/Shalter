@@ -132,12 +132,11 @@ export class ProfileEditService {
     return { user: user ? selfUser(user) : null };
   }
 
-  public async block(uid: string, id: string, dto: BlockDto) {
-    const { blocked } = dto;
+  public async block(uid: string, id: string, { blocked }: BlockDto) {
     if (id === uid) throw new ApiError(400, "Нельзя заблокировать самого себя");
     // Разблокировать можно и удалённого — чтобы его id не застрял в списке.
     if (blocked && !this.users.findById(id)) throw new ApiError(404, "Пользователь не найден");
-    this.users.setBlocked(uid, id, !!blocked);
+    this.users.setBlocked(uid, id, blocked);
     // В ответе — тот, кого (раз)блокировали, глазами блокирующего; удалённый — null.
     const target = this.users.findById(id);
     return { user: target ? this.privacy.publicUserFor(target, uid) : null };

@@ -51,7 +51,7 @@ export class BusinessService {
   }
 
   public grant(uid: string, dto: GrantBusinessDto) {
-    return this.plans.grant(uid, this.product, { userId: dto.userId, grant: dto.business !== false, days: dto.days, forever: dto.forever }, BUSINESS_GRANT_DAYS, {
+    return this.plans.grant(uid, this.product, { userId: dto.userId, grant: dto.business, days: dto.days, forever: dto.forever }, BUSINESS_GRANT_DAYS, {
       granted: (span) => `🏢 Вам выдан Shalter для бизнеса${span}!`,
       revoked: "Ваш Shalter для бизнеса был отключён администрацией.",
     });

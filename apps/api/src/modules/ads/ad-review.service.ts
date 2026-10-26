@@ -31,8 +31,7 @@ export class AdReviewService {
     this.requireModerator(uid);
     const c = this.campaigns.findById(id);
     if (!c) throw new ApiError(404, "Кампания не найдена");
-    const approve = dto.approve !== false;
-    const reason = String(dto.reason ?? "").trim().slice(0, 300);
+    const { approve, reason } = dto;
     if (!approve && !reason) throw new ApiError(400, "Укажите причину отказа — её увидит рекламодатель");
 
     const updated = this.campaigns.update(c.id, approve ? { status: "paused", rejectReason: null } : { status: "rejected", rejectReason: reason });
