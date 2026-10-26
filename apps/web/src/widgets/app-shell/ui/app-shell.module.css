@@ -26,6 +26,21 @@
   font-weight: 600;
 }
 
+.railButton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--color-muted);
+}
+
+.railButton:hover,
+.railActive {
+  background: var(--color-surface);
+  color: var(--color-accent);
+}
+
 .sidebar {
   min-height: 0;
   overflow: hidden;

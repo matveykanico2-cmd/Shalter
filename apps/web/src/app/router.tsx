@@ -1,5 +1,7 @@
 import { createBrowserRouter } from "react-router";
 
+import { CallJoinView, CallView } from "@/views/call";
+import { CallsView } from "@/views/calls";
 import { ChatView } from "@/views/chat";
 import { HomeView } from "@/views/home";
 import { JoinView } from "@/views/join";
@@ -16,6 +18,9 @@ export const createRouter = () =>
       children: [
         { index: true, element: <HomeView /> },
         { path: "chat/:chatId", element: <ChatView /> },
+        { path: "call/:callId", element: <CallView /> },
+        { path: "call-join/:token", element: <CallJoinView /> },
+        { path: "calls", element: <CallsView /> },
         // Ссылки как t.me/имя: /u/имя и /@имя.
         { path: "u/:username", element: <UsernameView /> },
         { path: "join/:code", element: <JoinView /> },

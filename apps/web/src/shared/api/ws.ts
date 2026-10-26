@@ -4,7 +4,7 @@
 import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
 import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
-import type { aiState, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate } from "@shalter/shared/schemas/ws";
+import type { aiState, callAnswered, callIncoming, callParticipantsUpdated, callSignal, callUpdated, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate, voicechatUpdated } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
 
 type Of<S extends z.ZodType> = z.infer<S>;
@@ -33,6 +33,14 @@ export type WsEvents = {
   "chat:join-declined": Of<typeof chatJoinDeclined>;
   /** Shalter AI пишет ответ (active) или закончил — кнопка «стоп» в поле ввода. */
   "ai:state": Of<typeof aiState>;
+  /** Звонок: входящий, ответили на другом устройстве, сменился статус или участники, сигнал WebRTC. */
+  "call:incoming": Of<typeof callIncoming>;
+  "call:answered": Of<typeof callAnswered>;
+  "call:updated": Of<typeof callUpdated>;
+  "call:participants-updated": Of<typeof callParticipantsUpdated>;
+  "call:signal": Of<typeof callSignal>;
+  /** Голосовой чат группы начался, сменились участники или закончился (call: null). */
+  "voicechat:updated": Of<typeof voicechatUpdated>;
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };
   /** Сменился статус сокета (ws.status()) — для заголовка «Соединение…». */

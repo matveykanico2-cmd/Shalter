@@ -4,6 +4,7 @@ import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImpera
 import { chatCache } from "@/entities/chat";
 import { type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
 import { useSettings } from "@/entities/settings";
+import { ContactPicker, type PickedContact } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
@@ -26,7 +27,6 @@ import { AttachButton } from "./attach-button";
 import { BotCommandsButton } from "./bot-commands-button";
 import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
-import { ContactPicker, type PickedContact } from "./contact-picker";
 import { EmojiButton } from "./emoji-picker";
 import { FormatBar,type FormatKind } from "./format-bar";
 import { HugoPanel, type HugoState } from "./hugo-panel";
@@ -759,6 +759,7 @@ export function Composer(props: Props) {
       ) : null}
       {creating === "contact" ? (
         <ContactPicker
+          title="Отправить контакт"
           extra={props.people ?? NO_PEOPLE}
           exclude={props.excludeContacts ?? NO_IDS}
           onClose={() => setCreating(null)}

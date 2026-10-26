@@ -3,13 +3,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getCall, hangup } from "@/features/call";
+
 import { chatQueries, type ChatSummary } from "@/entities/chat";
 import type { Message } from "@/entities/message";
 import { sessionQueries } from "@/entities/session";
 import { settingsQueries } from "@/entities/settings";
 
 import { ws } from "@/shared/api";
-import { fakeApi, fakeMedia, FakeMediaRecorder, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
+import { fakeApi, fakeMedia, FakeMediaRecorder, fakeRtc, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
 import { AskHost, BrowserHost, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
@@ -74,6 +76,7 @@ function renderChat(c: ChatSummary = chat()) {
   const router = createMemoryRouter(
     [
       { path: "/chat/:chatId", element: <ChatView /> },
+      { path: "/call/:callId", element: <p>Экран звонка</p> },
       { path: "/", element: <p>Список чатов</p> },
     ],
     { initialEntries: [`/chat/${c.id}`] }
@@ -1765,7 +1768,8 @@ describe("геолокация и контакт из скрепки", () => {
     await screen.findByText("привет");
     attach("Контакт");
     const dialog = await screen.findByRole("dialog", { name: "Отправить контакт" });
-    expect((await within(dialog).findAllByRole("button")).map((b) => b.textContent)).toEqual(["ООлег", "ЛЛена", "Отмена"]);
+    await within(dialog).findByRole("button", { name: /Олег/ });
+    expect(within(dialog).getAllByRole("button").map((b) => b.textContent)).toEqual(["ООлег", "ЛЛена", "Отмена"]);
     fireEvent.click(within(dialog).getByRole("button", { name: /Олег/ }));
     await waitFor(() =>
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ attachments: [{ kind: "contact", meta: { userId: OLEG.id, name: "Олег", phone: OLEG.phone } }] })
@@ -2639,5 +2643,80 @@ describe("информация о чате", () => {
       await screen.findByText("2 участника");
       expect(within(openInfo()).queryByRole("button", { name: /Редактировать/ })).toBeNull();
     });
+  });
+});
+
+describe("звонки из чата", () => {
+  const dm = () => chat({ type: "dm", title: null, otherUser: LENA as never });
+  const placed = (body: Record<string, unknown>) => ({
+    body: { call: { id: "cl_1", chatId: "c_1", kind: body.kind, callerId: ME.id, status: "ongoing", startedAt: "2026-10-26T10:00:00.000Z", durationSec: 0, participantIds: [ME.id, LENA.id] } },
+  });
+
+  afterEach(async () => {
+    if (getCall()) await hangup();
+  });
+
+  it("личка: «Позвонить» — звонок собеседнику и экран звонка", async () => {
+    fakeRtc();
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/calls": placed, "PATCH /api/calls/cl_1": { body: {} } });
+    const { router } = renderChat(dm());
+    const header = await screen.findByRole("banner");
+    expect(within(header).getByTitle("Видеозвонок")).toBeTruthy();
+    fireEvent.click(within(header).getByTitle("Позвонить"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/call/cl_1"));
+    expect(calls.find((c) => c.key === "POST /api/calls")?.body).toEqual({ chatId: "c_1", kind: "audio", ringAll: false });
+  });
+
+  it("Избранное и бот — без кнопок звонка", async () => {
+    fakeApi({ "GET /api/chats/c_1": card(chat({ type: "dm", title: null, isSaved: true } as never)), [HISTORY]: page([]) });
+    renderChat(chat({ type: "dm", title: null, isSaved: true } as never));
+    const header = await screen.findByRole("banner");
+    expect(within(header).queryByTitle("Позвонить")).toBeNull();
+  });
+
+  it("группа: звонок всем; идёт голосовой чат — кнопка «Голосовой чат · N», иначе «Начать голосовой чат» в меню", async () => {
+    fakeRtc();
+    const room = { id: "cl_room", chatId: "c_1", kind: "voice-room", callerId: LENA.id, status: "ongoing", startedAt: "2026-10-26T10:00:00.000Z", durationSec: 0, participantIds: [LENA.id] };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([]),
+      "GET /api/calls/room/c_1": { body: { call: null } },
+      "POST /api/calls": placed,
+      "PATCH /api/calls/cl_1": { body: {} },
+      "POST /api/calls/cl_1/leave": { body: {} },
+    });
+    const { router } = renderChat();
+    const header = await screen.findByRole("banner");
+    fireEvent.click(within(header).getByTitle("Ещё"));
+    expect(await screen.findByRole("menuitem", { name: /Начать голосовой чат/ })).toBeTruthy();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    ws.start();
+    FakeSocket.last().open();
+    act(() => FakeSocket.last().receive({ type: "voicechat:updated", chatId: "c_1", call: room }));
+    expect(await within(header).findByTitle("Присоединиться к голосовому чату")).toBeTruthy();
+    expect(within(header).getByText("Голосовой чат · 1")).toBeTruthy();
+
+    fireEvent.click(within(header).getByTitle("Видеозвонок всем в группе"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/call/cl_1"));
+    expect(calls.find((c) => c.key === "POST /api/calls")?.body).toEqual({ chatId: "c_1", kind: "video", ringAll: true });
+  });
+
+  it("запись о видеозвонке — «Перезвонить» видеозвонком", async () => {
+    fakeRtc();
+    const log = msg("📹 Видеозвонок · 1:05", { type: "call" as Message["type"], senderId: LENA.id });
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([log]), "POST /api/calls": placed, "PATCH /api/calls/cl_1": { body: {} } });
+    const { router } = renderChat(dm());
+    fireEvent.click(await screen.findByTitle("Перезвонить"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/call/cl_1"));
+    expect(calls.find((c) => c.key === "POST /api/calls")?.body).toEqual({ chatId: "c_1", kind: "video", ringAll: false });
+  });
+
+  it("звонок не разрешён — ошибка сервера тостом, экран остаётся", async () => {
+    fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/calls": { status: 403, body: { error: "Пользователь ограничил звонки" } } });
+    const { router } = renderChat(dm());
+    fireEvent.click(within(await screen.findByRole("banner")).getByTitle("Позвонить"));
+    expect(await screen.findByText("Пользователь ограничил звонки")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/chat/c_1");
   });
 });

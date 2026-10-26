@@ -1,5 +1,6 @@
-// Звуки сообщений — синтез без файлов, как public/js/lib/ringtone.js: выбранный звук
-// входящего (Настройки → Уведомления, на этом устройстве) и короткий «отправлено».
+// Звуки — синтез без файлов, как public/js/lib/ringtone.js: выбранный звук входящего
+// (Настройки → Уведомления, на этом устройстве), короткий «отправлено», рингтон входящего
+// звонка и гудки у звонящего.
 
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;
@@ -72,9 +73,17 @@ export const MESSAGE_SOUNDS: { id: string; label: string; play: (t: number) => v
   { id: "none", label: "Без звука", play: () => {} },
 ];
 
-function messageSoundId() {
+export const RINGTONES: { id: string; label: string; cycle: number; play: (t: number) => void }[] = [
+  { id: "classic", label: "Классика", cycle: 1.4, play: (t) => (beep(t, 0.3, 520), beep(t + 0.35, 0.3, 620)) },
+  { id: "melody", label: "Мелодия", cycle: 2.2, play: (t) => [523, 659, 784, 1047, 784, 659].forEach((f, i) => beep(t + i * 0.16, 0.22, f, { type: "triangle", vol: 0.13 })) },
+  { id: "marimba", label: "Маримба", cycle: 2, play: (t) => [784, 988, 784, 1175].forEach((f, i) => bell(t + i * 0.2, f, 0.11)) },
+  { id: "retro", label: "Ретро", cycle: 1.6, play: (t) => [659, 784, 1047, 784].forEach((f, i) => beep(t + i * 0.12, 0.1, f, { type: "square", vol: 0.05 })) },
+  { id: "soft", label: "Нежный", cycle: 3, play: (t) => [392, 494, 587].forEach((f, i) => beep(t + i * 0.35, 1.2, f, { type: "sine", vol: 0.1 })) },
+];
+
+function soundChoice(kind: "message" | "ringtone") {
   try {
-    return (JSON.parse(localStorage.getItem(SOUNDS_KEY) || "{}") as { message?: string })?.message ?? "classic";
+    return (JSON.parse(localStorage.getItem(SOUNDS_KEY) || "{}") as Record<string, string | undefined>)?.[kind] ?? "classic";
   } catch {
     return "classic";
   }
@@ -87,7 +96,7 @@ export function playIncomingMessageSound(now = Date.now()) {
   if (now - lastIncomingAt < 1200) return;
   lastIncomingAt = now;
   try {
-    (MESSAGE_SOUNDS.find((s) => s.id === messageSoundId()) ?? MESSAGE_SOUNDS[0]!).play(getCtx().currentTime);
+    (MESSAGE_SOUNDS.find((s) => s.id === soundChoice("message")) ?? MESSAGE_SOUNDS[0]!).play(getCtx().currentTime);
   } catch {
     // Нет AudioContext (старый браузер, тесты) — без звука.
   }
@@ -102,4 +111,48 @@ export function playSentSound() {
   } catch {
     // Без звука.
   }
+}
+
+let stopActive: (() => void) | null = null;
+
+// Повтор рисунка звука раз в cycle секунд, пока не остановят.
+function loop(play: (t: number) => void, cycleSec: number) {
+  let cancelled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const audio = getCtx();
+  const cycle = (at: number) => {
+    if (cancelled) return;
+    play(at);
+    timer = setTimeout(() => cycle(audio.currentTime), cycleSec * 1000);
+  };
+  cycle(audio.currentTime);
+  return () => {
+    cancelled = true;
+    clearTimeout(timer);
+  };
+}
+
+function startLoop(play: (t: number) => void, cycleSec: number) {
+  stopRingtone();
+  try {
+    stopActive = loop(play, cycleSec);
+  } catch {
+    // Нет AudioContext — без звука.
+  }
+}
+
+/** Гудки у звонящего, пока не ответили. */
+export function startRingback() {
+  startLoop((t) => (beep(t, 0.4, 440), beep(t + 0.5, 0.4, 480)), 3);
+}
+
+/** Входящий звонок — выбранным рингтоном. */
+export function startRingtone() {
+  const tone = RINGTONES.find((r) => r.id === soundChoice("ringtone")) ?? RINGTONES[0]!;
+  startLoop(tone.play, tone.cycle);
+}
+
+export function stopRingtone() {
+  stopActive?.();
+  stopActive = null;
 }

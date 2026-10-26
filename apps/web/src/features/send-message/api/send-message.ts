@@ -1,4 +1,3 @@
-import type { contactListItem } from "@shalter/shared/schemas/contacts";
 import type { gamesBody } from "@shalter/shared/schemas/games";
 import type { geoIpBody, geoSearchBody } from "@shalter/shared/schemas/geo";
 import type { hugoCheckBody } from "@shalter/shared/schemas/integrations";
@@ -58,8 +57,6 @@ export const geoSearch = (q: string) => http.get<z.infer<typeof geoSearchBody>>(
 /** Живая геопозиция: новая точка в уже отправленном сообщении. */
 export const updateLiveLocation = (chatId: string, messageId: string, lat: number, lng: number) =>
   http.post<unknown>(`${chatPath(chatId)}/messages/${encodeURIComponent(messageId)}/location`, { lat, lng });
-
-export const listContacts = () => http.get<{ contacts: z.infer<typeof contactListItem>[] }>("/api/contacts");
 
 export type Scheduled = z.infer<typeof scheduled>;
 export type RepeatId = NonNullable<Scheduled["repeat"]>;

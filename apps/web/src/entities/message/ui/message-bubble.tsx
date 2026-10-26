@@ -79,6 +79,8 @@ type Props = {
   summary?: string | null;
   /** Полоса внизу пузыря — «Комментарии» у поста канала. */
   footer?: ReactNode;
+  /** Нажатие на запись о звонке — перезвонить тем же видом звонка. */
+  onCallBack?: (kind: "audio" | "video") => void;
 };
 
 type Point = { x: number; y: number };
@@ -261,7 +263,7 @@ export function MessageBubble(props: Props) {
     );
   }
 
-  if (isCall) body.push(<CallBody key="call" message={m} mine={mine} />);
+  if (isCall) body.push(<CallBody key="call" message={m} mine={mine} onCallBack={props.onCallBack} />);
   else if (sticker) {
     body.push(<StickerBody key="sticker" messageId={m.id} sticker={sticker} />);
   }
@@ -511,13 +513,23 @@ function ReplyQuote({ target, name, onJumpTo }: { target?: Message | ReplyTarget
   );
 }
 
-function CallBody({ message, mine }: { message: Message; mine: boolean }) {
+function CallBody({ message, mine, onCallBack }: { message: Message; mine: boolean; onCallBack?: (kind: "audio" | "video") => void }) {
   const { video, answered, durationSec, title } = callLogInfo(message, mine);
   const min = Math.floor(durationSec / 60);
   const sec = durationSec % 60;
   const duration = answered ? (min ? `${min} мин${sec ? ` ${sec} с` : ""}` : `${sec} с`) : "";
   return (
-    <div className={answered ? styles.call : `${styles.call} ${styles.callMissed}`}>
+    // Как CallBubble в messageBubble.js: весь пузырь — кнопка «Перезвонить».
+    <div
+      className={answered ? styles.call : `${styles.call} ${styles.callMissed}`}
+      role={onCallBack ? "button" : undefined}
+      tabIndex={onCallBack ? 0 : undefined}
+      title={onCallBack ? "Перезвонить" : undefined}
+      onClick={() => onCallBack?.(video ? "video" : "audio")}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCallBack?.(video ? "video" : "audio");
+      }}
+    >
       <span className={styles.callTitle}>{title}</span>
       <span className={styles.callStatus}>
         <span className={`${styles.callArrow} ${mine ? styles.callOut : ""}`}>➜</span>

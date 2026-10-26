@@ -77,7 +77,8 @@ describe("список чатов в оболочке", () => {
     const { calls } = fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
     render(<App />);
     const row = await screen.findByRole("link", { name: /Семья/ });
-    expect(calls.map((c) => c.key)).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
+    // Кроме входа и bootstrap — только сверка входящих звонков (GET /api/calls).
+    expect(calls.map((c) => c.key).filter((k) => k !== "GET /api/calls")).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
     expect(FakeSocket.last().url).toBe(`ws://${window.location.host}/ws`);
 
     fireEvent.click(row);

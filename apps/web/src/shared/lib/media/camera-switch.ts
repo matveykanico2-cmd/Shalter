@@ -9,6 +9,11 @@ async function listCameras() {
   }
 }
 
+/** Сколько камер видно — кнопка «Другая камера» в звонке только при двух и больше. */
+export async function cameraCount() {
+  return (await listCameras()).length;
+}
+
 const looksFront = (label = "") => /front|user|facetime|передн/i.test(label);
 const looksBack = (label = "") => /back|rear|environment|задн/i.test(label);
 

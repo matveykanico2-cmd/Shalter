@@ -239,7 +239,9 @@ function removePeer(userId) {
   state.remoteCamStreams = restCam;
   state.others = state.others.filter((p) => p.id !== userId);
   notify();
-  if (state.others.length === 0 && state.phase !== "ended") {
+  // В голосовом чате группы один остаётся ждать других: иначе экран закрывался,
+  // а сервер продолжал считать его участником.
+  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended") {
     endLocally();
   }
 }

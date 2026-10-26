@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { type CallKind, useStartCall } from "@/features/call";
 import { SponsoredMessage } from "@/features/chat-ads";
 import {
   canPin,
@@ -94,6 +95,9 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   // Ветка ответов в группе или комментарии к посту канала.
   const [thread, setThread] = useState<ThreadSource | null>(null);
   const openThread = (m: Message) => setThread({ kind: "thread", chatId: chat.id, root: m });
+  // Перезвонить из записи о звонке — в группе снова всем, как placeCall в chatView.js.
+  const startCall = useStartCall(me);
+  const callBack = (kind: CallKind) => void startCall.call(chat.id, kind, { ringAll: chat.type === "group" });
   const data = history.data;
 
   // Каждый запрос истории отмечает чат прочитанным — счётчик в списке гасим сразу.
@@ -358,6 +362,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         summaries={summaries}
                         onOpenThread={isGroup ? openThread : undefined}
                         onOpenComments={withComments(chat, row.message) ? (m) => setThread({ kind: "comments", post: m }) : undefined}
+                        onCallBack={selection.active ? undefined : callBack}
                       />
                     </div>
                   )}
@@ -459,6 +464,8 @@ type RowProps = {
   onOpenThread?: (m: Message) => void;
   /** Пост канала с группой обсуждения — «Комментарии» внизу пузыря. */
   onOpenComments?: (m: Message) => void;
+  /** Запись о звонке — перезвонить. */
+  onCallBack?: (kind: CallKind) => void;
 };
 
 function MessageRow(props: RowProps) {
@@ -507,6 +514,7 @@ function MessageRow(props: RowProps) {
       selected={props.selected}
       onToggleSelect={props.onToggleSelect}
       summary={props.summaries.of(message.id)}
+      onCallBack={props.onCallBack}
       footer={
         props.onOpenComments ? (
           <button

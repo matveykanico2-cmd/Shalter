@@ -1,0 +1,78 @@
+/* Как .call-invite-dialog в public/styles/components.css. */
+.dialog {
+  width: min(400px, calc(100vw - 24px));
+  max-width: none;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.link {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.actions > button {
+  flex: 1;
+}
+
+.section {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.chat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+}
+
+.chatName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.7;
+  cursor: default;
+}

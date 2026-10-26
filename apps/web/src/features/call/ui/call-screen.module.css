@@ -1,0 +1,476 @@
+/* Экран звонка — как .call-screen и соседи в public/styles/components.css. */
+.screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #14161f;
+  color: #fff;
+}
+
+.ended {
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 70%);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.headerButton {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.headerButton:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+.headerCenter {
+  min-width: 0;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.timer {
+  margin: 0;
+  color: rgb(255 255 255 / 60%);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.invite {
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.inviteLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.error {
+  margin: 0 20px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+
+.linkStatus {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.grid {
+  display: grid;
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+  place-items: center;
+  min-height: 0;
+  padding: 24px;
+}
+
+.empty {
+  color: rgb(255 255 255 / 60%);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.tileVideo {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  object-fit: contain;
+}
+
+.tileAvatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.tileName {
+  margin: 0;
+  color: rgb(255 255 255 / 85%);
+  font-size: 14px;
+}
+
+.tileStatus {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  margin: 0;
+  color: rgb(255 255 255 / 50%);
+  font-size: 12px;
+}
+
+.remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Один собеседник — на весь экран. */
+.solo {
+  place-items: stretch;
+  padding: 0;
+}
+
+.solo .tile {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.solo .tileVideo {
+  object-fit: contain;
+}
+
+/* Показ экрана: он крупно, участники — полосой сверху. */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.stage > .stageTile {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  background: #000;
+}
+
+.stage > .stageTile .tileVideo {
+  border-radius: 0;
+  object-fit: contain;
+}
+
+.stageLabel {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 55%);
+  color: rgb(255 255 255 / 85%);
+  font-size: 12px;
+}
+
+.strip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 6px;
+  border-radius: 14px;
+  background: rgb(10 12 18 / 55%);
+  transform: translateX(-50%);
+  backdrop-filter: blur(6px);
+}
+
+.stripBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: rgb(255 255 255 / 75%);
+  font-size: 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.stripBar:active {
+  cursor: grabbing;
+}
+
+.stripCount {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.stripToggle {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stripToggle:hover {
+  background: rgb(255 255 255 / 20%);
+}
+
+.stripCollapsed {
+  gap: 0;
+}
+
+.stripTiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.caption {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  margin: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 50%);
+  color: #fff;
+  font-size: 11px;
+}
+
+.strip .stripTile {
+  gap: 4px;
+  width: 176px;
+  max-width: 28vw;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: rgb(20 22 31 / 85%);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+}
+
+.strip .stripTile .tileVideo {
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.strip .stripTile .tileAvatar {
+  gap: 4px;
+}
+
+.strip .stripTile .tileName {
+  font-size: 12px;
+}
+
+.strip .stripTile .tileStatus {
+  bottom: 4px;
+  left: 6px;
+  font-size: 11px;
+}
+
+/* Своё превью — круг в углу, перетаскивается. */
+.localPip {
+  position: absolute;
+  right: 24px;
+  bottom: 168px;
+  z-index: 20;
+  width: 112px;
+  height: 112px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.localPip:active {
+  cursor: grabbing;
+}
+
+.localStack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.localVideo {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.mirrored {
+  transform: scaleX(-1);
+}
+
+.freeze {
+  position: absolute;
+  inset: 0;
+  filter: blur(6px) brightness(0.85);
+  transition: opacity 0.18s ease;
+}
+
+.freezeLeaving {
+  opacity: 0;
+}
+
+.localAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.flip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 50%);
+  color: #fff;
+  cursor: pointer;
+}
+
+.cameraError {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  margin: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 72%);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 12px 40px;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 15%);
+  color: #fff;
+  cursor: pointer;
+}
+
+.active {
+  background: #fff;
+  color: #000;
+}
+
+.accent {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.volume {
+  height: 48px;
+  padding: 0 14px 0 12px;
+  border-color: transparent;
+  background: rgb(255 255 255 / 15%);
+}
+
+.volume input {
+  width: 84px;
+}
+
+.hangup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  cursor: pointer;
+}
+
+.hangupIcon {
+  transform: rotate(135deg);
+}
+
+@media (max-width: 560px) {
+  .localPip {
+    bottom: 200px;
+    width: 96px;
+    height: 96px;
+  }
+
+  .strip .stripTile {
+    width: 112px;
+  }
+}
+
+@media (max-width: 420px) {
+  .inviteLabel {
+    display: none;
+  }
+}

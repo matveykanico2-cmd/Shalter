@@ -1,0 +1,66 @@
+/* Как .volume-control в public/styles/components.css (на тёмном фоне звонка). */
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  color: #fff;
+}
+
+.muted {
+  opacity: 0.65;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.value {
+  min-width: 34px;
+  color: rgb(255 255 255 / 75%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  width: 96px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-accent) 0,
+    var(--color-accent) var(--volume-fill, 100%),
+    rgb(255 255 255 / 25%) var(--volume-fill, 100%),
+    rgb(255 255 255 / 25%) 100%
+  );
+  cursor: pointer;
+  appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 40%);
+  appearance: none;
+}
+
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 40%);
+}
