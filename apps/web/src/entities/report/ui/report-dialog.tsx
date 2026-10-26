@@ -4,21 +4,10 @@ import { errorText } from "@/shared/lib/error-text";
 import { Button, Dialog } from "@/shared/ui";
 
 import { type ReportReason, type ReportTarget, submitReport } from "../api/report";
+import { REASONS } from "../lib/reasons";
 
 import styles from "./report-dialog.module.css";
 
-const REASONS: readonly { value: ReportReason; label: string }[] = [
-  { value: "spam", label: "Спам" },
-  { value: "scam", label: "Мошенничество" },
-  { value: "fake", label: "Поддельный аккаунт" },
-  { value: "violence", label: "Насилие или угрозы" },
-  { value: "terrorism", label: "Терроризм" },
-  { value: "extremism", label: "Экстремизм" },
-  { value: "drugs", label: "Продажа наркотиков" },
-  { value: "illegal", label: "Незаконный контент" },
-  { value: "child_safety", label: "Угроза безопасности детей" },
-  { value: "other", label: "Другое" },
-];
 
 type Props = { target: ReportTarget; targetLabel: string; onClose: () => void };
 

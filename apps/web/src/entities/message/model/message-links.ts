@@ -12,6 +12,10 @@ export type MessageLinkHandlers = {
   onMention?: (handle: string) => void;
   onHashtag?: (tag: string) => void;
   onKeyboard?: (message: Message, button: KeyboardButton) => void;
+  /** Профиль по нажатию на имя автора, аватар или «Переслано от». */
+  onOpenProfile?: (userId: string) => void;
+  /** Автозагрузка медиа выключена (настройка autoDownload): фото и видео — по нажатию. */
+  tapToLoad?: boolean;
 };
 
 export const MessageLinks = createContext<MessageLinkHandlers>({});

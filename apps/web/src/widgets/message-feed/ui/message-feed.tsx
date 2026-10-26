@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { isServerModerator } from "@/features/chat-actions";
 import {
   canPin,
   isProtectedChat,
@@ -20,14 +21,17 @@ import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModera
 import {
   type AttachmentActions,
   type FeedMessage,
+  isReadByOthers,
   loadOlderHistory,
   type Message,
   MessageBubble,
   messageQueries,
   type MessageSender,
   type ReplyTarget,
+  timeLabel,
   type TopicFilter,
 } from "@/entities/message";
+import { type ReportInfo, ReportMessage } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -256,6 +260,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
   // Контактом из ветки можно отправить участника группы, как из основного поля.
   const threadPeople = useMemo(() => members.filter((u) => u.id !== me.id), [members, me.id]);
   const isChannel = chat.type === "channel";
+  const canResolveReports = isServerModerator(me);
 
   if (history.isPending) {
     return (
@@ -313,6 +318,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
                       <MessageRow
                         message={row.message}
                         meId={meId}
+                        canResolveReports={canResolveReports}
+                        senderTag={isGroup && !row.message.anonymous ? memberTag(chat, row.message.senderId) : null}
                         groupStart={row.groupStart}
                         groupEnd={row.groupEnd}
                         isGroup={isGroup}
@@ -405,6 +412,9 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
 type RowProps = {
   message: FeedMessage;
   meId: string;
+  /** Модератор Shalter решает жалобы прямо из сообщений-жалоб. */
+  canResolveReports: boolean;
+  senderTag: string | null;
   groupStart: boolean;
   groupEnd: boolean;
   isGroup: boolean;
@@ -434,6 +444,17 @@ function MessageRow(props: RowProps) {
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   const comments = props.onOpenThread && message.type !== "system" && !message.threadRootId ? (message.commentCount ?? 0) : 0;
+  if (message.type === "report" && message.report && typeof message.report === "object") {
+    return (
+      <ReportMessage
+        messageId={message.id}
+        report={message.report as ReportInfo}
+        canResolve={props.canResolveReports}
+        time={timeLabel(message.createdAt)}
+        read={mine ? isReadByOthers(message) : null}
+      />
+    );
+  }
   const bubble = (
     <MessageBubble
       message={message}
@@ -441,6 +462,7 @@ function MessageRow(props: RowProps) {
       sender={senders(message)}
       // Как в Telegram: автор поста в канале — сам канал, имя админа не показываем.
       showSender={isGroup && groupStart}
+      senderTag={props.senderTag}
       showAvatar={isGroup && !mine ? groupEnd : undefined}
       groupStart={groupStart}
       groupEnd={groupEnd}
@@ -476,6 +498,12 @@ function MessageRow(props: RowProps) {
     </>
   );
 }
+
+/** Тег участника группы — строка из memberTitles. */
+const memberTag = (chat: ChatSummary, userId: string) => {
+  const tag = chat.memberTitles?.[userId];
+  return typeof tag === "string" && tag ? tag : null;
+};
 
 const repliesWord = (n: number) => (n === 1 ? "ответ" : n < 5 ? "ответа" : "ответов");
 

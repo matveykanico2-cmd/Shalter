@@ -81,9 +81,12 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const mention = useMentionProfile(me, members);
   // Кнопки бота: действие — текстом в чат, приложение — мини-приложение (onKeyboardAction, onKeyboardApp).
   const [miniApp, setMiniApp] = useState<MiniAppTarget | null>(null);
+  const settings = useSettings().data;
   const links: MessageLinkHandlers = {
+    tapToLoad: settings?.autoDownload === false,
     onMention: (h) => void mention.openMention(h),
     onHashtag: (tag) => setSearching(tag),
+    onOpenProfile: (userId) => mention.openProfile(userId),
     onKeyboard: (m, button) => {
       if (button.app) setMiniApp({ botId: m.senderId, botName: senderName(m), chatId: chat.id, url: button.app });
       else if (button.action) composer.current?.sendText(button.action);

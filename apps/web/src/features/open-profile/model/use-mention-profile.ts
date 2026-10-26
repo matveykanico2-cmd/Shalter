@@ -24,5 +24,5 @@ export function useMentionProfile(me: Known, members: readonly Known[]) {
     if (user) setProfileId(user.id);
     else void navigate(`/u/${name}`);
   };
-  return { profileId, openMention, closeProfile: () => setProfileId(null) };
+  return { profileId, openMention, openProfile: setProfileId, closeProfile: () => setProfileId(null) };
 }

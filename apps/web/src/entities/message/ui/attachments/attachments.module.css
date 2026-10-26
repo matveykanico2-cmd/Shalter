@@ -633,3 +633,29 @@
   color: var(--color-muted);
   font-size: 14px;
 }
+
+/* Фото или видео по нажатию при экономии трафика (.tap-to-load). */
+.tapToLoad {
+  display: flex;
+  width: 220px;
+  max-width: 100%;
+  height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tapToLoad:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}

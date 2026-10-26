@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { chatQueries, type ChatSummary } from "@/entities/chat";
 import type { Message } from "@/entities/message";
 import { sessionQueries } from "@/entities/session";
+import { settingsQueries } from "@/entities/settings";
 
 import { ws } from "@/shared/api";
 import { fakeApi, fakeMedia, FakeMediaRecorder, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
@@ -987,6 +988,53 @@ describe("боты", () => {
     expect(screen.queryByRole("button", { name: "Остановить ответ" })).toBeNull();
     act(() => FakeSocket.last().receive({ type: "message:new", chatId: "c_1", message: msg("Готово", { senderId: ai.id }) }));
     await waitFor(() => expect(screen.queryByText("Думает…")).toBeNull());
+  });
+});
+
+describe("особые сообщения и автор", () => {
+  const report = { reportId: "r_1", reason: "spam", targetSummary: "Сообщение Лены: «купи»", targetType: "message", status: "open", canBan: true };
+
+  it("жалоба: модератор решает прямо в чате, остальные видят «Ожидает решения»", async () => {
+    const complaint = msg("", { type: "report", report } as Partial<Message>);
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([complaint]),
+      "POST /api/reports/r_1/resolve": { body: { status: "resolved_deleted" } },
+    });
+    const { client } = renderChat();
+    expect(await screen.findByText("🚩 Жалоба: Спам")).toBeTruthy();
+    expect(screen.getByText("Ожидает решения администратора")).toBeTruthy();
+    act(() => client.setQueryData(sessionQueries.current().queryKey, { user: { ...ME, adminSections: ["moderation"] } } as never));
+    fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+    expect(await screen.findByText("✅ Удалено")).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/reports/r_1/resolve")?.body).toEqual({ action: "delete", messageId: complaint.id });
+  });
+
+  it("автозагрузка выключена — фото по нажатию; имя автора с тегом открывает профиль", async () => {
+    const lena = { ...LENA, isPremium: true };
+    const photo = msg("закат", { attachments: [{ kind: "image", url: "/uploads/a_0000000000000001.jpg", width: 800, height: 600 }] });
+    const fwd = msg("смотри", { forwardedFrom: { senderName: "Оля", senderId: "u_olya000000", linkAllowed: true } } as Partial<Message>);
+    fakeApi({
+      "GET /api/chats/c_1": { body: { chat: chat({ memberTitles: { [LENA.id]: "дизайнер" } }), members: [ME, lena], commands: null, paidMessages: null } },
+      [HISTORY]: page([photo, fwd]),
+      "GET /api/users/u_lena00000": { body: { user: { ...lena, username: "lena" }, isContact: false, inContacts: false, contactName: null, contactNote: null, commonGroupsCount: 0, pinnedChannels: [] } },
+      "GET /api/users/u_olya000000": { body: { user: { id: "u_olya000000", name: "Оля", username: "olya" }, isContact: false, inContacts: false, contactName: null, contactNote: null, commonGroupsCount: 0, pinnedChannels: [] } },
+    });
+    const { client } = renderChat(chat({ memberTitles: { [LENA.id]: "дизайнер" } }));
+    client.setQueryData(settingsQueries.current().queryKey, { autoDownload: false } as never);
+    fireEvent.click(await screen.findByRole("button", { name: "Нажмите, чтобы посмотреть фото" }));
+    expect(bubble(photo.id).querySelector("img[src='/uploads/a_0000000000000001.jpg']")).toBeTruthy();
+
+    const name = within(bubble(photo.id)).getByRole("button", { name: /Лена/ });
+    expect(within(name).getByText("дизайнер")).toBeTruthy();
+    expect(within(name).getByTitle("Shalter Premium")).toBeTruthy();
+    fireEvent.click(name);
+    expect(await screen.findByRole("dialog", { name: "Профиль" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
+
+    fireEvent.click(within(bubble(fwd.id)).getByRole("button", { name: "Оля" }));
+    const dialog = await screen.findByRole("dialog", { name: "Профиль" });
+    expect(await within(dialog).findByText("@olya")).toBeTruthy();
   });
 });
 

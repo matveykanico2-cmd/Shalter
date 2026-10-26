@@ -1,8 +1,11 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode, use, useState } from "react";
+
+import { Icon } from "@/shared/ui";
 
 import { attachmentsOf, isVisualMedia } from "../../lib/attachments";
 import { messagePreview } from "../../lib/message-preview";
 import type { Attachment } from "../../model/attachment";
+import { MessageLinks } from "../../model/message-links";
 import type { FeedMessage as Message } from "../../model/types";
 
 import styles from "./attachments.module.css";
@@ -46,12 +49,22 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
   const out: ReactNode[] = [];
   let albumPlaced = false;
 
-  const tile = (a: Attachment, i: number, inAlbum: boolean) =>
-    a.kind === "video" ? (
-      <VideoAttachment key={i} attachment={a} messageId={message.id} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
+  const { tapToLoad } = use(MessageLinks);
+  const tile = (a: Attachment, i: number, inAlbum: boolean) => {
+    const view =
+      a.kind === "video" ? (
+        <VideoAttachment attachment={a} messageId={message.id} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
+      ) : (
+        <ImageAttachment attachment={a} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
+      );
+    return tapToLoad ? (
+      <TapToLoad key={i} kind={a.kind === "video" ? "video" : "image"}>
+        {view}
+      </TapToLoad>
     ) : (
-      <ImageAttachment key={i} attachment={a} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
+      <Fragment key={i}>{view}</Fragment>
     );
+  };
 
   atts.forEach((a, i) => {
     if (isVisualMedia(a)) {
@@ -125,4 +138,23 @@ function AttachmentView({ attachment: a, message, canDownload }: { attachment: A
       // Незнакомый вид — подписью, как в списке чатов.
       return <p className={styles.pendingKind}>{messagePreview({ ...message, text: null, attachments: [a] })}</p>;
   }
+}
+
+/** Экономия трафика: вместо фото или видео — кнопка, по нажатию грузится (TapToLoad в messageBubble.js). */
+function TapToLoad({ kind, children }: { kind: "image" | "video"; children: ReactNode }) {
+  const [shown, setShown] = useState(false);
+  if (shown) return children;
+  return (
+    <button
+      type="button"
+      className={styles.tapToLoad}
+      onClick={(e) => {
+        e.stopPropagation();
+        setShown(true);
+      }}
+    >
+      <Icon name={kind === "video" ? "Play" : "Download"} size={18} />
+      <span>{kind === "video" ? "Нажмите, чтобы посмотреть видео" : "Нажмите, чтобы посмотреть фото"}</span>
+    </button>
+  );
 }

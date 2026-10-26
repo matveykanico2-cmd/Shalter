@@ -1,4 +1,4 @@
-import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, use, useEffect, useRef } from "react";
 
 import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
@@ -12,6 +12,7 @@ import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
 import { type Reaction, reactionsOf,reactionSticker } from "../lib/reactions";
 import { justReacted } from "../lib/reactions-anim";
+import { MessageLinks } from "../model/message-links";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
 import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
@@ -29,6 +30,8 @@ export type MessageSender = {
   avatarImage?: string | null;
   nameColor?: string | null;
   isBot?: boolean;
+  isVerified?: boolean;
+  isPremium?: boolean;
 };
 
 type Props = {
@@ -37,6 +40,8 @@ type Props = {
   sender?: MessageSender | null;
   /** Имя над пузырём и аватар у последнего в серии — в группах. */
   showSender?: boolean;
+  /** Тег участника группы рядом с именем (memberTitles). */
+  senderTag?: string | null;
   showAvatar?: boolean;
   groupStart?: boolean;
   groupEnd?: boolean;
@@ -104,6 +109,7 @@ function selectedQuote(container: HTMLElement | null) {
 export function MessageBubble(props: Props) {
   const { message: m, mine, sender, showSender, showAvatar, groupStart = true, groupEnd = true, isChannel = false } = props;
   const { selecting = false, onToggleSelect } = props;
+  const { onOpenProfile } = use(MessageLinks);
   const actionable = !m.pending && !!props.onOpenMenu;
   const rowRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -190,16 +196,48 @@ export function MessageBubble(props: Props) {
   const body: ReactNode[] = [];
   if (showSender && !mine && sender) {
     body.push(
-      <span key="sender" className={styles.sender} style={nameStyle}>
-        {sender.name}
-      </span>
+      <button
+        key="sender"
+        type="button"
+        className={styles.sender}
+        style={nameStyle}
+        disabled={!onOpenProfile || m.anonymous}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenProfile?.(sender.id);
+        }}
+      >
+        <span className={styles.senderName}>{sender.name}</span>
+        {sender.isVerified ? <Icon name="Verified" size={12} /> : null}
+        {sender.isPremium ? (
+          <span className={styles.senderPremium} title="Shalter Premium">
+            <Icon name="Star" size={12} />
+          </span>
+        ) : null}
+        {props.senderTag ? <span className={styles.senderTag}>{props.senderTag}</span> : null}
+      </button>
     );
   }
-  const forwarded = m.forwardedFrom as { senderName?: string } | undefined;
+  const forwarded = m.forwardedFrom as { senderName?: string; senderId?: string; linkAllowed?: boolean } | undefined;
   if (forwarded?.senderName) {
+    const fromId = forwarded.linkAllowed ? forwarded.senderId : undefined;
     body.push(
       <p key="fwd" className={styles.forwarded}>
-        <Icon name="Forward" size={12} /> Переслано от {forwarded.senderName}
+        <Icon name="Forward" size={12} /> Переслано от{" "}
+        {fromId && onOpenProfile ? (
+          <button
+            type="button"
+            className={styles.forwardedName}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenProfile(fromId);
+            }}
+          >
+            {forwarded.senderName}
+          </button>
+        ) : (
+          forwarded.senderName
+        )}
       </p>
     );
   }
@@ -385,7 +423,15 @@ export function MessageBubble(props: Props) {
       ) : null}
       {showAvatar !== undefined ? (
         <span className={styles.avatarSlot}>
-          {showAvatar && sender ? <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} /> : null}
+          {showAvatar && sender ? (
+            onOpenProfile && !m.anonymous ? (
+              <button type="button" className={styles.avatarButton} title={`Профиль: ${sender.name}`} onClick={() => onOpenProfile(sender.id)}>
+                <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} />
+              </button>
+            ) : (
+              <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} />
+            )
+          ) : null}
         </span>
       ) : null}
       {keyboardOf(m.keyboard).length ? (
