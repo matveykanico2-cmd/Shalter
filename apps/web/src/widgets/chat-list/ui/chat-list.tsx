@@ -1,11 +1,14 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useRef, useState } from "react";
+import { type DragEvent, useMemo, useRef, useState } from "react";
 import { useMatch } from "react-router";
 
+import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
+
 import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
+import { useSession } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Icon } from "@/shared/ui";
+import { Icon, Menu } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
 import { useChatListSync } from "../model/use-chat-list-sync";
@@ -33,6 +36,13 @@ export function ChatList({ meId }: { meId: string }) {
   const [tab, setTab] = useState("all");
   const [showArchive, setShowArchive] = useState(false);
   const [unreadOnly, toggleUnreadOnly] = useUnreadOnly();
+  const me = useSession().data?.user;
+  const listActions = useChatListActions();
+  const [rowMenu, setRowMenu] = useState<{ chat: ChatSummary; at: { x: number; y: number } } | null>(null);
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; at: { x: number; y: number } } | null>(null);
+  // Закреплённые перетаскиваются мышью (makePinnedDraggable): кого тянем и куда встанет.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
 
   const tabs = tabsFor(folders);
   // Папку удалили — возвращаемся на «Все».
@@ -63,6 +73,32 @@ export function ChatList({ meId }: { meId: string }) {
 
   const archivedCount = chats?.filter((c) => c.archived).length ?? 0;
 
+  const pinnedDrag = (chatId: string) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent) => {
+      setDragging(chatId);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", chatId);
+    },
+    onDragOver: (e: DragEvent) => {
+      if (!dragging || dragging === chatId) return;
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      setDropAt({ id: chatId, after: e.clientY > r.top + r.height / 2 });
+    },
+    onDragLeave: () => setDropAt((d) => (d?.id === chatId ? null : d)),
+    onDrop: (e: DragEvent) => {
+      e.preventDefault();
+      const target = dropAt;
+      setDropAt(null);
+      if (dragging && target && dragging !== chatId) void listActions.reorderPinned(dragging, chatId, target.after);
+    },
+    onDragEnd: () => {
+      setDragging(null);
+      setDropAt(null);
+    },
+  });
+
   return (
     <div className={styles.pane}>
       <div className={connection ? `${styles.titleBar} ${styles.connecting}` : styles.titleBar} role="status" aria-live="polite">
@@ -91,6 +127,10 @@ export function ChatList({ meId }: { meId: string }) {
                   aria-selected={t.id === activeTab}
                   className={t.id === activeTab ? `${styles.tab} ${styles.tabActive}` : styles.tab}
                   onClick={() => setTab(t.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setTabMenu({ tabId: t.id, at: { x: e.clientX, y: e.clientY } });
+                  }}
                 >
                   {t.name}
                   {unread ? <span className={styles.tabCount}>{unread}</span> : null}
@@ -122,15 +162,46 @@ export function ChatList({ meId }: { meId: string }) {
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]!;
               return (
-                <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className={styles.rowSlot} style={{ transform: `translateY(${item.start}px)` }}>
-                  {row.kind === "archive" ? <ArchiveRow chats={row.chats} onOpen={() => setShowArchive(true)} /> : <ChatRow chat={row.chat} meId={meId} />}
+                <div
+                  key={item.key}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  className={[styles.rowSlot, dropAt && row.kind === "chat" && dropAt.id === row.chat.id ? (dropAt.after ? styles.dropAfter : styles.dropBefore) : ""].filter(Boolean).join(" ")}
+                  style={{ transform: `translateY(${item.start}px)` }}
+                  {...(row.kind === "chat" && row.chat.pinned ? pinnedDrag(row.chat.id) : {})}
+                >
+                  {row.kind === "archive" ? (
+                    <ArchiveRow chats={row.chats} onOpen={() => setShowArchive(true)} />
+                  ) : (
+                    <ChatRow
+                      chat={row.chat}
+                      meId={meId}
+                      onMenu={(at) => setRowMenu({ chat: row.chat, at })}
+                      onSwipe={(action) => void (action === "mute" ? listActions.toggleMute(row.chat) : listActions.toggleArchive(row.chat))}
+                    />
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+      {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
+      {tabMenu && chats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, chats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
     </div>
+  );
+}
+
+/** Правая кнопка на вкладке — «Прочитать все (N)», как openTabMenu в chatList.js. */
+function TabMenu({ at, chats, onReadAll, onClose }: { at: { x: number; y: number }; chats: readonly ChatSummary[]; onReadAll: (list: readonly ChatSummary[]) => void; onClose: () => void }) {
+  const unread = chats.filter(hasUnread);
+  return (
+    <Menu
+      at={at}
+      label="Вкладка"
+      items={[{ icon: "CheckCheck", label: unread.length ? `Прочитать все (${unread.length})` : "Всё прочитано", onClick: unread.length ? () => onReadAll(unread) : undefined }]}
+      onClose={onClose}
+    />
   );
 }
 

@@ -1,4 +1,5 @@
 import type { chatBody, muteBody, protectBody } from "@shalter/shared/schemas/chats";
+import type { folderBody } from "@shalter/shared/schemas/folders";
 import type { blockBody } from "@shalter/shared/schemas/users";
 import type { z } from "zod";
 
@@ -30,3 +31,17 @@ export const leaveChat = (chatId: string) => http.post<unknown>(`${chatPath(chat
 
 /** Бот — не чат: модератор удаляет его самого. */
 export const adminDeleteBot = (userId: string, reason: string) => http.delete<unknown>(`/api/admin/bots/${encodeURIComponent(userId)}`, { reason });
+
+export const setChatPinned = (chatId: string, pinned: boolean) => http.patch<unknown>(chatPath(chatId), { pinned });
+
+/** «Отметить как непрочитанное» — метка до следующего открытия чата. */
+export const markChatUnread = (chatId: string) => http.patch<unknown>(chatPath(chatId), { unread: true });
+
+export const markChatRead = (chatId: string) => http.post<unknown>(`${chatPath(chatId)}/read`);
+
+/** Порядок закреплённых — перетаскиванием в списке. */
+export const setPinnedOrder = (chatIds: string[]) => http.post<unknown>("/api/chats/pinned-order", { chatIds });
+
+export const setFolderChats = (folderId: string, chatIds: string[]) => http.patch<z.infer<typeof folderBody>>(`/api/folders/${encodeURIComponent(folderId)}`, { chatIds });
+
+export const createFolder = (name: string, chatIds: string[]) => http.post<z.infer<typeof folderBody>>("/api/folders", { name, chatIds });

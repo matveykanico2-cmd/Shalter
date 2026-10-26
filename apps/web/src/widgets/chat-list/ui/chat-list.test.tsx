@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatFolder, chatQueries, type ChatSummary } from "@/entities/chat";
+import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
 import { fakeApi, FakeSocket,fakeSocket } from "@/shared/lib/test";
@@ -221,5 +222,57 @@ describe("список чатов и сокет", () => {
     act(() => FakeSocket.last().receive({ type: "chat:deleted", chatId: gone.id }));
     await waitFor(() => expect(titles()).toEqual(["Лена"]));
     expect(router.state.location.pathname).toBe("/");
+  });
+});
+
+describe("действия со строками", () => {
+  const withMe = (client: QueryClient) => client.setQueryData(sessionQueries.current().queryKey, { user: { id: ME, name: "Аня", blockedUserIds: [] } } as never);
+  const rowOf = (title: string) => screen.getByRole("link", { name: new RegExp(title) }).parentElement!;
+
+  it("меню строки: закрепить, в папку, прочитано; правая кнопка на вкладке — «Прочитать все»", async () => {
+    const work = chat({ title: "Работа", unreadCount: 3 });
+    const home = chat({ title: "Дом", unreadCount: 1 });
+    const folder: ChatFolder = { id: "f_1", name: "Важное", chatIds: [], emoji: null } as unknown as ChatFolder;
+    const { calls } = fakeApi({
+      [`PATCH /api/chats/${work.id}`]: { body: { ok: true } },
+      "PATCH /api/folders/f_1": { body: { folder: { ...folder, chatIds: [work.id] } } },
+      [`POST /api/chats/${work.id}/read`]: { body: { ok: true } },
+      [`POST /api/chats/${home.id}/read`]: { body: { ok: true } },
+    });
+    const { client } = renderList([work, home], [folder]);
+    withMe(client);
+    fireEvent.contextMenu(rowOf("Работа"), { clientX: 10, clientY: 10 });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Закрепить" }));
+    await waitFor(() => expect(calls.find((c) => c.key === `PATCH /api/chats/${work.id}`)?.body).toEqual({ pinned: true }));
+
+    fireEvent.click(within(rowOf("Работа")).getByRole("button", { name: "Действия с чатом" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Добавить в папку" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Важное" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "PATCH /api/folders/f_1")?.body).toEqual({ chatIds: [work.id] }));
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Все/ }), { clientX: 5, clientY: 5 });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Прочитать все (2)" }));
+    await waitFor(() => expect(calls.filter((c) => c.key.endsWith("/read"))).toHaveLength(2));
+    expect(screen.queryByText("3")).toBeNull();
+  });
+
+  it("свайп пальцем влево: на 72 px — без звука, на 144 px — в архив", async () => {
+    const work = chat({ title: "Работа" });
+    const { calls } = fakeApi({
+      [`POST /api/chats/${work.id}/mute`]: { body: { chat: { ...work, muted: true, mutedUntil: null } } },
+      [`PATCH /api/chats/${work.id}`]: { body: { ok: true } },
+    });
+    const { client } = renderList([work]);
+    withMe(client);
+    const row = rowOf("Работа");
+    const swipe = (dx: number) => {
+      fireEvent.pointerDown(row, { pointerType: "touch", clientX: 300, clientY: 20 });
+      fireEvent.pointerMove(row, { pointerType: "touch", clientX: 300 + dx, clientY: 22 });
+      fireEvent.pointerUp(row, { pointerType: "touch", clientX: 300 + dx, clientY: 22 });
+    };
+    swipe(-90);
+    await waitFor(() => expect(calls.find((c) => c.key === `POST /api/chats/${work.id}/mute`)?.body).toEqual({ forever: true }));
+    swipe(-160);
+    await waitFor(() => expect(calls.find((c) => c.key === `PATCH /api/chats/${work.id}`)?.body).toEqual({ archived: true }));
   });
 });

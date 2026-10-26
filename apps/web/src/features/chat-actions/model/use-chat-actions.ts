@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { chatCache, chatQueries, type ChatSummary, chatTitle } from "@/entities/chat";
 import { messageQueries } from "@/entities/message";
@@ -14,10 +14,13 @@ import {
   deleteChat,
   deleteChatForMe,
   leaveChat,
+  markChatRead,
+  markChatUnread,
   muteChat,
   type MuteOptions,
   setAutoDelete as patchAutoDelete,
   setChatArchived,
+  setChatPinned,
   setChatProtected,
   setUserBlocked,
 } from "../api/chat-actions";
@@ -26,12 +29,38 @@ import {
 export function useChatActions(chat: ChatSummary, meId: string) {
   const client = useQueryClient();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
-  /** Чат больше не наш — из списка и на главную. */
+  /** Чат больше не наш — из списка, а если он открыт — на главную. */
   const drop = () => {
     chatCache.removeChat(client, chat.id);
     client.removeQueries({ queryKey: chatQueries.card(chat.id).queryKey });
-    void navigate("/");
+    if (pathname === `/chat/${chat.id}`) void navigate("/");
+  };
+
+  /** Сразу в списке, запрос — в фоне; не вышло — как было (patchChat в chatList.js). */
+  const patchOptimistic = async (patch: Partial<ChatSummary>, request: () => Promise<unknown>) => {
+    const before = Object.fromEntries(Object.keys(patch).map((k) => [k, chat[k as keyof ChatSummary]])) as Partial<ChatSummary>;
+    chatCache.patchChat(client, chat.id, patch);
+    try {
+      await request();
+    } catch (err) {
+      chatCache.patchChat(client, chat.id, before);
+      toast(errorText(err, "Не удалось изменить чат"), { error: true });
+    }
+  };
+
+  const togglePin = () => patchOptimistic({ pinned: !chat.pinned }, () => setChatPinned(chat.id, !chat.pinned));
+
+  const markUnread = () => patchOptimistic({ unread: true }, () => markChatUnread(chat.id));
+
+  const markRead = async () => {
+    chatCache.markRead(client, chat.id);
+    try {
+      await markChatRead(chat.id);
+    } catch (err) {
+      toast(errorText(err, "Не удалось отметить чат прочитанным"), { error: true });
+    }
   };
 
   const mute = async (opts: MuteOptions) => {
@@ -157,5 +186,5 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     );
   };
 
-  return { mute, toggleProtect, toggleArchive, setAutoDelete, toggleBlock, clear, remove, leave, moderateDelete, confirmModeratorWipe };
+  return { mute, toggleProtect, toggleArchive, togglePin, markRead, markUnread, setAutoDelete, toggleBlock, clear, remove, leave, moderateDelete, confirmModeratorWipe };
 }

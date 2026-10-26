@@ -160,3 +160,112 @@
   font-size: 11px;
   font-weight: 600;
 }
+
+/* Обёртка строки: свайп-подсказки под ней и «⋮» поверх (.chat-list-item-wrap.with-more). */
+.wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.withMore {
+  padding-right: 38px;
+}
+
+.row {
+  transition: transform 0.18s ease;
+}
+
+.swiping .row {
+  background: var(--color-bg);
+  transition: none;
+}
+
+.swipeActions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  overflow: hidden;
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swiping .swipeActions {
+  opacity: 1;
+}
+
+.swipeAction {
+  display: flex;
+  width: 72px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.swipeMute {
+  background: var(--color-warning);
+}
+
+.swipeArchive {
+  background: var(--color-accent);
+}
+
+.more {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  opacity: 0.55;
+  transform: translateY(-50%);
+  transition:
+    opacity 0.12s,
+    background-color 0.12s;
+  cursor: pointer;
+}
+
+.wrap:hover .more,
+.more:focus-visible {
+  opacity: 1;
+}
+
+.more:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.active + .more {
+  color: var(--color-accent-contrast);
+  opacity: 0.85;
+}
+
+.active + .more:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--color-accent-contrast);
+}
+
+.swiping .more {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .more {
+    width: 36px;
+    height: 36px;
+    right: 2px;
+  }
+}
