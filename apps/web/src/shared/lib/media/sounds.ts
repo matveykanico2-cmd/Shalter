@@ -4,8 +4,12 @@
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;
 
+// Старый iOS Safari знает только webkitAudioContext (AudioContext || webkitAudioContext в ringtone.js).
+const audioCtor = (): typeof AudioContext | undefined =>
+  typeof window === "undefined" ? undefined : (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+
 function getCtx(): Ctx {
-  const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const AudioCtor = audioCtor();
   if (!ctx) ctx = new AudioCtor!();
   if (ctx.state !== "running") ctx.resume().catch(() => {});
   return ctx;
@@ -28,7 +32,7 @@ function unlockAudio() {
 let unlocked = false;
 /** Подписка на первое касание — один раз, при входе в приложение. */
 export function installSoundUnlock() {
-  if (unlocked || typeof window === "undefined" || !("AudioContext" in window)) return;
+  if (unlocked || !audioCtor()) return;
   unlocked = true;
   for (const type of ["touchend", "pointerdown", "keydown"]) window.addEventListener(type, unlockAudio, { passive: true, capture: true });
 }

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, toast } from "@/shared/ui";
 
-import { type ResolveAction,resolveReport } from "../api/report";
+import { type ResolveAction, resolveReport } from "../api/report";
 import { reasonLabel, REPORT_STATUS_LABELS } from "../lib/reasons";
 
 import styles from "./report-message.module.css";
@@ -21,12 +21,14 @@ type Props = {
 
 /** Жалоба в чате модерации — ReportMessage из public/js/components/messageBubble.js. */
 export function ReportMessage({ messageId, report, canResolve, time, read }: Props) {
-  const [status, setStatus] = useState(report.status ?? "open");
+  // Решили здесь — сразу видно; решил другой модератор — статус придёт в message:updated.
+  const [resolved, setResolved] = useState<string | null>(null);
+  const status = report.status && report.status !== "open" ? report.status : (resolved ?? "open");
   const [busy, setBusy] = useState(false);
   const resolve = async (action: ResolveAction) => {
     setBusy(true);
     try {
-      setStatus((await resolveReport(report.reportId, action, messageId)).status);
+      setResolved((await resolveReport(report.reportId, action, messageId)).status);
     } catch (err) {
       toast(errorText(err, "Не удалось выполнить действие"), { error: true });
     } finally {

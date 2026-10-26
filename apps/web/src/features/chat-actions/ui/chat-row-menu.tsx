@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 
 import { type ChatSummary, hasUnread, isChatAdmin, isChatMuted, useChatFolders } from "@/entities/chat";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { Menu, type MenuItem } from "@/shared/ui";
 
-import { isServerModerator } from "../lib/permissions";
 import { useChatActions } from "../model/use-chat-actions";
 import { useFolderActions } from "../model/use-folder-actions";
 

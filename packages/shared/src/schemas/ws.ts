@@ -37,3 +37,12 @@ export const contactUpdated = z.strictObject({
 
 export const chatAdded = z.strictObject({ type: z.literal("chat:added"), chat });
 export const chatUpdated = z.strictObject({ type: z.literal("chat:updated"), chat });
+
+/** Заявку на вступление отклонили (server/lib/joinApproval.js). */
+export const chatJoinDeclined = z.strictObject({ type: z.literal("chat:join-declined"), chatId: z.string(), title: z.string().nullable() });
+
+/** Shalter AI пишет ответ (active) или закончил (server/lib/shalterAi.js). */
+export const aiState = z.strictObject({ type: z.literal("ai:state"), chatId: z.string(), active: z.boolean() });
+
+/** Сообщество изменилось — перечитать его (modules/communities). */
+export const communityUpdated = z.strictObject({ type: z.literal("community:updated"), communityId: z.string() });

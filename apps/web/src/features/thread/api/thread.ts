@@ -1,5 +1,5 @@
+import type { commentsBody } from "@shalter/shared/schemas/channels";
 import type { messageEnvelope } from "@shalter/shared/schemas/messages";
-import type { publicUser } from "@shalter/shared/schemas/user";
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
@@ -10,17 +10,8 @@ import { http } from "@/shared/api";
 /** threadResult из @shalter/shared — с типом сообщения ленты. */
 type Thread = { root: Message; replies: Message[] };
 
-/** commentsBody из @shalter/shared: пост, его якорь в группе обсуждения и ответы на якорь. */
-export type PostComments = {
-  post: Message;
-  anchor: Message;
-  chat: { id: string; title: string | null };
-  members: z.infer<typeof publicUser>[];
-  replies: Message[];
-  canComment: boolean;
-  commentPriceStars: number;
-  commentPriceFree: boolean;
-};
+/** commentsBody из @shalter/shared — с типом сообщения ленты. */
+export type PostComments = Omit<z.infer<typeof commentsBody>, "post" | "anchor" | "replies"> & { post: Message; anchor: Message; replies: Message[] };
 
 const messagesPath = (chatId: string) => `/api/chats/${encodeURIComponent(chatId)}/messages`;
 

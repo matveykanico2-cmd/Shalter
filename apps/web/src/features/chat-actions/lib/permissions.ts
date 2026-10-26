@@ -1,11 +1,9 @@
 // Кому какие пункты меню чата — как renderHeader в public/js/views/chatView.js (сервер проверяет то же).
 import type { ChatSummary } from "@/entities/chat";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 /** Служебные аккаунты Shalter — их не удаляют «за нарушение». */
 const SERVICE_ACCOUNT_IDS = ["bot_shalter", "bot_helper", "bot_support"];
-
-export const isServerModerator = (me: SelfUser) => !!me.isDeveloper || (me.adminSections ?? []).includes("moderation");
 
 /** «Удалить за нарушение»: чужая группа или канал, бот (не служебный). */
 export function canModerateDelete(chat: ChatSummary, me: SelfUser) {

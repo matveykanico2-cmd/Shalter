@@ -953,6 +953,13 @@ describe("поле ввода: подсказки, команды, формат�
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(sent(calls)[0]).toMatchObject({ text: "объявление", anonymous: true }));
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    // Вложение тоже не раскрывает админа.
+    fireEvent.click(toggle);
+    type(input, "/казино");
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sent(calls)[1]).toMatchObject({ attachments: [{ kind: "dice" }], anonymous: true }));
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     cleanup();
 
     const dm = chat({ type: "dm", title: "", otherUser: LENA as ChatSummary["otherUser"] });
@@ -1050,6 +1057,19 @@ describe("особые сообщения и автор", () => {
     expect(calls.find((c) => c.key === "POST /api/reports/r_1/resolve")?.body).toEqual({ action: "delete", messageId: complaint.id });
   });
 
+  it("жалобу решил другой модератор — кнопки пропадают по message:updated", async () => {
+    const complaint = msg("", { type: "report", report } as Partial<Message>);
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([complaint]) });
+    const { client } = renderChat();
+    client.setQueryData(sessionQueries.current().queryKey, { user: { ...ME, adminSections: ["moderation"] } } as never);
+    expect(await screen.findByRole("button", { name: "Отклонить" })).toBeTruthy();
+    ws.start();
+    act(() => FakeSocket.last().open());
+    act(() => FakeSocket.last().receive({ type: "message:updated", chatId: "c_1", message: { ...complaint, report: { ...report, status: "dismissed" } } }));
+    expect(await screen.findByText("Отклонено")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Отклонить" })).toBeNull());
+  });
+
   it("автозагрузка выключена — фото по нажатию; имя автора с тегом открывает профиль", async () => {
     const lena = { ...LENA, isPremium: true };
     const photo = msg("закат", { attachments: [{ kind: "image", url: "/uploads/a_0000000000000001.jpg", width: 800, height: 600 }] });
@@ -1120,6 +1140,38 @@ describe("комментарии к постам", () => {
     expect(await within(panel).findByText("Комментарии (3)")).toBeTruthy();
     expect(calls.find((c) => c.key === `POST /api/posts/${post.id}/comments`)?.body).toMatchObject({ text: "Жду" });
     expect(calls.some((c) => c.key === `POST /api/posts/${post.id}/view`)).toBe(true);
+  });
+});
+
+describe("комментарии: права", () => {
+  it("чужой комментарий удаляет админ группы обсуждения, а не админ канала", async () => {
+    vi.stubGlobal("IntersectionObserver", class {
+      public observe() {}
+      public disconnect() {}
+    });
+    const channel = chat({ type: "channel", title: "Новости", linkedDiscussionChatId: "c_disc", memberIds: [ME.id], adminIds: [ME.id] } as Partial<ChatSummary>);
+    const post = msg("Пост", { senderId: ME.id, discussionAnchorId: "m_anchor", commentCount: 1 } as Partial<Message>);
+    const anchor = msg("Пост", { id: "m_anchor", chatId: "c_disc", senderId: ME.id });
+    const olya = { id: "u_olya000000", name: "Оля" };
+    fakeApi({
+      "GET /api/chats/c_1": card(channel),
+      [HISTORY]: page([post]),
+      [`GET /api/posts/${post.id}/comments`]: {
+        body: { post, anchor, chat: { id: "c_disc", title: "Обсуждение" }, members: [olya], replies: [msg("Ура!", { chatId: "c_disc", senderId: olya.id, threadRootId: "m_anchor" })], canComment: true, commentPriceStars: 0, commentPriceFree: true },
+      },
+    });
+    const { client } = renderChat(channel);
+    fireEvent.click(await screen.findByRole("button", { name: "1 комментарий" }));
+    const panel = await screen.findByRole("dialog", { name: "Комментарии" });
+    fireEvent.contextMenu(await within(panel).findByText("Ура!"));
+    expect(screen.queryByRole("menu", { name: "Комментарий" })).toBeNull();
+    act(() => client.setQueryData(chatQueries.list().queryKey, [channel, chat({ id: "c_disc", title: "Обсуждение", adminIds: [ME.id] })]));
+    // Список чатов доходит до панели тиком позже.
+    await waitFor(() => {
+      fireEvent.contextMenu(within(panel).getByText("Ура!"));
+      expect(screen.getByRole("menu", { name: "Комментарий" })).toBeTruthy();
+    });
+    expect(within(screen.getByRole("menu", { name: "Комментарий" })).getByRole("menuitem", { name: "Удалить" })).toBeTruthy();
   });
 });
 

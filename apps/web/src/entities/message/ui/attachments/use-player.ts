@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import { audioFor, play } from "@/shared/lib/media/now-playing";
 
+import { AUDIO_EXT_RE } from "../../lib/attachments";
 import type { Attachment } from "../../model/attachment";
 import type { FeedMessage } from "../../model/types";
 
@@ -13,10 +14,10 @@ import { useMediaProgress } from "./use-media-progress";
  */
 export function usePlayer(message: FeedMessage, a: Attachment, kind: "voice" | "audio", senderName: string | null) {
   const key = `${message.id}:${a.url}`;
-  const media = useMemo(() => audioFor(key, a.url ?? ""), [key, a.url]);
+  const media = useMemo(() => audioFor(key, a.url ?? "", kind === "audio" ? "none" : "metadata"), [key, a.url, kind]);
   const ref = useMemo(() => ({ current: media }), [media]);
   const progress = useMediaProgress(ref, a.durationSec ?? 0);
-  const title = kind === "voice" ? (senderName ?? "Голосовое сообщение") : (a.name || "Аудио").replace(/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i, "");
+  const title = kind === "voice" ? (senderName ?? "Голосовое сообщение") : (a.name || "Аудио").replace(AUDIO_EXT_RE, "");
   const toggle = () => {
     if (!media.paused) return media.pause();
     play(media, {

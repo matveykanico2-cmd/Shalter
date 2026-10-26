@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { isServerModerator } from "@/features/chat-actions";
 import { SponsoredMessage } from "@/features/chat-ads";
 import {
   canPin,
@@ -18,7 +17,7 @@ import {
 import { Composer } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
-import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
+import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
 import {
   type AttachmentActions,
   type FeedMessage,
@@ -33,7 +32,7 @@ import {
   type TopicFilter,
 } from "@/entities/message";
 import { type ReportInfo, ReportMessage } from "@/entities/report";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -70,6 +69,8 @@ type Props = {
   chat: ChatSummary;
   members: readonly ChatMember[];
   me: SelfUser;
+  /** Кто печатает — для «Думает…» бота. */
+  typing: Typing;
   /** quote — выделенная часть текста для цитаты. */
   onReply?: (m: Message, quote?: string) => void;
   onEdit?: (m: Message) => void;
@@ -81,7 +82,7 @@ type Props = {
 /** Лента открытого чата: история с подгрузкой вверх, живые события, виртуализация. */
 const noop = () => {};
 
-export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: Props) {
+export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic, ref }: Props) {
   const meId = me.id;
   const client = useQueryClient();
   const menu = useMessageMenu();
@@ -365,7 +366,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
             })}
           </div>
         )}
-        <BotThinking chat={chat} members={members} meId={meId} />
+        <BotThinking chat={chat} members={members} typing={typing} />
         {isChannel && rows.length ? <SponsoredMessage chatId={chat.id} premium={!!me.isPremium} /> : null}
         {loadingOlder ? <span className={`${styles.spinner} ${styles.topSpinner}`} aria-label="Загружаем историю" /> : null}
       </div>

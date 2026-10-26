@@ -7,35 +7,18 @@ import { chatCache, chatQueries, type ChatSummary, hasUnread, isChatMuted, sortC
 import { errorText } from "@/shared/lib/error-text";
 import { toast } from "@/shared/ui";
 
-import { markChatRead, muteChat, setChatArchived, setPinnedOrder } from "../api/chat-actions";
+import { markChatRead, setPinnedOrder } from "../api/chat-actions";
+
+import { muteOptimistic, toggleArchiveOptimistic } from "./optimistic";
 
 export function useChatListActions() {
   const client = useQueryClient();
 
   /** Свайп «Без звука» / «Со звуком» — навсегда или снять. */
-  const toggleMute = async (chat: ChatSummary) => {
-    const muted = !isChatMuted(chat);
-    const before = { muted: chat.muted, mutedUntil: chat.mutedUntil };
-    chatCache.patchChat(client, chat.id, { muted, mutedUntil: undefined });
-    try {
-      const { chat: updated } = await muteChat(chat.id, muted ? { forever: true } : { off: true });
-      chatCache.patchChat(client, chat.id, { muted: updated.muted, mutedUntil: updated.mutedUntil ?? undefined });
-    } catch (err) {
-      chatCache.patchChat(client, chat.id, before);
-      toast(errorText(err, "Не удалось изменить уведомления"), { error: true });
-    }
-  };
+  const toggleMute = (chat: ChatSummary) => muteOptimistic(client, chat, isChatMuted(chat) ? { off: true } : { forever: true });
 
   /** Свайп «В архив» / «Из архива». */
-  const toggleArchive = async (chat: ChatSummary) => {
-    chatCache.patchChat(client, chat.id, { archived: !chat.archived });
-    try {
-      await setChatArchived(chat.id, !chat.archived);
-    } catch (err) {
-      chatCache.patchChat(client, chat.id, { archived: chat.archived });
-      toast(errorText(err, "Не удалось изменить чат"), { error: true });
-    }
-  };
+  const toggleArchive = (chat: ChatSummary) => toggleArchiveOptimistic(client, chat);
 
   /** «Прочитать все» во вкладке: сразу в списке, запросы — в фоне. */
   const readAll = async (chats: readonly ChatSummary[]) => {

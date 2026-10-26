@@ -2,13 +2,13 @@ import { useState } from "react";
 
 import { type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
 import { type Message, messagePreview } from "@/entities/message";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, toast } from "@/shared/ui";
 
-import { isProtectedChat, isServerModerator } from "../lib/permissions";
+import { isProtectedChat } from "../lib/permissions";
 import type { useMessageActions } from "../model/use-message-actions";
 
 import { DeleteMessageDialog } from "./delete-message-dialog";

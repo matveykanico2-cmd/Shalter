@@ -4,7 +4,7 @@
 import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
 import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
-import type { chatAdded, chatUpdated, contactUpdated, presenceUpdate } from "@shalter/shared/schemas/ws";
+import type { aiState, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
 
 type Of<S extends z.ZodType> = z.infer<S>;
@@ -24,15 +24,15 @@ export type WsEvents = {
   "chat:added": Of<typeof chatAdded>;
   "chat:updated": Of<typeof chatUpdated>;
   "chat:deleted": Of<typeof wsChatDeleted>;
-  "community:updated": { type: "community:updated"; communityId: string };
+  "community:updated": Of<typeof communityUpdated>;
   "presence:update": Of<typeof presenceUpdate>;
   /** Кто-то печатает (action: typing, upload_photo…; cancel — перестал). */
   "typing:update": Of<typeof wsTypingUpdate>;
   "contact:updated": Of<typeof contactUpdated>;
   /** Заявку на вступление отклонили. */
-  "chat:join-declined": { type: "chat:join-declined"; chatId: string; title: string | null };
+  "chat:join-declined": Of<typeof chatJoinDeclined>;
   /** Shalter AI пишет ответ (active) или закончил — кнопка «стоп» в поле ввода. */
-  "ai:state": { type: "ai:state"; chatId: string; active: boolean };
+  "ai:state": Of<typeof aiState>;
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };
   /** Сменился статус сокета (ws.status()) — для заголовка «Соединение…». */

@@ -137,6 +137,22 @@ export function Composer(props: Props) {
     setEditingId(editing?.id ?? null);
   }
   const [error, setError] = useState<string | null>(null);
+
+  // «От имени группы» — для одного сообщения, как postAsChat в composer.js, но и для
+  // вложений: голосовое или кубик от админа не должны раскрывать, кто он. Ref — потому
+  // что запись и геолокация отправляются из замыкания, созданного раньше.
+  const [asGroup, setAsGroupState] = useState(false);
+  const asGroupRef = useRef(false);
+  const setAsGroup = (on: boolean) => {
+    asGroupRef.current = on;
+    setAsGroupState(on);
+  };
+  const takeAsGroup = (): SendOptions => {
+    if (!asGroupRef.current) return {};
+    setAsGroup(false);
+    return { anonymous: true };
+  };
+
   const textarea = useRef<HTMLTextAreaElement>(null);
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
@@ -263,10 +279,7 @@ export function Composer(props: Props) {
         if (cmd.silent) options = { ...options, silent: true };
       }
     }
-    if (asGroup) {
-      options = { ...options, anonymous: true };
-      setAsGroup(false);
-    }
+    options = { ...options, ...takeAsGroup() };
     const reply = replyTo;
     clearInput();
     onSent?.();
@@ -361,6 +374,7 @@ export function Composer(props: Props) {
     }
     if (!uploaded.length) return;
     const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
+    const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
     const caption = latestText.current.trim();
     const reply = replyTo;
     const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
@@ -369,7 +383,7 @@ export function Composer(props: Props) {
     clearDraft();
     onSent?.();
     for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-      await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 && paidMedia ? { paidMedia } : {}).catch((err: unknown) => {
+      await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 ? first : {}).catch((err: unknown) => {
         setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
       });
     }
@@ -380,7 +394,7 @@ export function Composer(props: Props) {
     const reply = replyTo;
     onCancelReply();
     onSent?.();
-    return send(caption, reply, [attachment]).catch((err: unknown) => {
+    return send(caption, reply, [attachment], undefined, takeAsGroup()).catch((err: unknown) => {
       setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
       return null;
     });
@@ -528,9 +542,6 @@ export function Composer(props: Props) {
     return () => document.removeEventListener("selectionchange", onChange);
   }, []);
 
-  // «От имени группы» — для одного сообщения, как postAsChat в composer.js.
-  const [asGroup, setAsGroup] = useState(false);
-
   // Картинка или файл из буфера обмена — в окно отправки.
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = [...(e.clipboardData?.files ?? [])];
@@ -672,7 +683,7 @@ export function Composer(props: Props) {
                 className={asGroup ? `${styles.attach} ${styles.anonymousOn}` : styles.attach}
                 title={asGroup ? "Отправляется от имени группы" : "Отправить от имени группы"}
                 aria-pressed={asGroup}
-                onClick={() => setAsGroup((v) => !v)}
+                onClick={() => setAsGroup(!asGroup)}
               >
                 <Icon name="Users" size={18} />
               </button>

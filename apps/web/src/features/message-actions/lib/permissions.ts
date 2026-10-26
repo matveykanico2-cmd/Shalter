@@ -2,9 +2,7 @@
 // public/js/views/chatView.js (сервер проверяет то же самое).
 import { type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
 import { isCallLogMessage, type Message } from "@/entities/message";
-import type { SelfUser } from "@/entities/session";
-
-export const isServerModerator = (me: SelfUser) => !!me.isDeveloper || (me.adminSections ?? []).includes("moderation");
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 const isStaff = (chat: ChatSummary, meId: string) => isChatAdmin(chat, meId) || isChatModerator(chat, meId);
 

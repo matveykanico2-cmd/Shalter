@@ -16,7 +16,7 @@ import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
 import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
-import { type ChatCard, type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, isChatModerator, useChatCard, useChatFromList } from "@/entities/chat";
+import { type ChatCard, type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, isChatModerator, useChatCard, useChatFromList, useTyping } from "@/entities/chat";
 import { inTopic, type Message, type MessageLinkHandlers, MessageLinks, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
@@ -97,6 +97,8 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
       else if (button.action) composer.current?.sendText(button.action);
     },
   };
+  // «Печатает…» в шапке и «Думает…» бота в ленте — с одной подписки и одного опроса.
+  const typing = useTyping(chat.id, me.id);
   const ai = useAiReply(chat.id, chat.type === "dm" && chat.otherUser?.id === "bot_shalter_ai");
   // Ссылка на сообщение (?msg=…) — прокрутить к нему.
   const [params] = useSearchParams();
@@ -141,7 +143,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <div className={styles.main}>
-        <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        <ChatHeader chat={chat} members={members} me={me} typing={typing} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
         <NowPlayingBar />
         {searching !== null ? (
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
@@ -152,7 +154,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
         <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
           {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
           <MessageLinks value={links}>
-            <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
+            <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} typing={typing} onReply={reply} onEdit={edit} topic={topic} />
           </MessageLinks>
           <Bottom
             chat={chat}

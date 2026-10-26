@@ -1,11 +1,11 @@
 import { useState } from "react";
 
 import { type ChatSummary, isChatAdmin, isChatMuted } from "@/entities/chat";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { ChoiceDialog, Icon, Menu, type MenuItem } from "@/shared/ui";
 
-import { canModerateDelete, canProtect, isServerModerator } from "../lib/permissions";
+import { canModerateDelete, canProtect } from "../lib/permissions";
 import { useChatActions } from "../model/use-chat-actions";
 
 import styles from "./chat-actions.module.css";

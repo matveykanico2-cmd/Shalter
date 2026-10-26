@@ -39,12 +39,15 @@ const emit = () => {
   listeners.forEach((fn) => fn());
 };
 
-/** Голосовое или музыка — <audio> вне документа: его не ставит на паузу уход пузыря со страницы. */
-export function audioFor(key: string, url: string) {
+/**
+ * Голосовое или музыка — <audio> вне документа: его не ставит на паузу уход пузыря со страницы.
+ * Музыка — preload="none", как в attachments.js: лента с треками не качает их заранее.
+ */
+export function audioFor(key: string, url: string, preload: "metadata" | "none" = "metadata") {
   let el = pool.get(key);
   if (!el) {
     el = new Audio();
-    el.preload = "metadata";
+    el.preload = preload;
     el.src = url;
     pool.set(key, el);
     if (pool.size > POOL_MAX) {

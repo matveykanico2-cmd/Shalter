@@ -2,9 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
+import { type ChatSummary, isChatAdmin, isChatModerator, useChats } from "@/entities/chat";
 import { type Message, MessageBubble, messageQueries, type MessageSender } from "@/entities/message";
-import type { SelfUser } from "@/entities/session";
+import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, Icon, Menu, type MenuItem, toast } from "@/shared/ui";
@@ -28,8 +28,6 @@ type Props = {
   composer: (onSent: (m: Message) => void, target: ThreadTarget) => ReactNode;
 };
 
-const isServerModerator = (me: SelfUser) => !!me.isDeveloper || (me.adminSections ?? []).includes("moderation");
-
 /**
  * Ответы на сообщение группы или комментарии к посту канала — боковая панель, как
  * openThreadPanel в public/js/components/threadPanel.js (openPostComments в chatView.js).
@@ -43,7 +41,10 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
   const [entering, setEntering] = useState(true);
   const [menu, setMenu] = useState<{ message: Message; at: { x: number; y: number } } | null>(null);
   const body = useRef<HTMLDivElement>(null);
-  const staff = isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(me);
+  // Комментарии лежат в группе обсуждения, и удаляет их её админ, а не админ канала.
+  const chats = useChats().data;
+  const scope = isComments ? (chats?.find((c) => c.id === chatId) ?? null) : chat;
+  const staff = (!!scope && (isChatAdmin(scope, me.id) || isChatModerator(scope, me.id))) || isServerModerator(me);
   // Комментаторы — из ответа сервера: в группе обсуждения могут быть не подписчики канала.
   const people = comments?.members ?? null;
   const author = (id: string) => people?.find((u) => u.id === id) ?? userOf(id);

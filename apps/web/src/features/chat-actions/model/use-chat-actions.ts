@@ -16,14 +16,14 @@ import {
   leaveChat,
   markChatRead,
   markChatUnread,
-  muteChat,
   type MuteOptions,
   setAutoDelete as patchAutoDelete,
-  setChatArchived,
   setChatPinned,
   setChatProtected,
   setUserBlocked,
 } from "../api/chat-actions";
+
+import { muteOptimistic, patchOptimistic as optimistic, toggleArchiveOptimistic } from "./optimistic";
 
 /** Действия меню чата — как обработчики renderHeader в public/js/views/chatView.js. */
 export function useChatActions(chat: ChatSummary, meId: string) {
@@ -38,17 +38,7 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     if (pathname === `/chat/${chat.id}`) void navigate("/");
   };
 
-  /** Сразу в списке, запрос — в фоне; не вышло — как было (patchChat в chatList.js). */
-  const patchOptimistic = async (patch: Partial<ChatSummary>, request: () => Promise<unknown>) => {
-    const before = Object.fromEntries(Object.keys(patch).map((k) => [k, chat[k as keyof ChatSummary]])) as Partial<ChatSummary>;
-    chatCache.patchChat(client, chat.id, patch);
-    try {
-      await request();
-    } catch (err) {
-      chatCache.patchChat(client, chat.id, before);
-      toast(errorText(err, "Не удалось изменить чат"), { error: true });
-    }
-  };
+  const patchOptimistic = (patch: Partial<ChatSummary>, request: () => Promise<unknown>) => optimistic(client, chat, patch, request);
 
   const togglePin = () => patchOptimistic({ pinned: !chat.pinned }, () => setChatPinned(chat.id, !chat.pinned));
 
@@ -63,19 +53,7 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     }
   };
 
-  const mute = async (opts: MuteOptions) => {
-    const before = { muted: chat.muted, mutedUntil: chat.mutedUntil };
-    // Точное «до какого времени» пришлёт сервер; пока — просто «выключено».
-    const muted = !("off" in opts);
-    chatCache.patchChat(client, chat.id, { muted, mutedUntil: muted ? chat.mutedUntil : undefined });
-    try {
-      const { chat: updated } = await muteChat(chat.id, opts);
-      chatCache.patchChat(client, chat.id, { muted: updated.muted, mutedUntil: updated.mutedUntil ?? undefined });
-    } catch (err) {
-      chatCache.patchChat(client, chat.id, before);
-      toast(errorText(err, "Не удалось изменить уведомления"), { error: true });
-    }
-  };
+  const mute = (opts: MuteOptions) => muteOptimistic(client, chat, opts);
 
   const toggleProtect = async () => {
     const enabled = !(chat.protectedBy ?? []).includes(meId);
@@ -88,16 +66,7 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     }
   };
 
-  const toggleArchive = async () => {
-    const archived = !chat.archived;
-    chatCache.patchChat(client, chat.id, { archived });
-    try {
-      await setChatArchived(chat.id, archived);
-    } catch (err) {
-      chatCache.patchChat(client, chat.id, { archived: !archived });
-      toast(errorText(err, "Не удалось изменить чат"), { error: true });
-    }
-  };
+  const toggleArchive = () => toggleArchiveOptimistic(client, chat);
 
   const setAutoDelete = async (seconds: number | null) => {
     try {

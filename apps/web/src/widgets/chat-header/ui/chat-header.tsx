@@ -8,7 +8,7 @@ import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { ScheduledList } from "@/features/send-message";
 import { useTopicsToggle } from "@/features/topics";
 
-import { type ChatMember, type ChatSummary, chatTitle, useTyping } from "@/entities/chat";
+import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
 import type { SelfUser } from "@/entities/session";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
@@ -22,6 +22,8 @@ type Props = {
   chat: ChatSummary;
   members: readonly ChatMember[];
   me: SelfUser;
+  /** Кто печатает — useTyping в ChatView (его же видит лента). */
+  typing: Typing;
   onSearch: () => void;
   /** «Информация о чате» открыта справа. */
   infoOpen: boolean;
@@ -29,7 +31,7 @@ type Props = {
 };
 
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
-export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Props) {
+export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onInfo }: Props) {
   const meId = me.id;
   const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
@@ -39,7 +41,6 @@ export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Pr
     { icon: "Image", label: "Фон чата", onClick: () => setDialog("wallpaper") },
     { icon: "Clock", label: "Запланированные сообщения", onClick: () => setDialog("scheduled") },
   ];
-  const typing = useTyping(chat.id, meId);
   const now = usePresenceSync(chat.id);
   const title = chatTitle(chat);
   const other = chat.otherUser;
