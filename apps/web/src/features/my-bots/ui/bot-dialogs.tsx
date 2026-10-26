@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
@@ -126,6 +126,7 @@ export function BotTokenDialog({ botName, token, fresh = true, onClose }: { botN
 
 /** «Настройки бота» (editBotDialog.js): фото, имя, юзернейм, описание, мини-приложение, рассылка. */
 export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; onSaved: () => void; onClose: () => void }) {
+  const fieldId = useId();
   const [bot, setBot] = useState(initial);
   const [avatarImage, setAvatarImage] = useState<string | null>(initial.user.avatarImage ?? null);
   const [name, setName] = useState(initial.user.name ?? "");
@@ -209,18 +210,23 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
           }}
         />
       </div>
-      {/* TODO(a11y): подписи — отдельные абзацы перед полями, как в старом клиенте (сценарии берут поле после подписи). */}
       <div className={styles.fields}>
-        <p className={styles.label}>Имя</p>
-        <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} />
-        <p className={styles.label}>Юзернейм</p>
+        <p id={`${fieldId}-name`} className={styles.label}>
+          Имя
+        </p>
+        <input aria-labelledby={`${fieldId}-name`} className={styles.input} value={name} onChange={(e) => setName(e.target.value)} />
+        <p id={`${fieldId}-username`} className={styles.label}>
+          Юзернейм
+        </p>
         <div className={styles.handle}>
           <span className={styles.at}>@</span>
-          <input className={`${styles.input} ${styles.mono}`} value={username} onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, ""))} />
+          <input aria-labelledby={`${fieldId}-username`} className={`${styles.input} ${styles.mono}`} value={username} onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, ""))} />
         </div>
         <p className={styles.hint}>Должен заканчиваться на _bot — так его отличают от аккаунта человека.</p>
-        <p className={styles.label}>Описание</p>
-        <textarea className={styles.textarea} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <p id={`${fieldId}-description`} className={styles.label}>
+          Описание
+        </p>
+        <textarea aria-labelledby={`${fieldId}-description`} className={styles.textarea} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
       <div className={styles.block}>
         <p className={styles.blockTitle}>Мини-приложение</p>
@@ -247,8 +253,10 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
           <>
             <input className={`${styles.input} ${styles.mono}`} placeholder="https://example.com/app" value={appUrl} onChange={(e) => setAppUrl(e.target.value)} />
             <p className={styles.hint}>Адрес вашей страницы. Только https (http — для localhost).</p>
-            <p className={styles.label}>Надпись на кнопке</p>
-            <input className={styles.input} placeholder="Открыть приложение" value={appName} onChange={(e) => setAppName(e.target.value)} />
+            <p id={`${fieldId}-app-name`} className={styles.label}>
+              Надпись на кнопке
+            </p>
+            <input aria-labelledby={`${fieldId}-app-name`} className={styles.input} placeholder="Открыть приложение" value={appName} onChange={(e) => setAppName(e.target.value)} />
           </>
         ) : null}
       </div>

@@ -47,7 +47,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
         {options.map((value, i) => (
           <div key={i} className={styles.optionRow}>
             {quiz ? (
-              <button type="button" className={correct === i ? `${styles.correct} ${styles.active}` : styles.correct} title={correct === i ? "Это правильный вариант" : "Правильный ответ"} aria-pressed={correct === i} onClick={() => setCorrect(i)}>
+              <button type="button" className={correct === i ? `${styles.correct} ${styles.active}` : styles.correct} title={correct === i ? "Это правильный вариант" : "Правильный ответ"} aria-label={`Правильный ответ: вариант ${i + 1}`} aria-pressed={correct === i} onClick={() => setCorrect(i)}>
                 {correct === i ? "✓" : ""}
               </button>
             ) : null}

@@ -105,12 +105,10 @@ export function contactEntry(page: Page, name: string) {
 
 /**
  * Действие в строке контакта («Написать», «Переименовать у себя», «Заблокировать»,
- * «Удалить из контактов»). Кнопки показываются только при наведении на строку (как в tweb),
- * поэтому сначала наводим курсор на контакт.
- * TODO(a11y): у строки контакта нет роли (listitem/row) — кнопки не привязаны к контакту
- * по доступному имени; сценарии держат одного контакта, чтобы имя кнопки было однозначным.
+ * «Удалить из контактов»). Строка — группа с именем контакта. Кнопки показываются только
+ * при наведении на строку (как в tweb), поэтому сначала наводим курсор на контакт.
  */
 export async function rowAction(page: Page, contact: string, action: string | RegExp) {
   await contactEntry(page, contact).hover();
-  await page.getByRole("button", { name: action, exact: typeof action === "string" }).click();
+  await page.getByRole("group", { name: contact, exact: true }).getByRole("button", { name: action, exact: typeof action === "string" }).click();
 }

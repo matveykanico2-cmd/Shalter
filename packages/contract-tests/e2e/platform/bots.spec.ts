@@ -142,9 +142,7 @@ test("«Настройки → Боты»: показать токен, пере
   // Переименование в «Настройках бота».
   await page.getByRole("button", { name: "Редактировать бота", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Настройки бота" })).toBeVisible();
-  // TODO(a11y): у полей «Имя»/«Юзернейм»/«Описание» в настройках бота нет связанной
-  // подписи (подпись — отдельный абзац перед полем). Берём поле сразу после подписи «Имя».
-  const nameBox = page.getByText("Имя", { exact: true }).locator("xpath=following-sibling::input[1]");
+  const nameBox = page.getByRole("textbox", { name: "Имя", exact: true });
   await expect(nameBox).toHaveValue("Счётчик");
   await nameBox.fill("Счётчик Про");
   await page.getByRole("button", { name: "Сохранить", exact: true }).click();
@@ -180,8 +178,7 @@ test("мини-приложение бота открывается из шап�
 
   // Окно приложения: заголовок, подпись с ботом и страница бота внутри.
   await expect(page.getByText("бот Пиццерия", { exact: true })).toBeVisible();
-  // TODO(a11y): у iframe мини-приложения нет title — ищем единственный iframe на странице.
-  const app = page.locator("iframe").contentFrame();
+  const app = page.getByRole("dialog", { name: "Заказать пиццу" }).getByTitle("Заказать пиццу", { exact: true }).contentFrame();
   await expect(app.getByRole("heading", { name: "Меню пиццерии" })).toBeVisible();
   // Приложение знает, кто его открыл (initData).
   await expect(app.getByText("Гость: Борис")).toBeVisible();

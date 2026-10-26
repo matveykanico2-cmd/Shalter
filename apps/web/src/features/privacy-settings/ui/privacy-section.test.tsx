@@ -96,14 +96,12 @@ describe("«Конфиденциальность»", () => {
     fakeApi(baseRoutes());
     renderPrivacy();
     fireEvent.click(screen.getByRole("button", { name: /^Код-пароль\s*Выкл\.$/ }));
-    const field = () => document.querySelector<HTMLInputElement>('input[type="password"]')!;
-    fireEvent.change(field(), { target: { value: "12" } });
+    fireEvent.change(screen.getByLabelText("Придумайте код-пароль (минимум 4 цифры)"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Далее" }));
     expect(screen.getByText("Минимум 4 цифры")).toBeTruthy();
-    fireEvent.change(field(), { target: { value: "2468" } });
+    fireEvent.change(screen.getByLabelText("Придумайте код-пароль (минимум 4 цифры)"), { target: { value: "2468" } });
     fireEvent.click(screen.getByRole("button", { name: "Далее" }));
-    expect(screen.getByText("Повторите код-пароль")).toBeTruthy();
-    fireEvent.change(field(), { target: { value: "2468" } });
+    fireEvent.change(screen.getByLabelText("Повторите код-пароль"), { target: { value: "2468" } });
     fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
     expect(await screen.findByRole("button", { name: /^Код-пароль\s*Вкл\.$/ })).toBeTruthy();
     expect(hasPasscode()).toBe(true);

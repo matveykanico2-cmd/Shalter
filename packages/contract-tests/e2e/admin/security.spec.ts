@@ -12,13 +12,9 @@ async function openPrivacy(page: Page) {
   await expect(page.getByRole("heading", { name: "Конфиденциальность" })).toBeVisible();
 }
 
-/**
- * Поле кода в окне «Код-пароль» / «Отключить код-пароль».
- * TODO(a11y): у поля нет ни подписи, ни placeholder — только текст-подсказка над ним;
- * на экране одно видимое поле пароля. Заменить на getByLabel, когда подпись появится.
- */
-function passcodeField(page: Page) {
-  return page.locator('input[type="password"]:visible');
+/** Поле кода в окне «Код-пароль» / «Отключить код-пароль»: подпись — подсказка шага над ним. */
+function passcodeField(page: Page, label: string) {
+  return page.getByLabel(label, { exact: true });
 }
 
 test("облачный пароль: включение в настройках, затем вход через форму спрашивает его после обычного пароля", async ({ newUser, openAs, page }) => {
@@ -81,14 +77,12 @@ test("код-пароль этого устройства: после перез
   await expect(row).toHaveAccessibleName("Код-пароль Выкл.");
   await row.click();
   await expect(s.getByRole("heading", { name: "Код-пароль" })).toBeVisible();
-  await expect(s.getByText("Придумайте код-пароль (минимум 4 цифры)")).toBeVisible();
-  await passcodeField(s).fill("12");
+  await passcodeField(s, "Придумайте код-пароль (минимум 4 цифры)").fill("12");
   await s.getByRole("button", { name: "Далее" }).click();
   await expect(s.getByText("Минимум 4 цифры", { exact: true })).toBeVisible();
-  await passcodeField(s).fill("2468");
+  await passcodeField(s, "Придумайте код-пароль (минимум 4 цифры)").fill("2468");
   await s.getByRole("button", { name: "Далее" }).click();
-  await expect(s.getByText("Повторите код-пароль")).toBeVisible();
-  await passcodeField(s).fill("2468");
+  await passcodeField(s, "Повторите код-пароль").fill("2468");
   await s.getByRole("button", { name: "Сохранить", exact: true }).click();
   await expect(s.getByRole("heading", { name: "Код-пароль" })).toHaveCount(0);
   await expect(row).toHaveAccessibleName("Код-пароль Вкл.");
@@ -115,10 +109,10 @@ test("код-пароль этого устройства: после перез
   await s.getByRole("button", { name: /^Код-пароль/ }).click();
   await s.getByRole("button", { name: "Отключить код-пароль" }).click();
   await expect(s.getByRole("heading", { name: "Отключить код-пароль" })).toBeVisible();
-  await passcodeField(s).fill("0000");
+  await passcodeField(s, "Введите текущий код-пароль для подтверждения").fill("0000");
   await s.getByRole("button", { name: "Отключить", exact: true }).click();
   await expect(s.getByText("Неверный код-пароль")).toBeVisible();
-  await passcodeField(s).fill("2468");
+  await passcodeField(s, "Введите текущий код-пароль для подтверждения").fill("2468");
   await s.getByRole("button", { name: "Отключить", exact: true }).click();
   await expect(s.getByRole("heading", { name: "Отключить код-пароль" })).toHaveCount(0);
   await expect(s.getByRole("button", { name: /^Код-пароль/ })).toHaveAccessibleName("Код-пароль Выкл.");

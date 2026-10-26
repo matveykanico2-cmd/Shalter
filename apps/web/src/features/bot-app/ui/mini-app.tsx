@@ -140,14 +140,16 @@ export function MiniApp({ target, onClose }: { target: MiniAppTarget; onClose: (
   };
   const hosted = appOrigin === window.location.origin;
 
+  const title = appName || session?.name || botName || "Приложение";
+
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={appName || session?.name || botName || "Приложение"}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={title}>
       <div className={styles.header}>
         <button type="button" className={styles.iconButton} title="Закрыть" onClick={onClose}>
           <Icon name="X" size={18} />
         </button>
         <div className={styles.titles}>
-          <p className={styles.title}>{appName || session?.name || botName || "Приложение"}</p>
+          <p className={styles.title}>{title}</p>
           {botName ? <p className={styles.subtitle}>бот {botName}</p> : null}
         </div>
         <button type="button" className={styles.iconButton} title="Ещё" onClick={(e) => setMenuAt({ x: e.clientX, y: e.clientY })}>
@@ -161,7 +163,7 @@ export function MiniApp({ target, onClose }: { target: MiniAppTarget; onClose: (
             ref={frame}
             className={styles.frame}
             src={session.url}
-            title={session.name}
+            title={title}
             sandbox={hosted ? "allow-scripts allow-forms allow-popups allow-modals" : "allow-scripts allow-same-origin allow-forms allow-popups allow-modals"}
             onLoad={() => setLoaded(true)}
           />

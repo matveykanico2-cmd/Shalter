@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Link } from "react-router";
 
 import { Icon, type IconName } from "./icon";
@@ -30,12 +30,28 @@ export function SettingsPage({ title, subtitle, children }: { title?: string; su
 }
 
 /** Белая карточка со строками (twSection): название сверху, пояснение снизу, справа от названия — действие. */
-export function SettingsSection({ title, titleRight, caption, children }: { title?: ReactNode; titleRight?: ReactNode; caption?: ReactNode; children: ReactNode }) {
+export function SettingsSection({
+  title,
+  titleId,
+  titleRight,
+  caption,
+  children,
+}: {
+  title?: ReactNode;
+  /** id заголовка — чтобы поле внутри секции ссылалось на него как на подпись (aria-labelledby). */
+  titleId?: string;
+  titleRight?: ReactNode;
+  caption?: ReactNode;
+  children: ReactNode;
+}) {
+  const autoId = useId();
+  const nameId = titleId ?? autoId;
+  // Секция с заголовком — группа с его именем: одинаковые кнопки разных секций различимы.
   return (
-    <div className={styles.group}>
+    <div className={styles.group} role={title ? "group" : undefined} aria-labelledby={title ? nameId : undefined}>
       {title ? (
         <p className={styles.name}>
-          <span>{title}</span>
+          <span id={nameId}>{title}</span>
           {titleRight}
         </p>
       ) : null}

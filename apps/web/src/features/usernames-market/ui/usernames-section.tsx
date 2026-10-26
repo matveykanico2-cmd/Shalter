@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { sessionQueries } from "@/entities/session";
 import { starsQueries } from "@/entities/stars";
@@ -188,9 +188,12 @@ export function UsernamesSection() {
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  const titleId = useId();
   return (
-    <div className={styles.block}>
-      <p className={styles.blockTitle}>{title}</p>
+    <div role="group" aria-labelledby={titleId} className={styles.block}>
+      <p id={titleId} className={styles.blockTitle}>
+        {title}
+      </p>
       <div className={styles.blockBody}>{children}</div>
     </div>
   );

@@ -26,15 +26,11 @@ export async function dmWithBot(user: TestUser, botId = SYSTEM_BOT_ID): Promise<
   return id!;
 }
 
-/**
- * Окно с полем ввода (askText): поле получает фокус сразу при открытии, поэтому
- * вводим с клавиатуры и жмём «OK».
- * TODO(a11y): у поля нет подписи (label/placeholder) — оно связано с вопросом
- * только визуально; когда появится, искать его по getByLabel(вопрос).
- */
+/** Окно с полем ввода (askText): окно и поле названы вопросом; вводим ответ и жмём «OK». */
 export async function answerPrompt(page: Page, question: string | RegExp, answer: string) {
-  await expect(page.getByRole("heading", { name: question })).toBeVisible();
-  await page.keyboard.type(answer);
-  await page.getByRole("button", { name: "OK", exact: true }).click();
-  await expect(page.getByRole("heading", { name: question })).toHaveCount(0);
+  const dialog = page.getByRole("dialog", { name: question });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: question }).fill(answer);
+  await dialog.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 }

@@ -40,7 +40,7 @@ test("ответ на сообщение: цитата видна собесед
   expect(reply.replyToId).toBe(original.id);
 });
 
-test("ответ можно отменить (Escape в поле ввода) — сообщение уходит без цитаты", async ({ newUser, openAs }) => {
+test("ответ можно отменить (крестик на плашке, Escape в поле ввода) — сообщение уходит без цитаты", async ({ newUser, openAs }) => {
   const alice = await newUser("Алиса");
   const boris = await newUser("Борис");
   const chat = await createDm(alice, boris);
@@ -50,8 +50,10 @@ test("ответ можно отменить (Escape в поле ввода) —
   await messageAction(a, "Есть вопрос", "Ответить");
   const banner = a.getByText("Ответ Борис", { exact: true });
   await expect(banner).toBeVisible();
-  // TODO(a11y): крестик на плашке ответа — кнопка без доступного имени (только иконка),
-  // поэтому отменяем клавишей Escape в поле ввода.
+  await a.getByRole("button", { name: "Отменить ответ", exact: true }).click();
+  await expect(banner).toHaveCount(0);
+  await messageAction(a, "Есть вопрос", "Ответить");
+  await expect(banner).toBeVisible();
   await composer(a).press("Escape");
   await expect(banner).toHaveCount(0);
   await sendMessage(a, "Просто сообщение");

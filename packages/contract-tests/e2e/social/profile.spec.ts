@@ -135,21 +135,20 @@ test("QR-код профиля: ник, копирование ссылки; с�
   await s.context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const a = s.page;
   await a.getByRole("button", { name: "QR-код профиля" }).click();
-  await expect(a.getByRole("heading", { name: "QR-код", exact: true })).toBeVisible();
-  // TODO(a11y): у окна QR нет role="dialog", а сам код — SVG без подписи. Ник под кодом
-  // ищем как последний такой текст (окно добавлено поверх страницы настроек, где ник тоже есть);
-  // с ролью dialog — a.getByRole("dialog", { name: "QR-код" }).getByText(...).
-  await expect(a.getByText(`@${alice.username}`, { exact: true }).last()).toBeVisible();
-  await expect(a.getByRole("button", { name: "Отправить в чат" })).toBeVisible();
+  const qr = a.getByRole("dialog", { name: "QR-код", exact: true });
+  await expect(qr).toBeVisible();
+  await expect(qr.getByRole("img", { name: "QR-код", exact: true })).toBeVisible();
+  await expect(qr.getByText(`@${alice.username}`, { exact: true })).toBeVisible();
+  await expect(qr.getByRole("button", { name: "Отправить в чат" })).toBeVisible();
 
-  await a.getByRole("button", { name: "Скопировать ссылку" }).click();
-  await expect(a.getByText("Ссылка скопирована ✓")).toBeVisible();
+  await qr.getByRole("button", { name: "Скопировать ссылку" }).click();
+  await expect(qr.getByText("Ссылка скопирована ✓")).toBeVisible();
   // Локальный адрес в ссылку не попадает — подставляется публичный сайт.
   const link = await a.evaluate(() => navigator.clipboard.readText());
   expect(link).toBe(`https://shalter.ru/u/${alice.username}`);
 
   await a.keyboard.press("Escape");
-  await expect(a.getByRole("heading", { name: "QR-код", exact: true })).toHaveCount(0);
+  await expect(qr).toHaveCount(0);
 
   // Тот же путь на этом сервере у Бориса — профиль Алисы.
   const b = (await openAs(boris.api, new URL(link).pathname)).page;

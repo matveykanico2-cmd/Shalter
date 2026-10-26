@@ -65,14 +65,13 @@ test("плата за сообщения: незнакомец видит цен
 
   const a = (await openAs(alice.api, "/settings/stars")).page;
   await expect(balance(a, 0)).toBeVisible();
-  const price = a.getByRole("spinbutton").last();
-  // TODO(a11y): у поля «Плата за сообщения мне» нет подписи — это последнее числовое поле экрана.
+  const price = a.getByRole("spinbutton", { name: "Плата за сообщения мне" });
   await expect(price).toHaveValue("0");
   await price.fill("25");
   await a.getByRole("button", { name: "Сохранить", exact: true }).click();
   await expect(a.getByText(/Незнакомцы платят 25\s*за сообщение/)).toBeVisible();
   await a.reload();
-  await expect(a.getByRole("spinbutton").last()).toHaveValue("25");
+  await expect(price).toHaveValue("25");
 
   // Борис пишет Алисе впервые: цена в поле ввода и пояснение над ним.
   const chat = await createDm(boris, alice);

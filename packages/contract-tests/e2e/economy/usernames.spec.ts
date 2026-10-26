@@ -55,13 +55,13 @@ test("аукцион: админ выставляет ник, участник �
 
   const ad = (await openAs(admin.api, "/settings/usernames")).page;
   await expect(ad.getByText("Выставить юзернейм")).toBeVisible();
-  // TODO(a11y): поля без подписей; у «Выставить юзернейм» и «Выдать юзернейм напрямую»
-  // одинаковые подсказки «юзернейм», а кнопок «Выставить» две (ещё «Продать свой»).
-  // Отличаем по порядку: блок аукциона идёт после рынка и перед прямой выдачей.
-  await ad.getByRole("textbox", { name: "юзернейм" }).first().fill(handle);
-  await ad.getByRole("spinbutton", { name: "Старт, ⭐" }).fill("5");
-  await ad.getByRole("spinbutton", { name: "Часов" }).fill("24");
-  await ad.getByRole("button", { name: "Выставить", exact: true }).last().click();
+  // Блоки экрана — группы с именем по заголовку: поле «юзернейм» есть и в прямой выдаче,
+  // кнопка «Выставить» — и у «Продать свой».
+  const auction = ad.getByRole("group", { name: "Выставить юзернейм" });
+  await auction.getByRole("textbox", { name: "юзернейм" }).fill(handle);
+  await auction.getByRole("spinbutton", { name: "Старт, ⭐" }).fill("5");
+  await auction.getByRole("spinbutton", { name: "Часов" }).fill("24");
+  await auction.getByRole("button", { name: "Выставить", exact: true }).click();
   await expect(ad.getByText("Аукцион создан")).toBeVisible();
   await expect(ad.getByText(`@${handle}`, { exact: true })).toBeVisible();
   await expect(ad.getByText(/^Стартовая цена: 5.*ставок пока нет$/)).toBeVisible();

@@ -39,10 +39,7 @@ test("текст, «печатает…», реакция, правка, уда�
       return msg?.readByIds ?? [];
     })
     .toContain(boris.id);
-  // TODO(a11y): отметка «отправлено/прочитано» — иконка без подписи (одна или две
-  // галочки). Ищем внутри сообщения SVG из двух линий («две галочки»); когда у иконки
-  // появится aria-label («Прочитано»), проверять её по имени.
-  await expect(messageText(a, "Привет, Борис!").locator("svg:has(path + path)").first()).toBeAttached();
+  await expect(messageText(a, "Привет, Борис!").getByRole("img", { name: "Прочитано", exact: true })).toBeVisible();
 
   // Ответ Бориса приходит Алисе вживую.
   await sendMessage(b, "Привет, Алиса!");

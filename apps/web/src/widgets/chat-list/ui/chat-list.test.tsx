@@ -344,7 +344,7 @@ describe("новый чат", () => {
     expect(await screen.findByRole("dialog", { name: "Группа создана" })).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/chats/groups")?.body).toMatchObject({ title: "Семья", memberIds: [lena.id], adminIds: [lena.id], isPublic: false });
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_new"));
-    expect(((await screen.findByRole("textbox", { name: "Ссылка" })) as HTMLInputElement).value).toMatch(/\/join\/AbCdEfGhIjKlMnOpQrStUv$/);
+    expect(((await screen.findByRole("textbox", { name: "Пригласительная ссылка" })) as HTMLInputElement).value).toMatch(/\/join\/AbCdEfGhIjKlMnOpQrStUv$/);
     fireEvent.click(screen.getByRole("button", { name: "Готово" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Новый чат" }));

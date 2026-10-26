@@ -10,10 +10,10 @@ import type { Page } from "@playwright/test";
 /** «Модерация» → «Найти любой аккаунт» → карточка пользователя. */
 async function openUserCard(page: Page, username: string, name: string) {
   await page.goto("/settings/moderation");
-  await page.getByPlaceholder("@юзернейм, +7…, почта или id").fill(`@${username}`);
-  // Первая кнопка «Открыть карточку» — у поля поиска; ниже такие же есть у каждой открытой жалобы.
-  // TODO(a11y): одинаковые имена у кнопок разных разделов; различать по разделу, когда у них появятся роли region/группы.
-  await page.getByRole("button", { name: "Открыть карточку", exact: true }).first().click();
+  // Разделы экрана — группы с именем по заголовку: «Открыть карточку» есть и у каждой открытой жалобы.
+  const lookup = page.getByRole("group", { name: "Найти любой аккаунт" });
+  await lookup.getByPlaceholder("@юзернейм, +7…, почта или id").fill(`@${username}`);
+  await lookup.getByRole("button", { name: "Открыть карточку", exact: true }).click();
   await expect(page.getByRole("heading", { name: `Управление: ${name}` })).toBeVisible();
 }
 
@@ -100,8 +100,7 @@ test("метка «СКАМ» и галочка верификации из ка
   await chatRow(a, borisName, "Продаю дёшево").click();
   const header = a.getByRole("banner");
   await expect(header.getByText("СКАМ", { exact: true })).toBeVisible();
-  // TODO(a11y): галочка верификации — иконка с title без роли и имени; искать по роли img и имени, когда появятся.
-  await expect(header.getByTitle("Аккаунт подтверждён администрацией Shalter")).toBeVisible();
+  await expect(header.getByRole("img", { name: "Аккаунт подтверждён администрацией Shalter" })).toBeVisible();
 
   // Второе окно админа: в «Модерации» Борис в разделе «С метками безопасности».
   const list = (await openAs(admin.api, "/settings/moderation")).page;
@@ -117,7 +116,7 @@ test("метка «СКАМ» и галочка верификации из ка
   await a.reload();
   await expect(a.getByRole("banner").getByText(borisName)).toBeVisible();
   await expect(a.getByRole("banner").getByText("СКАМ", { exact: true })).toHaveCount(0);
-  await expect(a.getByRole("banner").getByTitle("Аккаунт подтверждён администрацией Shalter")).toHaveCount(0);
+  await expect(a.getByRole("banner").getByRole("img", { name: "Аккаунт подтверждён администрацией Shalter" })).toHaveCount(0);
 });
 
 // Карточка из «Модерации» у уже верифицированного пользователя предлагает «Снять галочку»,

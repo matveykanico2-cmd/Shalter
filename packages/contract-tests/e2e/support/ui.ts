@@ -41,12 +41,9 @@ export function folderTab(page: Page, name: string) {
 }
 
 /**
- * Текст сообщения в открытой переписке.
- * TODO(a11y): у ленты сообщений нет роли (log/list) и у пузыря — доступного имени.
- * Отличаем сообщение от превью в списке чатов (строка списка — кнопка) тем, что
- * текст не лежит внутри кнопки. Когда у ленты появится role="log", заменить на
- * page.getByRole("log").getByText(text).
+ * Текст сообщения в ленте открытой переписки (role="log", «Сообщения»). Цитаты ответов
+ * в ленте — кнопки (переход к исходному), их текст не считаем текстом сообщения.
  */
 export function messageText(page: Page, text: string | RegExp) {
-  return page.getByText(text).and(page.locator(":not(button, button *)"));
+  return page.getByRole("log", { name: "Сообщения" }).getByText(text).and(page.locator(":not(button, button *)"));
 }

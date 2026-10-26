@@ -94,11 +94,13 @@ test("викторина: ответивший сразу видит, угада
   await a.getByPlaceholder("Вариант 1").fill("Сидней");
   await a.getByPlaceholder("Вариант 2").fill("Канберра");
   // Правильный ответ — отметка у второго варианта. По умолчанию отмечен первый.
-  // TODO(a11y): отметка «правильный ответ» — кнопка без текста (имя из title), а
-  // выбранная называется просто «✓»; нет связи с полем варианта и состояния
-  // aria-pressed. Неотмеченная сейчас одна — у второго варианта.
-  await expect(a.getByRole("button", { name: "Правильный ответ" })).toHaveCount(1);
-  await a.getByRole("button", { name: "Правильный ответ" }).click();
+  const first = a.getByRole("button", { name: "Правильный ответ: вариант 1" });
+  const second = a.getByRole("button", { name: "Правильный ответ: вариант 2" });
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(second).toHaveAttribute("aria-pressed", "false");
+  await second.click();
+  await expect(second).toHaveAttribute("aria-pressed", "true");
+  await expect(first).toHaveAttribute("aria-pressed", "false");
   await a.getByRole("button", { name: "Создать", exact: true }).click();
 
   await expect(messageText(b, "Столица Австралии?")).toBeVisible();

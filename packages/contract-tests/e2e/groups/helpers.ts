@@ -1,5 +1,4 @@
-// Помощники сценариев групп и каналов. Только роли и видимые тексты; места, куда
-// без CSS не дотянуться, помечены TODO(a11y).
+// Помощники сценариев групп и каналов. Только роли и видимые тексты.
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { TestUser } from "../../support/seed";
 
@@ -10,11 +9,11 @@ export async function addContact(owner: TestUser, target: TestUser): Promise<voi
 }
 
 /**
- * Пункт выпадающего меню (пункты — просто кнопки). Меню добавляется в конец документа,
- * а в шапке может быть кнопка с тем же именем («Информация о чате») — берём последнюю.
+ * Пункт открытого выпадающего меню (role="menu"; пункты — кнопки). Поиск внутри меню отличает
+ * пункт от кнопки шапки с тем же именем («Информация о чате»).
  */
 export function menuItem(page: Page, name: string) {
-  return page.getByRole("button", { name, exact: true }).last();
+  return page.getByRole("menu").getByRole("button", { name, exact: true });
 }
 
 /** Меню «Ещё» в шапке открытого чата → пункт. */
@@ -41,14 +40,9 @@ export function memberRow(panel: Locator, name: string) {
   return panel.getByRole("button", { name: new RegExp(`(^|\\s)${name}(\\s|$)`) });
 }
 
-/**
- * Кнопка «⋯» действий с участником.
- * TODO(a11y): у кнопки нет доступного имени (иконка без title/aria-label) — берём
- * соседнюю кнопку за строкой профиля участника. Когда появится имя
- * (например «Действия с участником»), искать по нему.
- */
+/** Кнопка «⋯ Действия с участником» в строке участника (группа с его именем). */
 export function memberActions(panel: Locator, name: string) {
-  return memberRow(panel, name).locator("xpath=following-sibling::button[1]");
+  return panel.getByRole("group", { name, exact: true }).getByRole("button", { name: "Действия с участником", exact: true });
 }
 
 /** Боковая вкладка (tweb side tab) с заголовком title. */

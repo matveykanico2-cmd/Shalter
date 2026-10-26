@@ -820,7 +820,11 @@ describe("опросы, чек-листы, кубики, платные пост
     fireEvent.change(within(dialog).getByLabelText("Вариант 1"), { target: { value: "Море" } });
     fireEvent.change(within(dialog).getByLabelText("Вариант 2"), { target: { value: "Горы" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Викторина" }));
-    fireEvent.click(within(dialog).getByTitle("Правильный ответ"));
+    const second = within(dialog).getByRole("button", { name: "Правильный ответ: вариант 2" });
+    expect(within(dialog).getByRole("button", { name: "Правильный ответ: вариант 1" }).getAttribute("aria-pressed")).toBe("true");
+    expect(second.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(second);
+    expect(second.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
     expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({

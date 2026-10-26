@@ -168,7 +168,8 @@ function ContactRow({ contact: c, blocked, onOpen, onRename, onWrite, onToggleBl
   const user = c.user;
   const status = statusLabel(user);
   return (
-    <div className={styles.row}>
+    // Группа с именем контакта связывает кнопки действий со своей строкой.
+    <div className={styles.row} role="group" aria-label={displayName(c)}>
       <button type="button" className={styles.profileButton} onClick={onOpen}>
         {/* Аватар не входит в имя кнопки: «имя + статус», как у строки в старом клиенте. */}
         <span aria-hidden="true">

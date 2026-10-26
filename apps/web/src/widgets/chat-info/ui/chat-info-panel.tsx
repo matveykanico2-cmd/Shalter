@@ -249,7 +249,8 @@ function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly
         const tone = typeof chat.memberTitles[m.id] === "string" && chat.memberTitles[m.id] ? "custom" : owner ? "owner" : chat.adminIds.includes(m.id) ? "admin" : "mod";
         const status = statusLabel(m);
         return (
-          <div key={m.id} className={styles.member}>
+          // Группа с именем участника связывает кнопку «Действия с участником» с его строкой.
+          <div key={m.id} className={styles.member} role="group" aria-label={m.name}>
             {/* Аватар и имя — кнопка профиля, как info-panel-member-profile-btn. */}
             <button type="button" className={styles.memberProfile} onClick={() => openUserProfile(m.id)}>
             <Avatar size={42} name={m.name} color={m.avatarColor} image={m.avatarImage} online={m.online} />

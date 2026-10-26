@@ -5,13 +5,9 @@ import { composer, messageText } from "../support/ui";
 import { messageAction } from "./helpers";
 import type { Page } from "@playwright/test";
 
-/**
- * Панель темы.
- * TODO(a11y): панель — <aside> без доступного имени; отличаем её от инфо-панели
- * чата по заголовку «Тема». Когда у панели появится aria-label, искать по нему.
- */
+/** Панель темы — боковая панель (complementary) с именем «Тема». */
 function threadPanel(page: Page) {
-  return page.getByRole("complementary").filter({ has: page.getByRole("heading", { name: "Тема", exact: true }) });
+  return page.getByRole("complementary", { name: "Тема", exact: true });
 }
 
 test("ответ в теме: панель с ответами, счётчик ответов под сообщением у остальных", async ({ newUser, openAs }) => {

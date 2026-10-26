@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { handlePurchaseResponse, StarIcon, starsQueries } from "@/entities/stars";
@@ -47,6 +47,7 @@ export function StarsPanel({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const info = useQuery({ ...starsQueries.info(), refetchOnMount: "always" });
   const data = info.data;
+  const priceLabelId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -250,12 +251,12 @@ export function StarsPanel({ onNavigate }: { onNavigate?: () => void }) {
 
       <SettingsSection
         title="Плата за сообщения мне"
+        titleId={priceLabelId}
         caption={`Сколько звёзд платит тот, кто пишет вам впервые. 0 — бесплатно для всех. Ваши контакты и те, кому вы уже отвечали, не платят никогда. Максимум ${data.costs.maxMessagePrice} ⭐.`}
       >
         <div className={styles.pad}>
           <div className={styles.priceRow}>
-            {/* TODO(a11y): у поля нет подписи — как в старом клиенте, сценарии ищут его последним числовым полем. */}
-            <TextField className={styles.mono} type="number" min="0" step="1" value={price ?? String(data.messagePriceStars)} onChange={(e) => setPrice(e.target.value)} />
+            <TextField aria-labelledby={priceLabelId} className={styles.mono} type="number" min="0" step="1" value={price ?? String(data.messagePriceStars)} onChange={(e) => setPrice(e.target.value)} />
             <Button onClick={() => void savePrice()}>Сохранить</Button>
           </div>
         </div>

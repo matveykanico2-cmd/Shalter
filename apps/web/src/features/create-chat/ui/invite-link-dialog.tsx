@@ -18,7 +18,7 @@ export function InviteLinkDialog({ chat, onClose }: { chat: { id: string; type: 
   return (
     <Dialog title={channel ? "Канал создан" : "Группа создана"} onClose={onClose}>
       <p className={styles.hint}>Это частный чат — вступить можно только по ссылке. Отправьте её тем, кого зовёте; отозвать её можно в настройках чата.</p>
-      <input className={`${styles.search} ${styles.mono}`} readOnly aria-label="Ссылка" value={link.isPending ? "Получаем ссылку…" : url} />
+      <input className={`${styles.search} ${styles.mono}`} readOnly aria-label="Пригласительная ссылка" value={link.isPending ? "Получаем ссылку…" : url} />
       {link.isError ? <p className={styles.hint}>{errorText(link.error, "Не удалось создать ссылку — её можно получить в настройках чата")}</p> : null}
       {note ? <p className={styles.hint}>{note}</p> : null}
       <Button

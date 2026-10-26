@@ -84,7 +84,7 @@ describe("«Модерация»", () => {
     expect(await screen.findByText("Реклама на проверке (0)")).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText("@юзернейм, +7…, почта или id"), { target: { value: "@boris" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Открыть карточку" })[0]!);
+    fireEvent.click(within(screen.getByRole("group", { name: "Найти любой аккаунт" })).getByRole("button", { name: "Открыть карточку" }));
     const card = await screen.findByRole("dialog", { name: "Управление: Борис" });
 
     fireEvent.click(within(card).getByRole("button", { name: "7 дней" }));

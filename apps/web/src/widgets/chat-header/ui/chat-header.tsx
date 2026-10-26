@@ -101,7 +101,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
               <EmojiText text={title} />
             </span>
             {!chat.isSaved && (chat.type === "dm" ? other?.isVerified : chat.isVerified) ? (
-              <span className={styles.verified} title="Аккаунт подтверждён администрацией Shalter">
+              <span className={styles.verified} role="img" aria-label="Аккаунт подтверждён администрацией Shalter" title="Аккаунт подтверждён администрацией Shalter">
                 <Icon name="Verified" size={15} />
               </span>
             ) : null}

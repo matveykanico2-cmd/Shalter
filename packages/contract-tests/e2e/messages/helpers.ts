@@ -4,14 +4,12 @@ import { expect, type Page } from "@playwright/test";
 import { messageText } from "../support/ui";
 
 /**
- * Пункт открытого всплывающего меню.
- * TODO(a11y): у всплывающего меню нет роли menu, а у пунктов — menuitem; к тому же
- * у пузырей есть быстрые кнопки с теми же именами («Ответить»). Меню добавляется
- * в конец документа, поэтому берём последнюю кнопку с таким именем. Когда появится
- * role="menu", заменить на page.getByRole("menu").getByRole("menuitem", { name }).
+ * Пункт открытого всплывающего меню (role="menu"). Пункты — кнопки, а не menuitem:
+ * так их ищут сценарии и тесты клиента (см. AGENTS.md). Поиск внутри меню отличает пункт
+ * от быстрых кнопок пузыря с тем же именем («Ответить»).
  */
 export function menuItem(page: Page, item: string) {
-  return page.getByRole("button", { name: item, exact: true }).last();
+  return page.getByRole("menu").getByRole("button", { name: item, exact: true });
 }
 
 /** Меню действий сообщения (правый клик по тексту) → пункт с именем item. */

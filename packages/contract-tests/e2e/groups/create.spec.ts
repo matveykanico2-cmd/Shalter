@@ -101,9 +101,7 @@ test("новый канал без подписчиков, ссылка-приг
   // Ссылка в окне совпадает с выданной сервером.
   const code = (await alice.api.post(`/api/chats/${chatId}/invite`, { revoke: false })).body.code as string;
   expect(code).toBeTruthy();
-  // TODO(a11y): поле со ссылкой — input без подписи (readonly); ищем его как
-  // единственное поле только для чтения. С подписью («Пригласительная ссылка») — по имени.
-  await expect(a.getByRole("textbox").and(a.locator("[readonly]"))).toHaveValue(new RegExp(`/join/${code}$`));
+  await expect(a.getByRole("textbox", { name: "Пригласительная ссылка" })).toHaveValue(new RegExp(`/join/${code}$`));
   await a.getByRole("button", { name: "Готово", exact: true }).click();
   await expect(a.getByRole("banner").getByText(title, { exact: true })).toBeVisible();
   await expect(a.getByRole("banner").getByText("1 подписчик", { exact: true })).toBeVisible();

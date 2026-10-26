@@ -7,12 +7,10 @@ import type { Page } from "@playwright/test";
 
 const EMPTY_ARCHIVE = /^В архиве пусто/;
 
-/** «⋮ Действия с чатом» у строки чата → пункт меню. У пользователя здесь один чат. */
-async function chatMenu(page: Page, item: string) {
-  // TODO(a11y): кнопка «Действия с чатом» не связана со своей строкой (одинаковое имя
-  // у каждой строки); сценарии держат один чат, чтобы она была однозначной.
-  await page.getByRole("button", { name: "Действия с чатом" }).click();
-  await page.getByRole("button", { name: item, exact: true }).click();
+/** «⋮ Действия с чатом» у строки чата (группа с именем чата) → пункт меню. */
+async function chatMenu(page: Page, chat: string, item: string) {
+  await page.getByRole("group", { name: chat, exact: true }).getByRole("button", { name: "Действия с чатом" }).click();
+  await page.getByRole("menu").getByRole("button", { name: item, exact: true }).click();
 }
 
 test("архивировать из списка, увидеть на экране «Архив», вернуть обратно", async ({ newUser, openAs }) => {
@@ -26,7 +24,7 @@ test("архивировать из списка, увидеть на экран
   const row = chatRow(page, "Борис", "Старая переписка");
   await expect(row).toBeVisible();
 
-  await chatMenu(page, "Архивировать");
+  await chatMenu(page, "Борис", "Архивировать");
   await expect(row).toHaveCount(0);
   // В списке появляется строка «Архив» с именами заархивированных чатов.
   await expect(page.getByRole("button", { name: /^Архив\s+Борис/ })).toBeVisible();
@@ -49,7 +47,7 @@ test("архивировать из списка, увидеть на экран
   expect((await boris.api.get("/api/chats")).body.chats.find((c: any) => c.id === chat.id)?.archived).toBeFalsy();
 
   // «Вернуть из архива» — архив пуст, чат снова в общем списке.
-  await chatMenu(page, "Вернуть из архива");
+  await chatMenu(page, "Борис", "Вернуть из архива");
   await expect(page.getByText(EMPTY_ARCHIVE)).toBeVisible();
   await navLink(page, "Чаты").click();
   await expect(row).toBeVisible();

@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 
 import { hasPasscode, removePasscode, setPasscode, verifyPasscode } from "@/shared/lib/passcode";
 import { Button, Dialog, TextField } from "@/shared/ui";
@@ -15,6 +15,7 @@ const PROMPTS: Record<Step, string> = {
 
 /** Задать или сменить код-пароль этого устройства — openSetPasscodeDialog (components/passcodeDialog.js). */
 export function SetPasscodeDialog({ onDone, onClose }: { onDone: () => void; onClose: () => void }) {
+  const promptId = useId();
   const [step, setStep] = useState<Step>(() => (hasPasscode() ? "current" : "new"));
   const [value, setValue] = useState("");
   const [next, setNext] = useState("");
@@ -55,9 +56,11 @@ export function SetPasscodeDialog({ onDone, onClose }: { onDone: () => void; onC
   return (
     <Dialog title="Код-пароль" onClose={onClose}>
       <form className={styles.field} onSubmit={(e) => void submit(e)}>
-        <p className={styles.hint}>{PROMPTS[step]}</p>
-        {/* key — новое поле на каждом шаге, чтобы автофокус сработал снова. */}
-        <TextField key={step} type="password" inputMode="numeric" autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
+        <p id={promptId} className={styles.hint}>
+          {PROMPTS[step]}
+        </p>
+        {/* key — новое поле на каждом шаге, чтобы автофокус сработал снова. Подпись поля — подсказка шага над ним. */}
+        <TextField key={step} aria-labelledby={promptId} type="password" inputMode="numeric" autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
         {error ? <p className={styles.error}>{error}</p> : null}
         <Button type="submit" disabled={busy}>
           {step === "confirm" ? "Сохранить" : "Далее"}
@@ -72,6 +75,7 @@ export function SetPasscodeDialog({ onDone, onClose }: { onDone: () => void; onC
 
 /** Отключить код-пароль: сначала текущий код — openRemovePasscodeDialog. */
 export function RemovePasscodeDialog({ onDone, onClose }: { onDone: () => void; onClose: () => void }) {
+  const promptId = useId();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -91,8 +95,10 @@ export function RemovePasscodeDialog({ onDone, onClose }: { onDone: () => void; 
   return (
     <Dialog title="Отключить код-пароль" onClose={onClose}>
       <form className={styles.field} onSubmit={(e) => void submit(e)}>
-        <p className={styles.hint}>Введите текущий код-пароль для подтверждения</p>
-        <TextField type="password" inputMode="numeric" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
+        <p id={promptId} className={styles.hint}>
+          Введите текущий код-пароль для подтверждения
+        </p>
+        <TextField aria-labelledby={promptId} type="password" inputMode="numeric" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
         {error ? <p className={styles.error}>{error}</p> : null}
         <Button type="submit" variant="danger" disabled={busy}>
           {busy ? "Проверяем…" : "Отключить"}

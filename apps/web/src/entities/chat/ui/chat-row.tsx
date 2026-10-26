@@ -80,6 +80,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
   return (
     <div
       className={swiping ? `${styles.wrap} ${styles.swiping}` : styles.wrap}
+      // Группа с именем чата связывает кнопку «Действия с чатом» со своей строкой.
+      role="group"
+      aria-label={title}
       onContextMenu={(e) => {
         if (!onMenu || hold.swallow(e)) return;
         e.preventDefault();
