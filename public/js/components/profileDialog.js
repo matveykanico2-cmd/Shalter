@@ -756,7 +756,7 @@ export async function openProfileDialog(userId) {
           !isSelf && !user.isBot && !isBlocked ? quickAction("Phone", "Звонок", () => call("audio")) : null,
           !isSelf && !user.isBot && !isBlocked ? quickAction("Video", "Видео", () => call("video")) : null,
           user.username ? quickAction("Copy", "Ссылка", () => copyText(profileLink(), "Ссылка на профиль скопирована")) : null,
-          isSelf && user.username ? quickAction("Qrcode", "QR-код", () => openProfileQrDialog(user)) : null,
+           user.username ? quickAction("Qrcode", "QR-код", () => openProfileQrDialog(user)) : null,
           isSelf
             ? quickAction("Edit", "Изменить", () => {
                 close();
