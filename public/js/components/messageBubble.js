@@ -971,7 +971,8 @@ export function AttachmentView(a, me, ctx) {
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true, protectedContent = false, senderTag = null }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
-  // Mark message as seen for entrance animation
+  // Entrance animation: only animate if this is the FIRST time we're rendering this message
+  const isFirstRender = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
   const react = (m, emoji) => {
     const had = (m.reactions ?? []).some((x) => x.emoji === emoji && x.userIds.includes(me.id));
@@ -1786,7 +1787,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const row = el(
     "div",
     {
-      class: `message-row ${mine && !isChannel ? "mine" : ""} ${isChannel ? "channel-post" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""} ${seenEntranceIds.has(message.id) ? "no-entrance" : ""}`,
+      class: `message-row ${mine && !isChannel ? "mine" : ""} ${isChannel ? "channel-post" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""} ${isFirstRender ? "" : "no-entrance"}`,
       id: `msg-${message.id}`,
       ...gestures,
     },
