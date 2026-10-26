@@ -40,6 +40,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
   const isComments = source.kind === "comments";
   const root = isComments ? (comments?.anchor ?? source.post) : ((query.data as { root?: Message } | undefined)?.root ?? source.root);
   const title = isComments ? "Комментарии" : "Тема";
+  const [entering, setEntering] = useState(true);
   const [menu, setMenu] = useState<{ message: Message; at: { x: number; y: number } } | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const staff = isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(me);
@@ -102,7 +103,16 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <aside className={styles.panel} role="dialog" aria-modal="true" aria-label={title} data-thread="">
+      <aside
+        className={entering ? `${styles.panel} ${styles.entering}` : styles.panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        data-thread=""
+        onAnimationEnd={(e) => {
+          if (e.target === e.currentTarget) setEntering(false);
+        }}
+      >
         <header className={styles.header}>
           <h2>{title}</h2>
           <button type="button" className={styles.close} title="Закрыть" onClick={onClose}>

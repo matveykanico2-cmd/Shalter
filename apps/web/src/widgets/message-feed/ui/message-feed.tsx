@@ -406,6 +406,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
               people={target.postId ? target.people.filter((u) => u.id !== me.id) : threadPeople}
               thread={{ rootId: target.rootId, onSent, postId: target.postId }}
               paid={target.paidStars ? { stars: target.paidStars, kind: "comment" } : null}
+              typing={!target.postId || target.people.some((u) => u.id === me.id)}
             />
           )}
         />

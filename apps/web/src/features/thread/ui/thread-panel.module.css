@@ -16,6 +16,10 @@
   flex-direction: column;
   background: var(--color-surface);
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);
+}
+
+/* Выезд только при открытии: после него анимации нет — пересчёт стилей её не повторит. */
+.entering {
   animation: panel-in 0.22s ease both;
 }
 

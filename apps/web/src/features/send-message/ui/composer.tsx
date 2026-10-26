@@ -102,6 +102,8 @@ type Props = {
   canPostAnonymously?: boolean;
   /** Сообщения или комментарии здесь платные, и платит пишущий. */
   paid?: { stars: number; kind: "message" | "comment" } | null;
+  /** «Печатает…» другим — нет, если пишешь не участником (комментарий до вступления в обсуждение). */
+  typing?: boolean;
   /** Чат с Shalter AI: без записи голосовых, а пока бот пишет — «стоп» вместо «Отправить». */
   ai?: { generating: boolean; onStop: () => void } | null;
   ref?: Ref<ComposerHandle>;
@@ -188,7 +190,7 @@ export function Composer(props: Props) {
     setMenuClosed(false);
     setActiveSuggestion(0);
     if (editing) return;
-    const pingAt = value.trim() ? typingPingDue(lastTyping.current, TYPING_PING_MS) : null;
+    const pingAt = value.trim() && props.typing !== false ? typingPingDue(lastTyping.current, TYPING_PING_MS) : null;
     if (pingAt) {
       lastTyping.current = pingAt;
       sendTyping(chatId).catch(() => {});
@@ -505,6 +507,19 @@ export function Composer(props: Props) {
     setCursor(el.selectionStart);
     setSelected(document.activeElement === el && el.selectionEnd > el.selectionStart);
   };
+
+  // Выделение ручками на телефоне и программное — только через selectionchange (как в composer.js).
+  const trackRef = useRef(trackSelection);
+  useEffect(() => {
+    trackRef.current = trackSelection;
+  });
+  useEffect(() => {
+    const onChange = () => {
+      if (document.activeElement === textarea.current) trackRef.current();
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
 
   // «От имени группы» — для одного сообщения, как postAsChat в composer.js.
   const [asGroup, setAsGroup] = useState(false);
