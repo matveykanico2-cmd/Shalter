@@ -10,6 +10,8 @@ npm run dev     # nodemon server/index.js, restarts on change
 # or
 npm start       # node server/index.js
 ```
+сам проэкт находитсмя на shalter.ru
+создателем является Николаенко Матвей и его команда shalter
 
 Open http://localhost:3000.
 
