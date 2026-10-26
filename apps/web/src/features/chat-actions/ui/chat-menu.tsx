@@ -5,12 +5,12 @@ import type { SelfUser } from "@/entities/session";
 
 import { ChoiceDialog, Icon, Menu, type MenuItem } from "@/shared/ui";
 
-import { MUTE_DURATIONS } from "../lib/mute";
 import { canModerateDelete, canProtect, isServerModerator } from "../lib/permissions";
 import { useChatActions } from "../model/use-chat-actions";
 
 import styles from "./chat-actions.module.css";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { MuteDialog } from "./mute-dialog";
 
 type Props = {
   chat: ChatSummary;
@@ -71,16 +71,7 @@ export function ChatMenu({ chat, me, topItems = [], middleItems = [] }: Props) {
         <Icon name="More" size={18} />
       </button>
       {at ? <Menu at={at} label="Меню чата" items={items} onClose={() => setAt(null)} /> : null}
-      {dialog === "mute" ? (
-        <ChoiceDialog
-          title="Отключить уведомления"
-          choices={[
-            ...MUTE_DURATIONS.map((d) => ({ label: d.label, onClick: () => void actions.mute({ hours: d.hours }) })),
-            { label: "Навсегда", onClick: () => void actions.mute({ forever: true }) },
-          ]}
-          onClose={() => setDialog(null)}
-        />
-      ) : null}
+      {dialog === "mute" ? <MuteDialog onMute={(opts) => void actions.mute(opts)} onClose={() => setDialog(null)} /> : null}
       {dialog === "clear" ? (
         <ChoiceDialog
           title="Очистить историю чата"

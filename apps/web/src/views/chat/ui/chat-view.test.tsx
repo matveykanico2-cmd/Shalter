@@ -26,6 +26,8 @@ function chat(patch: Partial<ChatSummary> = {}): ChatSummary {
     moderatorIds: [],
     ownerIds: [],
     memberIds: [ME.id, LENA.id],
+    membersCount: 2,
+    memberTitles: {},
     restrictions: {},
     archived: false,
     pinned: false,
@@ -1497,5 +1499,92 @@ describe("поиск по чату", () => {
     await waitFor(() => expect(bubbles()).toEqual([general.id, inTopicMsg.id]));
     expect(within(tabs).getByRole("tab", { name: "Все" }).getAttribute("aria-selected")).toBe("true");
     await waitFor(() => expect(document.querySelector(`[data-message-id="${general.id}"]`)!.closest("[class*=highlight]")).toBeTruthy());
+  });
+});
+
+describe("информация о чате", () => {
+  const openInfo = () => {
+    fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("menuitem", { name: "Информация о чате" }));
+    return screen.getByRole("complementary", { name: "Информация о чате" });
+  };
+  const dm = () => chat({ type: "dm", title: "", memberIds: [ME.id, LENA.id], otherUser: { ...LENA, online: true } as ChatSummary["otherUser"] });
+
+  it("личка: профиль собеседника, автоудаление, блокировка и жалоба", async () => {
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(dm()),
+      [HISTORY]: page([]),
+      "GET /api/users/u_lena00000": {
+        body: {
+          user: { ...LENA, username: "lena", bio: "Люблю котов", phone: "+79990001122" },
+          isContact: false,
+          inContacts: false,
+          contactName: null,
+          contactNote: null,
+          commonGroupsCount: 3,
+          pinnedChannels: [],
+        },
+      },
+      "PATCH /api/chats/c_1": (body) => ({ body: { chat: { ...dm(), autoDeleteSeconds: body.autoDeleteSeconds } } }),
+      "POST /api/users/u_lena00000/block": { body: { user: null } },
+      "POST /api/reports": { body: { ok: true } },
+    });
+    const { client } = renderChat(dm());
+    await screen.findByText("в сети");
+    const panel = openInfo();
+    expect(within(panel).getByRole("heading", { name: "Профиль" })).toBeTruthy();
+    expect(await within(panel).findByText("@lena")).toBeTruthy();
+    expect(within(panel).getByText("+79990001122")).toBeTruthy();
+    expect(within(panel).getByText("Люблю котов")).toBeTruthy();
+    expect(within(panel).getByText("3 общие группы")).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Автоудаление сообщений: Выключено" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Автоудаление сообщений" })).getByRole("menuitem", { name: "1 неделя" }));
+    expect(await within(panel).findByRole("button", { name: "Автоудаление сообщений: 1 неделя" })).toBeTruthy();
+    expect(calls.find((c) => c.key === "PATCH /api/chats/c_1")?.body).toEqual({ autoDeleteSeconds: 7 * 24 * 3600 });
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Заблокировать" }));
+    expect(await screen.findByText("Вы заблокировали этого пользователя")).toBeTruthy();
+    expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.blockedUserIds).toEqual([LENA.id]);
+    expect(calls.find((c) => c.key === "POST /api/users/u_lena00000/block")?.body).toEqual({ blocked: true });
+    expect(within(panel).getByRole("button", { name: "Разблокировать" })).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Пожаловаться" }));
+    const report = screen.getByRole("dialog", { name: "Пожаловаться на Лена" });
+    fireEvent.click(within(report).getByRole("button", { name: "Отправить жалобу" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Пожаловаться на Лена" })).toBeNull());
+    expect(calls.find((c) => c.key === "POST /api/reports")?.body).toEqual({ targetType: "user", targetId: LENA.id, reason: "spam", details: "" });
+
+    fireEvent.click(within(panel).getByTitle("Закрыть"));
+    expect(screen.queryByRole("complementary", { name: "Информация о чате" })).toBeNull();
+  });
+
+  it("группа: описание, ссылка, участники с ролями, уведомления", async () => {
+    const group = chat({ ownerId: LENA.id, description: "Наш семейный чат", isPublic: true, username: "family", memberTitles: {} });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(group),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/mute": { body: { chat: { ...group, muted: true, mutedUntil: null } } },
+    });
+    renderChat(group);
+    await screen.findByText("2 участника");
+    const panel = openInfo();
+    expect(within(panel).getByRole("heading", { name: "Группа" })).toBeTruthy();
+    expect(within(panel).getByText("Наш семейный чат")).toBeTruthy();
+    expect(within(panel).getByText("https://shalter.ru/u/family")).toBeTruthy();
+    // Автоудаление в группе ставят только админы.
+    expect(within(panel).queryByRole("button", { name: /Автоудаление/ })).toBeNull();
+
+    const members = within(panel).getByRole("region", { name: "Участники" });
+    const rows = (await within(members).findAllByText(/^(Лена|Аня)$/)).map((el) => el.textContent);
+    expect(rows).toEqual(["Лена", "Аня"]);
+    expect(within(members).getByText(/владелец/)).toBeTruthy();
+    expect(within(members).getByText("это вы")).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Отключить уведомления" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Отключить уведомления" })).getByRole("button", { name: "Навсегда" }));
+    expect(await within(panel).findByRole("button", { name: "Включить уведомления" })).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/mute")?.body).toEqual({ forever: true });
+    expect(within(panel).getByRole("button", { name: "Пожаловаться на группу" })).toBeTruthy();
   });
 });

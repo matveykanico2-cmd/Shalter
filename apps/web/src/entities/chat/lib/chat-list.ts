@@ -59,3 +59,13 @@ type Roles = Pick<ChatSummary, "ownerId" | "ownerIds" | "adminIds" | "moderatorI
 export const isChatOwner = (chat: Roles, userId: string) => chat.ownerId === userId || chat.ownerIds.includes(userId);
 export const isChatAdmin = (chat: Roles, userId: string) => isChatOwner(chat, userId) || chat.adminIds.includes(userId);
 export const isChatModerator = (chat: Roles, userId: string) => chat.moderatorIds.includes(userId);
+
+/** Подпись роли у участника: свой тег, «владелец», «админ», «модератор». */
+export function memberRoleLabel(chat: Roles & Pick<ChatSummary, "memberTitles">, userId: string) {
+  const custom = chat.memberTitles[userId];
+  if (typeof custom === "string" && custom) return custom;
+  if (isChatOwner(chat, userId)) return "владелец";
+  if (chat.adminIds.includes(userId)) return "админ";
+  if (isChatModerator(chat, userId)) return "модератор";
+  return null;
+}

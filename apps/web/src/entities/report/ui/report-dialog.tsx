@@ -3,9 +3,9 @@ import { useState } from "react";
 import { errorText } from "@/shared/lib/error-text";
 import { Button, Dialog } from "@/shared/ui";
 
-import { type ReportReason, submitReport } from "../api/message-actions";
+import { type ReportReason, type ReportTarget, submitReport } from "../api/report";
 
-import styles from "./message-actions.module.css";
+import styles from "./report-dialog.module.css";
 
 const REASONS: readonly { value: ReportReason; label: string }[] = [
   { value: "spam", label: "Спам" },
@@ -20,10 +20,10 @@ const REASONS: readonly { value: ReportReason; label: string }[] = [
   { value: "other", label: "Другое" },
 ];
 
-type Props = { messageId: string; targetLabel: string; onClose: () => void };
+type Props = { target: ReportTarget; targetLabel: string; onClose: () => void };
 
 /** «Пожаловаться на …» — как public/js/components/reportDialog.js. */
-export function ReportDialog({ messageId, targetLabel, onClose }: Props) {
+export function ReportDialog({ target, targetLabel, onClose }: Props) {
   const [reason, setReason] = useState<ReportReason>("spam");
   const [details, setDetails] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function ReportDialog({ messageId, targetLabel, onClose }: Props) {
   const send = async () => {
     setSending(true);
     try {
-      await submitReport("message", messageId, reason, details);
+      await submitReport(target, reason, details);
       onClose();
     } catch (err) {
       setError(errorText(err, "Не удалось отправить жалобу"));

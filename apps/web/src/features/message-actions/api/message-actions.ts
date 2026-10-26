@@ -1,7 +1,6 @@
 import type { chatBody } from "@shalter/shared/schemas/chats";
 import type { translateBody } from "@shalter/shared/schemas/integrations";
 import type { deleteResult, messageEnvelope, readersResult, sendResult, summaryResult } from "@shalter/shared/schemas/messages";
-import type { reportReason } from "@shalter/shared/schemas/reports";
 import type { paidDeleteBody, starsInfoBody } from "@shalter/shared/schemas/stars";
 import type { z } from "zod";
 
@@ -64,11 +63,6 @@ export const summarizeMessage = (chatId: string, id: string) => http.get<z.infer
 export const paidDeleteMessage = (id: string) => http.post<z.infer<typeof paidDeleteBody>>(`/api/stars/delete/${encodeURIComponent(id)}`);
 
 export const starsInfo = () => http.get<z.infer<typeof starsInfoBody>>("/api/stars");
-
-export type ReportReason = z.infer<typeof reportReason>;
-
-export const submitReport = (targetType: "message", targetId: string, reason: ReportReason, details: string) =>
-  http.post<unknown>("/api/reports", { targetType, targetId, reason, details });
 
 export const translateText = (text: string, target: string) => http.post<z.infer<typeof translateBody>>("/api/translate", { text, target });
 

@@ -87,3 +87,39 @@
     font-size: 11px;
   }
 }
+
+.info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+/* Как .info-toggle: на узком экране панель открывают из меню или по названию. */
+.infoToggle {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.infoToggle:hover,
+.infoToggle[aria-pressed="true"] {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+@media (min-width: 768px) {
+  .infoToggle {
+    display: flex;
+  }
+}

@@ -1,8 +1,15 @@
 .view {
   position: relative;
   display: flex;
-  flex-direction: column;
   height: 100%;
+}
+
+/* Колонка чата; справа от неё — «Информация о чате». */
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .missing {

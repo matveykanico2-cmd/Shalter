@@ -1,5 +1,6 @@
 import { type ChatSummary } from "@/entities/chat";
 import { type Message, reactionLabel, reactionsOf } from "@/entities/message";
+import { ReportDialog } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
 
 import { copyText } from "@/shared/lib/clipboard";
@@ -17,7 +18,6 @@ import { DeleteMessageDialog } from "./delete-message-dialog";
 import { ForwardDialog } from "./forward-dialog";
 import { ReactionsBar } from "./reactions-bar";
 import { ReadersMenu } from "./readers-menu";
-import { ReportDialog } from "./report-dialog";
 import { SelectTextDialog } from "./select-text-dialog";
 import { TranslateDialog } from "./translate-dialog";
 
@@ -91,7 +91,7 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
 
   const m = state.message;
 
-  if (state.kind === "report") return <ReportDialog messageId={m.id} targetLabel={state.label} onClose={close} />;
+  if (state.kind === "report") return <ReportDialog target={{ type: "message", id: m.id }} targetLabel={state.label} onClose={close} />;
 
   if (state.kind === "readers") {
     const fallback = readersOf(m, me.id).flatMap((id) => {

@@ -3,6 +3,7 @@ import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { useParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
+import { ChatInfoPanel } from "@/widgets/chat-info";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { ChatSearch } from "@/features/chat-search";
@@ -69,6 +70,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   // Поиск по чату ищет во всём чате: найденное не в открытой теме — переходим во «Все»,
   // к сообщению — когда лента «Всех» появится.
   const [searching, setSearching] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const pendingJump = useRef<string | null>(null);
   useEffect(() => {
     if (!pendingJump.current) return;
@@ -101,44 +103,47 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
-      <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching(true)} />
-      {searching ? <ChatSearch chatId={chat.id} senderName={senderName} onPick={jumpToFound} onClose={() => setSearching(false)} /> : null}
-      {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
-      {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
-      <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
-        {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
-        <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
-        <Bottom
-          chat={chat}
-          me={me}
-          topicClosed={!!openTopic?.closed && !isTopicStaff(chat, me.id)}
-          composer={
-            <Composer
-              ref={composer}
-              chatId={chat.id}
-              meId={me.id}
-              channel={chat.type === "channel"}
-              topicId={openTopic?.id ?? null}
-              people={people}
-              excludeContacts={notContacts}
-              allowEffects={chat.type === "dm" && !chat.isSaved}
-              allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}
-              initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
-              replyTo={replyTo}
-              replyToName={replyTo ? senderName(replyTo) : null}
-              onCancelReply={() => setReplyTo(null)}
-              onSent={() => feed.current?.stickToBottom()}
-              editing={editing}
-              onSaveEdit={(m, text) => void actions.edit(m, text)}
-              onCancelEdit={() => setEditing(null)}
-              onEditLast={() => {
-                const last = feed.current?.lastEditable();
-                if (last) edit(last);
-              }}
-            />
-          }
-        />
+      <div className={styles.main}>
+        <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching(true)} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        {searching ? <ChatSearch chatId={chat.id} senderName={senderName} onPick={jumpToFound} onClose={() => setSearching(false)} /> : null}
+        {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
+        {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
+        <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
+          {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
+          <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
+          <Bottom
+            chat={chat}
+            me={me}
+            topicClosed={!!openTopic?.closed && !isTopicStaff(chat, me.id)}
+            composer={
+              <Composer
+                ref={composer}
+                chatId={chat.id}
+                meId={me.id}
+                channel={chat.type === "channel"}
+                topicId={openTopic?.id ?? null}
+                people={people}
+                excludeContacts={notContacts}
+                allowEffects={chat.type === "dm" && !chat.isSaved}
+                allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}
+                initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
+                replyTo={replyTo}
+                replyToName={replyTo ? senderName(replyTo) : null}
+                onCancelReply={() => setReplyTo(null)}
+                onSent={() => feed.current?.stickToBottom()}
+                editing={editing}
+                onSaveEdit={(m, text) => void actions.edit(m, text)}
+                onCancelEdit={() => setEditing(null)}
+                onEditLast={() => {
+                  const last = feed.current?.lastEditable();
+                  if (last) edit(last);
+                }}
+              />
+            }
+          />
+        </div>
       </div>
+      {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} onClose={() => setInfoOpen(false)} /> : null}
     </section>
   );
 }

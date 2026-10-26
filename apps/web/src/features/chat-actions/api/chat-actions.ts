@@ -1,4 +1,5 @@
-import type { muteBody, protectBody } from "@shalter/shared/schemas/chats";
+import type { chatBody, muteBody, protectBody } from "@shalter/shared/schemas/chats";
+import type { blockBody } from "@shalter/shared/schemas/users";
 import type { z } from "zod";
 
 import { http } from "@/shared/api";
@@ -12,6 +13,11 @@ export const muteChat = (chatId: string, opts: MuteOptions) => http.post<z.infer
 export const setChatProtected = (chatId: string, enabled: boolean) => http.post<z.infer<typeof protectBody>>(`${chatPath(chatId)}/protect`, { enabled });
 
 export const setChatArchived = (chatId: string, archived: boolean) => http.patch<unknown>(chatPath(chatId), { archived });
+
+/** null — автоудаление выключено. */
+export const setAutoDelete = (chatId: string, autoDeleteSeconds: number | null) => http.patch<z.infer<typeof chatBody>>(chatPath(chatId), { autoDeleteSeconds });
+
+export const setUserBlocked = (userId: string, blocked: boolean) => http.post<z.infer<typeof blockBody>>(`/api/users/${encodeURIComponent(userId)}/block`, { blocked });
 
 export const clearHistory = (chatId: string, forEveryone: boolean) => http.post<unknown>(`${chatPath(chatId)}/clear`, { forEveryone });
 

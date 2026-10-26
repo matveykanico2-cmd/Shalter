@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import { chatCache, chatQueries, type ChatSummary, chatTitle } from "@/entities/chat";
 import { messageQueries } from "@/entities/message";
+import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, toast } from "@/shared/ui";
@@ -15,8 +16,10 @@ import {
   leaveChat,
   muteChat,
   type MuteOptions,
+  setAutoDelete as patchAutoDelete,
   setChatArchived,
   setChatProtected,
+  setUserBlocked,
 } from "../api/chat-actions";
 
 /** Действия меню чата — как обработчики renderHeader в public/js/views/chatView.js. */
@@ -64,6 +67,36 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     } catch (err) {
       chatCache.patchChat(client, chat.id, { archived: !archived });
       toast(errorText(err, "Не удалось изменить чат"), { error: true });
+    }
+  };
+
+  const setAutoDelete = async (seconds: number | null) => {
+    try {
+      const { chat: updated } = await patchAutoDelete(chat.id, seconds);
+      chatCache.patchChat(client, chat.id, { autoDeleteSeconds: updated.autoDeleteSeconds });
+    } catch (err) {
+      toast(errorText(err, "Не удалось изменить автоудаление"), { error: true });
+    }
+  };
+
+  /** Заблокировать собеседника в личке или снять блокировку — поле ввода меняется сразу. */
+  const toggleBlock = async () => {
+    const other = chat.otherUser;
+    if (!other) return;
+    const key = sessionQueries.current().queryKey;
+    const setBlocked = (blocked: boolean) =>
+      client.setQueryData(key, (s) => {
+        if (!s?.user) return s;
+        const ids = s.user.blockedUserIds.filter((id) => id !== other.id);
+        return { ...s, user: { ...s.user, blockedUserIds: blocked ? [...ids, other.id] : ids } };
+      });
+    const blocked = !client.getQueryData(key)?.user?.blockedUserIds.includes(other.id);
+    setBlocked(blocked);
+    try {
+      await setUserBlocked(other.id, blocked);
+    } catch (err) {
+      setBlocked(!blocked);
+      toast(errorText(err, "Не удалось изменить блокировку"), { error: true });
     }
   };
 
@@ -124,5 +157,5 @@ export function useChatActions(chat: ChatSummary, meId: string) {
     );
   };
 
-  return { mute, toggleProtect, toggleArchive, clear, remove, leave, moderateDelete, confirmModeratorWipe };
+  return { mute, toggleProtect, toggleArchive, setAutoDelete, toggleBlock, clear, remove, leave, moderateDelete, confirmModeratorWipe };
 }
