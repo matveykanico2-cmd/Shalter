@@ -140,5 +140,6 @@ export function startRouter() {
     e.preventDefault();
     navigate(href);
   });
-  render();
+  // Return promise that resolves after first render completes
+  return render();
 }

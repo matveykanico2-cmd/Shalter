@@ -137,7 +137,7 @@ async function boot() {
     window.location.href = "/login";
     return;
   }
-   removeSplash();
+  // removeSplash() moved to after first render in startRouter()
   if (hasPasscode()) await showPasscodeLockScreen();
   const RELOCK_THRESHOLD_MS = 5000;
   let hiddenAt = 0;
@@ -720,7 +720,10 @@ async function boot() {
     window.history.replaceState(null, "", `/@${handleInPath[1]}${window.location.search}`);
   }
 
-  startRouter();
+  startRouter().then(() => {
+    // Splash is removed after first route renders to avoid flash of unstyled content
+    removeSplash();
+  });
   // Переход из нативной части (уведомление-звонок на Android) без перезагрузки страницы.
   window.__shalterOpen = (path) => navigate(path);
 
