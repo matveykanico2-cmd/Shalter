@@ -156,6 +156,7 @@ const CLIENT_KEYS = {
   uiLanguage: shortString(16),
   autoDownload: isBool,
   voiceTranscription: isBool,
+  timeFormat: (v) => v === 12 || v === 24,
   holidays: isPlainObject,
   business: isPlainObject,
   appIcon: (v) => typeof v === "string" && /^[a-z0-9-]{1,32}$/.test(v),

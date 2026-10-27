@@ -7,7 +7,7 @@ import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import * as edits from "./lib/message-edits.js";
-import { MAX_MESSAGE_TEXT } from "./lib/message-content.js";
+import { hasArticleTitle, textLimit } from "./lib/message-content.js";
 import { MessageAccessService } from "./message-access.service.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
@@ -47,7 +47,9 @@ export class MessageActionsService {
     }
     const { text } = dto;
     if (typeof text !== "string") throw new ApiError(400, "Некорректный текст");
-    if (text.length > MAX_MESSAGE_TEXT) throw new ApiError(400, `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов`);
+    const limit = textLimit(existing.type === "article");
+    if (text.length > limit) throw new ApiError(400, `Сообщение длиннее ${limit} символов`);
+    if (existing.type === "article" && !hasArticleTitle(text)) throw new ApiError(400, "У статьи должен быть заголовок");
     if (!text.trim() && !existing.attachments?.length) throw new ApiError(400, "Сообщение не может быть пустым");
     const message = this.messages.mutate(messageId, (m) => edits.editText(m, text));
     // Всем участникам, включая автора: его другие устройства и список чатов тоже должны обновиться.

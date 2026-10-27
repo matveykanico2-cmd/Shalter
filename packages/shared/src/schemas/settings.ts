@@ -66,6 +66,7 @@ export const settings = z.strictObject({
   uiLanguage: z.string(),
   autoDownload: z.boolean(),
   voiceTranscription: z.boolean(),
+  timeFormat: z.union([z.literal(12), z.literal(24)]),
   chatClears: z.record(z.string(), anyJson),
   hiddenChats: z.record(z.string(), anyJson),
   chatWallpapers: z.record(z.string(), anyJson),

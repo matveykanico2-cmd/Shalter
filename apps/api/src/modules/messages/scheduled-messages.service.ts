@@ -38,6 +38,7 @@ export class ScheduledMessagesService {
       throw new ApiError(400, "Время отправки должно быть в будущем");
     }
     // Звёзды за сообщение спишутся при отправке, медленный режим к расписанию не относится.
+    if (body.article === true) throw new ApiError(400, "Статью нельзя отложить — опубликуйте её сразу");
     await this.sender.gate(chat, uid, body, { charge: false, skipSlowMode: true });
 
     const entry = this.scheduled.add({

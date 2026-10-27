@@ -186,16 +186,16 @@ describe("дни рождения", () => {
 describe("праздники", () => {
   test("свой праздник приходит в его день, отключённый встроенный — нет", async () => {
     const [user] = await registerUsers(server().baseUrl, 1);
-    const patch = { holidays: { disabled: ["shalter_day"], custom: [{ date: "04-12", title: "День космонавтики" }] } };
+    const patch = { holidays: { disabled: ["shalter_day"], custom: [{ date: "04-15", title: "День экологических знаний" }] } };
     expect((await user.api.patch("/api/settings", patch)).status).toBe(200);
 
     await sweep("holidays", new Date("2027-09-25T12:00:00Z"));
     expect((await systemMessages(user.api)).filter(fromSystem("🎉"))).toEqual([]);
 
-    await sweep("holidays", new Date("2027-04-12T12:00:00Z"));
-    await sweep("holidays", new Date("2027-04-12T13:00:00Z"));
+    await sweep("holidays", new Date("2027-04-15T12:00:00Z"));
+    await sweep("holidays", new Date("2027-04-15T13:00:00Z"));
     const sent = (await systemMessages(user.api)).filter(fromSystem("🎉"));
-    expect(sent.map((m) => m.text)).toEqual(["🎉 Сегодня День космонавтики! Поздравляем."]);
+    expect(sent.map((m) => m.text)).toEqual(["🎉 Сегодня День экологических знаний! Поздравляем."]);
   });
 
   test("встроенный праздник приходит всем, кто его не отключал", async () => {

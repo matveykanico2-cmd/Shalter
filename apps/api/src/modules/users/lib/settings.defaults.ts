@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS = {
   uiLanguage: "ru",
   autoDownload: true,
   voiceTranscription: false,
+  timeFormat: 24,
   chatClears: {},
   hiddenChats: {},
   chatWallpapers: {},

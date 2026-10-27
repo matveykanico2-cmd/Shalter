@@ -5,6 +5,10 @@ import type { Message } from "../model/domain.js";
 
 /** Как в Telegram: 4096 символов текста (подпись к медиа — тоже). */
 export const MAX_MESSAGE_TEXT = 4096;
+/** Статья (Premium): markdown, первая строка — «# Заголовок»; обложка — вложение-картинка. */
+export const MAX_ARTICLE_TEXT = 20000;
+export const textLimit = (isArticle: boolean) => (isArticle ? MAX_ARTICLE_TEXT : MAX_MESSAGE_TEXT);
+export const hasArticleTitle = (text: string) => /^# \S/.test(text);
 /** Эффекты — только в личных чатах. */
 export const MESSAGE_EFFECTS = ["🔥", "👍", "👎", "❤️", "🎉", "💩"];
 /** Платный пост: звёзды 1…10000. */

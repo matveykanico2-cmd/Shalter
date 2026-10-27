@@ -57,6 +57,7 @@ for (const route of [
   "/api/auth/change-password",
   "/api/auth/email",
   "/api/auth/passkey/login",
+  "/api/auth/guest",
 ]) {
   front.use(route, authLimiter);
 }

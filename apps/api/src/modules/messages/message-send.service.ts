@@ -28,7 +28,8 @@ import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { incrementCommentCount, setLinkPreview } from "./lib/message-edits.js";
 import {
-  MAX_MESSAGE_TEXT,
+  hasArticleTitle,
+  textLimit,
   MAX_PAID_STARS,
   MESSAGE_EFFECTS,
   messagePreview,
@@ -100,7 +101,13 @@ export class MessageSendService {
    */
   public async gate(chat: Chat, uid: string, body: MessageDraft, { charge = true, skipSlowMode = false } = {}): Promise<{ charged: number }> {
     if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
-    if (((body.text as string | undefined) ?? "").length > MAX_MESSAGE_TEXT) throw new ApiError(400, `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов`);
+    body.article = body.article === true;
+    if (body.article && !body.forwardedFrom) {
+      if (!this.users.findById(uid)?.isPremium) throw new ApiError(403, "Создание статей доступно только с Shalter Premium");
+      if (!hasArticleTitle((body.text as string | undefined) ?? "")) throw new ApiError(400, "У статьи должен быть заголовок");
+    }
+    const limit = textLimit(body.article);
+    if (((body.text as string | undefined) ?? "").length > limit) throw new ApiError(400, `Сообщение длиннее ${limit} символов`);
     if (chat.type === "channel" && !isStaff(chat, uid)) throw new ApiError(403, "Публиковать в канале могут только администраторы");
 
     const restrictedUntil = chat.restrictions?.[uid];
@@ -122,6 +129,7 @@ export class MessageSendService {
       // «Скрыть имя отправителя»: копия уходит как своё сообщение, без подписи.
       body.forwardedFrom = request.hideAuthor === true ? undefined : (sourceMsg.forwardedFrom ?? this.forwardOrigin(source, sourceMsg, uid));
       body.text = sourceMsg.text ?? "";
+      body.article = sourceMsg.type === "article";
       body.attachments = (sourceMsg.attachments ?? []).map((a) => (a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a));
       body.sticker = sourceMsg.sticker;
       body.customEmoji = sourceMsg.customEmoji;
@@ -286,7 +294,7 @@ export class MessageSendService {
       id: genId("m"),
       chatId: chat.id,
       senderId,
-      type: body.sticker ? "sticker" : "text",
+      type: body.sticker ? "sticker" : body.article === true ? "article" : "text",
       text: text ?? "",
       createdAt: new Date().toISOString(),
       pinned: false,

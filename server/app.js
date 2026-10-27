@@ -125,6 +125,7 @@ app.get("/api/status-catalog", requireUserId, (req, res) => res.json({ items: re
 app.use("/api/usernames", require("./routes/usernames"));
 app.use("/api/communities", require("./routes/communities"));
 app.use("/api/bootstrap", require("./routes/bootstrap"));
+app.use("/api/promotions", require("./routes/promotions"));
 app.use("/s", require("./routes/shortLinks"));
 app.get("/api/short-links", (_req, res) => {
   try {

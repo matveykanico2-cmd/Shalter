@@ -94,6 +94,9 @@ async function resolveMentions(text, memberIds, senderId) {
 
 // Как в Telegram: 4096 символов текста (подпись к медиа — тоже).
 const MAX_MESSAGE_TEXT = 4096;
+// Статья (Premium): markdown, первая строка — «# Заголовок»; обложка — вложение-картинка.
+const MAX_ARTICLE_TEXT = 20000;
+const textLimit = (isArticle) => (isArticle ? MAX_ARTICLE_TEXT : MAX_MESSAGE_TEXT);
 const MESSAGE_EFFECTS = ["🔥", "👍", "👎", "❤️", "🎉", "💩"];
 
 async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
@@ -353,7 +356,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
     id: genId("m"),
     chatId: chat.id,
     senderId,
-    type: body.sticker ? "sticker" : "text",
+    type: body.sticker ? "sticker" : body.article === true ? "article" : "text",
     text: body.text ?? "",
     createdAt: new Date().toISOString(),
     pinned: false,
@@ -459,7 +462,13 @@ async function forwardOrigin(source, message, uid) {
 async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false } = {}) {
   const fail = (status, payload) => ({ status, payload });
   if (body.text != null && typeof body.text !== "string") return fail(400, { error: "Некорректный текст" });
-  if ((body.text ?? "").length > MAX_MESSAGE_TEXT) return fail(400, { error: `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов` });
+  body.article = body.article === true;
+  if (body.article && !body.forwardedFrom) {
+    if (!(await getUser(uid))?.isPremium) return fail(403, { error: "Создание статей доступно только с Shalter Premium" });
+    if (!/^# \S/.test(body.text ?? "")) return fail(400, { error: "У статьи должен быть заголовок" });
+  }
+  const limit = textLimit(body.article);
+  if ((body.text ?? "").length > limit) return fail(400, { error: `Сообщение длиннее ${limit} символов` });
   if (chat.type === "channel" && !isStaff(chat, uid)) {
     return fail(403, { error: "Публиковать в канале могут только администраторы" });
   }
@@ -484,6 +493,7 @@ async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false }
     // «Скрыть имя отправителя»: копия уходит как своё сообщение, без подписи.
     body.forwardedFrom = body.forwardedFrom.hideAuthor === true ? undefined : sourceMsg.forwardedFrom ?? (await forwardOrigin(source, sourceMsg, uid));
     body.text = sourceMsg.text ?? "";
+    body.article = sourceMsg.type === "article";
     body.attachments = (sourceMsg.attachments ?? []).map((a) =>
       a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a
     );
@@ -721,6 +731,7 @@ router.post(
     } else if (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString()) {
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
+    if (body.article === true) return res.status(400).json({ error: "Статью нельзя отложить — опубликуйте её сразу" });
     const gate = await sendGate(chat, req.uid, body, { charge: false, skipSlowMode: true });
     if (gate.status) return res.status(gate.status).json(gate.payload);
 
@@ -798,7 +809,9 @@ router.patch(
     }
     const { text } = req.body ?? {};
     if (typeof text !== "string") return res.status(400).json({ error: "Некорректный текст" });
-    if (text.length > MAX_MESSAGE_TEXT) return res.status(400).json({ error: `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов` });
+    const limit = textLimit(existing.type === "article");
+    if (text.length > limit) return res.status(400).json({ error: `Сообщение длиннее ${limit} символов` });
+    if (existing.type === "article" && !/^# \S/.test(text)) return res.status(400).json({ error: "У статьи должен быть заголовок" });
     if (!text.trim() && !existing.attachments?.length) return res.status(400).json({ error: "Сообщение не может быть пустым" });
     const message = await editMessage(req.params.messageId, text);
     const chat = await getChat(req.params.id);

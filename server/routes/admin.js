@@ -525,6 +525,51 @@ router.post(
   })
 );
 
+// Снятие 2FA без сброса пароля — когда человек потерял приложение-аутентификатор
+// и коды восстановления. Подтверждение и журнал — как у сброса пароля.
+router.post(
+  "/users/:id/disable-2fa",
+  asyncRoute(async (req, res) => {
+    const admin = await requireAdminSection(req, res, "moderation");
+    if (!admin) return;
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    if (target.isBot) return res.status(400).json({ error: "У ботов нет двухфакторной аутентификации" });
+    if (target.id !== req.uid && !outranks(admin, target)) return rankError(res);
+
+    const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
+    const handle = (target.username || target.id).toLowerCase();
+    if (confirm !== handle) {
+      return res.status(400).json({ error: `Для подтверждения введите @${target.username || target.id}` });
+    }
+
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+    if (!reason) return res.status(400).json({ error: "Укажите основание — оно попадёт в журнал" });
+    if (!target.twoFactorEnabled) return res.json({ ok: true, twoFactorLifted: false });
+
+    await logExport({
+      adminId: req.uid,
+      targetUserId: target.id,
+      reason: `СНЯТА 2FA @${target.username || target.id} (${target.name}): ${reason}`,
+      messageCount: 0,
+    });
+    await disableTotp(target.id);
+
+    try {
+      const chat = await findOrCreateDm(target.id, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        `🔐 Администрация Shalter сняла с вашего аккаунта двухфакторную аутентификацию.\nОснование: ${reason}\n\nВключите её заново: Настройки → Конфиденциальность.\n\nЕсли вы этого не просили — немедленно смените пароль в настройках.`
+      );
+    } catch (err) {
+      console.error("2fa disable notice failed:", err);
+    }
+
+    res.json({ ok: true, twoFactorLifted: true });
+  })
+);
+
 router.get(
   "/mail-status",
   asyncRoute(async (req, res) => {

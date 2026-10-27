@@ -31,7 +31,9 @@ describe("GET /api/settings", () => {
   test("новый пользователь — значения по умолчанию и каталог праздников", async () => {
     const me = await registerUser(server().baseUrl);
     const body = expectOk(await me.api.get("/api/settings"), settingsGetBody);
-    expect(body.holidayCatalog).toEqual([{ id: "shalter_day", title: "День основания Shalter", date: "09-25" }]);
+    expect(body.holidayCatalog).toHaveLength(12);
+    expect(body.holidayCatalog[0]).toEqual({ id: "shalter_day", title: "День основания Shalter", date: "09-25" });
+    expect(body.holidayCatalog).toContainEqual({ id: "victory_day", title: "День Победы", date: "05-09" });
     expect(body.settings).toEqual({
       theme: "system",
       accent: "",
@@ -61,6 +63,7 @@ describe("GET /api/settings", () => {
       uiLanguage: "ru",
       autoDownload: true,
       voiceTranscription: false,
+      timeFormat: 24,
       chatClears: {},
       hiddenChats: {},
       chatWallpapers: {},

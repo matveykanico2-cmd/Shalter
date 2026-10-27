@@ -49,6 +49,7 @@ function rowToUser(row) {
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
+    isGuest: !!row.isGuest || undefined,
     blockedUserIds: safeParse(row.blockedUserIds, []),
     isPremium: !!row.premiumUntil && row.premiumUntil > new Date().toISOString(),
     premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,
@@ -239,7 +240,31 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
+// Гость — аккаунт без телефона, почты и пароля; живёт, пока жива его сессия.
+const GUEST_AVATAR_COLORS = ["#2E56D9", "#2E86AB", "#A23B72", "#F14668", "#008080", "#5B2C6F", "#1B998B", "#E76F51"];
+
+async function createGuestUser() {
+  const { genId } = require("../lib/genId");
+  const { checkUsername } = require("../lib/username");
+  let username = "";
+  for (let i = 0; i < 5 && !username; i++) {
+    const candidate = `guest_${crypto.randomBytes(5).toString("hex")}`;
+    if (!(await checkUsername(candidate))) username = candidate;
+  }
+  const id = genId("u");
+  await createUser({
+    id,
+    name: `Гость ${crypto.randomInt(1000, 10000)}`,
+    username,
+    avatarColor: GUEST_AVATAR_COLORS[crypto.randomInt(GUEST_AVATAR_COLORS.length)],
+    online: true,
+    lastSeen: new Date().toISOString(),
+  });
+  db.prepare("UPDATE users SET isGuest = 1 WHERE id = ?").run(id);
+  return getUser(id);
+}
+
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
 
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);
@@ -549,6 +574,7 @@ module.exports = {
   listReferrals,
   listUsersWithBirthdayToday,
   createUser,
+  createGuestUser,
   updateUser,
   setBlocked,
   setBanned,

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   online INTEGER NOT NULL DEFAULT 0,
   lastSeen TEXT,
   isBot INTEGER NOT NULL DEFAULT 0,
+  isGuest INTEGER NOT NULL DEFAULT 0,
   blockedUserIds TEXT NOT NULL DEFAULT '[]',
   isPremium INTEGER NOT NULL DEFAULT 0,
   referralCode TEXT,
@@ -552,6 +553,7 @@ if (!existingUserColumns.has("totpEnabledAt")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("totpRecoveryCodes")) db.exec("ALTER TABLE users ADD COLUMN totpRecoveryCodes TEXT");
 // Статус «Разработчик» — назначается админом вручную (в отличие от isAdminPhone).
 if (!existingUserColumns.has("developer")) db.exec("ALTER TABLE users ADD COLUMN developer INTEGER NOT NULL DEFAULT 0");
+if (!existingUserColumns.has("isGuest")) db.exec("ALTER TABLE users ADD COLUMN isGuest INTEGER NOT NULL DEFAULT 0");
 
 const kugoRow = db.prepare("SELECT id FROM users WHERE id = 'ai_kugo'").get();
 if (kugoRow) {
@@ -1381,5 +1383,27 @@ runOnce("birthday-suggestions-trim", () => {
     if (changed) update.run(JSON.stringify(attachments), row.id);
   }
 });
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS promo_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  prize TEXT NOT NULL,
+  config TEXT NOT NULL,
+  usesTotal INTEGER,
+  used INTEGER NOT NULL DEFAULT 0,
+  createdBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code);
+
+CREATE TABLE IF NOT EXISTS promo_code_redemptions (
+  codeId TEXT NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  redeemedAt TEXT NOT NULL,
+  PRIMARY KEY (codeId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_code_redemptions(userId);
+`);
 
 module.exports = db;
