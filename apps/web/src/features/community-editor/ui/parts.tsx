@@ -88,7 +88,7 @@ export function ChatLine({ chat, onClick, right }: { chat: Chatish; onClick?: ()
   );
 }
 
-type Person = { id: string; name?: string | null; avatarColor?: string | null; avatarImage?: string | null; badge?: string | null; title?: string | null };
+type Person = { id: string; name?: string | null; avatarColor?: string | null; avatarImage?: string | null; badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
 /** Человек в списках сообщества — userRow() в communityEditor.js. */
 export function UserLine({ user, subtitle, right, onClick }: { user: Person; subtitle?: string | null; right?: ReactNode; onClick?: () => void }) {

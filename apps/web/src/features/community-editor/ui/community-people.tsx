@@ -13,7 +13,7 @@ import styles from "./community-editor.module.css";
 import { ChatLine, Empty, Row, UserLine } from "./parts";
 
 type Base = { community: Community; onChanged: () => void; onClose: () => void };
-type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage"> & { badge?: string | null; title?: string | null };
+type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage"> & { badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
 const peopleKey = (id: string, what: string) => ["communities", "people", id, what] as const;
 
@@ -44,31 +44,33 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
   if (step?.kind === "rights") return <AdminRightsDialog community={community} user={step.user} current={step.current} onDone={done} onClose={() => setStep(null)} />;
 
   return (
-    <Dialog title="Администраторы" onClose={onClose}>
-      <div className={styles.list}>
-        {admins.isError ? <Empty>{errorText(admins.error, "Не удалось загрузить")}</Empty> : null}
-        {admins.isPending ? <Empty>Загрузка…</Empty> : null}
-        {admins.data ? (
-          <>
-            {canAdd ? <Row icon="UserPlus" title="Добавить администратора" accent onClick={() => setStep({ kind: "pick" })} /> : null}
-            <Row icon="Smile" title="Значки и подписи участников" accent onClick={() => setBadgeUser(null)} />
-            {admins.data.map((a: CommunityAdmin) => (
-              <UserLine
-                key={a.id}
-                user={{ ...a, badge: a.badge ?? null, title: a.title ?? null }}
-                subtitle={a.role === "owner" ? "Владелец" : rightsSummary(a.rights)}
-                onClick={a.role !== "owner" && (canAdd || a.id === meId) ? () => setStep({ kind: "rights", user: { ...a, badge: a.badge ?? null, title: a.title ?? null }, current: a.rights }) : undefined}
-              />
-            ))}
-          </>
-        ) : null}
-      </div>
-      <p className={styles.caption}>Администраторы помогают управлять сообществом. Права каждого настраиваются отдельно.</p>
-      <Button variant="link" onClick={onClose}>
-        Назад
-      </Button>
-    </Dialog>
-    {badgeUser ? <BadgeTitleDialog community={community} user={badgeUser} onClose={() => setBadgeUser(null)} onDone={done} /> : null}
+    <>
+      <Dialog title="Администраторы" onClose={onClose}>
+        <div className={styles.list}>
+          {admins.isError ? <Empty>{errorText(admins.error, "Не удалось загрузить")}</Empty> : null}
+          {admins.isPending ? <Empty>Загрузка…</Empty> : null}
+          {admins.data ? (
+            <>
+              {canAdd ? <Row icon="UserPlus" title="Добавить администратора" accent onClick={() => setStep({ kind: "pick" })} /> : null}
+              <Row icon="Smile" title="Значки и подписи участников" accent onClick={() => setBadgeUser(null)} />
+              {admins.data.map((a: CommunityAdmin) => (
+                <UserLine
+                  key={a.id}
+                  user={{ ...a, badge: a.badge ?? null, title: a.title ?? null }}
+                  subtitle={a.role === "owner" ? "Владелец" : rightsSummary(a.rights)}
+                  onClick={a.role !== "owner" && (canAdd || a.id === meId) ? () => setStep({ kind: "rights", user: { ...a, badge: a.badge ?? null, title: a.title ?? null }, current: a.rights }) : undefined}
+                />
+              ))}
+            </>
+          ) : null}
+        </div>
+        <p className={styles.caption}>Администраторы помогают управлять сообществом. Права каждого настраиваются отдельно.</p>
+        <Button variant="link" onClick={onClose}>
+          Назад
+        </Button>
+      </Dialog>
+      {badgeUser ? <BadgeTitleDialog community={community} user={badgeUser} onClose={() => setBadgeUser(null)} onDone={done} /> : null}
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { renderSticker, type Sticker } from "@/shared/lib/anim";
-import { Icon } from "@/shared/ui";
+import { DomNode, Icon } from "@/shared/ui";
 
 import { deleteStickerPack, type StickerPack, updateStickerPack } from "../api/sticker-packs";
 
@@ -97,13 +97,13 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: P
               aria-label={s.name || s.emoji || "Стикер"}
               onClick={() => onStickerPick(s)}
             >
-              {renderSticker(s, { size: 44 })}
+              <DomNode create={() => renderSticker(s, { size: 44 })} />
             </button>
             <button
               type="button"
               className={styles.detailRemove}
               title="Удалить из пака"
-              aria-label={`Удалить «${s.name || s.emoji || "стикер"}` из пака`}
+              aria-label={`Удалить «${s.name || s.emoji || "стикер"}» из пака`}
               onClick={() => void removeSticker(s.uid)}
             >
               <Icon name="X" size={11} />

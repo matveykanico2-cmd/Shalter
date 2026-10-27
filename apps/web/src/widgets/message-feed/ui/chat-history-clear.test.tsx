@@ -29,7 +29,7 @@ describe("«Удалить историю за дату»", () => {
     const five = await screen.findByRole("button", { name: "5" });
     fireEvent.click(five);
     const twelve = screen.getByRole("button", { name: "12" });
-    expect(twelve).not.toBeDisabled();
+    expect((twelve as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(twelve);
     const del = screen.getByRole("button", { name: /Удалить историю за 2 дн/ });
     fireEvent.click(del);

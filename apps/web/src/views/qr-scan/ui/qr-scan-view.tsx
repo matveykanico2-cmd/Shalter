@@ -10,7 +10,7 @@ import { prettyQrSvg } from "@/shared/lib/qr/pretty-qr";
 import { qrCardPng } from "@/shared/lib/qr/qr-card";
 import { Avatar, Button, Dialog, Icon, toast } from "@/shared/ui";
 
-import { startQrLogin, pollQrLogin } from "@/features/sign-in";
+import { startQrLogin, pollQrLogin } from "@/features/sign-in/api/sign-in";
 
 import styles from "./qr-scan.module.css";
 
@@ -27,7 +27,7 @@ export function QrScanView() {
 
   const start = useMutation({
     mutationFn: startQrLogin,
-    onSuccess: (data) => {
+    onSuccess: (data: { token: string; loginUrl: string }) => {
       setOwnToken(data.token);
       setOwnUrl(data.loginUrl);
     },
@@ -36,7 +36,7 @@ export function QrScanView() {
 
   const poll = useMutation({
     mutationFn: (token: string) => pollQrLogin(token),
-    onSuccess: (data) => {
+    onSuccess: (data: { status: string }) => {
       if (data.status === "confirmed") {
         toast("Вход подтверждён");
         navigate("/");
@@ -80,7 +80,7 @@ export function QrScanView() {
     return m ? m[0] : "";
   };
 
-  const showQr = () => (ownToken ? <QrDialog token={ownToken} url={ownUrl ?? ""} user={me ?? undefined} onClose={() => setOwnToken(null)} /> : null);
+  const showQr = () => (ownToken ? <QrDialog url={ownUrl ?? ""} user={me ?? undefined} onClose={() => setOwnToken(null)} /> : null);
 
   return (
     <section className={styles.panel} aria-label="Вход по QR-коду">
@@ -102,7 +102,7 @@ export function QrScanView() {
             </Button>
             {ownToken && (
               <Button variant="secondary" onClick={pollOwn} title="Проверить, подтверждён ли вход">
-                <Icon name="RefreshCw" size={16} />
+                <Icon name="RotateCw" size={16} />
                 Проверить вход
               </Button>
             )}
@@ -152,7 +152,7 @@ export function QrScanView() {
   );
 }
 
-function QrDialog({ token, url, user, onClose }: { token: string; url: string; user?: { name: string; avatarColor?: string; avatarImage?: string | null }; onClose: () => void }) {
+function QrDialog({ url, user, onClose }: { url: string; user?: { name: string; avatarColor?: string; avatarImage?: string | null }; onClose: () => void }) {
   const [card, setCard] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
