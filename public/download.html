@@ -42,9 +42,10 @@
     </section>
 
     <div class="dl-install-card" id="ios-install-card" style="display:none">
-      <h3 class="dl-install-title">Установить на iPhone</h3>
-      <p class="dl-install-desc">Нажмите кнопку ниже — откроется системное «Поделиться», выберите «На экран «Домой»» → «Добавить». Shalter появится на главном экране.</p>
+      <h3 class="dl-install-title">Установить на iPhone и iPad</h3>
+      <p class="dl-install-desc">Нажмите «Поделиться» → «На экран «Домой»» → «Добавить». Shalter появится на главном экране и будет открываться как обычное приложение.</p>
       <button class="dl-install-btn dl-install-btn-share" id="ios-install-btn">📤 Установить на главный экран</button>
+      <button class="dl-install-btn dl-install-btn-appstore" id="ios-appstore-btn">Скоро в App Store</button>
       <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее.</p>
     </div>
 
@@ -229,6 +230,14 @@
           }).catch(function () {});
         }
       };
+      // Приложение ещё нет в App Store — кнопка только информирует.
+      var asBtn = document.getElementById("ios-appstore-btn");
+      if (asBtn) {
+        asBtn.style.display = "inline-block";
+        asBtn.onclick = function () {
+          showToastIOS("Приложение скоро появится в App Store. Пока используйте веб-версию — добавьте на главный экран через «Поделиться» → «На экран «Домой»».");
+        };
+      }
     }
   })();
   // На Linux сразу раскрываем инструкцию с командой установки.
@@ -236,6 +245,30 @@
     if (detectOs() === "linux") document.getElementById("linux-help").open = true;
   } catch (e) {}
 })();
+
+// Простой тост для iOS-кнопок.
+function showToastIOS(text) {
+  var t = document.createElement("div");
+  t.style.position = "fixed";
+  t.style.bottom = "24px";
+  t.style.left = "50%";
+  t.style.transform = "translateX(-50%)";
+  t.style.background = "rgba(20, 22, 31, 0.9)";
+  t.style.color = "#fff";
+  t.style.padding = "10px 16px";
+  t.style.borderRadius = "10px";
+  t.style.fontSize = "13px";
+  t.style.zIndex = 1000;
+  t.style.textAlign = "center";
+  t.style.maxWidth = "90%";
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(function () {
+    t.style.opacity = "0";
+    t.style.transition = "opacity 0.3s";
+    setTimeout(function () { t.remove(); }, 300);
+  }, 2500);
+}
 </script>
 </body>
 </html>
