@@ -36,7 +36,11 @@ function loadImage(src) {
 }
 
 function drawCover(ctx, img, w, h) {
-  if (!img) return;
+  if (!img) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
   const ir = img.naturalWidth / img.naturalHeight || 1;
   const cr = w / h;
   let sx, sy, sw, sh;

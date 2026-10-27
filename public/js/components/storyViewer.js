@@ -498,7 +498,17 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       media = videoEl;
     } else {
       videoEl = null;
-      media = el("img", { src: frame.item.url, class: "story-media", decoding: "async", loading: "eager" });
+      media = el("img", {
+        src: frame.item.url,
+        class: "story-media",
+        decoding: "async",
+        loading: "eager",
+      });
+      const shownImage = media;
+      media.addEventListener("error", () => {
+        if (!shownImage.isConnected) return;
+        shownImage.replaceWith(el("div", { class: "story-media story-processing" }, [el("span", { class: "media-viewer-spinner" }), el("p", {}, "Картинка не загрузилась — повторите позже")]));
+      }, { once: true });
     }
 
     const replyInput = el("input", {

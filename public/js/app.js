@@ -731,7 +731,17 @@ async function boot() {
   startRouter().then(() => {
     // Splash is removed after first route renders to avoid flash of unstyled content
     removeSplash();
+  }).catch(() => {
+    // Роут не отрендерился (модуль не догрузился на плохой сети) — всё равно убираем
+    // заставку, иначе приложение окажется под «чёрным/белым» экраном навечно.
+    removeSplash();
   });
+  // Предохранитель: если роутер не разрешился за 8 с (завис импорт модуля), убираем
+  // заставку принудительно, чтобы пользователь не остался с пустым экраном.
+  setTimeout(() => {
+    const splash = document.getElementById("boot-splash");
+    if (splash && !splash.dataset.hiding) removeSplash();
+  }, 8000);
   // Переход из нативной части (уведомление-звонок на Android) без перезагрузки страницы.
   window.__shalterOpen = (path) => navigate(path);
 
