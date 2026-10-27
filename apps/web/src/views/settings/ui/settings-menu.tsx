@@ -8,7 +8,6 @@ import { starsQueries } from "@/entities/stars";
 import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
 
 import { copyText } from "@/shared/lib/clipboard";
-import { isInstalledApp } from "@/shared/lib/platform";
 import { Avatar, Icon, MediaViewer, SettingsPage, SettingsRow, SettingsSection } from "@/shared/ui";
 
 import { settingsViewQueries } from "../api/settings-api";
@@ -73,7 +72,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
       {admin.length ? <SettingsSection title="Администрирование">{rows(admin)}</SettingsSection> : null}
       <SettingsSection>
         <SettingsRow icon="MessageSquare" color="blue" title="Поддержка — Hugo" onClick={onSupport} />
-        {isInstalledApp() ? null : <SettingsRow icon="Download" color="green" title="Скачать приложение" href="/download" external />}
+        <SettingsRow icon="Download" color="green" title="Скачать приложение" href="/download" external />
       </SettingsSection>
       {viewAvatar && me.avatarImage ? <MediaViewer items={[{ kind: "image", url: me.avatarImage, name: me.name }]} index={0} canDownload={false} onClose={() => setViewAvatar(false)} /> : null}
     </SettingsPage>

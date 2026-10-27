@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 
 import { seekBy } from "@/shared/lib/media/now-playing";
 import { Icon } from "@/shared/ui";
@@ -8,6 +8,7 @@ import type { Attachment } from "../../model/attachment";
 import type { FeedMessage } from "../../model/types";
 
 import styles from "./attachments.module.css";
+import { useDecodedWaveform } from "./use-decoded-waveform";
 import { useSeek } from "./use-media-progress";
 import { usePlayer } from "./use-player";
 
@@ -21,7 +22,11 @@ export function VoicePlayer({ attachment: a, message, senderName }: { attachment
   const { key, ref: audio, toggle, playing, current, duration, failed } = usePlayer(message, a, "voice", senderName);
   const seek = useSeek(audio, duration);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
-  const bars = useMemo(() => (a.waveform?.length ? resampleWaveform(a.waveform, BARS) : new Array<number>(BARS).fill(0)), [a.waveform]);
+  const waveRef = useRef<HTMLSpanElement>(null);
+  // Старое голосовое без сохранённой осциллограммы — считаем её из файла, когда видно.
+  const decoded = useDecodedWaveform(waveRef, a.url, !a.waveform?.length);
+  const levels = a.waveform?.length ? a.waveform : decoded;
+  const bars = useMemo(() => (levels?.length ? resampleWaveform(levels, BARS) : new Array<number>(BARS).fill(0)), [levels]);
   const done = duration ? Math.min(1, current / duration) : 0;
   const lit = Math.round(done * BARS);
 
@@ -45,6 +50,7 @@ export function VoicePlayer({ attachment: a, message, senderName }: { attachment
         </button>
         <span className={styles.voiceBody}>
           <span
+            ref={waveRef}
             className={styles.wave}
             role="slider"
             tabIndex={0}

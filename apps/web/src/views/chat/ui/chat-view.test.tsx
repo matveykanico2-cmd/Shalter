@@ -804,6 +804,35 @@ describe("опросы, чек-листы, кубики, платные пост
     expect(await screen.findByText("Пост открыт")).toBeTruthy();
     await waitFor(() => expect(within(bubble(paid.id)).getByRole("button", { name: "Фото" })).toBeTruthy());
     expect(calls.some((c) => c.key.endsWith("/unlock"))).toBe(true);
+    expect(screen.queryByRole("dialog", { name: "Просмотр медиа" })).toBeNull();
+
+    // Открытое фото листается в просмотре, как любое другое.
+    fireEvent.click(within(bubble(paid.id)).getByRole("button", { name: "Фото" }));
+    const viewer = await screen.findByRole("dialog", { name: "Просмотр медиа" });
+    expect(viewer.querySelector('img[src="/uploads/secret"]')).toBeTruthy();
+  });
+
+  it("платный пост, доступный сразу (автор, админ, купивший), — фото открываются в просмотре по порядку ленты", async () => {
+    const before = msg("до", { createdAt: "2026-10-01T10:00:00.000Z", attachments: [{ kind: "image", url: "/uploads/a_0000000000000001.jpg" }] });
+    const paid = msg("пост", { createdAt: "2026-10-01T10:01:00.000Z", paidStars: 25, attachments: [{ kind: "paid", meta: { stars: 25, photos: 2 } }] });
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([before, paid]),
+      [`GET /api/chats/c_1/messages/${paid.id}/paid`]: {
+        body: {
+          attachments: [
+            { kind: "image", url: "/uploads/p_0000000000000001.jpg" },
+            { kind: "image", url: "/uploads/p_0000000000000002.jpg" },
+          ],
+        },
+      },
+    });
+    renderChat();
+    await waitFor(() => expect(within(bubble(paid.id)).getAllByRole("button", { name: "Фото" })).toHaveLength(2));
+    fireEvent.click(within(bubble(paid.id)).getAllByRole("button", { name: "Фото" })[1]!);
+    const viewer = await screen.findByRole("dialog", { name: "Просмотр медиа" });
+    expect(within(viewer).getByText(/3 из 3/)).toBeTruthy();
+    expect(within(viewer).getByText("пост")).toBeTruthy();
   });
 
   it("опрос и кубик из скрепки уходят своими сообщениями", async () => {

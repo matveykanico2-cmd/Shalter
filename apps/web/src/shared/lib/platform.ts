@@ -6,7 +6,7 @@ type NativeWindow = Window & {
 
 /**
  * Запущено как установленное приложение (Android/iOS на Capacitor или десктоп на Tauri),
- * а не в браузере, — как public/js/lib/platform.js. Внутри приложения незачем «Скачать приложение».
+ * а не в браузере, — как public/js/lib/platform.js.
  */
 export function isInstalledApp() {
   const w = window as NativeWindow;

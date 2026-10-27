@@ -28,6 +28,7 @@ import {
   MessageBubble,
   messageQueries,
   type MessageSender,
+  paidMediaQuery,
   type ReplyTarget,
   timeLabel,
   type TopicFilter,
@@ -314,7 +315,14 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const selected = selection.active ? (data?.messages ?? []).filter((m) => selection.ids.has(m.id)) : [];
   const protectedContent = isProtectedChat(chat);
   const openMedia = (m: Message, url: string) => {
-    const items = buildGallery(data?.messages ?? [], (x) => (x.senderId === meId && !x.anonymous ? "Вы" : senderName(x)));
+    const items = buildGallery(
+      data?.messages ?? [],
+      (x) => (x.senderId === meId && !x.anonymous ? "Вы" : senderName(x)),
+      (x) => {
+        const paid = client.getQueryData(paidMediaQuery(x.chatId, x.id).queryKey);
+        return paid && "attachments" in paid ? paid.attachments : null;
+      }
+    );
     const index = galleryIndex(items, m.id, url);
     if (index >= 0) setViewer({ items, index });
   };

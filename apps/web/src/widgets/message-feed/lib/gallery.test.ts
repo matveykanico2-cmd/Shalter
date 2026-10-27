@@ -25,4 +25,40 @@ describe("галерея просмотрщика", () => {
     expect(galleryIndex(items, "m_2", "/v")).toBe(1);
     expect(galleryIndex(items, "m_9", "/a")).toBe(-1);
   });
+
+  describe("платные посты", () => {
+    const paidAtt = { kind: "paid", meta: { stars: 25, photos: 1, videos: 1 } };
+    const feed = [
+      m("m_1", [{ kind: "image", url: "/before" }]),
+      m("m_paid", [paidAtt], { text: "закрытое" }),
+      m("m_3", [{ kind: "image", url: "/after" }]),
+    ];
+    const unlocked = [
+      { kind: "image", url: "/p1" },
+      { kind: "video", url: "/p2", previewUrl: "/p2-small" },
+    ];
+
+    it("открытый пост (автор, админ, купивший) — его фото и видео на месте заглушки", () => {
+      const items = buildGallery(feed, () => "Канал", (x) => (x.id === "m_paid" ? (unlocked as never) : null));
+      expect(items.map((i) => [i.messageId, i.url])).toEqual([
+        ["m_1", "/before"],
+        ["m_paid", "/p1"],
+        ["m_paid", "/p2-small"],
+        ["m_3", "/after"],
+      ]);
+      expect(items[1]!.caption).toBe("закрытое");
+      expect(galleryIndex(items, "m_paid", "/p1")).toBe(1);
+      expect(galleryIndex(items, "m_paid", "/p2")).toBe(2);
+      expect(galleryIndex(items, "m_3", "/after")).toBe(3);
+    });
+
+    it("закрытый или ещё не загруженный пост в галерею не попадает", () => {
+      for (const paidOf of [undefined, () => null, () => undefined]) {
+        const items = buildGallery(feed, () => null, paidOf);
+        expect(items.map((i) => i.url)).toEqual(["/before", "/after"]);
+        expect(galleryIndex(items, "m_3", "/after")).toBe(1);
+        expect(galleryIndex(items, "m_paid", "/p1")).toBe(-1);
+      }
+    });
+  });
 });
