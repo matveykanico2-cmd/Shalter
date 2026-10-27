@@ -1,0 +1,8 @@
+.splash {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  color: var(--color-accent);
+  font-size: 28px;
+  font-weight: 700;
+}

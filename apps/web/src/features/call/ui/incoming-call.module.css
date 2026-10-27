@@ -1,0 +1,142 @@
+/* Входящий звонок — как .incoming-call-screen в public/styles/components.css. */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #171b26 0%, #0c0e14 100%);
+  animation: fade-in 0.18s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px;
+  color: #fff;
+  text-align: center;
+}
+
+.kind {
+  margin: 0 0 18px;
+  color: #98a0b3;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.avatar::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: rgb(135 116 225 / 28%);
+  animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.name {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 2px 0 0;
+  color: #98a0b3;
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 56px;
+  margin-top: 42px;
+}
+
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: #98a0b3;
+  font-size: 12.5px;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.button:active {
+  transform: scale(0.94);
+}
+
+.decline {
+  background: var(--color-danger);
+}
+
+.accept {
+  background: var(--color-success);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.hangupIcon {
+  transform: rotate(135deg);
+}
+
+@media (max-width: 420px) {
+  .actions {
+    gap: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accept,
+  .avatar::before {
+    animation: none;
+  }
+}

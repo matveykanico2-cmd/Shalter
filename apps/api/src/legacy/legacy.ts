@@ -1,0 +1,698 @@
+// Старый сервер (server/) — CommonJS, подключается через require. Каталог server/
+// лежит в корне репозитория: apps/api/src/legacy и apps/api/dist/legacy на одной глубине.
+import { createRequire } from "node:module";
+import path from "node:path";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
+import type { RequestHandler } from "express";
+import type BetterSqlite3 from "better-sqlite3";
+
+const require = createRequire(import.meta.url);
+const LEGACY_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "..", "server");
+
+export interface LegacyApp {
+  app: RequestHandler;
+}
+
+export const loadLegacyApp = (): LegacyApp => require(path.join(LEGACY_DIR, "app.js"));
+
+// Общая обработка запроса до маршрутов (server/front.js): заголовки, сжатие, cookie,
+// JSON-тело, лимиты. Express 4-приложение, как и старое.
+export const loadLegacyFront = (): RequestHandler & { handle: LegacyHandle } => require(path.join(LEGACY_DIR, "front.js")).front;
+type LegacyHandle = (req: IncomingMessage, res: ServerResponse, done: (err?: unknown) => void) => void;
+
+/** Шлюз WebSocket Nest для старого кода: события server/ и фонового процесса идут в него. */
+export interface LegacyRealtimeHub {
+  broadcastToUsers: (userIds: Iterable<string>, message: { type: string }) => void;
+  sendPayload: (userIds: Iterable<string>, payload: string, chatId: unknown) => void;
+  stats: () => { onlineUsers: number; sockets: number };
+}
+
+// Фоновый процесс — свой (dist/worker.js); при BACKGROUND_WORKER=0 очередь и обходы
+// запускает main.ts, поэтому старые runtime.js не запускает (ownBackground).
+export const startLegacyRuntime = (server: Server, listen: (port: number | string) => unknown, realtime: LegacyRealtimeHub): Promise<unknown> =>
+  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, {
+    realtime,
+    ownScheduledSweep: true,
+    workerEntry: path.resolve(import.meta.dirname, "..", "worker.js"),
+    ownBackground: true,
+  });
+
+// Подключение к SQLite, которое открывает server/db.js (он же создаёт и обновляет
+// схему). Drizzle работает поверх него: общие транзакции и одна очередь записи со старым кодом.
+export const legacyConnection = (): BetterSqlite3.Database => require(path.join(LEGACY_DIR, "db.js"));
+
+// Модули старого сервера, которыми пользуется Nest, пока их часть не перенесена.
+// Каждый — один и тот же экземпляр, что у server/: общие события и состояние.
+const legacyModule = <T>(name: string): T => require(path.join(LEGACY_DIR, name));
+
+/** Отзыв доступа (сеанс, пароль, бан): открытые сокеты пользователя закрываются (server/ws.js). */
+export const emitAccessRevoked = (userId: string): void =>
+  legacyModule<{ emitAccessRevoked: (userId: string) => void }>("lib/sessionEvents.js").emitAccessRevoked(userId);
+
+/** Replacer для всех JSON-ответов (server/lib/publicJson.js). */
+export const publicJsonReplacer = legacyModule<{ publicJsonReplacer: (key: string, value: unknown) => unknown }>(
+  "lib/publicJson.js"
+).publicJsonReplacer;
+
+/** Подписчиков канала в ответе видят только его админы (server/lib/chatForViewer.js). */
+export const shapeBodyForViewer = legacyModule<{ shapeBodyForViewer: (body: unknown, uid: string | undefined) => unknown }>(
+  "lib/chatForViewer.js"
+).shapeBodyForViewer;
+
+// --- То, что Nest берёт у ещё не перенесённых модулей (сообщения, настройки, почта, пуш, WS…) ---
+// Подключаются при первом вызове: эти модули при загрузке открывают базу, а unit-тесты
+// apps/api импортируют код без неё.
+
+export interface LegacyChat {
+  id: string;
+  memberIds: string[];
+}
+
+/** Служебное сообщение: type "system" — строка по центру ленты, "call" — итог звонка; readByIds — кто уже «прочитал». */
+export interface MessageExtra {
+  type?: "system" | "call" | "report" | "gift";
+  readByIds?: string[];
+  /** Карточка жалобы у модератора (type: "report"). */
+  report?: object;
+  /** Подарок в сообщении (type: "gift"). */
+  gift?: object;
+  /** Вложения (карточка дня рождения: kind "birthday"). */
+  attachments?: object[];
+}
+
+interface SystemChat {
+  findOrCreateDm: (userIdA: string, userIdB: string) => Promise<LegacyChat>;
+  sendMessageAndBroadcast: (chat: LegacyChat, senderId: string, text: string, extra?: MessageExtra) => Promise<unknown>;
+  serviceLine: (chat: LegacyChat, actorId: string, build: (name: string) => string | null) => Promise<unknown>;
+}
+
+/** Личный чат двоих, созданный при необходимости (server/lib/systemChat.js). */
+export const findOrCreateDm = (userIdA: string, userIdB: string): Promise<LegacyChat> =>
+  legacyModule<SystemChat>("lib/systemChat.js").findOrCreateDm(userIdA, userIdB);
+
+/** Сообщение в чат с рассылкой участникам по WS (server/lib/systemChat.js). */
+export const sendMessageAndBroadcast = (chat: LegacyChat, senderId: string, text: string, extra?: MessageExtra): Promise<unknown> =>
+  legacyModule<SystemChat>("lib/systemChat.js").sendMessageAndBroadcast(chat, senderId, text, extra);
+
+/** Строка в ленте от бота «Shalter»; build(имя автора) → текст или null. Ошибки только в лог (server/lib/systemChat.js). */
+export const serviceLine = (chat: LegacyChat, actorId: string, build: (name: string) => string | null): Promise<unknown> =>
+  legacyModule<SystemChat>("lib/systemChat.js").serviceLine(chat, actorId, build);
+
+export interface Mail {
+  to: string;
+  subject: string;
+  text: string;
+}
+
+/** Письмо через SMTP или в data/outbox (server/lib/mailer.js). */
+export const sendMail = (mail: Mail): Promise<{ delivered: boolean; reason?: string }> =>
+  legacyModule<{ sendMail: (mail: Mail) => Promise<{ delivered: boolean; reason?: string }> }>("lib/mailer.js").sendMail(mail);
+
+interface Push {
+  sendPushToUser: (userId: string, payload: PushPayload, options?: object) => Promise<unknown>;
+  MESSAGE_PUSH: object;
+}
+export interface PushPayload {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+}
+
+/** Пуш на устройства пользователя с настройками обычного сообщения (server/push.js MESSAGE_PUSH) поверх extra. */
+export const sendMessagePush = (userId: string, payload: PushPayload, extra: object = {}): Promise<unknown> => {
+  const push = legacyModule<Push>("push.js");
+  return push.sendPushToUser(userId, payload, { ...push.MESSAGE_PUSH, ...extra });
+};
+
+/** Удаление аккаунта со всеми чатами, ботами, сеансами и контактами (server/lib/deleteAccount.js). */
+export const deleteAccount = (userId: string): Promise<void> =>
+  legacyModule<{ deleteAccount: (userId: string) => Promise<void> }>("lib/deleteAccount.js").deleteAccount(userId);
+
+/** Проверка юзернейма: формат, резерв, занятость пользователем, каналом или аукционом (server/lib/username.js). null — свободен. */
+interface CheckUsernameOpts {
+  forChatId?: string;
+  forUserId?: string;
+  /** Не считать занятым из-за открытого аукциона (выдача и итоги самого аукциона). */
+  ignoreAuctions?: boolean;
+}
+export const checkUsername = (raw: string, opts?: CheckUsernameOpts): Promise<{ status: number; error: string } | null> =>
+  legacyModule<{ checkUsername: (raw: string, opts?: CheckUsernameOpts) => Promise<{ status: number; error: string } | null> }>(
+    "lib/username.js"
+  ).checkUsername(raw, opts);
+
+export interface PasskeyPublicKey {
+  alg: number;
+  jwk: object;
+}
+
+interface WebAuthn {
+  b64url: (buf: Buffer) => string;
+  newChallenge: (kind: "register" | "login", userId?: string) => string;
+  verifyRegistration: (
+    body: Record<string, unknown>,
+    opts: { origin: string; rpId: string; userId: string }
+  ) => { credentialId: string; publicKey: PasskeyPublicKey; signCount: number };
+  verifyAssertion: (
+    body: Record<string, unknown>,
+    opts: { origin: string; rpId: string; passkey: { publicKey: PasskeyPublicKey | null; signCount: number } }
+  ) => { signCount: number };
+  rpFor: (req: { get(name: string): string | undefined; protocol: string }) => { rpId: string; origin: string };
+}
+
+/**
+ * Ключи доступа (server/lib/webauthn.js): challenge одноразовые и живут в памяти
+ * этого модуля, проверка регистрации и подписи — без внешних библиотек.
+ */
+export const webauthn = (): WebAuthn => legacyModule<WebAuthn>("lib/webauthn.js");
+
+/** Ключ шифрования нового секретного чата, обёрнутый мастер-ключом (server/lib/textCrypto.js). */
+export const newSecretChatKey = (chatId: string): string =>
+  legacyModule<{ newSecretChatKey: (chatId: string) => string }>("lib/textCrypto.js").newSecretChatKey(chatId);
+
+/** Чаты для списка: последнее сообщение, непрочитанные, личные флаги (server/data/chat-summary.js). */
+interface ChatSummary {
+  attachSummaries: <T extends LegacyChat>(chats: T[], userId: string) => Promise<(T & Record<string, unknown>)[]>;
+  withoutHidden: <T>(summaries: T[], hiddenChats: Record<string, string> | undefined) => T[];
+}
+export const chatSummary = (): ChatSummary => legacyModule<ChatSummary>("data/chat-summary.js");
+
+/** Цена сообщения незнакомцу и надо ли платить отправителю (server/lib/messagePrice.js). */
+export const messageCost = (senderId: string, other: object, chatId: string): Promise<{ price: number; mustPay: boolean }> =>
+  legacyModule<{ messageCost: (senderId: string, other: object, chatId: string) => Promise<{ price: number; mustPay: boolean }> }>(
+    "lib/messagePrice.js"
+  ).messageCost(senderId, other, chatId);
+
+// Сообщения (server/data/messages.js).
+export interface MessagesPage {
+  messages: ({ senderId?: string; visibleToId?: string; threadRootId?: string } & Record<string, unknown>)[];
+  hasMore: boolean;
+}
+interface Messages {
+  listMessagesPage: (chatId: string, viewerId: string, clearedBefore: undefined, opts: { limit: number }) => MessagesPage;
+  deleteMessagesForChat: (chatId: string) => Promise<void>;
+  markChatRead: (chatId: string, viewerId: string, opts: { recordTime: boolean }) => Promise<string[]>;
+}
+export const messages = (): Messages => legacyModule<Messages>("data/messages.js");
+
+// Заявки на вступление и приветствие (server/lib/joinApproval.js): их же подаёт и решает бот-админ.
+interface JoinApproval {
+  sendWelcome: (chat: LegacyChat, userId: string) => Promise<void>;
+  submitJoinRequest: (chat: LegacyChat, userId: string) => Promise<void>;
+  /** Бросает Error со status (404, 403, 409). */
+  decideJoinRequest: (chatId: string, userId: string, approve: boolean, actorId: string) => Promise<{ approved: boolean; chat: LegacyChat }>;
+}
+export const joinApproval = (): JoinApproval => legacyModule<JoinApproval>("lib/joinApproval.js");
+
+/** Удаление чата модератором Shalter: с уведомлением владельца и записью в журнал (server/lib/moderationDelete.js). */
+export const moderateDeleteChat = (chat: LegacyChat, opts: { adminId: string; reason: string }): Promise<ModeratedDeletion> =>
+  legacyModule<{ moderateDeleteChat: (chat: LegacyChat, opts: object) => Promise<ModeratedDeletion> }>("lib/moderationDelete.js").moderateDeleteChat(chat, opts);
+
+/** Что удалила модерация: id, kind (group | channel | bot), название. */
+export interface ModeratedDeletion {
+  id: string;
+  kind: string;
+  title: string;
+}
+
+/**
+ * Удаление бота модерацией вместе с аккаунтом, с записью в журнал и уведомлением владельцу
+ * (server/lib/moderationDelete.js). Ошибки с status (404 — нет бота, 400 — служебный).
+ */
+export const moderateDeleteBot = (botUserId: string, opts: { adminId: string; reason: string }): Promise<ModeratedDeletion> =>
+  legacyModule<{ moderateDeleteBot: (id: string, opts: object) => Promise<ModeratedDeletion> }>("lib/moderationDelete.js").moderateDeleteBot(botUserId, opts);
+
+/**
+ * В значении есть чужой загруженный файл, которого не было в previous (server/lib/uploadAccess.js):
+ * сославшись на него, файл можно было бы открыть всем.
+ */
+export const usesForeignUpload = (userId: string, value: unknown, previous?: unknown): boolean =>
+  legacyModule<{ usesForeignUpload: (userId: string, value: unknown, previous?: unknown) => boolean }>("lib/uploadAccess.js").usesForeignUpload(
+    userId,
+    value,
+    previous
+  );
+
+/** Ссылка на свой загруженный файл, data: или http(s) (server/lib/sanitizeAttachments.js). */
+export const isSafeUrl = (url: unknown): boolean =>
+  legacyModule<{ isSafeUrl: (url: unknown) => boolean }>("lib/sanitizeAttachments.js").isSafeUrl(url);
+
+/** Бот по его пользователю (server/data/bots.js): команды и код для песочницы. */
+export interface LegacyBot {
+  commands?: unknown[];
+  code?: string;
+  /** Мини-приложение бота: HTML и название. */
+  appCode?: string | null;
+  appName?: string | null;
+}
+export const getBotByUserId = (userId: string): Promise<LegacyBot | undefined> =>
+  legacyModule<{ getBotByUserId: (userId: string) => Promise<LegacyBot | undefined> }>("data/bots.js").getBotByUserId(userId);
+
+/** Как отправить сообщение от бота: клавиатура, ответ, вложения, скрытый ответ участнику группы. */
+export interface BotSendOptions {
+  keyboard?: unknown;
+  replyToId?: unknown;
+  attachments?: unknown;
+  visibleTo?: unknown;
+}
+// Сообщения ботов (server/lib/botMessaging.js): проверки, рассылка по WS и ответы других ботов
+// в чате — с лимитом переписки бот-бот в памяти там же. sendBotMessage бросает Error с
+// HTTP-статусом в status (400, 403, 404).
+interface BotMessaging {
+  sendBotMessage: (botUserId: string, chatId: unknown, text: unknown, opts?: BotSendOptions) => Promise<Record<string, unknown>>;
+  normalizeKeyboard: (keyboard: unknown) => unknown[] | undefined;
+  /** Текст отказа или null: в канал — только админом, в личку — если не заблокировали. */
+  botPostDenied: (chat: object, botUserId: string) => Promise<string | null>;
+}
+export const botMessaging = (): BotMessaging => legacyModule<BotMessaging>("lib/botMessaging.js");
+
+// «Печатает…» (server/data/typing.js): в памяти процесса, его же ставят боты и Shalter AI.
+interface Typing {
+  markTyping: (chatId: string, userId: string, action: string) => void;
+  clearTyping: (chatId: string, userId: string) => void;
+  getTyping: (chatId: string, viewerId: string) => { userId: string; action: string } | null;
+  normalizeAction: (action: unknown) => string;
+}
+export const typing = (): Typing => legacyModule<Typing>("data/typing.js");
+
+// --- Для сообщений (modules/messages) ---
+
+// Шифрование переписки (server/lib/textCrypto.js). Те же функции, ключи и ротация
+// ключей (server/lib/keyring.js), что у server/: шифротекст байт в байт тот же.
+interface TextCrypto {
+  encryptText: (id: string, text: string | null | undefined) => string;
+  decryptText: (id: string, stored: string | null | undefined) => string;
+  isEncrypted: (stored: unknown) => boolean;
+  /** FTS-запрос по словам из строки поиска; null — искать нечего. */
+  searchQuery: (query: string) => string | null;
+  hasLink: (text: string | null | undefined) => 0 | 1;
+  sealSecret: (chatId: string, wrapped: string, messageId: string, text: string | null | undefined) => string;
+  openSecret: (chatId: string, wrapped: string | null, messageId: string, text: string) => string;
+}
+export const textCrypto = (): TextCrypto => legacyModule<TextCrypto>("lib/textCrypto.js");
+
+// Доступ участников чата к загруженным файлам (server/lib/uploadAccess.js).
+interface UploadAccess {
+  registerAttachments: (chatId: string, attachments: unknown, opts?: { by?: string }) => void;
+  revokeAttachments: (chatId: string, refs: { url: string }[]) => void;
+  canAccessUpload: (userId: string, filename: string) => boolean;
+}
+export const uploadAccess = (): UploadAccess => legacyModule<UploadAccess>("lib/uploadAccess.js");
+
+/** Вложение сообщения после очистки (server/lib/sanitizeAttachments.js). */
+export interface Attachment {
+  kind: string;
+  url?: string;
+  thumbUrl?: string;
+  name?: string;
+  transcript?: string;
+  meta?: Record<string, any>;
+  [key: string]: unknown;
+}
+
+// Очистка того, что клиент кладёт в сообщение: вложения, стикер, сцена эмодзи.
+interface Sanitizers {
+  sanitizeAttachments: (raw: unknown) => Attachment[] | undefined;
+  MAX_CHECKLIST_ITEMS: number;
+  sanitizeSticker: (raw: unknown) => ({ kind?: string; url?: string; emoji?: string } & Record<string, unknown>) | undefined;
+  sanitizeScene: (raw: unknown, opts?: { requireLayers?: boolean }) => unknown;
+  /** Эмодзи нарисованного подарка: первый эмодзи-слой сцены или 🎨. */
+  sceneSummaryEmoji: (scene: unknown) => string;
+}
+export const sanitizers = (): Sanitizers => ({
+  ...legacyModule<Pick<Sanitizers, "sanitizeAttachments" | "MAX_CHECKLIST_ITEMS">>("lib/sanitizeAttachments.js"),
+  sanitizeSticker: legacyModule<Pick<Sanitizers, "sanitizeSticker">>("lib/sanitizeSticker.js").sanitizeSticker,
+  sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
+  sceneSummaryEmoji: legacyModule<Pick<Sanitizers, "sceneSummaryEmoji">>("lib/sanitizeScene.js").sceneSummaryEmoji,
+});
+
+// Кто отвечает на новое сообщение: код бота в песочнице, Хьюго, Shalter AI, бот помощи,
+// автоответ бизнес-аккаунта. Ошибки они пишут в лог сами (кроме runBotCode).
+interface Responders {
+  runBotCode: (bot: LegacyBot, code: string, msg: object) => Promise<unknown>;
+  dispatchHugo: (chatId: string, message: object) => void;
+  dispatchGuestHugo: (chat: object, message: object) => void;
+  dispatchShalterAi: (chatId: string, message: object) => void;
+  dispatchHelperBot: (chat: object, message: object) => void;
+  dispatchBusinessAutoReply: (chat: object, message: object) => void;
+}
+export const responders = (): Responders => ({
+  runBotCode: legacyModule<Pick<Responders, "runBotCode">>("lib/botSandbox.js").runBotCode,
+  ...legacyModule<Pick<Responders, "dispatchHugo" | "dispatchGuestHugo">>("lib/hugoBot.js"),
+  dispatchShalterAi: legacyModule<Pick<Responders, "dispatchShalterAi">>("lib/shalterAi.js").dispatchShalterAi,
+  dispatchHelperBot: legacyModule<Pick<Responders, "dispatchHelperBot">>("lib/helperBot.js").dispatchHelperBot,
+  dispatchBusinessAutoReply: legacyModule<Pick<Responders, "dispatchBusinessAutoReply">>("lib/businessAutoReply.js").dispatchBusinessAutoReply,
+});
+
+// Пуш-уведомления (server/push.js).
+interface PushFull {
+  /** Открытый VAPID-ключ для PushManager.subscribe. */
+  getPublicKey: () => string;
+  sendPushToUser: (userId: string, payload: object, options?: object) => Promise<unknown>;
+  pushAvatar: (entity: object | null | undefined) => Record<string, unknown>;
+  userPushAvatar: (user: object | null | undefined, viewerId: string) => Promise<Record<string, unknown>>;
+  MESSAGE_PUSH: object;
+  CALL_PUSH: object;
+  CALL_CANCEL_PUSH: object;
+}
+export const push = (): PushFull => legacyModule<PushFull>("push.js");
+
+/** Превью ссылки из текста (server/lib/linkPreview.js); null — ссылки нет или она не открылась. */
+export const fetchLinkPreview = (text: string): Promise<unknown> =>
+  legacyModule<{ fetchLinkPreview: (text: string) => Promise<unknown> }>("lib/linkPreview.js").fetchLinkPreview(text);
+
+// Задача фоновому процессу (server/lib/backgroundJobs.js): в очередь background_jobs и разбудить его.
+export const queueJob = (kind: string, payload: object): void =>
+  legacyModule<{ queueJob: (kind: string, payload: object) => void }>("lib/backgroundJobs.js").queueJob(kind, payload);
+
+// --- Фоновый процесс (apps/api/src/worker.ts): связь с основным, обходы, обработка файлов ---
+
+// Связь основного процесса с фоновым по IPC (server/lib/workerBridge.js). Фоновый процесс
+// запускает и перезапускает основной (server/runtime.js), события для клиентов идут через него.
+interface WorkerBridge {
+  /** Этот процесс — фоновый, запущенный основным. */
+  isWorker: boolean;
+  /** Фоновый процесс включён (BACKGROUND_WORKER не 0). */
+  enabled: boolean;
+  /** Сообщение основному процессу (из фонового): ws — событие для сокетов, revoked — отзыв доступа. */
+  toMain: (type: string, data: object) => void;
+  /** Ответ на запрос основного (askWorker); error — текст ошибки. */
+  reply: (id: number, error?: string) => void;
+  /** Поручение фоновому процессу с ожиданием ответа (из основного). */
+  askWorker: (type: string, data: object) => Promise<void>;
+  /** Без фонового процесса: queueJob будит этот исполнитель. */
+  onJobsQueued: (fn: () => void) => void;
+}
+export const workerBridge = (): WorkerBridge => legacyModule<WorkerBridge>("lib/workerBridge.js");
+
+/**
+ * Обходы по таймеру, которые остаются в server/ (lib/sweeps.js): приём донатов (DonationAlerts,
+ * DonatePay) и перенос вложений в S3. skip — перенесённые в Nest; в режиме тестов обходы не идут.
+ */
+export const startLegacySweeps = (testMode: boolean, skip: string[]): void =>
+  legacyModule<{ startSweeps: (opts: { testMode: boolean; skip: string[] }) => void }>("lib/sweeps.js").startSweeps({ testMode, skip });
+
+/** Ключи VAPID для отправки пушей (server/push.js); без них пуши выключены. */
+export const initPush = (): Promise<void> => legacyModule<{ initPush: () => Promise<void> }>("push.js").initPush();
+
+// Превью фото и видео, длительность записи (server/lib/mediaPreview.js: sharp и ffmpeg).
+export interface VideoPreview {
+  previewPath: string;
+  posterPath: string;
+  width: number;
+  height: number;
+  durationSec: number;
+}
+interface MediaPreview {
+  generateImagePreview: (inputPath: string) => Promise<string>;
+  generateVideoPreview: (
+    inputPath: string,
+    opts?: { height?: number; crf?: number; audioBitrate?: string; maxrate?: string }
+  ) => Promise<VideoPreview>;
+  probeDuration: (inputPath: string) => Promise<number | null>;
+}
+export const mediaPreview = (): MediaPreview => legacyModule<MediaPreview>("lib/mediaPreview.js");
+
+// Загруженный файл во временный (расшифрованный) и готовый файл обратно в хранилище
+// (server/lib/uploadTransfer.js).
+interface UploadTransfer {
+  fetchUploadToTemp: (filename: string) => Promise<string>;
+  storeGeneratedFile: (localPath: string) => Promise<string>;
+}
+export const uploadTransfer = (): UploadTransfer => legacyModule<UploadTransfer>("lib/uploadTransfer.js");
+
+/**
+ * Повтор отправки с тем же clientId получает ответ первой (server/lib/sendOnce.js). Память
+ * общая со старыми маршрутами (Bot API, посты, отложенные). Ошибка run() не запоминается.
+ */
+export const sendOnce = <T>(userId: string, chatId: string, clientId: unknown, run: () => Promise<T>): Promise<T> =>
+  legacyModule<{ sendOnce: (userId: string, chatId: string, clientId: unknown, run: () => Promise<T>) => Promise<T> }>("lib/sendOnce.js").sendOnce(
+    userId,
+    chatId,
+    clientId,
+    run
+  );
+
+// ИИ-сводка текста (server/lib/hugoAi.js).
+interface HugoAi {
+  isAiAvailable: () => boolean;
+  /** null — модель не ответила. */
+  summarize: (text: string) => Promise<string | null>;
+}
+export const hugoAi = (): HugoAi => legacyModule<HugoAi>("lib/hugoAi.js");
+
+// --- Файлы: хранение, шифрование и сжатие остаются в server/ (как текст сообщений) ---
+
+// Лимиты загрузки по видам файлов (server/lib/uploadLimits.js), общие с подарками и админкой.
+interface UploadLimits {
+  UPLOAD_LIMITS: Record<string, number>;
+  DEFAULT_LIMIT: number;
+  UPLOADABLE_KINDS: Set<string>;
+  limitFor: (kind: string) => number;
+  tooLargeError: (kind: string) => string;
+}
+export const uploadLimits = (): UploadLimits => legacyModule<UploadLimits>("lib/uploadLimits.js");
+
+/** Куда пишется загрузка: диск или S3 (server/lib/storage.js). plain — без шифрования приложением (его делает бакет). */
+export interface WriteTarget {
+  stream: NodeJS.WritableStream;
+  done: () => Promise<unknown>;
+  abort: () => void;
+  plain: boolean;
+}
+interface Storage {
+  createWriteTarget: (filename: string, opts: { contentType?: string }) => WriteTarget;
+  /** Переименовывает загрузку в sha_… или, если такой файл уже есть, удаляет её; возвращает итоговое имя. */
+  finalizeDedup: (tempName: string, dedupName: string) => Promise<string>;
+  deleteObject: (filename: string) => Promise<unknown>;
+  /** Файлы в бакете S3, а не на диске. */
+  isS3Enabled: boolean;
+}
+export const storage = (): Storage => legacyModule<Storage>("lib/storage.js");
+
+/** Поток, шифрующий файл ключом из каталога data (server/lib/fileCrypto.js). */
+export const createEncryptStream = (dataDir: string, out: NodeJS.WritableStream): NodeJS.ReadWriteStream =>
+  legacyModule<{ createEncryptStream: (dataDir: string, out: NodeJS.WritableStream) => NodeJS.ReadWriteStream }>("lib/fileCrypto.js").createEncryptStream(
+    dataDir,
+    out
+  );
+
+// Сжатие brotli с меткой в начале файла (server/lib/fileCompression.js).
+interface FileCompression {
+  MAGIC: Buffer;
+  compressStream: (declaredSize: number) => NodeJS.ReadWriteStream;
+}
+export const fileCompression = (): FileCompression => legacyModule<FileCompression>("lib/fileCompression.js");
+
+// Отдача файла (server/lib/serveUpload.js): расшифровка, распаковка, Range, редирект в бакет.
+interface ServeUpload {
+  serveUpload: () => RequestHandler;
+  contentTypeFor: (filename: string) => string | undefined;
+  /** Имя загруженного файла в /uploads. */
+  FILENAME_RE: RegExp;
+}
+export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/serveUpload.js");
+
+// Гифка подарка: загрузку — во временный файл (server/lib/uploadTransfer.js), вырезать фон
+// (server/lib/giftMedia.js, ffmpeg + sharp), результат — снова в хранилище.
+interface GiftMedia {
+  fetchUploadToTemp: (filename: string) => Promise<string>;
+  cutGifBackground: (inputPath: string) => Promise<string>;
+  storeGeneratedFile: (localPath: string) => Promise<string>;
+}
+export const giftMedia = (): GiftMedia => ({
+  ...uploadTransfer(),
+  cutGifBackground: legacyModule<Pick<GiftMedia, "cutGifBackground">>("lib/giftMedia.js").cutGifBackground,
+});
+
+// --- WebSocket: шлюз в Nest (modules/realtime), а это — то, что ему нужно из server/ ---
+
+/** Подписка на отзыв доступа (сеанс, пароль, бан, удаление; в том числе из фонового процесса). */
+export const onAccessRevoked = (fn: (userId: string) => void): void =>
+  legacyModule<{ onAccessRevoked: (fn: (userId: string) => void) => void }>("lib/sessionEvents.js").onAccessRevoked(fn);
+
+// Канал в событии: подписчику — без списка подписчиков (server/lib/chatForViewer.js).
+interface ChatForViewer {
+  hidesMembers: (chat: unknown, uid: string) => boolean;
+  chatForViewer: <T>(chat: T, uid: string) => T;
+}
+export const chatForViewer = (): ChatForViewer => legacyModule<ChatForViewer>("lib/chatForViewer.js");
+
+// Приём эфиров из OBS (server/rtmp.js, node-media-server): его поднимает runtime в этом же
+// процессе, мост отдаёт тот же экземпляр.
+interface Rtmp {
+  /** Адрес для OBS: rtmp://<хост запроса>:<порт>/live. */
+  ingestUrlFor: (requestHost: string | undefined) => string;
+  /** Локальный HTTP-FLV поток по ключу; ключ не того вида — null. */
+  internalFlvUrl: (streamKey: string | null) => string | null;
+  /** Оборвать вещание из OBS по ключу. */
+  stopPublisher: (streamKey: string | null) => boolean;
+}
+export const rtmp = (): Rtmp => legacyModule<Rtmp>("rtmp.js");
+
+// --- Звонки (modules/calls) ---
+
+/** STUN и, если настроен, TURN с временными учётными данными (server/lib/turnCredentials.js). */
+export const iceServers = (): object[] => legacyModule<{ getIceServers: () => object[] }>("lib/turnCredentials.js").getIceServers();
+
+// --- Профиль (modules/profiles) ---
+
+/** Открыто ли сейчас по расписанию бизнеса и до скольки / когда откроется (server/lib/businessHours.js). */
+export const businessStatus = (hours: unknown, timeZone: unknown): object =>
+  legacyModule<{ businessStatus: (hours: unknown, timeZone: unknown) => object }>("lib/businessHours.js").businessStatus(hours, timeZone);
+
+// --- Для настроек (modules/settings) ---
+
+/** Дни недели расписания бизнеса и проверка часового пояса (server/lib/businessHours.js). */
+export const businessDays = (): { DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean } =>
+  legacyModule<{ DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean }>("lib/businessHours.js");
+
+/** Языки, которые мессенджер не поддерживает, и текст ошибки (server/lib/unsupportedLanguages.js); их же проверяет перевод. */
+export const unsupportedLanguages = (): { isUnsupportedLanguage: (code: unknown) => boolean; UNSUPPORTED_MESSAGE: string } =>
+  legacyModule<{ isUnsupportedLanguage: (code: unknown) => boolean; UNSUPPORTED_MESSAGE: string }>("lib/unsupportedLanguages.js");
+
+/** Сколько разных людей в чатах с ботом (server/data/bots.js). */
+export const countBotAudience = (botUserId: string): number =>
+  legacyModule<{ countBotAudience: (botUserId: string) => number }>("data/bots.js").countBotAudience(botUserId);
+
+/** Ссылка /uploads/… на существующий файл, который загрузил сам пользователь (server/lib/uploadAccess.js). */
+export const isOwnUploadUrl = (userId: string, url: string): Promise<boolean> =>
+  legacyModule<{ isOwnUploadUrl: (userId: string, url: string) => Promise<boolean> }>("lib/uploadAccess.js").isOwnUploadUrl(userId, url);
+
+// --- Для звёзд (modules/stars) ---
+
+export interface StarPack {
+  id: string;
+  stars: number;
+  priceRub: number;
+}
+/** Тариф Premium или «Shalter для бизнеса». */
+export interface PaidPlan {
+  id: string;
+  days: number;
+  priceRub: number;
+  label: string;
+}
+export interface Pricing {
+  starPacks: StarPack[];
+  starCosts: { boost: number; delete: number };
+  premiumPlans: PaidPlan[];
+  businessPlans: PaidPlan[];
+  [key: string]: unknown;
+}
+interface PricingModule {
+  DEFAULTS: Pricing;
+  getPricing: () => Pricing;
+  /** Правка цен админом; ошибка проверки — { error }. */
+  updatePricing: (patch: object) => { value: Pricing; error?: undefined } | { error: string };
+  /** Вернуть цены по умолчанию. */
+  resetPricing: () => Pricing;
+  getStarPack: (id: unknown) => StarPack | null;
+  /** Тариф по id; неизвестный — первый. */
+  getPremiumPlan: (id: unknown) => PaidPlan;
+  getBusinessPlan: (id: unknown) => PaidPlan;
+  starsCostFor: (plan: PaidPlan) => number;
+  /** Тарифы для клиента: { "1m": { days, priceRub, label, ...extra }, ... }. */
+  plansAsMap: (plans: PaidPlan[], extra?: (plan: PaidPlan) => object) => Record<string, object>;
+}
+/** Цены, которые админ меняет без деплоя: наборы звёзд, тарифы, стоимость платных действий (server/data/pricing.js, app_config). */
+export const pricing = (): PricingModule => legacyModule<PricingModule>("data/pricing.js");
+
+/** Подключённый сервис донатов для автоматической оплаты или null (server/lib/autoPayment.js). */
+export const getActiveDonationLink = (): { provider: string; donationUrl: string } | null =>
+  legacyModule<{ getActiveDonationLink: () => { provider: string; donationUrl: string } | null }>("lib/autoPayment.js").getActiveDonationLink();
+
+/** Заказ, который оплачивается донатом с кодом в комментарии (server/data/pendingOrders.js). */
+export interface NewPendingOrder {
+  userId: string;
+  kind: string;
+  amountRub: number;
+  /** Заказ подарка (kind: "gift"). */
+  giftId?: string;
+  recipientId?: string;
+  meta?: object;
+}
+export const createPendingOrder = (order: NewPendingOrder): Promise<{ code: string }> =>
+  legacyModule<{ createPendingOrder: (order: object) => Promise<{ code: string }> }>("data/pendingOrders.js").createPendingOrder(order);
+
+// Подключение DonationAlerts по OAuth (server/lib/donationAlerts.js) и DonatePay (server/lib/donatePay.js).
+interface DonationAlerts {
+  isConfigured: () => boolean;
+  isConnected: () => boolean;
+  loadAuth: () => { username?: string | null } | null;
+  getAuthorizeUrl: () => string;
+  exchangeCodeForTokens: (code: string) => Promise<unknown>;
+}
+export const donationAlerts = (): DonationAlerts => legacyModule<DonationAlerts>("lib/donationAlerts.js");
+export const isDonatePayConfigured = (): boolean => legacyModule<{ isConfigured: () => boolean }>("lib/donatePay.js").isConfigured();
+
+// --- Push-подписки (modules/push); отправка — push() выше ---
+
+/** Настроена ли отправка в Android-приложение через FCM (server/lib/fcm.js). */
+export const isFcmConfigured = (): boolean => legacyModule<{ isFcmConfigured: () => boolean }>("lib/fcm.js").isFcmConfigured();
+
+/** Адрес публичный (не локальный, не внутренняя сеть); иначе бросает — та же проверка, что у превью ссылок (server/lib/linkPreview.js). */
+export const assertPublicUrl = (url: string): Promise<URL> =>
+  legacyModule<{ assertPublicUrl: (url: string) => Promise<URL> }>("lib/linkPreview.js").assertPublicUrl(url);
+
+// --- Для проверки текста (modules/hugo) ---
+
+/** Проверка орфографии через LanguageTool (server/lib/languageTool.js); error — ответ с этим статусом. */
+interface LanguageTool {
+  checkText: (text: string, language: unknown) => Promise<{ matches?: unknown[]; language?: unknown; error?: string; status?: number }>;
+  MAX_TEXT: number;
+}
+export const languageTool = (): LanguageTool => legacyModule<LanguageTool>("lib/languageTool.js");
+
+// --- Для встроенного браузера (modules/link-check) и экспорта данных (modules/export) ---
+
+/** Можно ли открыть страницу во встроенном браузере (server/lib/linkPreview.js). */
+export const checkFrameable = (url: string, ourOrigin: string): Promise<object> =>
+  legacyModule<{ checkFrameable: (url: string, ourOrigin: string) => Promise<object> }>("lib/linkPreview.js").checkFrameable(url, ourOrigin);
+
+/** Статья по ссылке для режима чтения (server/lib/instantView.js); ошибка со status — ответ с ним. */
+export const buildInstantView = (url: string): Promise<unknown> =>
+  legacyModule<{ buildInstantView: (url: string) => Promise<unknown> }>("lib/instantView.js").buildInstantView(url);
+
+/** Выгрузка данных пользователя (server/data/dataExport.js); undefined — нет такого. */
+export const buildUserExport = (userId: string, opts: { respectPrivacy?: boolean; forSelf?: boolean }): Promise<unknown> =>
+  legacyModule<{ buildUserExport: (userId: string, opts: object) => Promise<unknown> }>("data/dataExport.js").buildUserExport(userId, opts);
+
+// --- Для поддержки (modules/support) и Shalter AI (modules/shalter-ai) ---
+
+/** Hugo — бот поддержки (server/data/hugoBot.js): аккаунт заводится при первом обращении. */
+export const HUGO_ID = "bot_support";
+export const ensureHugoAccount = (): void => legacyModule<{ ensureHugoAccount: () => void }>("data/hugoBot.js").ensureHugoAccount();
+
+/** Shalter AI (server/data/shalterAiBot.js, lib/shalterAi.js, lib/aiPlans.js): тарифы, лимиты, остановка ответа. */
+export const SHALTER_AI_ID = "bot_shalter_ai";
+export interface AiPlan {
+  modes: string[];
+  [key: string]: unknown;
+}
+interface ShalterAi {
+  ensureShalterAiAccount: () => void;
+  WELCOME: string;
+  quotaFor: (userId: string) => Promise<{ plan: AiPlan; settings: unknown; usage: unknown }>;
+  stopShalterAi: (chatId: string, userId: string) => boolean;
+  PLANS: Record<string, AiPlan>;
+  CHOICES: unknown;
+  normalizeAiSettings: (raw: object, plan: AiPlan) => object;
+}
+export const shalterAi = (): ShalterAi => ({
+  ensureShalterAiAccount: legacyModule<Pick<ShalterAi, "ensureShalterAiAccount">>("data/shalterAiBot.js").ensureShalterAiAccount,
+  ...legacyModule<Pick<ShalterAi, "WELCOME" | "quotaFor" | "stopShalterAi">>("lib/shalterAi.js"),
+  ...legacyModule<Pick<ShalterAi, "PLANS" | "CHOICES" | "normalizeAiSettings">>("lib/aiPlans.js"),
+});
+
+// --- Админка (modules/admin) ---
+
+/** Нагрузка и состояние сервера для раздела «Сервер» (server/lib/serverStats.js). */
+export const collectServerStats = (): Promise<object> =>
+  legacyModule<{ collectServerStats: () => Promise<object> }>("lib/serverStats.js").collectServerStats();
+
+/** Проверка SMTP (server/lib/mailer.js) и советы по DNS-записям домена отправителя (server/lib/mailDns.js). */
+export const mailCheck = () => ({
+  verifySmtp: legacyModule<{ verifySmtp: () => Promise<{ configured?: boolean; ok?: boolean; error?: string }> }>("lib/mailer.js").verifySmtp,
+  buildDnsAdvice: legacyModule<{ buildDnsAdvice: () => Promise<object> }>("lib/mailDns.js").buildDnsAdvice,
+});

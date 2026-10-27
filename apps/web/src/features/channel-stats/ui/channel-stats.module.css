@@ -1,0 +1,99 @@
+/* Как .stats-* в public/styles/components.css. */
+.stats {
+  padding: 12px 8px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.value {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.tileLabel,
+.label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.label {
+  margin: 16px 0 8px;
+  font-size: 14px;
+}
+
+.chart {
+  display: flex;
+  height: 120px;
+  align-items: flex-end;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.col {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--color-accent);
+}
+
+.day {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.top {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topText {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.topMeta {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+
+.empty,
+.error {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}

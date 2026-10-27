@@ -1,0 +1,41 @@
+.button {
+  height: 48px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.link {
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.danger {
+  composes: button;
+  background: var(--color-danger);
+}
+
+.secondary {
+  composes: button;
+  background: none;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.secondary:hover {
+  background: var(--color-surface-alt);
+}

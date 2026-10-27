@@ -1,0 +1,1008 @@
+/* Движок анимаций старого клиента (public/js/lib/animScenes.js, characters.js, drawnArt.js,
+   giftArt.js, customScene.js, lottie.js, animatedEmoji.js, stickers.js): узлы создаются
+   вне React и берут классы глобально — стили перенесены из public/styles/components.css
+   как есть. */
+
+.sticker-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.message-column .bubble.bubble-sticker,
+.message-column.mine .bubble.bubble-sticker,
+.message-column .bubble.bubble-videonote,
+.message-column.mine .bubble.bubble-videonote {
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 2px 0;
+  box-shadow: none;
+}
+.message-meta.message-meta-sticker {
+  width: fit-content;
+  margin-left: auto;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  padding: 1px 6px;
+  backdrop-filter: blur(3px);
+}
+.sticker-message-emoji {
+  font-size: 84px;
+  line-height: 1;
+  display: inline-block;
+  animation: sticker-pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sticker-bounce { animation-name: sticker-pop-in, sticker-bounce; animation-duration: 0.45s, 1.1s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-heartbeat { animation-name: sticker-pop-in, sticker-heartbeat; animation-duration: 0.45s, 1.2s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-shake { animation-name: sticker-pop-in, sticker-shake; animation-duration: 0.45s, 0.7s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-shake-soft { animation-name: sticker-pop-in, sticker-shake-soft; animation-duration: 0.45s, 1.6s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-tada { animation-name: sticker-pop-in, sticker-tada; animation-duration: 0.45s, 1.4s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-wobble { animation-name: sticker-pop-in, sticker-wobble; animation-duration: 0.45s, 1.8s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-swing { animation-name: sticker-pop-in, sticker-swing; animation-duration: 0.45s, 1.6s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-float { animation-name: sticker-pop-in, sticker-float; animation-duration: 0.45s, 2.4s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+.sticker-flicker { animation-name: sticker-pop-in, sticker-flicker; animation-duration: 0.45s, 0.9s; animation-delay: 0s, 0.45s; animation-iteration-count: 1, infinite; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1), ease-in-out; }
+@keyframes sticker-pop-in {
+  from { opacity: 0; transform: scale(0.2) rotate(-15deg); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes sticker-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-14px); }
+  50% { transform: translateY(0); }
+  65% { transform: translateY(-5px); }
+}
+@keyframes sticker-heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.18); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  60% { transform: scale(1); }
+}
+@keyframes sticker-shake {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  20% { transform: rotate(-8deg) translateX(-4px); }
+  40% { transform: rotate(7deg) translateX(4px); }
+  60% { transform: rotate(-6deg) translateX(-3px); }
+  80% { transform: rotate(5deg) translateX(3px); }
+}
+@keyframes sticker-shake-soft {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-4deg) translateY(2px); }
+}
+@keyframes sticker-tada {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  10%, 20% { transform: scale(0.94) rotate(-4deg); }
+  30%, 50%, 70%, 90% { transform: scale(1.08) rotate(4deg); }
+  40%, 60%, 80% { transform: scale(1.08) rotate(-4deg); }
+}
+@keyframes sticker-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-9deg); }
+  75% { transform: rotate(9deg); }
+}
+@keyframes sticker-swing {
+  0%, 100% { transform: rotate(0deg); transform-origin: top center; }
+  50% { transform: rotate(12deg); transform-origin: top center; }
+}
+@keyframes sticker-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes sticker-flicker {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.08); filter: brightness(1.15); }
+}
+.composer-emoji-picker.sticker-picker {
+  display: flex;
+  flex-direction: column;
+  width: 292px;
+  max-width: calc(100vw - 24px);
+}
+.sticker-picker-item {
+  font-size: 26px;
+  padding: 4px;
+  border-radius: 8px;
+}
+.sticker-picker-item:hover {
+  background: var(--color-surface-alt);
+}
+.sticker-message.no-entrance .sticker-bounce { animation: sticker-bounce 1.1s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-heartbeat { animation: sticker-heartbeat 1.2s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-shake { animation: sticker-shake 0.7s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-shake-soft { animation: sticker-shake-soft 1.6s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-tada { animation: sticker-tada 1.4s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-wobble { animation: sticker-wobble 1.8s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-swing { animation: sticker-swing 1.6s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-float { animation: sticker-float 2.4s ease-in-out infinite; }
+.sticker-message.no-entrance .sticker-flicker { animation: sticker-flicker 0.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sticker-message-emoji, [class*="sticker-"] {
+    animation: none !important;
+  }
+}
+
+.anim-scene {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  user-select: none;
+}
+.scene-part {
+  display: inline-block;
+  line-height: 1;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+.anim-scene:not(.no-entrance) {
+  animation: scene-pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes scene-pop-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.art-beat { animation: art-beat 1.1s ease-in-out infinite; transform-origin: 50% 60%; transform-box: fill-box; }
+@keyframes art-beat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.16); }
+  28% { transform: scale(0.97); }
+  42% { transform: scale(1.08); }
+}
+.art-rise-1 { animation: art-rise 2.6s ease-out infinite; }
+.art-rise-2 { animation: art-rise 2.6s ease-out infinite 1.1s; }
+@keyframes art-rise {
+  0% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-42px) scale(1.1); }
+}
+.art-bow { animation: art-bow 2.8s ease-in-out infinite; transform-origin: 50% 90%; transform-box: fill-box; }
+@keyframes art-bow {
+  0%, 60%, 100% { transform: rotate(0deg) translateY(0); }
+  72% { transform: rotate(-3deg) translateY(5%); }
+  84% { transform: rotate(2deg) translateY(2%); }
+}
+.art-twinkle-1 { animation: art-twinkle 2.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.art-twinkle-2 { animation: art-twinkle 2.2s ease-in-out infinite 0.9s; transform-origin: center; transform-box: fill-box; }
+@keyframes art-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(25deg); }
+}
+.art-shake { animation: art-shake 2.4s ease-in-out infinite; transform-origin: 50% 90%; transform-box: fill-box; }
+@keyframes art-shake {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  60% { transform: rotate(-5deg); }
+  66% { transform: rotate(5deg); }
+  72% { transform: rotate(-4deg); }
+  78% { transform: rotate(3deg); }
+  85% { transform: rotate(0deg) scale(1.04); }
+}
+.art-lid { animation: art-lid 2.4s ease-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
+@keyframes art-lid {
+  0%, 58% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  75% { opacity: 1; transform: translateY(-38%) rotate(-14deg); }
+  100% { opacity: 0; transform: translateY(-70%) rotate(-24deg); }
+}
+.art-confetti-1 { animation: art-confetti 2.4s ease-out infinite; }
+.art-confetti-2 { animation: art-confetti 2.4s ease-out infinite 0.12s; }
+.art-confetti-3 { animation: art-confetti 2.4s ease-out infinite 0.24s; }
+@keyframes art-confetti {
+  0%, 58% { opacity: 0; transform: translateY(30px) scale(0.4); }
+  70% { opacity: 1; transform: translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(0.8) rotate(140deg); }
+}
+.art-jump { animation: art-jump 1.5s ease-in-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
+@keyframes art-jump {
+  0%, 60%, 100% { transform: translateY(0) scale(1, 1); }
+  70% { transform: translateY(-10%) scale(0.96, 1.06); }
+  85% { transform: translateY(0) scale(1.05, 0.95); }
+}
+.art-tear-1 { animation: art-tear 1.8s ease-in infinite; }
+.art-tear-2 { animation: art-tear 1.8s ease-in infinite 0.5s; }
+@keyframes art-tear {
+  0% { opacity: 0; transform: translateY(-4px) scale(0.6); }
+  25% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(34px) scale(0.7); }
+}
+.art-sway { animation: art-sway 3.4s ease-in-out infinite; transform-origin: 50% 95%; transform-box: fill-box; }
+@keyframes art-sway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.art-breathe { animation: ch-breathe 3.2s ease-in-out infinite; transform-origin: 50% 90%; transform-box: fill-box; }
+.art-z-1 { animation: art-z 2.8s ease-out infinite; }
+.art-z-2 { animation: art-z 2.8s ease-out infinite 1.2s; }
+@keyframes art-z {
+  0% { opacity: 0; transform: translate(0, 6px) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(10px, -30px) scale(1.1); }
+}
+.art-pop { animation: art-pop 1.8s ease-in-out infinite; transform-origin: 50% 90%; transform-box: fill-box; }
+@keyframes art-pop {
+  0%, 55%, 100% { transform: scale(1) rotate(0deg); }
+  68% { transform: scale(1.14) rotate(-8deg); }
+  82% { transform: scale(0.98) rotate(3deg); }
+}
+.art-tilt { animation: art-tilt 3.6s ease-in-out infinite; transform-origin: 50% 70%; transform-box: fill-box; }
+@keyframes art-tilt {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+.art-flame { animation: art-flame 0.9s ease-in-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
+.art-flame-2 { animation: art-flame 0.9s ease-in-out infinite 0.15s; transform-origin: 50% 100%; transform-box: fill-box; }
+@keyframes art-flame {
+  0%, 100% { transform: scale(1, 1) translateX(0); }
+  30% { transform: scale(0.9, 1.15) translateX(-4%); }
+  65% { transform: scale(1.08, 0.94) translateX(4%); }
+}
+.art-leaf { animation: art-leaf 2.6s ease-in-out infinite; transform-origin: 100% 0%; transform-box: fill-box; }
+.art-leaf-2 { animation: art-leaf 2.6s ease-in-out infinite 0.8s; transform-origin: 0% 0%; transform-box: fill-box; }
+@keyframes art-leaf {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(5deg); }
+}
+.art-float { animation: art-float 3.2s ease-in-out infinite; transform-origin: 50% 50%; transform-box: fill-box; }
+@keyframes art-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6%) rotate(2deg); }
+}
+.art-word { animation: art-word 3s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes art-word {
+  0%, 8% { opacity: 0; transform: translateY(8px) scale(0.8); }
+  22% { opacity: 1; transform: translateY(0) scale(1.05); }
+  55% { opacity: 1; transform: translateY(0) scale(1); }
+  80%, 100% { opacity: 0; transform: translateY(-8px) scale(0.95); }
+}
+
+.call-camera-error {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  margin: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+.call-camera-switching {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+}
+.char-scene {
+  display: inline-block;
+  line-height: 0;
+}
+.char-scene.anim-scene-entrance {
+  animation: scene-pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.char-scene svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.char-body-g,
+.char-scene .ch-body-g {
+  animation: ch-breathe 3.2s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@keyframes ch-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.02, 0.985); }
+}
+.ch-eye {
+  animation: ch-blink 4.2s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ch-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.08); }
+}
+.ch-eye:nth-of-type(2) {
+  animation-delay: 0.04s;
+}
+.ch-arm-g {
+  animation: ch-wave 2.6s ease-in-out infinite;
+  transform-origin: 78% 62%;
+  transform-box: fill-box;
+}
+@keyframes ch-wave {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  62% { transform: rotate(-26deg); }
+  70% { transform: rotate(6deg); }
+  78% { transform: rotate(-22deg); }
+  86% { transform: rotate(0deg); }
+}
+.ch-tail-g {
+  animation: ch-tail 1.9s ease-in-out infinite;
+  transform-origin: 85% 85%;
+  transform-box: fill-box;
+}
+@keyframes ch-tail {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(8deg); }
+}
+.ch-head-g {
+  animation: ch-head 3.8s ease-in-out infinite;
+  transform-origin: 50% 80%;
+  transform-box: fill-box;
+}
+@keyframes ch-head {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+.ch-mouth {
+  animation: ch-smile 3.4s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ch-smile {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(1.18) scaleY(1.1); }
+}
+.ch-mouth-o {
+  animation: ch-ooo 2.8s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ch-ooo {
+  0%, 100% { transform: scale(1, 1); }
+  40% { transform: scale(0.8, 1.35); }
+  70% { transform: scale(1.1, 0.9); }
+}
+.ch-float-g {
+  animation: ch-float 4.6s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+@keyframes ch-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(3%, -5%) rotate(2deg); }
+  50% { transform: translate(0, -8%) rotate(0deg); }
+  75% { transform: translate(-3%, -4%) rotate(-2deg); }
+}
+.ch-blink-dot {
+  animation: ch-lamp 1.6s ease-in-out infinite;
+}
+@keyframes ch-lamp {
+  0%, 100% { opacity: 1; r: 4; }
+  50% { opacity: 0.35; r: 3.2; }
+}
+ch-eye-dot {
+  animation: ch-scan 3s ease-in-out infinite;
+}
+@keyframes ch-scan {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+}
+.ch-walk-g {
+  animation: ch-walk 3s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+@keyframes ch-walk {
+  0%, 100% { transform: translateY(0) rotate(0.5deg); }
+  25% { transform: translateY(-2%) rotate(-0.3deg); }
+  50% { transform: translateY(0) rotate(0.5deg); }
+  75% { transform: translateY(2%) rotate(-0.3deg); }
+}
+.ch-claw {
+  animation: ch-claw 3s ease-in-out infinite;
+  transform-origin: 50% 80%;
+  transform-box: fill-box;
+}
+@keyframes ch-claw {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-8deg); }
+  70% { transform: rotate(5deg); }
+}
+.ch-claw-eye {
+  animation: ch-claw-eye 3s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes ch-claw-eye {
+  0%, 100% { opacity: 0.3; }
+  45% { opacity: 1; }
+}
+
+.scene-shake-hard { animation-name: scene-shake-hard; animation-duration: 1.6s; }
+@keyframes scene-shake-hard {
+  0%, 55%, 100% { transform: translateX(0) rotate(0deg); }
+  60% { transform: translateX(-6%) rotate(-7deg); }
+  66% { transform: translateX(6%) rotate(7deg); }
+  72% { transform: translateX(-5%) rotate(-5deg); }
+  78% { transform: translateX(4%) rotate(4deg); }
+  85% { transform: translateX(0) rotate(0deg) scale(1.06); }
+}
+.scene-lid { animation-name: scene-lid; animation-duration: 1.6s; }
+@keyframes scene-lid {
+  0%, 55% { opacity: 0; transform: translate(-50%, -50%) translateY(0) scale(0.6); }
+  70% { opacity: 1; transform: translate(-50%, -50%) translateY(-70%) scale(1) rotate(-18deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-120%) scale(0.9) rotate(-32deg); }
+}
+.scene-emerge { animation-name: scene-emerge; animation-duration: 1.6s; }
+@keyframes scene-emerge {
+  0%, 62% { opacity: 0; transform: translate(-50%, -50%) translateY(40%) scale(0.3); }
+  80% { opacity: 1; transform: translate(-50%, -50%) translateY(-30%) scale(1.15); }
+  92% { transform: translate(-50%, -50%) translateY(-24%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-24%) scale(1); }
+}
+
+.scene-gasp { animation-name: scene-gasp; animation-duration: 1.8s; }
+@keyframes scene-gasp {
+  0%, 45%, 100% { transform: scale(1, 1); }
+  55% { transform: scale(0.94, 1.14) translateY(-3%); }
+  70% { transform: scale(1.02, 1.06); }
+}
+
+.scene-burn { animation-name: scene-burn; animation-duration: 1.1s; transform-origin: 50% 90%; }
+@keyframes scene-burn {
+  0%, 100% { transform: scale(1, 1) rotate(-2deg); filter: brightness(1); }
+  22% { transform: scale(0.94, 1.12) rotate(3deg); filter: brightness(1.2); }
+  47% { transform: scale(1.06, 0.95) rotate(-4deg); filter: brightness(0.94); }
+  71% { transform: scale(0.97, 1.08) rotate(2deg); filter: brightness(1.14); }
+}
+.scene-ember { animation-name: scene-ember; animation-duration: 1.8s; }
+@keyframes scene-ember {
+  0% { opacity: 0; transform: translate(-50%, -50%) translateY(10%) scale(0.5); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-120%) translateX(18%) scale(0.2); }
+}
+
+.scene-hi { animation-name: scene-hi; animation-duration: 2.4s; }
+@keyframes scene-hi {
+  0%, 20% { opacity: 0; transform: translate(-50%, -50%) translateY(20%) scale(0.6); }
+  35% { opacity: 1; transform: translate(-50%, -50%) translateY(-10%) scale(1.1); }
+  55% { opacity: 1; transform: translate(-50%, -50%) translateY(-16%) scale(1); }
+  80%, 100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40%) scale(0.9); }
+}
+
+.scene-spin { animation-name: scene-spin; animation-duration: 3.4s; animation-timing-function: linear; }
+@keyframes scene-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.scene-pop { animation-name: scene-pop; animation-duration: 1.4s; }
+@keyframes scene-pop {
+  0%, 60%, 100% { transform: scale(1); }
+  70% { transform: scale(1.28) rotate(-6deg); }
+  82% { transform: scale(0.96) rotate(3deg); }
+}
+.scene-tears { animation-name: scene-tears; animation-duration: 1.6s; }
+@keyframes scene-tears {
+  0% { opacity: 0; transform: translate(-50%, -50%) translateY(-10%) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(90%) scale(0.7); }
+}
+.scene-notes { animation-name: scene-notes; animation-duration: 2.6s; }
+@keyframes scene-notes {
+  0% { opacity: 0; transform: translate(-50%, -50%) translateY(20%) rotate(-10deg) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-90%) translateX(24%) rotate(18deg) scale(0.9); }
+}
+.scene-drift { animation-name: scene-drift; animation-duration: 3.4s; animation-timing-function: linear; }
+@keyframes scene-drift {
+  0% { opacity: 0; transform: translate(-50%, -50%) translateY(-70%) translateX(-10%) rotate(0deg); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(80%) translateX(20%) rotate(220deg); }
+}
+.scene-flash { animation-name: scene-flash; animation-duration: 1.5s; }
+@keyframes scene-flash {
+  0%, 55%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  62% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); }
+  75% { opacity: 0.4; transform: translate(-50%, -50%) scale(1.05); }
+}
+.scene-bloom { animation-name: scene-bloom; animation-duration: 2.8s; }
+@keyframes scene-bloom {
+  0%, 100% { transform: scale(0.9) rotate(-3deg); }
+  40% { transform: scale(1.08) rotate(2deg); }
+  60% { transform: scale(1.04) rotate(0deg); }
+}
+.scene-jump { animation-name: scene-jump; animation-duration: 1.5s; }
+@keyframes scene-jump {
+  0%, 55%, 100% { transform: translateY(0) scale(1, 1); }
+  62% { transform: translateY(-4%) scale(1.05, 0.92); }
+  74% { transform: translateY(-26%) scale(0.94, 1.1); }
+  88% { transform: translateY(0) scale(1.06, 0.94); }
+}
+
+.scene-wave { animation-name: scene-wave; animation-duration: 1.6s; transform-origin: 70% 80%; }
+@keyframes scene-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-10deg); }
+  45% { transform: rotate(14deg); }
+}
+.scene-wiggle { animation-name: scene-wiggle; animation-duration: 1.6s; }
+@keyframes scene-wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+.scene-beat { animation-name: scene-beat; animation-duration: 1.1s; }
+@keyframes scene-beat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.18); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+}
+.scene-float { animation-name: scene-float; animation-duration: 2.6s; }
+@keyframes scene-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.scene-tada { animation-name: scene-tada; animation-duration: 1.4s; }
+@keyframes scene-tada {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  10% { transform: scale(0.92) rotate(-4deg); }
+  30% { transform: scale(1.14) rotate(4deg); }
+  50% { transform: scale(1.08) rotate(-3deg); }
+  70% { transform: scale(1.04) rotate(2deg); }
+}
+.scene-swing { animation-name: scene-swing; animation-duration: 1.8s; transform-origin: 50% 0; }
+@keyframes scene-swing {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+.scene-flicker { animation-name: scene-flicker; animation-duration: 0.9s; }
+@keyframes scene-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+  40% { transform: scale(1.08) rotate(3deg); opacity: 0.86; }
+  70% { transform: scale(0.97) rotate(-1deg); opacity: 1; }
+}
+.scene-settle { animation-name: scene-settle; animation-duration: 3.2s; }
+@keyframes scene-settle {
+  0%, 92%, 100% { transform: translateY(0) rotate(0deg); }
+  96% { transform: translateY(-2px) rotate(-1.5deg); }
+}
+.scene-breathe { animation-name: scene-breathe; animation-duration: 2.8s; }
+@keyframes scene-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.scene-launch { animation-name: scene-launch; animation-duration: 2.6s; }
+@keyframes scene-launch {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  55% { transform: translate(14px, -22px) rotate(8deg); }
+  70% { transform: translate(18px, -30px) rotate(10deg); opacity: 1; }
+  85% { transform: translate(26px, -46px) rotate(12deg); opacity: 0; }
+  86%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+}
+
+.scene-rise { animation-name: scene-rise; animation-duration: 2.1s; }
+@keyframes scene-rise {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  25% { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -75%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -95%) scale(0.9); }
+}
+.scene-bounce { animation-name: scene-bounce; animation-duration: 1.8s; }
+@keyframes scene-bounce {
+  0%, 80%, 100% { transform: translateY(0) scale(1, 0.9); }
+  30% { transform: translateY(-32%) scale(0.9, 1.05); }
+  50% { transform: translateY(-10%) scale(1); }
+}
+.scene-pulse { animation-name: scene-pulse; animation-duration: 1.6s; }
+@keyframes scene-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: 0.9; }
+}
+.scene-dip { animation-name: scene-dip; animation-duration: 1.4s; }
+@keyframes scene-dip {
+  0% { opacity: 0; transform: translate(-50%, -110%) rotate(-25deg); }
+  20% { opacity: 1; transform: translate(-50%, -80%) rotate(-15deg); }
+  50% { opacity: 1; transform: translate(-50%, -35%) rotate(0deg); }
+  80% { opacity: 1; transform: translate(-50%, -85%) rotate(-18deg); }
+  100% { opacity: 0; transform: translate(-50%, -110%) rotate(-25deg); }
+}
+.scene-blink { animation-name: scene-blink; animation-duration: 2s; }
+@keyframes scene-blink {
+  0%, 44%, 52%, 100% { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }
+  48% { opacity: 1; transform: translate(-50%, -50%) scaleY(0.1); }
+}
+.scene-steam { animation-name: scene-steam; animation-duration: 2.2s; }
+@keyframes scene-steam {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  30% { opacity: 0.75; }
+  100% { opacity: 0; transform: translate(-50%, -130%) scale(1.3); }
+}
+.scene-twinkle { animation-name: scene-twinkle; animation-duration: 1.6s; }
+@keyframes scene-twinkle {
+  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(0deg); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(45deg); }
+}
+.scene-burst { animation-name: scene-burst; animation-duration: 1.8s; }
+@keyframes scene-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  30% { opacity: 1; transform: translate(-50%, -70%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(0.8) rotate(30deg); }
+}
+.scene-roll { animation-name: scene-roll; animation-duration: 2.4s; }
+@keyframes scene-roll {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg); }
+  20% { opacity: 1; }
+  100% { opacity: 1; transform: translate(-20%, -50%) rotate(360deg); }
+}
+.scene-fall { animation-name: scene-fall; animation-duration: 2.2s; }
+@keyframes scene-fall {
+  0% { opacity: 0; transform: translate(-50%, -90%) rotate(-20deg); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 60%) rotate(25deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-part {
+    animation: none !important;
+  }
+}
+
+.g-art [class^="g-"],
+.g-art [class*=" g-"] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.g-art {
+  overflow: visible;
+}
+
+@keyframes g-hop {
+  0%, 14% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(2px) scale(1.07, 0.9); }
+  26% { transform: translateY(-15px) scale(0.94, 1.1); }
+  33% { transform: translateY(-19px) scale(1, 1); }
+  41% { transform: translateY(0) scale(1.09, 0.87); }
+  47% { transform: translateY(-5px) scale(0.97, 1.05); }
+  53%, 100% { transform: translateY(0) scale(1, 1); }
+}
+.g-hop {
+  transform-origin: 50% 92%;
+  animation: g-hop 4.6s cubic-bezier(0.34, 1.2, 0.5, 1) infinite;
+}
+@keyframes g-hop-high {
+  0%, 12% { transform: translateY(0) scale(1, 1); }
+  17% { transform: translateY(3px) scale(1.08, 0.88); }
+  27% { transform: translateY(-26px) scale(0.92, 1.12); }
+  36% { transform: translateY(-31px) scale(1, 1); }
+  46% { transform: translateY(0) scale(1.1, 0.86); }
+  52% { transform: translateY(-7px) scale(0.96, 1.06); }
+  60%, 100% { transform: translateY(0) scale(1, 1); }
+}
+.g-hop.g-hop-high {
+  animation: g-hop-high 5.2s cubic-bezier(0.34, 1.2, 0.5, 1) infinite;
+}
+@keyframes g-spin-soft {
+  0%, 20% { transform: rotate(0deg); }
+  30% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  50%, 100% { transform: rotate(0deg); }
+}
+.g-spin-soft {
+  animation: g-spin-soft 5.2s ease-in-out infinite;
+}
+
+@keyframes g-blink {
+  0%, 62%, 66%, 80%, 84%, 100% { transform: scaleY(1); }
+  64%, 82% { transform: scaleY(0.08); }
+}
+.g-eyes {
+  animation: g-blink 4.6s ease-in-out infinite;
+}
+@keyframes g-smile {
+  0%, 38%, 52%, 100% { transform: scale(1, 1); }
+  43% { transform: scale(1.12, 0.85); }
+}
+.g-smile {
+  animation: g-smile 4.6s ease-out infinite;
+}
+
+@keyframes g-steam {
+  0% { opacity: 0; transform: translateY(6px) scaleY(0.6); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-16px) scaleY(1.25); }
+}
+.g-steam-1, .g-steam-2, .g-steam-3 {
+  animation: g-steam 2.6s ease-out infinite;
+}
+.g-steam-2 { animation-delay: 0.6s; animation-duration: 3s; }
+.g-steam-3 { animation-delay: 1.2s; animation-duration: 2.2s; }
+
+@keyframes g-liquid {
+  0%, 38%, 60%, 100% { transform: translateY(0) skewX(0deg); }
+  43% { transform: translateY(1.5px) skewX(4deg); }
+  50% { transform: translateY(-1px) skewX(-3deg); }
+}
+.g-liquid {
+  animation: g-liquid 4.6s ease-out infinite;
+}
+
+@keyframes g-spark {
+  0%, 42% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  48% { opacity: 1; transform: translate(0, -6px) scale(1); }
+  62%, 100% { opacity: 0; transform: translate(0, -16px) scale(0.5); }
+}
+.g-spark { animation: g-spark 5.2s ease-out infinite; }
+.g-spark-2 { animation-delay: 0.12s; }
+.g-spark-3 { animation-delay: 0.24s; }
+
+@keyframes g-shine {
+  0%, 30% { transform: translateX(0) skewX(-18deg); }
+  55%, 100% { transform: translateX(150px) skewX(-18deg); }
+}
+.g-shine {
+  animation: g-shine 4.6s ease-in-out infinite;
+}
+@keyframes g-twinkle {
+  0%, 55%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  62% { opacity: 1; transform: scale(1) rotate(15deg); }
+  72% { opacity: 0; transform: scale(0.6) rotate(30deg); }
+}
+.g-twinkle { animation: g-twinkle 4.6s ease-out infinite; }
+.g-twinkle-2 { animation-delay: 0.5s; }
+
+@keyframes g-conf {
+  0%, 20% { opacity: 0; transform: translateY(-6px) rotate(0deg); }
+  26% { opacity: 1; }
+  70%, 100% { opacity: 0; transform: translateY(58px) rotate(220deg); }
+}
+.g-conf { animation: g-conf 4.6s ease-in infinite; }
+.g-conf-2 { animation-delay: 0.18s; }
+.g-conf-3 { animation-delay: 0.34s; }
+
+@keyframes g-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.g-breathe { animation: g-breathe 3.4s ease-in-out infinite; }
+.g-runner { filter: drop-shadow(0 0 6px rgba(255, 246, 176, 0.9)); }
+
+@keyframes g-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  35% { transform: rotate(5deg); }
+  60% { transform: rotate(-1deg); }
+}
+.g-sway { transform-origin: 50% 90%; animation: g-sway 4s ease-in-out infinite; }
+@keyframes g-petal-fall {
+  0% { opacity: 0; transform: translate(0, -6px) rotate(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-14px, 62px) rotate(160deg); }
+}
+.g-petal { animation: g-petal-fall 4.2s ease-in infinite; }
+.g-petal-2 { animation-delay: 1.4s; animation-duration: 5s; }
+.g-petal-3 { animation-delay: 2.6s; animation-duration: 4.6s; }
+
+@keyframes g-leaf {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+}
+.g-leaf { animation: g-leaf 2.8s ease-in-out infinite; }
+.g-leaf-2 { animation-delay: 0.3s; }
+.g-leaf-3 { animation-delay: 0.6s; }
+.g-leaf-4 { animation-delay: 0.9s; }
+@keyframes g-luck {
+  0%, 30% { opacity: 0; transform: translateY(-10px) scale(0.5); }
+  40% { opacity: 1; transform: translateY(0) scale(1); }
+  55%, 100% { opacity: 0; transform: translateY(8px) scale(0.6); }
+}
+.g-luck { animation: g-luck 4.6s ease-in infinite; }
+
+@keyframes g-nod {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-9deg); }
+  32% { transform: rotate(3deg); }
+  55% { transform: rotate(0deg); }
+}
+.g-nod { transform-origin: 50% 100%; animation: g-nod 3.6s ease-in-out infinite; }
+@keyframes g-stem-sway {
+  0%, 100% { transform: rotate(-2deg); }
+  45% { transform: rotate(3deg); }
+}
+.g-stem-sway { transform-origin: 50% 95%; animation: g-stem-sway 4.4s ease-in-out infinite; }
+
+@keyframes g-turn {
+  0%, 100% { transform: rotate(-7deg); }
+  55% { transform: rotate(7deg); }
+  75% { transform: rotate(-2deg); }
+}
+.g-turn { transform-origin: 50% 75%; animation: g-turn 6s ease-in-out infinite; }
+@keyframes g-petals-shiver {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.g-petals-shiver { animation: g-petals-shiver 2.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .g-art [class^="g-"],
+  .g-art [class*=" g-"] {
+    animation: none !important;
+  }
+}
+
+.sticker-image {
+  display: block;
+  object-fit: contain;
+  background: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.sticker-message.is-image .sticker-image {
+  max-width: min(160px, 50vw);
+  height: auto !important;
+  max-height: 160px;
+  animation: sticker-pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sticker-message.is-image.no-entrance .sticker-image {
+  animation: none;
+}
+
+.ce-scene {
+  display: block;
+  overflow: visible;
+}
+.ce-scene.ce-entrance {
+  animation: scene-pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ce-anim {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-duration: 1.6s;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ce-anim { animation: none !important; }
+  .ce-scene.ce-entrance { animation: none; }
+}
+
+.ce-bounce { animation-name: ce-bounce; }
+@keyframes ce-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14%); }
+}
+.ce-float { animation-name: ce-float; animation-duration: 2.6s; }
+@keyframes ce-float {
+  0%, 100% { transform: translateY(-6%); }
+  50% { transform: translateY(6%); }
+}
+.ce-spin { animation-name: ce-spin; animation-timing-function: linear; animation-duration: 3.2s; }
+@keyframes ce-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ce-pulse { animation-name: ce-pulse; }
+@keyframes ce-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.22); }
+}
+.ce-heartbeat { animation-name: ce-heartbeat; animation-duration: 1.1s; }
+@keyframes ce-heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.25); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.18); }
+  60% { transform: scale(1); }
+}
+.ce-wave { animation-name: ce-wave; transform-origin: bottom center; }
+@keyframes ce-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(16deg); }
+  75% { transform: rotate(-16deg); }
+}
+.ce-swing { animation-name: ce-swing; transform-origin: top center; animation-duration: 1.8s; }
+@keyframes ce-swing {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+.ce-shake { animation-name: ce-shake; animation-duration: 0.9s; }
+@keyframes ce-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8%); }
+  40% { transform: translateX(8%); }
+  60% { transform: translateX(-6%); }
+  80% { transform: translateX(6%); }
+}
+.ce-pop { animation-name: ce-pop; animation-duration: 1.8s; }
+@keyframes ce-pop {
+  0%, 70%, 100% { transform: scale(1); }
+  35% { transform: scale(0.7); }
+  50% { transform: scale(1.15); }
+}
+.ce-blink { animation-name: ce-blink; animation-duration: 2s; }
+@keyframes ce-blink {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.1; }
+}
+.ce-rise { animation-name: ce-rise; animation-duration: 2.4s; animation-timing-function: ease-out; }
+@keyframes ce-rise {
+  0% { transform: translateY(30%); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(-34%); opacity: 0; }
+}
+.ce-wiggle { animation-name: ce-wiggle; animation-duration: 1.4s; }
+@keyframes ce-wiggle {
+  0%, 100% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+}
+
+.inline-custom-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 30px;
+  height: 30px;
+  margin: -4px 1px;
+}
+.inline-custom-emoji svg { display: block; }
+.message-custom-jumbo { display: flex; gap: 6px; flex-wrap: wrap; }
+.inline-custom-emoji.jumbo { width: 100px; height: 100px; margin: 0; }
+
+/* Lottie-анимации подарков и стикеров из tweb */
+.lottie-art {
+  display: inline-block;
+  flex-shrink: 0;
+  line-height: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.lottie-art.ready {
+  opacity: 1;
+}
+.lottie-art svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* анимированные эмодзи (Noto Animated Emoji) */
+.animated-emoji {
+  display: inline-block;
+  vertical-align: middle;
+}
+.message-animated-jumbo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  line-height: 1;
+}
+.emoji-picker-row button .animated-emoji,
+.reaction-pill-glyph .animated-emoji {
+  pointer-events: none;
+}
+.reaction-pill-glyph:has(.animated-emoji) {
+  display: inline-flex;
+}
+
+/* крупная анимация поставленной реакции */
+.reaction-burst {
+  position: fixed;
+  z-index: 3000;
+  pointer-events: none;
+  animation: reaction-burst-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.reaction-burst.out {
+  opacity: 0;
+  transform: translateY(16px) scale(0.4);
+}
+@keyframes reaction-burst-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.3); }
+  to { opacity: 1; transform: none; }
+}

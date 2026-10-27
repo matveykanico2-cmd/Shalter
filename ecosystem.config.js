@@ -2,7 +2,9 @@ module.exports = {
   apps: [
     {
       name: "shalter",
-      script: "server/index.js",
+      // Бэкенд на NestJS (сборка: npm run build:api). SHALTER_BACKEND=legacy при
+      // `pm2 start` возвращает старый сервер — откат из DEPLOY.md, «Переключение на apps/api».
+      script: process.env.SHALTER_BACKEND === "legacy" ? "server/index.js" : "apps/api/dist/main.js",
       instances: 1,
       exec_mode: "fork",
       node_args: "--env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768",

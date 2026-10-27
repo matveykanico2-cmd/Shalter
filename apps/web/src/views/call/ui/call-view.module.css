@@ -1,0 +1,23 @@
+.missing {
+  margin: 0;
+  padding: 48px 24px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.join {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.joinTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}

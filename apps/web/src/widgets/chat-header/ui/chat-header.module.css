@@ -1,0 +1,138 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.back {
+  display: none;
+  color: var(--color-muted);
+}
+
+@media (max-width: 720px) {
+  .back {
+    display: flex;
+  }
+}
+
+.saved {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.titles {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.titleText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lock {
+  display: flex;
+  color: var(--color-success);
+}
+
+.verified {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+/* Значки разработчика Shalter и Premium у собеседника (.developer-mini-badge, PremiumStar). */
+.developer {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+.premium {
+  display: flex;
+  flex-shrink: 0;
+  color: #a259ff;
+}
+
+.muted,
+.online,
+.typing {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online,
+.typing {
+  color: var(--color-accent);
+}
+
+@media (max-width: 720px) {
+  .muted,
+  .online,
+  .typing {
+    font-size: 11px;
+  }
+}
+
+.info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+/* Как .info-toggle: на узком экране панель открывают из меню или по названию. */
+.infoToggle {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.infoToggle:hover,
+.infoToggle[aria-pressed="true"] {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+@media (min-width: 768px) {
+  .infoToggle {
+    display: flex;
+  }
+}

@@ -1,0 +1,80 @@
+/* Как .sponsored-message-row и .sponsored-bubble-* в public/styles/components.css. */
+.row {
+  display: flex;
+  width: 100%;
+  max-width: 760px;
+  margin: 8px auto 0;
+  padding: 0 12px;
+}
+
+.bubble {
+  display: flex;
+  width: min(420px, calc(100vw - 110px));
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  padding: 8px 12px 10px;
+  border-radius: var(--bubble-radius);
+  background: var(--color-bubble-in);
+  box-shadow: var(--bubble-shadow);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label {
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.more {
+  display: flex;
+  margin: -6px -8px -6px 0;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.image {
+  max-height: 220px;
+  margin: 4px -12px;
+  object-fit: cover;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.open {
+  height: 38px;
+  margin-top: 6px;
+  border: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.open:hover {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}

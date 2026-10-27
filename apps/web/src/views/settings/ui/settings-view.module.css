@@ -1,0 +1,66 @@
+/* Как .settings-panel / .settings-header в public/styles/components.css. */
+.panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--color-surface-alt);
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 6px 8px;
+  background: var(--color-surface);
+}
+
+.title {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+}
+
+.iconButton {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.loading,
+.stub {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+}

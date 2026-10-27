@@ -1,0 +1,18 @@
+.toast {
+  position: fixed;
+  bottom: calc(32px + env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 200;
+  max-width: calc(100vw - 32px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.88);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.error {
+  border-radius: 12px;
+}

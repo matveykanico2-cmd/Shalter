@@ -1,0 +1,376 @@
+/* Подарок: фон, сетка плиток, карточка в ленте — .tw-gift*, .tw-gifts-grid в public/styles/components.css. */
+
+/* Фон подарка — три слоя как в tweb: заливка цветом края, радиальное свечение, узор символом. */
+.backdrop {
+  --inset: 4px;
+  --radius: 16px;
+  --halo: 400px;
+  --halo-top: -100px;
+  position: absolute;
+  inset: var(--inset);
+  overflow: hidden;
+  border-radius: var(--radius);
+  background-color: var(--gift-backdrop-edge, transparent);
+  pointer-events: none;
+  transition: background-color 0.5s ease-in-out;
+}
+.backdropSmall {
+  --inset: 0px;
+  --radius: 0px;
+  --halo: 200px;
+  --halo-top: -50px;
+}
+.halo {
+  position: absolute;
+  left: 50%;
+  top: var(--halo-top);
+  width: var(--halo);
+  height: var(--halo);
+  transform: translateX(-50%);
+  background: radial-gradient(var(--gift-backdrop-center, transparent) 0%, var(--gift-backdrop-edge, transparent) 50%);
+}
+.pattern {
+  position: absolute;
+  inset: 0;
+  background: var(--gift-backdrop-pattern, transparent);
+  -webkit-mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  opacity: 0.3;
+}
+
+.art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- сетка плиток (витрина, выбор, полка) ---------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+.tile {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  padding: 14px 10px 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.tile:hover::before {
+  opacity: 0.05;
+}
+.tile:active::before {
+  opacity: 0.1;
+}
+.tileBackdrop {
+  box-shadow: none;
+  color: #fff;
+}
+.soldOut .sticker {
+  opacity: 0.45;
+}
+.sticker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 90px;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+}
+.sticker > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+.corner {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  display: flex;
+}
+.anon {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #6ed2ff 1.72%, #34a4fc 94.83%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.pin {
+  top: 4px;
+  left: 4px;
+  color: var(--color-muted);
+}
+.tileBackdrop .pin {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+/* уголок-лента как StarGiftBadge */
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  background: linear-gradient(180deg, #6ed2ff 1.72%, #34a4fc 94.83%);
+  clip-path: path("M51.8187 26.4853L28.8481 3.51472C26.5977 1.26428 23.5454 0 20.3628 0H2.1618C0.379992 0 -0.51234 2.15429 0.74759 3.41422L51.9192 54.5858C53.1791 55.8457 55.3334 54.9534 55.3334 53.1716V34.9706C55.3334 31.788 54.0691 28.7357 51.8187 26.4853Z");
+}
+.badgeSoldOut {
+  background: linear-gradient(180deg, #ff8a8a 0%, #e5484d 100%);
+}
+.badgeRare {
+  background: linear-gradient(180deg, #ffcf6e 0%, #f59e0b 100%);
+}
+.badgeText {
+  display: block;
+  width: 60px;
+  transform: rotate(45deg) translate(15px, 10px);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+.price {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 18px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #ffbb2d33;
+  color: #e88011;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+.tileBackdrop .price {
+  background: color-mix(in srgb, var(--gift-overlay) 85%, #000);
+  color: #fff;
+}
+.free {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.tileName {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.empty {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+@media (max-width: 600px) {
+  /* Колонок столько, сколько влезает плиток не уже 96px: 72px рисунка не обрезаются. */
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+  .tile {
+    padding: 12px 6px 8px;
+  }
+  .sticker {
+    width: 72px;
+    height: 72px;
+    max-width: none;
+    aspect-ratio: auto;
+  }
+}
+
+/* ---------- подарок в ленте ---------- */
+.gift {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.service {
+  max-width: 320px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--color-date-pill);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+.box {
+  position: relative;
+  display: flex;
+  width: 220px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: 6px 8px 13px;
+  border-radius: 20px;
+  background: var(--color-date-pill);
+  color: #fff;
+  text-align: center;
+  animation: gift-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.noEntrance .box {
+  animation: none;
+}
+@keyframes gift-in {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    animation: none;
+  }
+}
+.box p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+.boxArt {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 120px;
+  height: 120px;
+  align-items: center;
+  justify-content: center;
+}
+.from {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 6px;
+  margin-top: 9px !important;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.fromUser {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.nameLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.nameLink:hover {
+  text-decoration: underline;
+}
+.name {
+  margin-top: 4px !important;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+.note {
+  margin-top: 4px !important;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.message {
+  margin-top: 6px !important;
+  padding: 0 6px;
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.button {
+  height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.ribbon {
+  position: absolute;
+  top: 12px;
+  right: -26px;
+  z-index: 2;
+  width: 100px;
+  padding: 2px 0;
+  transform: rotate(45deg);
+  background: linear-gradient(343deg, #5981fe -16%, #f863d2 113%);
+  font-size: 10px;
+  font-weight: 600;
+}
+.meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+}

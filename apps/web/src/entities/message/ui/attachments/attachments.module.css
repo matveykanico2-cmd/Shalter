@@ -1,0 +1,717 @@
+/* Вложения в пузыре — как .image-attachment, .video-attachment-btn, .voice-msg и др.
+   в public/styles/components.css. */
+
+.tile {
+  position: relative;
+  display: block;
+  margin: 0 0 4px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+.imageTile {
+  width: fit-content;
+  max-width: min(280px, 100%);
+}
+
+.image {
+  display: block;
+  max-width: min(280px, 100%);
+  max-height: 320px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.loading {
+  min-width: 120px;
+  min-height: 90px;
+  background: linear-gradient(100deg, var(--color-surface-alt) 30%, color-mix(in srgb, var(--color-surface-alt) 60%, #fff) 50%, var(--color-surface-alt) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.failed {
+  display: flex;
+  width: 220px;
+  height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.failedHint {
+  font-size: 11.5px;
+}
+
+.videoTile {
+  width: var(--video-w, 360px);
+  max-width: 100%;
+  max-height: 420px;
+  aspect-ratio: 16 / 10;
+  background: #000;
+}
+
+.poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.pendingSpinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.duration {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Спойлер: размыто, пока не нажмут. */
+.spoiler > :is(img, video) {
+  filter: blur(22px);
+  transform: scale(1.1);
+}
+
+.spoilerCover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.spoilerLabel {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
+}
+
+.album {
+  display: grid;
+  width: min(320px, 100%);
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.albumCell {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.album3 .albumCell:first-child,
+.albumMany .albumCell:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 9;
+}
+
+.albumTile {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.albumTile :is(img, video) {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.file {
+  display: flex;
+  max-width: 260px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 6px 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.fileIcon {
+  position: relative;
+  display: flex;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--file-color, var(--color-accent));
+  color: #fff;
+}
+
+.fileExt {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.fileDownload {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: var(--file-color, var(--color-accent));
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.file:hover .fileDownload {
+  opacity: 1;
+}
+
+.fileInfo,
+.audioInfo {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fileName,
+.audioTitle {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileSize,
+.audioSub,
+.coords {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.audio {
+  display: flex;
+  min-width: 220px;
+  max-width: 300px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 2px 0;
+}
+
+.audioPlay,
+.voicePlay {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--media-accent, var(--color-accent));
+  color: var(--media-on-accent, var(--color-bubble-in));
+  cursor: pointer;
+}
+
+.audioTrack {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--media-accent, var(--color-accent)) 25%, transparent);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.audioFill {
+  position: absolute;
+  inset: 0;
+  background: var(--media-accent, var(--color-accent));
+  transform-origin: left;
+}
+
+.audioDownload {
+  display: flex;
+  padding: 6px;
+  border-radius: 999px;
+  color: var(--color-muted);
+}
+
+.voiceBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+.voice {
+  display: flex;
+  min-width: 220px;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.voicePlay {
+  width: 48px;
+  height: 48px;
+}
+
+.voicePlay:not(.playing) svg {
+  margin-left: 2px;
+}
+
+.voiceBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wave {
+  display: flex;
+  height: 24px;
+  align-items: flex-end;
+  gap: 2px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bar {
+  min-width: 2px;
+  max-width: 3px;
+  height: calc(var(--h, 0.12) * 100%);
+  flex: 1;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--media-accent, var(--color-accent)) 30%, transparent);
+}
+
+.played {
+  background: var(--media-accent, var(--color-accent));
+}
+
+.voiceTime {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.transcribe {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.transcribeOpen,
+.transcribe:hover {
+  background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+.transcript {
+  max-width: 300px;
+  padding: 0 2px 4px;
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.videoNote {
+  position: relative;
+  display: block;
+  width: 160px;
+  height: 160px;
+  margin-bottom: 4px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 999px;
+  background: #1f2329;
+  cursor: pointer;
+}
+
+.videoNoteVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: rotate(-90deg);
+}
+
+.ringTrack,
+.ringFill {
+  fill: none;
+  stroke-width: 3;
+}
+
+.ringTrack {
+  stroke: rgba(255, 255, 255, 0.25);
+}
+
+.ringFill {
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.videoNoteOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+
+.videoNoteTime {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.location,
+.contact {
+  display: flex;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(300px, 100%);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.live {
+  border: 1px solid var(--color-accent);
+}
+
+.live .coords::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #e0433b;
+  animation: pulse 1.6s ease-in-out infinite;
+  content: "";
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.locationLabel,
+.contactName {
+  display: block;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.contactBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.contactName {
+  font-weight: 500;
+}
+
+/* Карточка с «Быстрым просмотром» под ней (.link-preview-wrap, .link-preview-iv). */
+.linkWrap {
+  display: flex;
+  max-width: 280px;
+  flex-direction: column;
+}
+
+.linkInstantView {
+  margin: 6px 0 2px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.linkInstantView:active {
+  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+}
+
+.linkCard {
+  display: flex;
+  max-width: 280px;
+  flex-direction: column;
+  margin-top: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.linkMedia {
+  position: relative;
+  display: block;
+  background: var(--color-surface-alt);
+}
+
+.linkVideo {
+  aspect-ratio: 16 / 9;
+}
+
+.linkImage {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+}
+
+.linkVideo .linkImage {
+  height: 100%;
+  max-height: none;
+}
+
+.linkPlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.linkBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.linkSite {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.linkTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.linkDesc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.linkWarning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #d08700;
+  font-size: 12px;
+}
+
+.linkDanger {
+  color: var(--color-danger);
+}
+
+.pendingKind {
+  margin: 0 0 4px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* Фото или видео по нажатию при экономии трафика (.tap-to-load). */
+.tapToLoad {
+  display: flex;
+  width: 220px;
+  max-width: 100%;
+  height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tapToLoad:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Поздравление с днём рождения: «Быстро:» и «Подарить» (.birthday-attachment, .birthday-gift-hint*). */
+.birthday {
+  width: 250px;
+  border: 1px solid rgba(255, 159, 26, 0.35);
+  background: linear-gradient(135deg, rgba(255, 159, 26, 0.14), rgba(255, 122, 0, 0.08));
+}
+
+.giftHints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.giftHintLabel {
+  color: var(--color-muted);
+  font-size: 10.5px;
+}
+
+.giftHint {
+  display: flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-alt);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.giftHint:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.contactAdd {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}

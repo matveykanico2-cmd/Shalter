@@ -1,0 +1,227 @@
+/* Как .settings-page / .tw-section / .tw-row в public/styles/components.css (вид tweb). */
+.page {
+  padding: 8px 8px 40px;
+}
+
+@media (min-width: 768px) {
+  .page {
+    max-width: 560px;
+  }
+}
+
+.pageTitle {
+  margin: 4px 16px 12px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.subtitle {
+  margin: 0 0 12px;
+  padding: 4px 16px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.group {
+  margin-bottom: 16px;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.name > button,
+.name > a {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.section {
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.caption {
+  margin: 10px 0 0;
+  padding: 0 16px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+
+.row {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 16px 6px 18px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.row:has(.rowSubtitle),
+.row:has(.midtitle) {
+  min-height: 56px;
+}
+
+.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.clickable:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.clickable:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.icon {
+  display: flex;
+  width: 24px;
+  flex-shrink: 0;
+  margin: 0 14px 0 2px;
+  color: var(--color-muted);
+}
+
+.media {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0 12px 0 -2px;
+  border-radius: 10px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  color: #fff;
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.titleText {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.titleRight {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+
+.midtitle {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+
+.rowSubtitle {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  color: var(--color-muted);
+}
+
+.right {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+
+.danger .title,
+.danger .icon {
+  color: var(--color-danger);
+}
+
+.accent .title,
+.accent .icon {
+  color: var(--color-accent);
+}
+
+.button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 32px;
+  padding: 0 16px 0 18px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.buttonDanger {
+  color: var(--color-danger);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.buttonIcon {
+  display: flex;
+  width: 24px;
+  flex-shrink: 0;
+}

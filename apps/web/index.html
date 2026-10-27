@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Shalter</title>
+  <meta name="theme-color" content="#2e56d9" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Shalter" />
+  <meta name="google-site-verification" content="8GoOFKRDGnRBmq-O6MQbp9NcQWYvYWdoVmCF4nVVDFY" />
+  <script>
+    // Тема до первой отрисовки: настройки приходят с сервера позже, и до них
+    // мелькала светлая тема. Последнюю выбранную помним в localStorage.
+    (function () {
+      var root = document.documentElement;
+      try {
+        var saved = localStorage.getItem("shalter.theme");
+        if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+      } catch (e) {}
+      new MutationObserver(function () {
+        try {
+          var t = root.getAttribute("data-theme");
+          if (t) localStorage.setItem("shalter.theme", t);
+          else localStorage.removeItem("shalter.theme");
+        } catch (e) {}
+      }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
+    (function () {
+      var root = document.documentElement;
+      var vv = window.visualViewport;
+      var last = {};
+      function setVar(name, value) {
+        if (last[name] === value) return;
+        last[name] = value;
+        root.style.setProperty(name, value);
+      }
+      function setAppMetrics() {
+        frame = 0;
+        var h = (vv && vv.height) || window.innerHeight;
+        var top = vv ? vv.offsetTop : 0;
+        // Сколько экрана снизу закрывает клавиатура. Отступ под «домашнюю полоску»
+        // у композера уменьшается вместе с ней плавно, а не скачком по классу —
+        // иначе при закрытии клавиатуры низ экрана дёргается.
+        var kb = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+        setVar("--app-height", Math.round(h) + "px");
+        setVar("--app-top", Math.round(top) + "px");
+        setVar("--kb-inset", kb + "px");
+        // В приложении на Android клавиатура не наезжает на страницу, а ужимает само
+        // окно (MainActivity) — тогда kb = 0, и открытую клавиатуру узнаём по тому, что
+        // окно стало заметно ниже обычного при фокусе в поле ввода.
+        var key = window.innerWidth;
+        if (fullH.w !== key || !isTyping()) fullH = { w: key, h: Math.max(window.innerHeight, fullH.w === key ? fullH.h : 0) };
+        var shrunk = fullH.h - window.innerHeight;
+        root.classList.toggle("keyboard-open", kb > 120 || (shrunk > 120 && isTyping()));
+        // Высота клавиатуры — под неё подстраивается панель вложений (как в Telegram).
+        var kbNow = Math.max(kb, isTyping() ? shrunk : 0);
+        if (kbNow > 150 && kbNow !== kbSaved) {
+          kbSaved = kbNow;
+          try { localStorage.setItem("shalter.kbh", String(kbNow)); } catch (e) {}
+        }
+        // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной.
+        if (kb <= 120 && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
+      }
+      var fullH = { w: 0, h: 0 };
+      var kbSaved = 0;
+      function isTyping() {
+        var a = document.activeElement;
+        return !!a && (a.tagName === "TEXTAREA" || a.isContentEditable || (a.tagName === "INPUT" && !/^(checkbox|radio|button|submit|range|file|color)$/.test(a.type)));
+      }
+      var frame = 0;
+      function scheduleAppMetrics() {
+        if (!frame) frame = requestAnimationFrame(setAppMetrics);
+      }
+      setAppMetrics();
+      if (vv) {
+        vv.addEventListener("resize", scheduleAppMetrics);
+        vv.addEventListener("scroll", scheduleAppMetrics);
+      }
+      window.addEventListener("resize", scheduleAppMetrics);
+      window.addEventListener("orientationchange", scheduleAppMetrics);
+      document.addEventListener("focusin", scheduleAppMetrics);
+      document.addEventListener("focusout", function () { setTimeout(scheduleAppMetrics, 50); });
+    })();
+  
+  </script>
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--color-bg, #f5f6f9);
+      transition: opacity 0.25s ease;
+    }
+    #boot-splash svg { width: 72px; height: 72px; }
+    /* «Shalter»: буквы кружат по спирали, встают в строку и светятся, а когда
+       приложение загрузилось — разлетаются обратно (движение — скрипт ниже) */
+    #boot-splash svg { animation: bs-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    #boot-splash .bs-word {
+      position: relative;
+      display: flex;
+      gap: 1px;
+      font: 700 34px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: 0.01em;
+      color: #3d6df0;
+      /* Аппаратное ускорение: каждая буква на своём слое, без перерисовки текста */
+      transform: translateZ(0);
+    }
+    #boot-splash .bs-word i {
+      display: inline-block;
+      font-style: normal;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+    #boot-splash .bs-word.bs-lit i { animation: bs-glow 1.6s ease-in-out infinite; }
+    #boot-splash .bs-word.bs-lit::after {
+      content: "";
+      position: absolute;
+      inset: -6px -10px;
+      /* Градиентный блик скользит transform-ом (composite), а не background-position:
+         на слабом Android mix-blend-mode и каждый repaint тормозили. */
+      background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.95) 50%, transparent 65%);
+      background-size: 250% 100%;
+      will-change: transform;
+      animation: bs-shine 1.6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    /* Glow заменён с text-shadow (paint каждый кадр) на opacity + box-shadow (composite) */
+    @keyframes bs-glow {
+      0%, 100% { box-shadow: 0 0 0 rgba(61, 109, 240, 0); }
+      45% { box-shadow: 0 0 14px rgba(61, 109, 240, 0.85), 0 0 30px rgba(120, 160, 255, 0.6); color: #5b8cff; }
+    }
+    @keyframes bs-shine { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+    @keyframes bs-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+    /* Токены темы приходят с модулем позже заставки — тёмный фон сразу. */
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #boot-splash { background: #181818; } }
+    :root[data-theme="dark"] #boot-splash { background: #181818; }
+  
+  </style>
+  <meta name="yandex-verification" content="5d613c81ddf70c98" />
+<script type="text/javascript">
+    window.addEventListener("load", function () {
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=111690384', 'ym');
+
+    // Вебвизор выключен: он записывает каждое изменение страницы (в мессенджере — постоянно),
+    // на телефонах это заметно тормозило ленту, и в запись попадал текст личных переписок.
+    ym(111690384, 'init', {ssr:true, webvisor:false, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    });
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/111690384" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+</head>
+<body>
+  <div id="boot-splash">
+    <svg viewBox="0 0 512 512" aria-hidden="true">
+      <circle cx="256" cy="256" r="256" fill="#3d6df0"/>
+      <path fill="#ffffff" d="M65 186L397 131L357 333L77 336Z"/>
+      <path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/>
+      <path fill="#d3e0fd" d="M134 336L214 340L138 437Z"/>
+    </svg>
+    <div class="bs-word" aria-label="Shalter"></div>
+  </div>
+  <script>
+    // Lightweight boot splash - CSS-driven animation, no heavy JS math
+    (function () {
+      var word = document.querySelector("#boot-splash .bs-word");
+      if (!word) return;
+      var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var letters = "Shalter".split("").map(function (ch, i) {
+        var el = document.createElement("i");
+        el.textContent = ch;
+        el.style.transitionDelay = (i * 0.05) + "s";
+        word.appendChild(el);
+        return el;
+      });
+      var start = Date.now();
+      if (reduced) {
+        letters.forEach(function (el) { el.style.opacity = "1"; el.style.transform = "none"; });
+        window.__splashExit = function (done) { done && done(); };
+        return;
+      }
+      // Trigger animation
+      requestAnimationFrame(function() {
+        letters.forEach(function (el) {
+          el.style.opacity = "1";
+          el.style.transform = "translateY(0) rotate(0) scale(1)";
+        });
+      });
+      window.__splashStart = start;
+      window.__splashExit = function (done) {
+        letters.forEach(function (el, i) {
+          el.style.transitionDelay = (i * 0.03) + "s";
+          el.style.opacity = "0";
+          el.style.transform = "translateY(-40px) rotate(180deg) scale(0.5)";
+        });
+        setTimeout(done, 500);
+      };
+    })();
+  </script>
+  <script>
+    // Выбранная иконка приложения (lib/appIcons.js) — на заставке и во вкладке сразу,
+    // ещё до загрузки модулей.
+    try {
+      var iconSvg = localStorage.getItem("shalter.appIcon.splash");
+      var splashEl = document.getElementById("boot-splash");
+      if (iconSvg && splashEl) {
+        var holder = document.createElement("div");
+        holder.innerHTML = iconSvg;
+        var svgEl = holder.querySelector("svg");
+        if (svgEl) {
+          svgEl.setAttribute("aria-hidden", "true");
+          splashEl.replaceChild(svgEl, splashEl.querySelector("svg"));
+        }
+      }
+    } catch (e) {}
+    // Приложение убирает заставку само (app/main.tsx); на случай сбоя — не дольше 5 с.
+    setTimeout(function () {
+      var s = document.getElementById("boot-splash");
+      if (s) s.remove();
+    }, 5000);
+  
+  </script>
+  <div id="root"></div>
+  <script type="module" src="/src/app/main.tsx"></script>
+</body>
+</html>

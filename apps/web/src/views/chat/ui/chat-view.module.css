@@ -1,0 +1,70 @@
+.view {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+/* Колонка чата; справа от неё — «Информация о чате». */
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.missing {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--color-muted);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.hint {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.dropActive::after {
+  position: absolute;
+  inset: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--color-accent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  color: var(--color-accent);
+  content: "Отпустите, чтобы отправить";
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Вы заблокировали собеседника — пояснение и «Разблокировать» (.blocked-bar). */
+.blocked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 14px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.blocked p {
+  margin: 0;
+}

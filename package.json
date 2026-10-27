@@ -7,15 +7,23 @@
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "test": "npm run test:contract",
-    "dev": "USE_BUILD=0 nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
+    "dev": "nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
     "build": "node scripts/build.js",
     "mail-dns": "node scripts/mail-dns.js",
     "uploads:to-s3": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/migrate-uploads-to-s3.js",
     "s3:cors": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/s3-cors.js",
     "loadtest:cleanup": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/loadtest-cleanup.js",
     "start": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 server/index.js",
+    "build:api": "npm run build -w @shalter/api",
+    "start:nest": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 apps/api/dist/main.js",
+    "dev:web": "npm run dev -w @shalter/web",
+    "build:web": "npm run build -w @shalter/web",
     "cap:add:android": "npm run build && npx cap add android",
     "cap:add:ios": "npm run build && npx cap add ios",
     "cap:sync": "npm run build && npx cap sync",
@@ -23,11 +31,13 @@
     "cap:open:ios": "npx cap open ios",
     "desktop:dev": "SHALTER_APP_URL=http://localhost:3000 tauri dev",
     "desktop:build": "tauri build && node scripts/collect-desktop.js",
-    "test:unit": "vitest run --config tests/vitest.config.ts unit",
-    "test:contract": "vitest run --config tests/vitest.config.ts",
-    "test:contract:watch": "vitest --config tests/vitest.config.ts",
-    "test:e2e": "playwright test --config tests/playwright.config.ts",
-    "test:types": "tsc -p tests/tsconfig.json"
+    "test:unit": "npm run test:unit -w @shalter/contract-tests --",
+    "test:api": "npm run test -w @shalter/api",
+    "test:web": "npm run lint -w @shalter/web && npm run test -w @shalter/web",
+    "test:contract": "npm run test:contract -w @shalter/contract-tests --",
+    "test:contract:watch": "npm run test:contract:watch -w @shalter/contract-tests --",
+    "test:e2e": "npm run test:e2e -w @shalter/contract-tests --",
+    "test:types": "npm run test:types -w @shalter/contract-tests"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",
@@ -60,14 +70,9 @@
     "@capacitor/cli": "^7.6.9",
     "@capacitor/core": "^7.6.9",
     "@capacitor/ios": "^7.6.8",
-    "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.1",
-    "@types/node": "^26.6.5",
-    "@types/ws": "^8.18.2",
     "esbuild": "^0.28.1",
     "nodemon": "^3.1.9",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.5",
-    "zod": "^4.6.7"
+    "typescript": "~6.0.3"
   }
 }

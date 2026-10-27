@@ -1,0 +1,250 @@
+/* Как .tw-radio-row, .settings-swatch, .app-icon-*, .wallpaper-picker-*, .settings-range в public/styles/components.css. */
+.radioRow {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 20px;
+  padding: 6px 16px 6px 18px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.radioRow:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.radio {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.radioRow[aria-pressed="true"] .radio {
+  border-color: var(--color-accent);
+}
+
+.radioRow[aria-pressed="true"] .radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.block {
+  padding: 8px 16px 12px;
+}
+
+.rangeHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+}
+
+.rangeValue {
+  color: var(--color-muted);
+}
+
+.range {
+  width: 100%;
+  margin: 12px 0 4px;
+  accent-color: var(--color-accent);
+}
+
+.hint {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+
+.note {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 44px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-accent);
+}
+
+.iconGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 14px 10px;
+  padding: 12px 8px 14px;
+}
+
+.iconTile {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.iconImg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease;
+}
+
+.iconImg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.iconTile:hover .iconImg {
+  transform: scale(1.05);
+}
+
+.iconTile[aria-pressed="true"] .iconImg {
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-accent);
+}
+
+.locked .iconImg {
+  opacity: 0.7;
+}
+
+.iconBadge {
+  position: absolute;
+  top: -4px;
+  right: calc(50% - 34px);
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7b5cff, #e352d6);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.iconLabel {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-muted);
+}
+
+.iconTile[aria-pressed="true"] .iconLabel {
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.groupLabel {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+}
+
+.wallSwatch {
+  aspect-ratio: 1;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: var(--color-surface-alt);
+  cursor: pointer;
+}
+
+.wallSwatch[aria-pressed="true"] {
+  border-color: var(--color-accent);
+}
+
+.fill {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  color: var(--color-muted);
+  background-size: 230px 230px !important;
+  background-position: top left;
+  background-attachment: scroll !important;
+}
+
+.fill[style] {
+  background-size: cover !important;
+  background-position: center;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.fieldLabel {
+  font-size: 15px;
+}
+
+.select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  font: inherit;
+  color: var(--color-text);
+}

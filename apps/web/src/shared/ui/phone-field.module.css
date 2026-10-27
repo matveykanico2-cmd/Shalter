@@ -1,0 +1,129 @@
+.field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.countryButton {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.countryButton:hover {
+  border-color: var(--color-accent);
+}
+
+.flag {
+  display: inline-flex;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 24px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dial {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.caret {
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.number,
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.search {
+  flex: none;
+  height: 40px;
+}
+
+.number:focus,
+.search:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 92;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(320px, 100%);
+  max-height: 300px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--color-surface-alt);
+}
+
+.active {
+  background: var(--color-accent-soft);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}

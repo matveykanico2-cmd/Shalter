@@ -1,0 +1,774 @@
+/* Как .profile-panel и .profile-* в public/styles/components.css. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  display: flex;
+  width: min(400px, 100vw);
+  flex-direction: column;
+  background: var(--color-surface);
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);
+  animation: panel-in 0.22s ease both;
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.iconButton {
+  display: flex;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 0 16px 24px;
+  text-align: center;
+}
+
+.avatarRow {
+  display: flex;
+  justify-content: center;
+  padding: 28px 0 10px;
+}
+
+.withBanner {
+  position: relative;
+  align-self: stretch;
+  margin: 0 -16px 10px;
+  padding-top: 92px;
+  isolation: isolate;
+}
+
+.withBanner::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 0 0 18px 18px;
+  background: var(--profile-banner);
+  content: "";
+}
+
+.avatarButton {
+  position: relative;
+  display: flex;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.withBanner .avatarButton {
+  box-shadow: 0 0 0 4px var(--color-surface);
+}
+
+.avatarCount {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.selfHint,
+.contactName {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.premium {
+  display: inline-flex;
+  color: #8f6bff;
+}
+
+.status {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.online {
+  color: var(--color-accent);
+}
+
+.warning {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+  text-align: left;
+}
+
+.warningTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.warningHint {
+  margin: 2px 0 0;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.banned {
+  margin: 8px 0 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.quickActions {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.quickAction {
+  display: flex;
+  max-width: 88px;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 8px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.quickAction:hover {
+  filter: brightness(0.96);
+}
+
+.quickLabel {
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.infoCard {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.trackSlot {
+  width: 100%;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.hours {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hours:hover {
+  background: var(--color-surface-alt);
+}
+
+.hoursIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-muted);
+}
+
+.hoursBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.hoursOpen {
+  color: #2ea44f;
+  font-size: 14.5px;
+}
+
+.hoursClosed {
+  color: var(--color-danger);
+  font-size: 14.5px;
+}
+
+.hoursSub {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.hoursWeek {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.hoursDay {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hoursTz {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.ad {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+
+.adLabel {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.adText {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.adLink {
+  color: var(--color-accent);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.actionButton {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.section {
+  width: 100%;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  margin: 0 0 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.channelRow,
+.fileRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.channelRow:hover,
+.fileRow:hover {
+  background: var(--color-surface-alt);
+}
+
+.channelBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.channelTitle {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelSub {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.stories {
+  width: 100%;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.storiesHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.storiesCircle {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 3px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.unseen {
+  border-color: var(--color-accent);
+}
+
+.storiesThumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.storiesTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  width: calc(100% + 32px);
+  flex-shrink: 0;
+  margin: 18px -16px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+
+.tab {
+  flex: 1 0 auto;
+  padding: 12px 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tabActive {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.tabContent {
+  width: 100%;
+  padding-top: 12px;
+}
+
+.emptyTab {
+  margin: 16px 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.mediaGrid,
+.storiesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+
+.mediaCell,
+.storyCell {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: var(--color-surface-alt);
+  cursor: pointer;
+}
+
+.storyCell {
+  aspect-ratio: 9 / 16;
+}
+
+.storyCell[data-expired] {
+  opacity: 0.6;
+}
+
+.cellMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cellPlay {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+
+.storyDate {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  color: #fff;
+  font-size: 11px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.filesList,
+.linksList,
+.groupsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.fileIcon {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.linkItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.linkItem:hover {
+  background: var(--color-surface-alt);
+}
+
+.linkUrl {
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voiceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 4px;
+}
+
+.voiceNote {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.voiceCompact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voicePlay {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+}
+
+.voiceTrack {
+  position: relative;
+  height: 4px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-border);
+  cursor: pointer;
+}
+
+.voiceFill {
+  position: absolute;
+  inset: 0;
+  background: var(--color-accent);
+  transform-origin: left;
+}
+
+.voiceTime {
+  color: var(--color-muted);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  margin: 16px auto;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+/* «Каналы в профиле» (pinnedChannelsDialog.js). */
+.pinnedDialog {
+  max-width: 420px;
+}
+
+.pinnedList {
+  display: flex;
+  max-height: 46vh;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.pinnedRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pinnedOn {
+  border-color: var(--color-accent);
+}
+
+.pinnedMark {
+  min-width: 20px;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* «Инструменты модератора» — .profile-admin-block в public/styles/components.css. */
+.adminBlock {
+  width: 100%;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.adminTitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}

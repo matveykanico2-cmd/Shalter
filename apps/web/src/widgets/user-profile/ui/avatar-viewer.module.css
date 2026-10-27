@@ -1,0 +1,165 @@
+/* Как .avatar-viewer-* в public/styles/components.css. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.viewer {
+  display: flex;
+  width: fit-content;
+  min-width: min(320px, 100%);
+  max-width: min(560px, 100%);
+  max-height: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: flex;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.media {
+  max-width: 100%;
+  max-height: min(70vh, 560px);
+  border-radius: 14px;
+  background: #000;
+  object-fit: contain;
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+}
+
+.nav:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.prev {
+  left: 6px;
+}
+
+.next {
+  right: 6px;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+}
+
+/* Точка 7px, а область нажатия — 28px: по самой точке на телефоне не попасть. */
+.dot {
+  position: relative;
+  width: 20px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.dot::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  content: "";
+}
+
+.dotActive::before {
+  background: #fff;
+}
+
+.muted {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  text-align: center;
+}
+
+.error {
+  margin: 0;
+  color: #ff9b96;
+  font-size: 13px;
+  text-align: center;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.barButton {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.barDanger {
+  color: #ff9b96;
+}
+
+.hidden {
+  display: none;
+}

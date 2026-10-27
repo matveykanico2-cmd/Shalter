@@ -1,24 +1,27 @@
 # Shalter
 
-A Telegram-style messenger: chats, groups, channels with posts/comments, real WebRTC calls, voice messages, and video-notes ("kruzhki"). Plain HTML/CSS/JS frontend served by an Express backend — no build step, no framework.
+A Telegram-style messenger: chats, groups, channels with posts/comments, real WebRTC calls, voice messages, and video-notes ("kruzhki"). React client (`apps/web`) on a NestJS backend (`apps/api`).
 
 ## Getting started
 
 ```bash
 npm install
-npm run dev     # nodemon server/index.js, restarts on change
-# or
-npm start       # node server/index.js
+npm run dev       # backend (server/index.js under nodemon) on :3000
+npm run dev:web   # client (Vite) on :5173, proxies /api and /ws to :3000
 ```
 сам проэкт находитсмя на shalter.ru
 создателем является Николаенко Матвей и его команда shalter
 
-Open http://localhost:3000.
+Open http://localhost:5173. Production: `npm run build && npm run build:api && npm run start:nest` (the backend serves the client build `apps/web/dist` on :3000).
 
 ## Architecture
 
+Migration to NestJS + React (see AGENTS.md): `apps/api` is the NestJS 12 backend, which hands every route it doesn't own yet to the legacy Express app in `server/`; `apps/web` is the React client; `packages/contract-tests` holds the contract/e2e suite both backends must pass (`TARGET=legacy|nest`).
+
+- **`apps/api`** — NestJS entry point (`npm run build:api && npm run start:nest`).
 - **`server/`** — Express app. `routes/` are the HTTP API, `data/` is the storage layer (real SQLite, via `server/db.js`/`better-sqlite3`; one module per entity), `ws.js` handles WebSocket push (call signaling, incoming calls).
-- **`public/`** — the frontend. `index.html` is a single shell page; `js/router.js` is a small History-API router that swaps content into the shell without a page reload (so the nav rail, chat list, and an in-progress call's PiP bubble survive navigation). `js/views/` are route-level screens, `js/components/` are reusable pieces, `js/lib/` holds framework-free helpers (WebRTC call handling, MediaRecorder-based voice/video-note capture, a WebSocket client).
+- **`apps/web`** — the client: Vite + React 19 + react-router 8 + TanStack Query, laid out by FSD 2.0 (`app → views → widgets → features → entities → shared`). The shell (navigation bar, chat list, an in-progress call's bubble) stays mounted across navigation.
+- **`public/`** — static files: doc, promo and download pages, icons, images, `sw.js`, gift scenes, the bot mini-app SDK (`/js/shalter-web-app.js`).
 - **`data/app.db`** — the SQLite database (schema in `server/db.js`). Genuinely relational data (chat membership, call participants) is normalized into join tables; per-row nested fields that are never queried across rows (message reactions, a folder's chat list, per-user settings, etc.) stay as JSON columns.
 
 ## Calls

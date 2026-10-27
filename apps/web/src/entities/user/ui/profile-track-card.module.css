@@ -1,0 +1,178 @@
+/* Как .ptrack-* в public/styles/components.css. */
+.card {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.card:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+
+.play {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.play:active {
+  transform: scale(0.92);
+}
+
+.playing {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.nameIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.nameText {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress {
+  position: relative;
+  height: 3px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-accent);
+  transition: width 0.25s linear;
+}
+
+.time {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+.more {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  flex-direction: column;
+}
+
+.close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px -8px 0;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.row:hover,
+.rowPlaying {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.timeWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+}

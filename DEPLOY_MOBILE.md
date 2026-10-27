@@ -72,7 +72,7 @@ Edit `capacitor.config.json`:
 
 This has to be the same HTTPS domain from DEPLOY.md, already serving traffic
 — the app just opens this URL in a native WebView instead of a browser tab.
-`webDir` (`public/dist`) is only there because Capacitor's CLI requires *some*
+`webDir` (`apps/web/dist`, the client build) is only there because Capacitor's CLI requires *some*
 directory to exist; with `server.url` set, its contents are never actually
 shown.
 
@@ -153,9 +153,10 @@ to App Store Connect directly).
 
 ## Push notifications inside the native shell
 
-The web app already does push via the standard Web Push API (`server/push.js`,
-`public/js/lib/push.js`) — that keeps working as-is inside Capacitor's WebView
-on Android. iOS Safari/WKWebView's Web Push support is newer and more
+The web app does push via the standard Web Push API (`server/push.js`,
+`apps/web/src/shared/lib/push.ts`); inside the Android app with Firebase it
+registers the device token with the PushNotifications plugin instead and the
+server sends through FCM. iOS Safari/WKWebView's Web Push support is newer and more
 restricted; if push turns out unreliable there, the fix is swapping in
 `@capacitor/push-notifications` (APNs-backed) for the iOS build specifically,
 not rewriting the whole push system.

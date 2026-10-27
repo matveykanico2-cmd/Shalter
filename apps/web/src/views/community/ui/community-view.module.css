@@ -1,0 +1,83 @@
+/* .join-invite.community-page в public/styles. */
+.page {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 16px;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.description {
+  max-width: 420px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tools > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chats {
+  display: flex;
+  width: min(460px, 100%);
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.chat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.chatBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.chatTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.inviteOnly {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}

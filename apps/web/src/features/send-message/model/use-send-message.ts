@@ -1,0 +1,81 @@
+// Отправка как sendOne в public/js/views/chatView.js: временный пузырь сразу, на ответ
+// сервера — настоящее сообщение, без сети — повтор, на ошибку — пузырь убираем, текст возвращаем в поле.
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+
+import { chatCache } from "@/entities/chat";
+import { historyCache, type Message, messageQueries } from "@/entities/message";
+import { settingsQueries } from "@/entities/settings";
+
+import type { Sticker } from "@/shared/lib/anim";
+import { playSentSound } from "@/shared/lib/media/sounds";
+
+import { type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
+import { retryOffline } from "../lib/retry-offline";
+
+let localSeq = 0;
+
+/**
+ * topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения.
+ * threadRootId — ответ в ветке: в ленту чата он не попадает, временного пузыря нет.
+ * postId — комментарий к посту канала: уходит через /api/posts/:id/comments.
+ */
+export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null, threadRootId?: string, postId?: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, options: SendOptions = {}) => {
+      const localId = `local_${++localSeq}_${Date.now()}`;
+      const topic = topicId ?? replyTo?.topicId ?? null;
+      if (threadRootId) {
+        try {
+          const { message } = await retryOffline(() =>
+            postId
+              ? sendComment(postId, { text, clientId: localId, attachments, sticker, ...options })
+              : sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false)
+          );
+          return message;
+        } finally {
+          // Счётчик «N ответов» под сообщением в ленте.
+          void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+        }
+      }
+      historyCache.addPending(client, chatId, {
+        id: localId,
+        chatId,
+        senderId: meId,
+        type: sticker ? "sticker" : "text",
+        ...(sticker ? { sticker } : {}),
+        text,
+        createdAt: new Date().toISOString(),
+        pinned: false,
+        replyToId: replyTo?.id ?? null,
+        ...(topic ? { topicId: topic } : {}),
+        ...(options.effect ? { effect: options.effect } : {}),
+        attachments,
+        reactions: [],
+        readByIds: [],
+        deletedForIds: [],
+        mentionedUserIds: [],
+        views: null,
+      });
+      try {
+        // Без сети пузырь ждёт, пока она появится; clientId не даст дубля.
+        const { message } = await retryOffline(() =>
+          sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options }, channel)
+        );
+        historyCache.confirmPending(client, chatId, localId, message);
+        // «Отправлено» — если звук в настройках не выключен (playSentSound в chatView.js).
+        if ((client.getQueryData(settingsQueries.current().queryKey)?.notifications as { sound?: boolean } | undefined)?.sound !== false) playSentSound();
+        chatCache.noteMessage(client, chatId, message);
+        return message;
+      } catch (err) {
+        historyCache.dropPending(client, chatId, localId);
+        throw err;
+      } finally {
+        // Сверка с сервером: заодно придут сообщения, отправленные, пока шёл запрос.
+        void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+      }
+    },
+    [client, chatId, meId, channel, topicId, threadRootId, postId]
+  );
+}

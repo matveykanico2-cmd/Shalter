@@ -1,0 +1,18 @@
+{
+  "name": "@shalter/shared",
+  "private": true,
+  "type": "module",
+  "description": "Схемы и типы API и WS, общие для apps/web, apps/api и контрактных тестов",
+  "exports": {
+    "./schemas/*": "./src/schemas/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

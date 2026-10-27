@@ -1,0 +1,67 @@
+/* Как .report-message в public/styles/components.css. */
+.report {
+  max-width: 320px;
+  margin: 10px auto;
+  padding: 12px 14px;
+  border: 1px solid var(--color-danger);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.action:disabled {
+  opacity: 0.5;
+}
+
+.note {
+  margin: 10px 0 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

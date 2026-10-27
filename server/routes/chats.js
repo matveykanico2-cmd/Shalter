@@ -294,6 +294,32 @@ async function requireMemberChat(req, res) {
   return chat;
 }
 
+// Раньше /:id/…: иначе публичный чат с юзернеймом вроде @preview или @features по нему не находился.
+router.get(
+  "/by-username/:username",
+  asyncRoute(async (req, res) => {
+    const chat = await findChatByUsername(String(req.params.username).replace(/^@/, ""));
+    if (!chat || !chat.isPublic) return res.status(404).json({ error: "not found" });
+    res.json({
+      chat: {
+        id: chat.id,
+        type: chat.type,
+        title: chat.title,
+        username: chat.username,
+        description: chat.description ?? null,
+        avatarColor: chat.avatarColor,
+        avatarImage: chat.avatarImage,
+        isVerified: !!chat.isVerified,
+        subscribers: chat.memberIds.length,
+        isMember: chat.memberIds.includes(req.uid),
+        banned: (chat.bannedIds ?? []).includes(req.uid),
+        approveJoins: !!chat.approveJoins,
+        requestPending: joinRequests.hasRequest(chat.id, req.uid),
+      },
+    });
+  })
+);
+
 router.get(
   "/:id",
   asyncRoute(async (req, res) => {
@@ -492,31 +518,6 @@ router.get(
   })
 );
 
-router.get(
-  "/by-username/:username",
-  asyncRoute(async (req, res) => {
-    const chat = await findChatByUsername(String(req.params.username).replace(/^@/, ""));
-    if (!chat || !chat.isPublic) return res.status(404).json({ error: "not found" });
-    res.json({
-      chat: {
-        id: chat.id,
-        type: chat.type,
-        title: chat.title,
-        username: chat.username,
-        description: chat.description ?? null,
-        avatarColor: chat.avatarColor,
-        avatarImage: chat.avatarImage,
-        isVerified: !!chat.isVerified,
-        subscribers: chat.memberIds.length,
-        isMember: chat.memberIds.includes(req.uid),
-        banned: (chat.bannedIds ?? []).includes(req.uid),
-        approveJoins: !!chat.approveJoins,
-        requestPending: joinRequests.hasRequest(chat.id, req.uid),
-      },
-    });
-  })
-);
-
 // Join a public group or channel straight from its @username.
 router.post(
   "/:id/join",
@@ -554,8 +555,9 @@ router.get(
     if (!isOwnerOrAdminOf(chat, req.uid) && !chat.moderatorIds?.includes(req.uid)) {
       return res.status(403).json({ error: "Недостаточно прав" });
     }
-    const users = await Promise.all((chat.bannedIds ?? []).map(async (id) => publicUser(await getUser(id))));
-    res.json({ users: users.filter(Boolean) });
+    // Удалённого аккаунта в списке нет: publicUser(undefined) ронял весь ответ.
+    const users = await Promise.all((chat.bannedIds ?? []).map((id) => getUser(id)));
+    res.json({ users: users.filter(Boolean).map(publicUser) });
   })
 );
 
@@ -594,7 +596,10 @@ router.get(
     if (!chat) return;
     if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
     const rows = joinRequests.listRequests(chat.id);
-    const users = await Promise.all(rows.map(async (r) => ({ ...r, user: publicUser(await getUser(r.userId)) })));
+    const users = await Promise.all(rows.map(async (r) => {
+      const user = await getUser(r.userId);
+      return { ...r, user: user && publicUser(user) };
+    }));
     res.json({ requests: users.filter((r) => r.user) });
   })
 );

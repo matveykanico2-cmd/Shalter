@@ -1,0 +1,61 @@
+/* Как .tw-plan в public/styles. */
+.plan {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.plan:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.radio {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.selected .radio {
+  border: 6px solid var(--color-accent);
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.discount {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: linear-gradient(88deg, #6c93ff, #976fff, #df69d1);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--color-muted);
+}

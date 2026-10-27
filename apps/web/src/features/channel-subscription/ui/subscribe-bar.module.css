@@ -1,0 +1,23 @@
+/* Как .chat-preview-bottom и .chat-preview-join. */
+.bar {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.button {
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}

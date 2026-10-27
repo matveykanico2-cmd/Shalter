@@ -1,0 +1,29 @@
+.banner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 7px 14px;
+  background: linear-gradient(90deg, var(--color-accent), #d9822e);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.close {
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: #fff;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.close:hover {
+  opacity: 1;
+}

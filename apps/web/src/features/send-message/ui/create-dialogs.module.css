@@ -1,0 +1,181 @@
+.modes {
+  display: flex;
+  gap: 6px;
+}
+
+.mode {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.mode.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.list {
+  display: flex;
+  max-height: 40vh;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.correct {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.correct.active {
+  border-color: var(--color-success);
+  background: var(--color-success);
+}
+
+.add {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+/* Найденные места (.loc-picker-results) и выбор контакта (.forward-list). */
+.places,
+.people {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.place,
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place:hover,
+.person:hover {
+  background: var(--color-surface-alt);
+}
+
+/* «Отправить позже» и список запланированных. */
+.repeat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.scheduled {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.scheduledRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scheduledBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.scheduledText {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduledBody .hint {
+  margin: 2px 0 0;
+}
+
+.rowButton {
+  display: flex;
+  padding: 7px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.rowButton:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}

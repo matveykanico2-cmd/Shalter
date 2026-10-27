@@ -1,0 +1,197 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.viewer {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  max-height: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  min-width: min(480px, calc(100vw - 32px));
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+}
+
+.author {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.authorName {
+  font-weight: 600;
+}
+
+.authorTime,
+.counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.iconButton {
+  display: flex;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.original {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.media {
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 8px;
+  background: #000;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 0.12s ease-out;
+  user-select: none;
+}
+
+.zoomed {
+  border-radius: 0;
+  cursor: grab;
+  transition: none;
+}
+
+.blur {
+  filter: blur(8px);
+}
+
+.spinner {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fail {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.failActions {
+  display: flex;
+  gap: 8px;
+}
+
+.failActions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  cursor: pointer;
+}
+
+.failActions .secondary {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.caption {
+  max-width: min(640px, 100%);
+  margin: 0 auto;
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.nav:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.prev {
+  left: 12px;
+}
+
+.next {
+  right: 12px;
+}
+
+@media (max-width: 640px) {
+  .nav {
+    display: none;
+  }
+}

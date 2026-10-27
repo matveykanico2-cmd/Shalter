@@ -1,0 +1,210 @@
+/* Как .tw-boost-row и окно буста (.tw-limit-*) в public/styles/components.css. */
+.row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 24px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.rowIcon {
+  display: flex;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--boost-gradient);
+  color: #fff;
+}
+
+.rowBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.rowTitle {
+  font-size: 16px;
+}
+
+.rowSub {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.rowAction {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.row,
+.dialog {
+  --boost-gradient: linear-gradient(84.4deg, #6c93ff -4.85%, #976fff 51.72%, #df69d1 110.7%);
+}
+
+.dialog {
+  max-width: 400px;
+}
+
+.dialog > h2 {
+  order: 2;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.entity {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 0 12px 0 0;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.meter {
+  position: relative;
+  margin: 8px 0 12px;
+  padding-top: 48px;
+}
+
+.hint {
+  position: absolute;
+  top: 0;
+  left: var(--progress);
+  display: flex;
+  height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: linear-gradient(73.4deg, #6c93ff -7.21%, #976fff 114.57%, #df69d1 241.52%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  transform: translateX(-50%) scale(0.6) rotate(-30deg);
+  transition: transform 0.3s cubic-bezier(0.12, 1.1, 0.56, 1.2);
+}
+
+.hint::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 16px;
+  height: 9px;
+  margin-left: -8px;
+  background: inherit;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.hintShown {
+  transform: translateX(-50%) scale(1) rotate(0);
+}
+
+.hintEnd {
+  left: auto;
+  right: 0;
+  border-bottom-right-radius: 0;
+  transform: scale(0.6) rotate(-30deg);
+}
+
+.hintEnd::after {
+  left: auto;
+  right: 0;
+  margin: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
+.hintStart {
+  left: 0;
+  border-bottom-left-radius: 0;
+  transform: scale(0.6) rotate(-30deg);
+}
+
+.hintStart::after {
+  left: 0;
+  margin: 0;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.hintEnd.hintShown,
+.hintStart.hintShown {
+  transform: none;
+}
+
+.line {
+  position: relative;
+  display: flex;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--progress);
+  background: var(--boost-gradient);
+  transition: width 0.4s ease;
+}
+
+.parts {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.text {
+  order: 3;
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 21px;
+  text-align: center;
+}
+
+.upgrade {
+  order: 4;
+  display: flex;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+.dialog > :last-child {
+  order: 5;
+}

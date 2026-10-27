@@ -1,0 +1,532 @@
+/* Просмотр историй — как .story-viewer-overlay и .story-* в public/styles/components.css. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 13, 0.94);
+  outline: none;
+}
+
+.shell {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+  width: min(430px, 100%);
+  height: min(92vh, 780px);
+}
+
+.progressRow {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+}
+.progressBar {
+  overflow: hidden;
+  flex: 1 1 0;
+  min-width: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  height: 2.5px;
+}
+.fill {
+  border-radius: 2px;
+  background: #fff;
+  width: 0;
+  height: 100%;
+}
+.fillDone {
+  width: 100%;
+}
+.fillRun {
+  animation-name: story-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.fillVideo {
+  transition: width 0.25s linear;
+}
+@keyframes story-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.header {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 22px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
+  color: #fff;
+}
+.titles {
+  flex: 1;
+  min-width: 0;
+}
+.name {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+  font-size: 14px;
+  font-weight: 600;
+}
+.authorLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.nameLink {
+  cursor: pointer;
+}
+.nameLink:hover {
+  text-decoration: underline;
+}
+.time {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  opacity: 0.75;
+}
+.headerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  cursor: pointer;
+}
+.headerButton:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.media {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: story-spin 0.9s linear infinite;
+}
+@keyframes story-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tapZones {
+  position: absolute;
+  top: 56px;
+  bottom: 64px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+}
+.tapZone {
+  flex: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.paused .header,
+.paused .progressRow,
+.paused .footer {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.footer {
+  position: absolute;
+  bottom: var(--kb, 0px);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 12px 12px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.6), transparent);
+  transition: bottom 0.15s ease;
+}
+.replyInput,
+.commentInput {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: #fff;
+}
+.commentInput {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  font-size: 13.5px;
+}
+.replyInput::placeholder,
+.commentInput::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+.sendButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  cursor: pointer;
+}
+.pill {
+  position: relative;
+  overflow: visible;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.heart {
+  display: inline-flex;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.liked .heart {
+  transform: scale(1.15);
+}
+.pop {
+  animation: like-pop 0.5s cubic-bezier(0.34, 1.7, 0.5, 1) both;
+}
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.6);
+  }
+  60% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.particle {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0;
+  animation: like-fly 0.9s ease-out forwards;
+}
+@keyframes like-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx, 0px)), -180%) scale(1.1) rotate(var(--rot, 0deg));
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+  .particle {
+    display: none;
+  }
+}
+.thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+.thumb path {
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition:
+    fill 0.28s ease,
+    stroke 0.28s ease;
+}
+.liked .thumb path,
+.likeCount .thumb path {
+  fill: #3b9bf0;
+  stroke: #3b9bf0;
+}
+.likeCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #fff;
+  opacity: 0.85;
+}
+
+.panel {
+  position: absolute;
+  bottom: 60px;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(20, 23, 31, 0.96);
+  padding: 10px 12px;
+  max-height: 45%;
+  color: #fff;
+}
+.commentsPanel {
+  bottom: calc(60px + var(--kb, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  max-height: 50%;
+  transition: bottom 0.15s ease;
+}
+.panelTitle {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #9aa1b1;
+}
+.viewerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 6px 0;
+  width: 100%;
+  font-size: 13.5px;
+  color: #fff;
+  cursor: pointer;
+}
+.commentsList {
+  overflow-y: auto;
+}
+.commentRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-radius: 10px;
+}
+.commentReply {
+  margin-left: 30px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+.commentEditing {
+  background: rgba(255, 255, 255, 0.06);
+}
+.commentBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.commentAuthor {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #9aa1b1;
+}
+.commentText {
+  font-size: 13.5px;
+  color: #fff;
+  word-break: break-word;
+}
+.edited {
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.commentMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+.commentLike {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+}
+.commentLike:hover {
+  color: #fff;
+}
+.commentLiked {
+  color: #ff5d73;
+}
+.commentLikeCount {
+  font-variant-numeric: tabular-nums;
+}
+.commentActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  .commentActions {
+    opacity: 0;
+  }
+  .commentRow:hover .commentActions,
+  .commentActions:focus-within {
+    opacity: 1;
+  }
+}
+.commentAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.commentAction:hover {
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.18);
+}
+.danger:hover {
+  color: var(--color-danger);
+}
+.editingBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 6px;
+  background: rgba(124, 111, 214, 0.12);
+  font-size: 12.5px;
+}
+.editingText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  cursor: pointer;
+}
+.nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.navPrev {
+  left: 16px;
+}
+.navNext {
+  right: 16px;
+}
+
+@media (max-width: 520px) {
+  .shell {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .nav {
+    display: none;
+  }
+}

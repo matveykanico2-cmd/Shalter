@@ -1,14 +1,14 @@
-// Рисует варианты иконки приложения (каталог — public/js/lib/appIcons.js) для всех платформ:
+// Рисует варианты иконки приложения (каталог — apps/web/src/shared/lib/app-icons-catalog.ts) для всех платформ:
 //   public/icons/app/           — значок вкладки и apple-touch-icon;
 //   resources/android/res/      — иконки activity-alias (их включает плагин AppIcon);
 //   resources/ios/              — альтернативные иконки (AppIcon-<id>.appiconset);
 //   src-tauri/icons/variants/   — иконка окна и трея + список в src-tauri/src/app_icons.rs.
-// Запуск: node scripts/gen-app-icons.mjs. Картинки в git, как и остальные иконки.
+// Запуск: node scripts/gen-app-icons.mjs (Node 24: TypeScript каталога — без сборки). Картинки в git, как и остальные иконки.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { APP_ICONS, DEFAULT_APP_ICON, appIconSvg } from "../public/js/lib/appIcons.js";
+import { APP_ICONS, DEFAULT_APP_ICON, appIconSvg } from "../apps/web/src/shared/lib/app-icons-catalog.ts";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const out = (...p) => {

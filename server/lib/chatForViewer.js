@@ -4,7 +4,7 @@
 // в membersCount, которое есть у любого чата.
 //
 // Применяется ко всему, что уходит наружу: к HTTP-ответам (shapeBodyForViewer,
-// подключён в server/index.js) и к WS-событиям с чатом (server/ws.js).
+// подключён в server/app.js) и к WS-событиям с чатом (server/ws.js).
 function isChannelStaff(chat, uid) {
   return chat.ownerId === uid || (chat.ownerIds ?? []).includes(uid) || (chat.adminIds ?? []).includes(uid);
 }

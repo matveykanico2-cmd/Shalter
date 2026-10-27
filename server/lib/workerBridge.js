@@ -14,10 +14,14 @@ const enabled = process.env.BACKGROUND_WORKER !== "0";
 const HEAP_MB = Number(process.env.WORKER_MAX_OLD_SPACE_MB) || 256;
 
 let child = null;
+let entry = path.join(__dirname, "..", "worker.js");
 let stopping = false;
 let restartDelay = 1000;
 const handlers = new Map();
 let onWake = null;
+// Запросы основного к фоновому, ждущие ответа (askWorker): id → { resolve, reject }.
+let nextRequestId = 0;
+const pending = new Map();
 
 // --- в фоновом процессе ---
 
@@ -30,23 +34,32 @@ function toMain(type, data) {
   }
 }
 
+// Ответ на запрос основного (askWorker): error — текст ошибки, если запрос не выполнен.
+function reply(id, error) {
+  toMain("reply", { id, error: error ?? null });
+}
+
 // --- в основном процессе ---
 
 function on(type, fn) {
   handlers.set(type, fn);
 }
 
-function startWorker() {
+// file — точка входа фонового процесса: server/worker.js или фоновый процесс Nest
+// (apps/api/dist/worker.js); при перезапуске берётся та же.
+function startWorker(file) {
+  if (file) entry = file;
   if (child || stopping) return;
   const execArgv = process.execArgv.filter((a) => !a.startsWith("--max-old-space-size") && !a.startsWith("--inspect"));
   const started = Date.now();
-  child = fork(path.join(__dirname, "..", "worker.js"), [], {
+  child = fork(entry, [], {
     env: { ...process.env, SHALTER_ROLE: "worker" },
     execArgv: [...execArgv, `--max-old-space-size=${HEAP_MB}`],
     serialization: "advanced",
   });
   console.log(`[worker] фоновый процесс запущен (pid ${child.pid})`);
   child.on("message", (msg) => {
+    if (msg?.type === "reply") return settle(msg);
     const fn = handlers.get(msg?.type);
     if (!fn) return;
     try {
@@ -57,11 +70,36 @@ function startWorker() {
   });
   child.on("exit", (code, signal) => {
     child = null;
+    for (const { reject } of pending.values()) reject(new Error("фоновый процесс завершился"));
+    pending.clear();
     if (stopping) return;
     // Прожил дольше минуты — падение разовое, перезапускаем сразу; иначе всё реже.
     restartDelay = Date.now() - started > 60_000 ? 1000 : Math.min(restartDelay * 2, 60_000);
     console.error(`[worker] фоновый процесс завершился (${signal ?? code}), перезапуск через ${restartDelay / 1000} с`);
     setTimeout(startWorker, restartDelay).unref();
+  });
+}
+
+function settle({ id, error }) {
+  const request = pending.get(id);
+  if (!request) return;
+  pending.delete(id);
+  if (error) request.reject(new Error(error));
+  else request.resolve();
+}
+
+// Поручение фоновому процессу с ожиданием ответа (служебный вызов тестов: прогнать обход).
+function askWorker(type, data) {
+  if (!child?.connected) return Promise.reject(new Error("фоновый процесс не запущен"));
+  const id = ++nextRequestId;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    try {
+      child.send({ type, id, ...data });
+    } catch (err) {
+      pending.delete(id);
+      reject(err);
+    }
   });
 }
 
@@ -95,4 +133,4 @@ function onJobsQueued(fn) {
   onWake = fn;
 }
 
-module.exports = { isWorker, enabled, toMain, on, startWorker, stopWorker, wakeWorker, onJobsQueued };
+module.exports = { isWorker, enabled, toMain, reply, on, startWorker, stopWorker, wakeWorker, askWorker, onJobsQueued };

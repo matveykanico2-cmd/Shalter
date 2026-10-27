@@ -1,0 +1,117 @@
+/* Оболочка: сверху «список | экран», снизу панель навигации на всю ширину (как .shell в public/styles). */
+.shell {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "list main" "nav nav";
+  height: 100dvh;
+}
+
+.sidebar {
+  position: relative;
+  grid-area: list;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border);
+}
+
+.side {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: auto;
+  background: var(--color-surface);
+}
+
+.main {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail {
+  grid-area: nav;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 4vw, 56px);
+  min-height: 54px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.account {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+.railButton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--color-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.railButton:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.railActive,
+.railActive:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.spacer {
+  display: none;
+}
+
+/* Телефон: список с панелью снизу или открытый экран во весь рост. */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "list" "nav";
+  }
+
+  .sidebar {
+    border-right: 0;
+  }
+
+  .main {
+    display: none;
+  }
+
+  .rail {
+    justify-content: space-around;
+    gap: 0;
+    min-height: 56px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mainOpen {
+    grid-template-areas: "main";
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .mainOpen .sidebar,
+  .mainOpen .rail {
+    display: none;
+  }
+
+  .mainOpen .main {
+    display: block;
+  }
+}

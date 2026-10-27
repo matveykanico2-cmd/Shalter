@@ -1,0 +1,115 @@
+/* Как .auction-card и settings-section в public/styles. */
+.hint {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 4px 16px;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.notice {
+  margin: 4px 16px 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  font-size: 14px;
+}
+
+.empty {
+  margin: 8px 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.block {
+  margin-bottom: 16px;
+}
+
+.blockTitle {
+  margin: 12px 0 6px;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.blockBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--color-surface);
+}
+
+.blockBody .blockTitle {
+  padding: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.closed {
+  opacity: 0.75;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.name {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.status {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row > input {
+  min-width: 0;
+  flex: 1;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+}
+
+.dangerLink {
+  align-self: flex-start;
+  color: var(--color-danger);
+}

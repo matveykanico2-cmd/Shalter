@@ -1,0 +1,315 @@
+/* Строка сообщества и его панель — .community-row, .community-panel-* в public/styles. */
+.wrap {
+  position: relative;
+  border-radius: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 7px 38px 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--color-surface-alt);
+}
+
+.active,
+.active:hover {
+  background: var(--color-accent-soft);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.line + .line {
+  margin-top: 2px;
+}
+
+.title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.preview {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewChat {
+  color: var(--color-text);
+}
+
+.badges {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.unread,
+.mention {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+}
+
+.unread {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.mutedBadge {
+  background: var(--color-muted);
+}
+
+.mention {
+  background: var(--color-danger);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.requestsDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.more {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  opacity: 0.55;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.wrap:hover .more,
+.more:focus-visible {
+  opacity: 1;
+}
+
+.more:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+/* Панель сообщества вместо списка чатов. */
+.panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.iconButton {
+  display: flex;
+  flex: none;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.info:hover {
+  background: var(--color-surface-alt);
+}
+
+.titles {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.subtitle {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.scroll {
+  min-height: 0;
+  flex: 1;
+  padding: 6px 8px 80px;
+  overflow-y: auto;
+}
+
+.description {
+  margin: 6px 10px 10px;
+  color: var(--color-muted);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.requestsBanner,
+.addChat {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.requestsBanner:hover,
+.addChat:hover {
+  background: var(--color-surface-alt);
+}
+
+.requestsBanner > span {
+  flex: 1;
+}
+
+.addChatIcon {
+  display: flex;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+}
+
+.sectionLabel {
+  margin: 12px 10px 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.otherChat {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 10px;
+}
+
+.joinButton {
+  flex: none;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.joinButton:disabled {
+  opacity: 0.6;
+}
+
+.inviteOnly {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.empty {
+  margin: 16px 10px;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}

@@ -1,0 +1,82 @@
+/* Меню всегда поверх окон: его открывают и из них («Ещё» в окне отправки). */
+.menu {
+  position: fixed;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(70vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.wide {
+  max-width: calc(100vw - 16px);
+}
+
+.sheet {
+  inset: auto 0 0 0;
+  max-width: 100%;
+  border-radius: 16px 16px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 0;
+}
+
+.item,
+.caption {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 16px;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+
+.item {
+  cursor: pointer;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--color-surface-alt);
+  outline: none;
+}
+
+.item svg,
+.caption svg {
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+.caption {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.danger,
+.danger svg {
+  color: var(--color-danger);
+}

@@ -1,0 +1,105 @@
+/* Как .join-invite с .settings-header и .settings-device-row в public/styles/components.css. */
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.back {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.back:hover {
+  background: var(--color-surface-alt);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.stop {
+  border: 1px solid var(--color-border);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowBody {
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-weight: 500;
+}
+
+.label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}

@@ -1,0 +1,85 @@
+/* Полоса историй — как .stories-bar и .story-item в public/styles/components.css. */
+.bar {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 10px 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+.bar::-webkit-scrollbar {
+  display: none;
+}
+.item {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  width: 68px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ring {
+  position: relative;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+.seen {
+  border-color: var(--color-border);
+}
+.unseen::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 999px;
+  padding: 2px;
+  background: conic-gradient(from 0deg, #ff9a3c, #ff5678, #a855f7, #6366f1, #ff9a3c);
+  animation: story-ring-spin 3s linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+@keyframes story-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unseen::before {
+    animation: none;
+  }
+}
+.addBadge {
+  position: absolute;
+  top: 38px;
+  left: 38px;
+  display: flex;
+  height: 18px;
+  width: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid var(--color-surface);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-muted);
+}

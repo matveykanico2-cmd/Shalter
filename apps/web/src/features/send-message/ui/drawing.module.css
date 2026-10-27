@@ -1,0 +1,320 @@
+/* Рисовалка, мем и стикерпаки — .paint-*, .meme-*, .sticker-pack-* в public/styles/components.css. */
+.paintDialog {
+  max-width: 560px;
+  max-height: 92vh;
+}
+
+.tools,
+.swatches,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.row {
+  gap: 10px;
+}
+
+.row input[type="range"] {
+  flex: 1 1 120px;
+  accent-color: var(--color-accent);
+}
+
+.tool {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tool:hover {
+  background: rgb(128 128 128 / 12%);
+}
+
+.tool.on {
+  border-color: #ff5d73;
+  color: #ff5d73;
+}
+
+.stage {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.canvas {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(45deg, rgb(128 128 128 / 14%) 25%, transparent 25%, transparent 75%, rgb(128 128 128 / 14%) 75%) 0 0 / 20px 20px,
+    linear-gradient(45deg, rgb(128 128 128 / 14%) 25%, transparent 25%, transparent 75%, rgb(128 128 128 / 14%) 75%) 10px 10px / 20px 20px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.swatch.selected {
+  border-color: var(--color-accent);
+}
+
+.colorInput {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.brushLabel {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.brushValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.memeDialog {
+  max-width: min(440px, 94vw);
+}
+
+.memeDialog > * {
+  flex-shrink: 0;
+}
+
+.memePreview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.memeCanvas {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(360px, 45vh);
+  margin: 0 auto;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.packDialog {
+  max-width: min(420px, 94vw);
+}
+
+.packBody {
+  display: flex;
+  max-height: min(64vh, 520px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.packBody > * {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.packList {
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.packRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.packRow:last-child {
+  border-bottom: none;
+}
+
+.packOpen {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.packPreview {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.packMeta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.packName {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.packCount {
+  color: var(--color-muted);
+  font-size: 11.5px;
+}
+
+.iconButton {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.packGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.packCell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.cellRemove,
+.cellEdit {
+  position: absolute;
+  top: -4px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+}
+
+.cellRemove {
+  right: -4px;
+  background: var(--color-danger);
+}
+
+.cellEdit {
+  left: -4px;
+  background: var(--color-accent);
+}
+
+.empty {
+  color: var(--color-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.fieldLabel {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.addButton {
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.addButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.addRow {
+  display: flex;
+  gap: 8px;
+}
+
+.emojiInput {
+  max-width: 84px;
+  font-size: 20px;
+  text-align: center;
+}
+
+.pill {
+  flex-shrink: 0;
+  width: auto;
+}

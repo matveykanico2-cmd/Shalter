@@ -1,0 +1,124 @@
+/* Как .settings-device-row, .referral-code-row, .settings-code-block в public/styles. */
+.pad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.hint {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.empty {
+  margin: 8px 0 16px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.breakAll {
+  min-width: 0;
+  flex: 1;
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.listTitle {
+  margin: 8px 0 6px;
+  padding: 0 16px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.rowBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.rowName {
+  margin: 0;
+}
+
+.codeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  font-size: 13px;
+}
+
+.codeBlock {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.codeBlock pre {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow-x: auto;
+  font-size: 12px;
+  white-space: pre;
+}
+
+.iconButton {
+  display: flex;
+  flex-shrink: 0;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

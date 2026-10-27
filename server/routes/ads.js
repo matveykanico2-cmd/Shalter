@@ -144,12 +144,14 @@ const { balanceOf, spendStars } = require("../data/stars");
 
 const PLACEMENTS = { chats: "Верх списка чатов", chat: "В каналах — рекламное сообщение", discover: "Каталог каналов", profile: "Своя страница профиля" };
 const MAX_TEXT = 200;
+// Только свои ключи: PLACEMENTS["constructor"] и прочее из прототипа местом показа не считаются.
+const isPlacement = (p) => typeof p === "string" && Object.hasOwn(PLACEMENTS, p);
 
 // Body may carry `placements: [...]` (several places) or legacy `placement: "id"`.
 // Returns the valid ids, or null when the body names none.
 function pickPlacements(body) {
   const raw = Array.isArray(body?.placements) ? body.placements : body?.placement != null ? [body.placement] : [];
-  const valid = raw.filter((p) => PLACEMENTS[p]);
+  const valid = raw.filter(isPlacement);
   return valid.length ? valid : null;
 }
 
@@ -316,7 +318,7 @@ setInterval(() => {
 router.get(
   "/serve",
   asyncRoute(async (req, res) => {
-    const placement = PLACEMENTS[req.query.placement] ? req.query.placement : "discover";
+    const placement = isPlacement(req.query.placement) ? req.query.placement : "discover";
     const owner = placement === "profile" ? String(req.query.owner || "") : "";
     if (placement === "profile" && !owner) return res.json({ ad: null });
     // Как в Telegram: подписчики Premium не видят спонсорских объявлений.

@@ -1,0 +1,74 @@
+import { useEffect, useState } from "react";
+
+import { openGame, openGameScores } from "@/entities/game/@x/message";
+
+import { Button } from "@/shared/ui";
+
+import { diceResult } from "../../lib/message-preview";
+import type { Attachment } from "../../model/attachment";
+import type { Message } from "../../model/types";
+
+import styles from "./interactive.module.css";
+
+const FRESH_MS = 8000;
+const ROLL_MS = 1200;
+
+/** Эмодзи-игра: свежий бросок крутится секунду, потом результат (DiceAttachment). */
+export function DiceAttachment({ message, attachment }: { message: Message; attachment: Attachment }) {
+  const meta = (attachment.meta ?? {}) as { emoji?: string; value?: number };
+  const [fresh] = useState(() => Date.now() - Date.parse(message.createdAt) < FRESH_MS);
+  const [rolling, setRolling] = useState(fresh);
+  useEffect(() => {
+    if (!rolling || !meta.value) return;
+    const t = setTimeout(() => setRolling(false), ROLL_MS);
+    return () => clearTimeout(t);
+  }, [rolling, meta.value]);
+  // Пока сервер не ответил (временный пузырь), значения ещё нет — просто крутим.
+  const waiting = !meta.value;
+  return (
+    <div className={styles.dice}>
+      <span className={[styles.diceEmoji, rolling || waiting ? styles.rolling : "", waiting ? styles.waiting : ""].filter(Boolean).join(" ")} role="img" aria-label={meta.emoji ?? "🎲"}>
+        {meta.emoji ?? "🎲"}
+      </span>
+      {!waiting && !rolling ? <span className={styles.diceResult}>{diceResult(meta)}</span> : null}
+    </div>
+  );
+}
+
+/** Карточка игры (GameAttachment в games.js): «Играть» открывает игру поверх чата, «Рекорды» — таблицу этого чата. */
+export function GameCard({ attachment, message }: { attachment: Attachment; message: Message }) {
+  const meta = (attachment.meta ?? {}) as { gameId?: string; title?: string; emoji?: string; description?: string };
+  const game = meta.gameId ? { id: meta.gameId, title: meta.title, emoji: meta.emoji } : null;
+  return (
+    <div className={styles.game}>
+      <div className={styles.gameCover}>
+        <span className={styles.gameEmoji}>{meta.emoji || "🎮"}</span>
+      </div>
+      <div className={styles.gameBody}>
+        <p className={styles.gameTitle}>{meta.title || "Игра"}</p>
+        {meta.description ? <p className={styles.gameDesc}>{meta.description}</p> : null}
+        {game ? (
+          <div className={styles.gameActions}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                openGame(game, { chatId: message.chatId });
+              }}
+            >
+              ▶ Играть
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                openGameScores(game, message.chatId);
+              }}
+            >
+              🏆 Рекорды
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

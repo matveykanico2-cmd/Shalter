@@ -1,0 +1,235 @@
+/* Разделы настроек — как .tw-media-*, .tw-session-*, .tw-kbd, .settings-field в public/styles/components.css. */
+.mediaHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 16px;
+}
+
+.mediaSticker {
+  display: flex;
+  width: 100px;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+
+.mediaSubtitle {
+  max-width: 360px;
+  margin: 14px auto 0;
+  padding: 0 16px;
+  font-size: 15px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.sessionPopup {
+  position: relative;
+  max-width: 420px;
+  background: var(--color-surface-alt);
+}
+
+.sessionPopup > h2 {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.popupClose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.sessionHero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  order: -1;
+  padding: 24px 16px 0;
+}
+
+.sessionHeroIcon {
+  display: flex;
+  width: 100px;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 30px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  color: #fff;
+}
+
+.sessionHeroIcon[data-color="blue"] {
+  background-color: #2196f3;
+}
+
+.sessionHeroIcon[data-color="green"] {
+  background-color: #4caf50;
+}
+
+.sessionHeroIcon[data-color="orange"] {
+  background-color: #fb8c00;
+}
+
+.sessionHeroIcon[data-color="purple"] {
+  background-color: #7e57c2;
+}
+
+.dialogText {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.kbdGroup {
+  display: flex;
+  gap: 4px;
+}
+
+.kbd {
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-muted) 12%, transparent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.note {
+  margin: 4px 16px 8px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+
+.noteDanger {
+  color: var(--color-danger);
+}
+
+.check {
+  color: var(--color-success);
+}
+
+.radio {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.radioOn {
+  border: 6px solid var(--color-accent);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.fieldLabel {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 17px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 4px 8px;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  font: inherit;
+  color: var(--color-text);
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+}
+
+.grow {
+  min-width: 0;
+  flex: 1;
+}
+
+.linkButton {
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.iconButton {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+}
