@@ -171,3 +171,29 @@ Still needed, and only possible on the right hardware: generating the
 `android/`/`ios/` projects, signing, store listings (icons at store-required
 sizes, screenshots, privacy policy, descriptions), and the actual submission
 review process on each store.
+
+## Rebuilding the Capacitor apps after the switch to apps/web (2026-10-27)
+
+The page itself comes from the server, but these fixes live in the native shell and
+reach users only with a new APK / iOS build:
+
+- `resources/android/java/MainActivity.java` — the hardware Back button closes dialogs and
+  goes back a screen (via `window.__shalterBack`) instead of quitting the app; `shalter://…`
+  and `https://shalter.ru/{chat,u,join,s,app,folder,call-join,community}/…` links open in the app.
+- `resources/android/java/OfflineShell.java` — offline start serves the new client's
+  `/assets/…` from the APK (it only knew the old `/dist/…`).
+- `scripts/apply-native-resources.js` — the deep-link intent filters, and
+  `NSLocationWhenInUseUsageDescription` on iOS (geolocation in WKWebView).
+
+```bash
+npm ci
+npm run build                                # apps/web/dist with build.json "precache"
+npx cap sync                                 # android/ and ios/ must already exist (cap add)
+node scripts/apply-native-resources.js       # copies the Java files, patches the manifest/Info.plist
+# then build/sign as above (Android Studio or build-android.yml; Xcode for iOS)
+```
+
+Optional, server side — verified https links (no "Open with" prompt) for the Capacitor app:
+add the release key's SHA-256 (`keytool -list -v -keystore release.keystore -alias shalter`)
+as a second entry with `"package_name": "ru.shalter.app"` in `public/.well-known/assetlinks.json`
+(keep the existing `ru.shalter.twa` entry), then deploy as usual.

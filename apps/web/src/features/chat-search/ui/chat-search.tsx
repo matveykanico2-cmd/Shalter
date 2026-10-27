@@ -59,7 +59,10 @@ export function ChatSearch({ chatId, senderName, onPick, onClose, initialQuery =
             setResults(null);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") onClose();
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+            }
           }}
         />
         <button type="button" className={styles.close} title="Закрыть поиск" onClick={onClose}>

@@ -8,6 +8,7 @@ import { settingsQueries } from "@/entities/settings";
 
 import { useAppIcon } from "../model/use-app-icon";
 import { useAppLock } from "../model/use-app-lock";
+import { useBackButton } from "../model/use-back-button";
 import { useDesktopUnread } from "../model/use-desktop-unread";
 import { useDeviceBridges } from "../model/use-device-bridges";
 import { useKeyboardShortcuts } from "../model/use-keyboard-shortcuts";
@@ -31,7 +32,7 @@ type Props = {
 /**
  * Служебное вокруг приложения, как boot() в public/js/app.js: экраны блокировки (код-пароль
  * устройства, «Пароль при запуске»), service worker и push, проверка новой версии, горячие
- * клавиши, мосты приложений, перевод интерфейса, иконка, праздничная плашка, окно разрешений.
+ * клавиши, мосты приложений (и «Назад» на Android), перевод интерфейса, иконка, праздничная плашка, окно разрешений.
  */
 export function AppServices({ user, ready, children }: Props) {
   // Настройки кладёт в кэш /api/bootstrap — отдельно не запрашиваем.
@@ -47,6 +48,7 @@ export function AppServices({ user, ready, children }: Props) {
   useDesktopUnread();
   useNativeNotify(user.id);
   useDeviceBridges();
+  useBackButton(locked);
   useAppIcon(user, settings);
   useUiTranslation(settings?.uiLanguage);
 

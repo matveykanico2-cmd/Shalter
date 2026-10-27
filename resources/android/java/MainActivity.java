@@ -1,18 +1,21 @@
 package ru.shalter.app;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 // Регистрирует свои плагины SystemBars (цвет полос под системными панелями) и AppIcon
-// (иконка на рабочем столе), и запуск
-// без интернета из сборки в APK (OfflineShell).
+// (иконка на рабочем столе), запуск без интернета из сборки в APK (OfflineShell)
+// и системную кнопку «Назад» (handleBack).
 // Файл копирует scripts/apply-native-resources.js поверх сгенерированного `cap add`.
 public class MainActivity extends BridgeActivity {
     // Приложение на экране — входящий звонок показывает сама страница (свой баннер),
@@ -38,6 +41,34 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(IncomingCallPlugin.class);
         super.onCreate(savedInstanceState);
         showOverLockScreenIfCall(getIntent());
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                handleBack();
+            }
+        });
+    }
+
+    // Системная «Назад»: без обработчика Android просто закрывал приложение — из чата, из
+    // открытого окна, с любого экрана. Сначала спрашиваем страницу (window.__shalterBack в
+    // apps/web, use-back-button.ts): она закрывает окно или меню, уходит на экран назад и
+    // отвечает true; на главном экране — false, и приложение уходит в фон (как «Домой»: сокет
+    // и фоновая служба уведомлений живут). Страница без моста (/download и т. п.) — назад
+    // по истории WebView, а если некуда — в фон.
+    private void handleBack() {
+        WebView webView = bridge != null ? bridge.getWebView() : null;
+        if (webView == null) {
+            moveTaskToBack(true);
+            return;
+        }
+        webView.evaluateJavascript(
+            "(function(){try{return window.__shalterBack?(window.__shalterBack()?'handled':'root'):'none'}catch(e){return 'none'}})()",
+            (result) -> {
+                if ("\"handled\"".equals(result)) return;
+                if (!"\"root\"".equals(result) && webView.canGoBack()) webView.goBack();
+                else moveTaskToBack(true);
+            }
+        );
     }
 
     // Нажали на уведомление-звонок (или он сам открылся на весь экран): ведём в экран
@@ -61,11 +92,35 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    // Куда перейти: экран звонка из уведомления (CallNotifier) или ссылка shalter://chat/… /
+    // https://<сервер>/chat/… (фильтры — scripts/apply-native-resources.js, wireAndroidDeepLinks).
+    private String pathFromIntent(Intent intent) {
+        String path = intent.getStringExtra(CallNotifier.EXTRA_URL);
+        if (path != null) {
+            intent.removeExtra(CallNotifier.EXTRA_URL);
+            return path.startsWith("/") ? path : null;
+        }
+        Uri data = intent.getData();
+        if (data == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return null;
+        intent.setData(null);
+        String rest = data.getEncodedPath() == null ? "" : data.getEncodedPath();
+        if ("shalter".equalsIgnoreCase(data.getScheme())) {
+            String host = data.getEncodedAuthority() == null ? "" : data.getEncodedAuthority();
+            path = ("/" + host + rest).replaceAll("/{2,}", "/");
+        } else {
+            Uri server = Uri.parse(bridge.getServerUrl());
+            if (!"https".equalsIgnoreCase(data.getScheme()) || server.getHost() == null || !server.getHost().equalsIgnoreCase(data.getHost())) return null;
+            path = rest.isEmpty() ? "/" : rest;
+        }
+        if (data.getEncodedQuery() != null) path += "?" + data.getEncodedQuery();
+        if (data.getEncodedFragment() != null) path += "#" + data.getEncodedFragment();
+        return path;
+    }
+
     private void openPathFrom(Intent intent, boolean warm) {
         if (intent == null || bridge == null || bridge.getWebView() == null) return;
-        String path = intent.getStringExtra(CallNotifier.EXTRA_URL);
-        if (path == null || !path.startsWith("/")) return;
-        intent.removeExtra(CallNotifier.EXTRA_URL);
+        String path = pathFromIntent(intent);
+        if (path == null) return;
         String js = "(function(p){if(window.__shalterOpen){window.__shalterOpen(p)}else{location.href=p}})(" + org.json.JSONObject.quote(path) + ")";
         if (warm) bridge.getWebView().post(() -> bridge.getWebView().evaluateJavascript(js, null));
         else bridge.getWebView().loadUrl(bridge.getServerUrl() + path);

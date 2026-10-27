@@ -20,15 +20,37 @@ function build() {
   if (!fs.existsSync(path.join(WEB_DIST, "index.html"))) throw new Error(`нет сборки клиента: ${WEB_DIST}/index.html`);
 
   const assets = path.join(WEB_DIST, "assets");
+  const precache = writePrecacheList(assets);
   const files = fs.readdirSync(assets).filter((f) => /\.(js|css|svg|json)$/.test(f));
   for (const f of files) precompress(path.join(assets, f));
 
   // Версия — по index.html: он ссылается на файлы с хешем, значит, меняется с любым из них.
   const version = crypto.createHash("sha256").update(fs.readFileSync(path.join(WEB_DIST, "index.html"))).digest("hex").slice(0, 10);
-  fs.writeFileSync(path.join(WEB_DIST, "build.json"), JSON.stringify({ version, builtAt: new Date().toISOString() }));
+  // precache — для запуска без сети в Android-приложении: OfflineShell.java отдаёт эти файлы из APK.
+  fs.writeFileSync(path.join(WEB_DIST, "build.json"), JSON.stringify({ version, builtAt: new Date().toISOString(), precache }));
 
   unpackAssets();
   report(assets, files);
+}
+
+// Все файлы сборки — чтобы без сети приложение открывалось целиком, а не только уже открытые
+// экраны: service worker (public/sw.js) скачивает их заранее по списку
+// /assets/precache-<хеш>.json, ссылка на который — в <meta name="shalter-precache"> страницы.
+// Имя с хешем: /assets отдаётся как неизменяемый (1 год), список новой сборки — новый файл.
+function writePrecacheList(assets) {
+  for (const f of fs.readdirSync(assets)) if (/^precache-.*\.json(\.gz|\.br)?$/.test(f)) fs.rmSync(path.join(assets, f));
+  const list = fs
+    .readdirSync(assets)
+    .filter((f) => !/\.(gz|br)$/.test(f))
+    .sort()
+    .map((f) => `/assets/${f}`);
+  const json = JSON.stringify(list);
+  const name = `precache-${crypto.createHash("sha256").update(json).digest("hex").slice(0, 10)}.json`;
+  fs.writeFileSync(path.join(assets, name), json);
+  const indexPath = path.join(WEB_DIST, "index.html");
+  const html = fs.readFileSync(indexPath, "utf8").replace(/\s*<meta name="shalter-precache"[^>]*>/, "");
+  fs.writeFileSync(indexPath, html.replace("</head>", `  <meta name="shalter-precache" content="/assets/${name}" />\n</head>`));
+  return list;
 }
 
 // Brotli q11 / gzip 9 — минуты на сборку; по умолчанию быстрые уровни,

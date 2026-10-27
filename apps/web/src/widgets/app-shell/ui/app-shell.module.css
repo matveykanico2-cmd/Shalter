@@ -5,6 +5,9 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
   height: 100dvh;
+  /* Вырез и строка состояния: в приложении для iPhone (Capacitor, страница во весь экран) и в
+     горизонтальной ориентации с viewport-fit=cover. В браузере и на Android отступы нулевые. */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
 }
 
 /* Полоска «сейчас играет» во всю ширину над приложением (.shell-media-bar). */

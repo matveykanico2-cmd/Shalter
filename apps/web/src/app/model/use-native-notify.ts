@@ -1,12 +1,13 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { chatQueries, isChatMuted } from "@/entities/chat";
 import { messagePreview } from "@/entities/message";
 import { settingsQueries } from "@/entities/settings";
 
 import { http, ws } from "@/shared/api";
+import { NATIVE_NOTIFY_ALLOWED } from "@/shared/lib/push";
 
 // Уведомления в приложениях, как public/js/lib/nativeNotify.js. Android без Firebase держит себя
 // живым фоновой службой и показывает локальные уведомления сам; приложение для компьютера (Tauri)
@@ -67,7 +68,8 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
   const { local, service, callUi } = p;
   let { display } = await local.checkPermissions().catch(() => ({ display: "denied" }));
   if (display !== "granted") ({ display } = await local.requestPermissions().catch(() => ({ display: "denied" })));
-  if (display !== "granted") return () => {};
+  // Запретили — не запускаем; разрешат позже в настройках — запустит событие NATIVE_NOTIFY_ALLOWED.
+  if (display !== "granted") return null;
 
   await local.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
   await local.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
@@ -202,17 +204,32 @@ function startDesktop(bridge: NonNullable<NativeWindow["shalterDesktop"]>, meId:
 export function useNativeNotify(meId: string) {
   const client = useQueryClient();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   useEffect(() => {
     const cleanups: (() => void)[] = [];
     let stopped = false;
     const bridge = (window as NativeWindow).shalterDesktop;
     if (bridge?.notify) cleanups.push(startDesktop(bridge, meId, client));
-    const android = androidPlugins();
-    if (android) {
-      void startAndroid(android, meId, client, (path) => void navigate(path)).then((off) => (stopped ? off() : cleanups.push(off)));
-    }
+    // Android: при запуске, а если уведомления тогда были запрещены — когда их разрешат
+    // (экран «Уведомления», окно разрешений), как requestLocal в public/js/lib/push.js.
+    let android: "idle" | "starting" | "started" = "idle";
+    const startAndroidOnce = () => {
+      const plugins = androidPlugins();
+      if (!plugins || android !== "idle") return;
+      android = "starting";
+      void startAndroid(plugins, meId, client, (path) => void navigate(path)).then((off) => {
+        android = off ? "started" : "idle";
+        if (off) {
+          if (stopped) off();
+          else cleanups.push(off);
+        }
+      });
+    };
+    startAndroidOnce();
+    window.addEventListener(NATIVE_NOTIFY_ALLOWED, startAndroidOnce);
     return () => {
       stopped = true;
+      window.removeEventListener(NATIVE_NOTIFY_ALLOWED, startAndroidOnce);
       cleanups.forEach((off) => off());
     };
   }, [client, meId, navigate]);
@@ -220,7 +237,7 @@ export function useNativeNotify(meId: string) {
   // Открыли чат — его уведомление больше не нужно.
   useEffect(() => {
     const android = androidPlugins();
-    const id = /^\/chat\/([^/]+)/.exec(location.pathname)?.[1];
+    const id = /^\/chat\/([^/]+)/.exec(pathname)?.[1];
     if (android && id) android.local.cancel({ notifications: [{ id: numericId(id) }] }).catch(() => {});
-  });
+  }, [pathname]);
 }

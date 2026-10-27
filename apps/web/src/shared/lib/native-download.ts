@@ -1,7 +1,9 @@
 // Скачивание файлов в приложении (Android и iOS), как public/js/lib/nativeDownload.js. WebView сам
 // не скачивает: <a download> там игнорируется (Android) или открывает «Поделиться» и уводит
-// приложение на домашний экран (iOS). Забираем файл изнутри приложения (с cookie сессии)
-// и сохраняем в «Документы/Shalter»; не вышло — системное «Поделиться».
+// приложение на домашний экран (iOS). Забираем файл изнутри приложения (с cookie сессии):
+// на Android сохраняем в «Документы/Shalter» (не вышло — системное «Поделиться»), на iOS сразу
+// «Поделиться» — там «Сохранить в Файлы» и «Сохранить изображение»: папка «Документы»
+// приложения на iPhone человеку не видна, и «Сохранено» вело в никуда.
 const FOLDER = "Shalter";
 
 type Fs = {
@@ -10,15 +12,17 @@ type Fs = {
 };
 type Share = { share: (o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }) => Promise<unknown> };
 type CapWindow = Window & {
-  Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { Filesystem?: Fs; Share?: Share } };
+  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string; Plugins?: { Filesystem?: Fs; Share?: Share } };
 };
 
 function plugins() {
   const cap = (window as CapWindow).Capacitor;
   if (!cap?.isNativePlatform?.()) return null;
   const fs = cap.Plugins?.Filesystem;
-  return fs ? { fs, share: cap.Plugins?.Share ?? null } : null;
+  return fs ? { fs, share: cap.Plugins?.Share ?? null, ios: cap.getPlatform?.() === "ios" } : null;
 }
+
+type Plugins = NonNullable<ReturnType<typeof plugins>>;
 
 const safeName = (name: string) =>
   // eslint-disable-next-line no-control-regex
@@ -33,11 +37,23 @@ function blobToBase64(blob: Blob) {
   });
 }
 
-async function save(p: { fs: Fs; share: Share | null }, pending: Promise<Response>, name: string, notify: (text: string) => void) {
+async function shareFile(p: Plugins, data: string, file: string) {
+  const { uri } = await p.fs.writeFile({ path: file, data, directory: "CACHE" });
+  await p.share!.share({ title: file, files: [uri] });
+}
+
+async function save(p: Plugins, pending: Promise<Response>, name: string, notify: (text: string) => void) {
   const res = await pending;
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await blobToBase64(await res.blob());
   const file = safeName(name);
+  if (p.ios && p.share) {
+    // Закрыли «Поделиться», ничего не выбрав, — это не ошибка.
+    await shareFile(p, data, file).catch((err: unknown) => {
+      if (!/cancel/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    });
+    return;
+  }
   try {
     // Не затираем файл с тем же именем: «фото.jpg» → «фото (2).jpg».
     let path = `${FOLDER}/${file}`;
@@ -53,8 +69,7 @@ async function save(p: { fs: Fs; share: Share | null }, pending: Promise<Respons
     notify(`Сохранено: Документы/${path}`);
   } catch {
     // Нет доступа к общей папке — отдаём файл системе: «Сохранить», «Открыть с помощью»…
-    const { uri } = await p.fs.writeFile({ path: file, data, directory: "CACHE" });
-    if (p.share) await p.share.share({ title: file, files: [uri] });
+    if (p.share) await shareFile(p, data, file);
     else notify("Не удалось сохранить файл");
   }
 }

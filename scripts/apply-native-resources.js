@@ -27,12 +27,14 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     wireIosAppIcons();
   }
   if (name === "android") {
-    // Свой нативный код (MainActivity + плагин SystemBars) поверх сгенерированного.
+    // Свой нативный код (MainActivity: «Назад», ссылки, звонки; плагины SystemBars, AppIcon,
+    // IncomingCall; OfflineShell) поверх сгенерированного.
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
     setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
+    wireAndroidDeepLinks();
     wireAndroidAppIcons();
   }
 }
@@ -89,6 +91,41 @@ function wireAndroidAppIcons() {
   manifest = manifest.replace(/(<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?<\/activity>)/, `$1\n\n${aliases}`);
   fs.writeFileSync(manifestPath, manifest);
   console.log(`android: иконок приложения — ${icons.length} (activity-alias)`);
+}
+
+// Ссылки в приложение (MainActivity.pathFromIntent): shalter://chat/… — как у приложения для
+// компьютера, и ссылки на сайт https://<server.url>/chat/…, /u/…, /join/…, /s/…, /app/… —
+// «Открыть в приложении». Подтверждённые ссылки (без вопроса «Чем открыть») — когда в
+// public/.well-known/assetlinks.json есть отпечаток ключа подписи ru.shalter.app (DEPLOY_MOBILE.md).
+function wireAndroidDeepLinks() {
+  const paths = ["/chat/", "/u/", "/join/", "/s/", "/app/", "/folder/", "/call-join/", "/community/"];
+  const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
+  let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (manifest.includes('android:scheme="shalter"')) return;
+  const host = new URL(JSON.parse(fs.readFileSync(path.join(ROOT, "capacitor.config.json"), "utf8")).server.url).host;
+  const filters = `
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="shalter" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="${host}" />
+${paths.map((p) => `                <data android:pathPrefix="${p}" />`).join("\n")}
+            </intent-filter>
+`;
+  const activity = /(<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?)(\s*<\/activity>)/;
+  if (!activity.test(manifest)) {
+    console.log("android: не нашёл MainActivity в манифесте — ссылки shalter:// не подключены");
+    return;
+  }
+  manifest = manifest.replace(activity, `$1\n${filters}$2`);
+  fs.writeFileSync(manifestPath, manifest);
+  console.log(`android: ссылки shalter:// и https://${host}/… открываются в приложении`);
 }
 
 // iOS: альтернативные иконки — наборы AppIcon-<id> в Assets.xcassets (их скопировали
@@ -244,6 +281,8 @@ function describeIosPermissions() {
     NSContactsUsageDescription: "<string>Чтобы найти друзей, которые уже пользуются Shalter.</string>",
     NSPhotoLibraryUsageDescription: "<string>Чтобы отправлять фото и видео из галереи.</string>",
     NSPhotoLibraryAddUsageDescription: "<string>Чтобы сохранять фото и видео из чатов.</string>",
+    // Без неё WKWebView молча отказывает navigator.geolocation — «Люди рядом» и геопозиция в чате.
+    NSLocationWhenInUseUsageDescription: "<string>Чтобы показать людей рядом и отправить геопозицию в чат.</string>",
     ITSAppUsesNonExemptEncryption: "<false/>",
   };
   for (const [key, value] of Object.entries(entries)) {

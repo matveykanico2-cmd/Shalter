@@ -189,10 +189,19 @@ export async function pushDiagnostics(): Promise<PushDiagnostics> {
   return out;
 }
 
+/**
+ * Android без Firebase: уведомления разрешили уже после запуска — фоновую службу и локальные
+ * уведомления запускает use-native-notify по этому событию (раньше — только при следующем запуске).
+ */
+export const NATIVE_NOTIFY_ALLOWED = "shalter:native-notify-allowed";
+
 async function requestPlugin(plugin: CapPlugin, field: "display" | "receive") {
   let state = (await plugin.checkPermissions().catch(() => ({ [field]: "denied" })))[field];
   if (state !== "granted") state = (await plugin.requestPermissions().catch(() => ({ [field]: "denied" })))[field];
-  if (state === "granted") return true;
+  if (state === "granted") {
+    window.dispatchEvent(new Event(NATIVE_NOTIFY_ALLOWED));
+    return true;
+  }
   lastError = "Уведомления запрещены в настройках Android для Shalter.";
   return false;
 }

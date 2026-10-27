@@ -14,15 +14,19 @@
 // Порядок важен: stub/прокси поднимаются в своём beforeAll, который регистрируется
 // ДО useServer(), и заполняют объект env, переданный в useServer по ссылке —
 // startServer читает его уже после старта заглушек.
+import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import net from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll } from "vitest";
 
 export type Handler = (req: http.IncomingMessage, res: http.ServerResponse, body: string) => void;
 
 export interface StubSite {
   /** Сколько запросов пришло на сайт (по путям). */
-  hits: Array<{ method: string; path: string; headers: http.IncomingHttpHeaders; body: string }>;
+  hits: Array<{ method: string; path: string; headers: http.IncomingHttpHeaders; body: string; raw: Buffer }>;
   /** Обработчик по точному пути (без query); без обработчика — 404. */
   routes: Map<string, Handler>;
   port: number;
@@ -44,21 +48,30 @@ function close(server: http.Server | net.Server): Promise<void> {
   });
 }
 
-async function startSite(): Promise<{ site: StubSite; server: http.Server }> {
+// Сертификат заглушек HTTPS-сервисов с зашитым адресом (нейросети Shalter AI): самоподписанный,
+// только для тестов; сервер ему доверяет через NODE_EXTRA_CA_CERTS. Имена — в subjectAltName.
+const TLS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "fixtures", "tls");
+export const STUB_CA = path.join(TLS_DIR, "ai-stub.crt");
+
+async function startSite({ tls = false } = {}): Promise<{ site: StubSite; server: http.Server }> {
   const site: StubSite = { hits: [], routes: new Map(), port: 0, localUrl: "" };
-  const server = http.createServer((req, res) => {
+  const handler: http.RequestListener = (req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
-      const body = Buffer.concat(chunks).toString("utf8");
-      const path = new URL(req.url ?? "/", "http://stub").pathname;
-      site.hits.push({ method: req.method ?? "", path, headers: req.headers, body });
-      const handler = site.routes.get(path);
-      if (handler) return handler(req, res, body);
+      const raw = Buffer.concat(chunks);
+      const body = raw.toString("utf8");
+      const pathname = new URL(req.url ?? "/", "http://stub").pathname;
+      site.hits.push({ method: req.method ?? "", path: pathname, headers: req.headers, body, raw });
+      const route = site.routes.get(pathname);
+      if (route) return route(req, res, body);
       res.statusCode = 404;
       res.end("not found");
     });
-  });
+  };
+  const server = tls
+    ? https.createServer({ cert: fs.readFileSync(STUB_CA), key: fs.readFileSync(path.join(TLS_DIR, "ai-stub.key")) }, handler)
+    : http.createServer(handler);
   site.port = await listen(server);
   site.localUrl = `http://127.0.0.1:${site.port}`;
   return { site, server };
@@ -94,16 +107,27 @@ export const PUBLIC_HOST = "203.0.113.10";
  * Прокси для всего исходящего fetch сервера. Возвращает env для useServer и
  * доступ к журналу CONNECT; сайт по адресу PUBLIC_HOST:80 — локальный stub.
  */
-export function useEgressProxy(): { env: Record<string, string>; proxy: () => StubProxy; site: () => StubSite } {
+export function useEgressProxy({ tlsHosts = [] }: { tlsHosts?: string[] } = {}): {
+  env: Record<string, string>;
+  proxy: () => StubProxy;
+  site: () => StubSite;
+  /** HTTPS-заглушка для tlsHosts («openrouter.ai:443»): один сайт на все эти адреса. */
+  tlsSite: () => StubSite;
+} {
   const env: Record<string, string> = {};
   const proxyState: StubProxy = { connects: [], sites: new Map() };
   let proxyServer: http.Server | undefined;
   let siteStarted: { site: StubSite; server: http.Server } | undefined;
+  let tlsStarted: { site: StubSite; server: http.Server } | undefined;
   const sockets = new Set<net.Socket>();
 
   beforeAll(async () => {
     siteStarted = await startSite();
     proxyState.sites.set(`${PUBLIC_HOST}:80`, siteStarted.site);
+    if (tlsHosts.length) {
+      tlsStarted = await startSite({ tls: true });
+      for (const host of tlsHosts) proxyState.sites.set(host, tlsStarted.site);
+    }
     proxyServer = http.createServer((_req, res) => {
       // Обычные (не CONNECT) запросы через прокси — тоже наружу; не пускаем.
       res.statusCode = 502;
@@ -141,12 +165,14 @@ export function useEgressProxy(): { env: Record<string, string>; proxy: () => St
       // Локальные заглушки (LANGUAGETOOL_URL и т.п.) и 127.0.0.1:9 — мимо прокси.
       NO_PROXY: "127.0.0.1,localhost",
       no_proxy: "127.0.0.1,localhost",
+      ...(tlsHosts.length ? { NODE_EXTRA_CA_CERTS: STUB_CA } : {}),
     });
   });
   afterAll(async () => {
     for (const s of sockets) s.destroy();
     if (proxyServer) await close(proxyServer);
     if (siteStarted) await close(siteStarted.server);
+    if (tlsStarted) await close(tlsStarted.server);
   });
   return {
     env,
@@ -154,6 +180,10 @@ export function useEgressProxy(): { env: Record<string, string>; proxy: () => St
     site: () => {
       if (!siteStarted) throw new Error("прокси ещё не поднят");
       return siteStarted.site;
+    },
+    tlsSite: () => {
+      if (!tlsStarted) throw new Error("HTTPS-заглушка не поднята (tlsHosts пуст?)");
+      return tlsStarted.site;
     },
   };
 }

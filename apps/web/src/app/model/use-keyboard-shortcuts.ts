@@ -67,7 +67,11 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      if (e.key === "Escape" && !e.defaultPrevented && !overlayOpen() && window.location.pathname.startsWith("/chat/")) void navigate("/");
+      if (e.key === "Escape" && !e.defaultPrevented && !overlayOpen() && window.location.pathname.startsWith("/chat/")) {
+        // Отменяем: «Назад» в Android-приложении (use-back-button.ts) видит, что экран уже сменился.
+        e.preventDefault();
+        void navigate("/");
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);

@@ -37,10 +37,11 @@ export async function download(api: Api | null, url: string, init: { method?: st
 }
 
 /**
- * Валидный PNG 2×2 со случайными цветами пикселей: одинаковые файлы сервер хранит
- * один раз (sha_…), а доступ к файлу привязан к чатам — каждому тесту нужен свой файл.
+ * Валидный PNG side×side (по умолчанию 2×2) со случайными цветами пикселей: одинаковые
+ * файлы сервер хранит один раз (sha_…), а доступ к файлу привязан к чатам — каждому тесту
+ * нужен свой файл.
  */
-export function uniquePng(): Buffer {
+export function uniquePng(side = 2): Buffer {
   const chunk = (type: string, data: Buffer) => {
     const len = Buffer.alloc(4);
     len.writeUInt32BE(data.length);
@@ -50,12 +51,12 @@ export function uniquePng(): Buffer {
     return Buffer.concat([len, body, crc]);
   };
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(2, 0); // ширина
-  ihdr.writeUInt32BE(2, 4); // высота
+  ihdr.writeUInt32BE(side, 0); // ширина
+  ihdr.writeUInt32BE(side, 4); // высота
   ihdr[8] = 8; // бит на канал
   ihdr[9] = 6; // RGBA
-  const px = randomBytes(16);
-  const raw = Buffer.concat([Buffer.from([0]), px.subarray(0, 8), Buffer.from([0]), px.subarray(8)]);
+  // Каждая строка: байт фильтра 0 и side пикселей RGBA.
+  const raw = Buffer.concat(Array.from({ length: side }, () => Buffer.concat([Buffer.from([0]), randomBytes(side * 4)])));
   return Buffer.concat([
     Buffer.from("89504e470d0a1a0a", "hex"),
     chunk("IHDR", ihdr),

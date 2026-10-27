@@ -78,11 +78,87 @@ const TEXT_EXT = new Set([
   "swift", "sh", "bat", "ps1", "sql", "srt", "vtt", "tex", "rtf",
 ]);
 const GIGA_DOC_EXT = new Set(["pdf", "doc", "docx", "epub", "ppt", "pptx", "odt"]);
+const DOC_MIME = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  epub: "application/epub+zip",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  odt: "application/vnd.oasis.opendocument.text",
+};
 const IMAGE_MIME = /^image\/(jpeg|png|webp|gif|bmp|tiff)$/;
+// Картинки по расширению: браузер не всегда сообщает тип файла (тогда mimeType пустой).
+const IMAGE_EXT = new Set(["jpg", "jpeg", "jfif", "png", "webp", "gif", "bmp", "tif", "tiff", "heic", "heif", "avif"]);
+// Что видящие нейросети (OpenAI-совместимые) берут как есть; остальное — перекодируем в JPEG.
+const VISION_MIME = /^image\/(jpeg|png|webp)$/;
+// Сколько картинок в одном запросе: альбом до 10 фото, а у бесплатных моделей лимиты.
+const MAX_IMAGES_PER_REQUEST = 10;
+// Крупнее — сжимаем: 10 МБ фото в base64 — 13 МБ JSON, бесплатные сервисы такое не берут.
+const MAX_VISION_BYTES = 4 * 1024 * 1024;
+const MAX_VISION_SIDE = 2048;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const extOf = (name) => (String(name ?? "").toLowerCase().match(/\.([a-z0-9]{1,10})$/)?.[1] ?? "");
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}\n…(обрезано)` : s);
+
+// Граница слова для кириллицы: \b и \w в JS-регулярках без флага u видят только
+// латиницу, поэтому «нарисуй\b» не срабатывал никогда.
+const E = "(?=$|[^а-яёa-z0-9_])";
+const S = "(?:^|[^а-яёa-z0-9_])";
+const L = "[а-яёa-z]*";
+
+// Тип картинки по первым байтам: подписанному типу верить нельзя (фото «.jpg» бывает
+// PNG/WebP/HEIC, у файла без типа его нет вовсе), а нейросеть с неверным типом отказывает.
+function sniffImageMime(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (buf.toString("latin1", 0, 4) === "GIF8") return "image/gif";
+  if (buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return "image/bmp";
+  if (buf.toString("latin1", 0, 4) === "II*\u0000" || buf.toString("latin1", 0, 4) === "MM\u0000*") return "image/tiff";
+  if (buf.toString("latin1", 4, 8) === "ftyp") {
+    const brand = buf.toString("latin1", 8, 12);
+    if (/^avi[fs]$/.test(brand)) return "image/avif";
+    if (/^(heic|heix|hevc|hevx|heim|heis|mif1|msf1)$/.test(brand)) return "image/heic";
+  }
+  return null;
+}
+
+// Вложение — картинка: фото, картинка файлом (по типу или по расширению).
+function isImageAttachment(a) {
+  if (a.kind === "image") return true;
+  if (a.kind !== "file") return false;
+  if (/^image\//.test(a.mimeType ?? "")) return a.mimeType !== "image/svg+xml";
+  return !a.mimeType && IMAGE_EXT.has(extOf(a.name));
+}
+
+// Байты фото → то, что нейросеть точно примет: JPEG/PNG/WebP до MAX_VISION_BYTES и
+// MAX_VISION_SIDE. HEIC, AVIF, TIFF, BMP, GIF (берём первый кадр) и большие фото — в JPEG.
+async function visionImage(buf) {
+  const mime = sniffImageMime(buf);
+  if (mime && VISION_MIME.test(mime) && buf.length <= MAX_VISION_BYTES) {
+    try {
+      const meta = await require("sharp")(buf).metadata();
+      if ((meta.width ?? 0) <= MAX_VISION_SIDE && (meta.height ?? 0) <= MAX_VISION_SIDE) return { buf, mime };
+    } catch {
+      return { buf, mime };
+    }
+  }
+  try {
+    const jpeg = await require("sharp")(buf, { limitInputPixels: 100_000_000, animated: false })
+      .rotate()
+      .resize({ width: MAX_VISION_SIDE, height: MAX_VISION_SIDE, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { buf: jpeg, mime: "image/jpeg" };
+  } catch (err) {
+    if (mime && VISION_MIME.test(mime)) return { buf, mime };
+    throw Object.assign(new Error(`unsupported image (${mime ?? "unknown"}): ${err.message}`), { unsupported: true });
+  }
+}
 
 // ---------- HTTP ----------
 
@@ -91,7 +167,8 @@ const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}\n…(обрезано)`
 let gigaCa = null;
 function gigaAgentOptions() {
   if (!gigaCa) {
-    gigaCa = [...tls.rootCertificates];
+    // «default» — встроенные корневые плюс NODE_EXTRA_CA_CERTS (и системные с --use-system-ca).
+    gigaCa = [...(tls.getCACertificates?.("default") ?? tls.rootCertificates)];
     try {
       gigaCa.push(fs.readFileSync(path.join(__dirname, "..", "certs", "russian_trusted_root_ca.pem"), "utf8"));
     } catch {}
@@ -169,6 +246,21 @@ function gigaDelete(token, id) {
   }).catch(() => {});
 }
 
+// GigaChat берёт в одно сообщение только одно изображение и только JPG/PNG/TIFF/BMP:
+// альбом и кадры видео раньше роняли весь запрос. Несколько картинок — одним коллажем.
+async function gigaMedia(media) {
+  const images = media.filter((m) => IMAGE_MIME.test(m.mime));
+  const docs = media.filter((m) => !IMAGE_MIME.test(m.mime));
+  if (!images.length) return docs;
+  let image = images[0];
+  if (images.length > 1) {
+    image = { buf: await framesCollage(images.slice(0, 9).map((m) => m.buf)), mime: "image/jpeg" };
+  } else if (!/^image\/(jpeg|png|tiff|bmp)$/.test(image.mime)) {
+    image = { buf: await require("sharp")(image.buf).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" };
+  }
+  return [{ ...image, name: image.mime === "image/png" ? "image.png" : image.mime === "image/jpeg" ? "image.jpg" : image.name || "image" }, ...docs];
+}
+
 async function viaGigaChat(turns) {
   const token = await gigaAccessToken();
   const uploaded = [];
@@ -176,7 +268,7 @@ async function viaGigaChat(turns) {
     const messages = [{ role: "system", content: systemPrompt() }];
     for (const t of turns) {
       const attachments = [];
-      for (const media of t.media ?? []) {
+      for (const media of await gigaMedia(t.media ?? [])) {
         const id = await gigaUpload(token, media.buf, media.name, media.mime);
         uploaded.push(id);
         attachments.push(id);
@@ -209,10 +301,21 @@ function systemPrompt() {
 }
 
 function openAiMessages(turns, vision) {
+  // Не больше MAX_IMAGES_PER_REQUEST картинок на запрос — самые свежие.
+  let budget = MAX_IMAGES_PER_REQUEST;
+  const allowed = new Set();
+  for (const t of [...turns].reverse()) {
+    for (const m of [...(t.media ?? [])].reverse()) {
+      if (vision && IMAGE_MIME.test(m.mime) && budget > 0) {
+        allowed.add(m);
+        budget--;
+      }
+    }
+  }
   return [
     { role: "system", content: systemPrompt() },
     ...turns.map((t) => {
-      const images = vision ? (t.media ?? []).filter((m) => IMAGE_MIME.test(m.mime)) : [];
+      const images = (t.media ?? []).filter((m) => allowed.has(m));
       if (!images.length) return { role: t.role, content: t.content || "(вложение)" };
       return {
         role: t.role,
@@ -336,10 +439,11 @@ function viaPollinations(turns, { onDelta } = {}) {
 
 // OpenRouter: бесплатные модели «:free». Модель не зашита — список бесплатных
 // меняется, поэтому раз в 6 часов выбираем лучшую доступную, видящую картинки.
-let orModels = { list: [], at: 0 };
-async function openRouterModels() {
-  if (OPENROUTER_MODEL) return [OPENROUTER_MODEL];
-  if (orModels.list.length && Date.now() - orModels.at < 6 * 3600_000) return orModels.list;
+// С картинками — только модели, которые их видят: текстовая на картинку отвечает
+// ошибкой, и раньше после сбоя видящей модели запрос уходил в «слепые».
+let orModels = { list: [], vision: [], at: 0 };
+async function openRouterCatalog() {
+  if (orModels.list.length && Date.now() - orModels.at < 6 * 3600_000) return orModels;
   try {
     const res = await httpsRequest("https://openrouter.ai/api/v1/models", { timeoutMs: 15000 });
     const data = parseJson(res, "openrouter models").data ?? [];
@@ -347,17 +451,34 @@ async function openRouterModels() {
     const seesImages = (m) => (m.architecture?.input_modalities ?? []).includes("image");
     const score = (m) =>
       (seesImages(m) ? 100 : 0) + (/gemma/i.test(m.id) ? 20 : 0) + (/qwen|llama|mistral/i.test(m.id) ? 10 : 0) - (/safety|guard|code/i.test(m.id) ? 200 : 0);
-    const list = free.sort((a, b) => score(b) - score(a)).slice(0, 4).map((m) => m.id);
-    if (list.length) orModels = { list, at: Date.now() };
+    const ranked = free.filter((m) => score(m) > -100).sort((a, b) => score(b) - score(a));
+    const list = ranked.slice(0, 4).map((m) => m.id);
+    const vision = ranked.filter(seesImages).slice(0, 4).map((m) => m.id);
+    if (list.length) orModels = { list, vision, at: Date.now() };
   } catch (err) {
     console.warn("shalter ai: openrouter models failed:", err.message);
   }
-  return orModels.list.length ? orModels.list : ["google/gemma-4-31b-it:free"];
+  return orModels.list.length ? orModels : { list: ["google/gemma-4-31b-it:free"], vision: ["google/gemma-4-31b-it:free"] };
+}
+
+// Заданная модель (OPENROUTER_MODEL) — первой; без неё или если с картинками она
+// не справилась — лучшие бесплатные из каталога (видящие, когда есть картинки).
+async function* openRouterModels(withImages) {
+  const tried = new Set();
+  if (OPENROUTER_MODEL) {
+    tried.add(OPENROUTER_MODEL);
+    yield OPENROUTER_MODEL;
+    if (!withImages) return;
+  }
+  const catalog = await openRouterCatalog();
+  for (const model of withImages ? catalog.vision : catalog.list) if (!tried.has(model)) yield model;
 }
 
 async function viaOpenRouter(turns, { onDelta } = {}) {
   let lastErr = null;
-  for (const model of await openRouterModels()) {
+  const withImages = turns.some((t) => t.media?.some((m) => IMAGE_MIME.test(m.mime)));
+  for await (const model of openRouterModels(withImages)) {
+    if (gen().signal?.aborted) break;
     try {
       return await (onDelta ? (o) => streamCompletion({ ...o, onDelta }) : openAiCompletion)({
         url: "https://openrouter.ai/api/v1/chat/completions",
@@ -453,23 +574,67 @@ function cleanText(raw) {
     .split("\n")
     .filter((line) => !(/pollinations/i.test(line) && /(sponsor|support|powered|\bads?\b|реклам)/i.test(line)))
     .join("\n");
+  // Заголовки и маркеры списков правим только в тексте: внутри ```кода``` «# » — это
+  // комментарий Python/bash, а «- » — список YAML; раньше код портился.
   return text
-    .replace(/^#{1,6}\s+/gm, "")
-    // списки «- пункт» / «* пункт» → «• пункт», как в Telegram
-    .replace(/^(\s*)[-*•]\s+(?=\S)/gm, "$1• ")
-    .replace(/\n{3,}/g, "\n\n")
+    .split(/(```[\s\S]*?(?:```|$))/)
+    .map((part, i) =>
+      i % 2
+        ? part
+        : part
+            .replace(/^#{1,6}\s+/gm, "")
+            // списки «- пункт» / «* пункт» → «• пункт», как в Telegram
+            .replace(/^(\s*)[-*•]\s+(?=\S)/gm, "$1• ")
+            .replace(/\n{3,}/g, "\n\n")
+    )
+    .join("")
     .trim();
 }
 
+// [имя, вызов, видит ли картинки]
 function providerList(turns) {
   const hasMedia = turns.some((t) => t.media?.length);
+  // PDF и документы Office читает только GigaChat: остальные их молча теряли.
+  const hasDocs = turns.some((t) => t.media?.some((m) => !IMAGE_MIME.test(m.mime)));
   const list = [];
   // С картинками/кадрами — сначала те, кто их видит.
-  if (OPENROUTER_API_KEY) list.push(["openrouter", viaOpenRouter]);
-  if (HF_TOKEN) list.push(["huggingface", viaHuggingFace]);
-  if (GIGACHAT_AUTH_KEY) list[hasMedia ? "push" : "unshift"](["gigachat", viaGigaChat]);
-  list.push(["pollinations", viaPollinations]);
+  if (OPENROUTER_API_KEY) list.push(["openrouter", viaOpenRouter, true]);
+  if (HF_TOKEN) list.push(["huggingface", viaHuggingFace, true]);
+  if (GIGACHAT_AUTH_KEY) list[hasMedia && !hasDocs ? "push" : "unshift"](["gigachat", viaGigaChat, true]);
+  list.push(["pollinations", viaPollinations, !!POLLINATIONS_TOKEN]);
   return list;
+}
+
+// Для нейросети, которая картинок не видит: фото → текст. Раньше картинки ей просто
+// не передавались — модель получала «(вложение)» и отвечала «я не вижу изображений».
+// Описание — бесплатное распознавание (lib/hfSpaces.js или локальная модель); не вышло —
+// пометка, чтобы модель честно сказала, что фото не видно, а не выдумывала.
+const describedImages = new Map();
+async function imagesAsText(turns) {
+  if (!turns.some((t) => t.media?.some((m) => m.image))) return turns;
+  const out = [];
+  for (const t of turns) {
+    const images = (t.media ?? []).filter((m) => m.image);
+    if (!images.length) {
+      out.push(t);
+      continue;
+    }
+    const parts = [];
+    for (const m of images) {
+      const key = crypto.createHash("sha1").update(m.buf).digest("hex");
+      if (!describedImages.has(key)) {
+        const desc =
+          HF_VISION_KEYLESS || LOCAL_VISION_ENABLED
+            ? await localDescription(m.buf, "Изображение").catch(() => null)
+            : null;
+        describedImages.set(key, desc ?? "[Изображение: эта нейросеть его не видит. Скажи пользователю, что фото сейчас не видно, и попроси описать его словами.]");
+        if (describedImages.size > 50) describedImages.delete(describedImages.keys().next().value);
+      }
+      parts.push(describedImages.get(key));
+    }
+    out.push({ ...t, content: [parts.join("\n"), t.content].filter(Boolean).join("\n\n"), media: (t.media ?? []).filter((m) => !m.image) });
+  }
+  return out;
 }
 
 // Ответ целиком: если модель оборвалась на лимите длины (finish_reason=length),
@@ -495,11 +660,13 @@ async function generateWith(call, turns, onDelta) {
 
 async function generate(turns, { onDelta } = {}) {
   // Два круга по всем провайдерам: короткий сбой сети не превращается в «не ответила».
+  let blind = null;
   for (let round = 0; round < 2; round++) {
-    for (const [name, call] of providerList(turns)) {
+    for (const [name, call, seesImages] of providerList(turns)) {
       if (gen().signal?.aborted) return null;
       try {
-        const text = await generateWith(call, turns, onDelta);
+        const input = seesImages ? turns : (blind ??= await imagesAsText(turns));
+        const text = await generateWith(call, input, onDelta);
         if (text || gen().signal?.aborted) return text || null;
       } catch (err) {
         console.warn(`shalter ai: ${name} failed:`, err.message);
@@ -532,6 +699,126 @@ function splitReply(text) {
   }
   if (rest.trim()) out.push(rest);
   return out;
+}
+
+// ---------- ответ файлом ----------
+
+// Какие файлы бот пишет сам: только текстовые форматы, до 1 МБ.
+const OUT_FILE_TYPES = {
+  txt: "text/plain", md: "text/markdown", csv: "text/csv", tsv: "text/tab-separated-values", json: "application/json",
+  html: "text/html", xml: "application/xml", yml: "application/yaml", yaml: "application/yaml", ini: "text/plain", toml: "text/plain",
+  log: "text/plain", srt: "text/plain", vtt: "text/vtt", tex: "text/x-tex", css: "text/css", js: "text/javascript", mjs: "text/javascript",
+  ts: "text/plain", tsx: "text/plain", jsx: "text/javascript", py: "text/x-python", java: "text/x-java", kt: "text/plain", c: "text/x-c",
+  h: "text/x-c", cpp: "text/x-c++", hpp: "text/x-c++", cs: "text/plain", go: "text/plain", rs: "text/plain", php: "text/plain",
+  rb: "text/plain", swift: "text/plain", sh: "text/x-shellscript", bat: "text/plain", ps1: "text/plain", sql: "application/sql",
+};
+const MAX_OUT_FILE_BYTES = 1024 * 1024;
+// Язык блока кода → расширение файла.
+const LANG_EXT = {
+  python: "py", py: "py", javascript: "js", js: "js", node: "js", typescript: "ts", ts: "ts", tsx: "tsx", jsx: "jsx", html: "html",
+  css: "css", json: "json", csv: "csv", tsv: "tsv", sql: "sql", bash: "sh", sh: "sh", shell: "sh", zsh: "sh", markdown: "md", md: "md",
+  yaml: "yml", yml: "yml", xml: "xml", java: "java", kotlin: "kt", kt: "kt", c: "c", cpp: "cpp", "c++": "cpp", csharp: "cs", cs: "cs",
+  go: "go", golang: "go", rust: "rs", rs: "rs", php: "php", ruby: "rb", rb: "rb", swift: "swift", ini: "ini", toml: "toml",
+  powershell: "ps1", ps1: "ps1", bat: "bat", batch: "bat", latex: "tex", tex: "tex", text: "txt", txt: "txt", plaintext: "txt",
+};
+const OUT_EXT_RE = Object.keys(OUT_FILE_TYPES).join("|");
+// «в .txt», «в формате csv», «csv-файл», «файл .md», «as json file»
+const FILE_EXT_RE = new RegExp(
+  `(?:^|[^a-zа-яё0-9])(?:(?:в|во|as|to|into|формат[а-яё]*)\\s+\\.?(${OUT_EXT_RE})|\\.(${OUT_EXT_RE})|(${OUT_EXT_RE})[\\s-]*файл[а-яё]*|файл[а-яё]*\\s+\\.?(${OUT_EXT_RE}))(?=$|[^a-zа-яё0-9])`,
+  "i"
+);
+// «сделай файл», «пришли файлом», «сохрани в файл», «в виде файла», «as a file»
+const FILE_WANT_RE = new RegExp(
+  [
+    `${S}(?:в\\s+(?:виде\\s+)?файл[еау]?|файлом|отдельным\\s+файлом)${E}`,
+    `${S}(?:сделай|создай|сгенерируй|сформируй|пришли|скинь|кинь|отправь|дай|сохрани|запиши|выгрузи|экспортируй|оформи|выдай|верни|подготовь|напиши|собери)(?:те)?\\s+(?:мне\\s+)?(?:(?:это|его|её|ее|их|всё|все|пожалуйста)\\s+)?(?:в\\s+)?(?:${L}\\s+){0,2}?(?:файл|документ)(?:ик|ом|е|а)?${E}`,
+    `${S}(?:as|in|to|into)\\s+an?\\s+(?:\\w+\\s+)?file${E}`,
+    `${S}(?:save|export|download)\\s+(?:it\\s+|this\\s+|that\\s+)?(?:as|to)\\s+`,
+  ].join("|"),
+  "i"
+);
+
+// Просьба ответить файлом → { ext } (ext — null, если формат выберет модель); иначе null.
+function fileRequest(text) {
+  const t = String(text ?? "");
+  if (!t) return null;
+  // Вопрос о присланном файле («что в файле?», «прочитай файл») — не просьба создать.
+  if (/(?:^|[^а-яё])(?:прочитай|прочти|открой|посмотри|глянь|что\s+(?:в|за)|перескажи|разбери|проверь)(?=$|[^а-яё])[^.!?\n]{0,30}файл/i.test(t) && !FILE_EXT_RE.test(t)) return null;
+  let m = FILE_EXT_RE.exec(t);
+  const want = FILE_WANT_RE.test(t);
+  // «.json» в тексте («ошибка в package.json») или «ответь в формате json» — ещё не
+  // просьба о файле: нужен глагол «пришли/сохрани/…» или само слово «файл».
+  const asks = /(?:файл|file|сохрани|запиши|save|пришли|скинь|кинь|отправь|выгрузи|экспортируй|export|download)/i.test(t);
+  if (m && !want && !asks && !m[3] && !m[4]) m = null;
+  if (!m && !want) return null;
+  const ext = (m?.[1] || m?.[2] || m?.[3] || m?.[4] || "").toLowerCase();
+  if (ext) return { ext: ext === "yaml" ? "yml" : ext };
+  if (/таблиц|table|spreadsheet/i.test(t)) return { ext: "csv" };
+  if (/markdown|маркдаун/i.test(t)) return { ext: "md" };
+  if (/python|питон/i.test(t)) return { ext: "py" };
+  if (/текстов[а-яё]*\s+файл|text\s+file/i.test(t)) return { ext: "txt" };
+  return { ext: null };
+}
+
+function fileInstruction(ext) {
+  return (
+    "Пользователь просит результат ФАЙЛОМ — сервер сам приложит файл к сообщению, поэтому не пиши, что не умеешь создавать или отправлять файлы. " +
+    "Ответь так: одна короткая фраза о том, что в файле; затем строка «ИМЯ ФАЙЛА: имя." + (ext || "расширение") + "» (латиницей, без пробелов); " +
+    "затем ВСЁ содержимое файла одним блоком ``` … ``` — полностью, без сокращений и многоточий. " +
+    (ext ? `Формат файла — .${ext}. ` : "Расширение выбери по содержимому (txt, md, csv, json, html, py, js и т.п.). ") +
+    "Больше ничего после блока не пиши."
+  );
+}
+
+// Имя файла: латиница, цифры, «-», «_», точка; расширение — из разрешённых.
+function safeOutName(raw, ext) {
+  const base = String(raw ?? "")
+    .replace(/\.[a-z0-9]{1,10}$/i, "")
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 60);
+  return `${base || "shalter-ai"}.${ext}`;
+}
+
+// Ответ модели → { name, ext, content, caption } или null, если файла в ответе нет.
+function parseFileReply(text, wantedExt) {
+  const raw = String(text ?? "");
+  const blocks = [...raw.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)];
+  const named = raw.match(/ИМЯ\s+ФАЙЛА\s*:\s*[`«"*]*([^\s`»"*]+)/i)?.[1] ?? "";
+  if (!blocks.length) return null;
+  const main = blocks.reduce((a, b) => (b[2].length > a[2].length ? b : a));
+  const lang = main[1].trim().toLowerCase();
+  const namedExt = extOf(named);
+  const ext = [wantedExt, OUT_FILE_TYPES[namedExt] ? namedExt : null, LANG_EXT[lang]].find((e) => e && OUT_FILE_TYPES[e]) ?? "txt";
+  const content = main[2].replace(/\s+$/, "") + "\n";
+  const caption = raw
+    .replace(main[0], "")
+    .replace(/^.*ИМЯ\s+ФАЙЛА\s*:.*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 500);
+  return { name: safeOutName(named, ext), ext, content, caption };
+}
+
+// Текст → загрузка (тем же путём, что и нарисованные картинки) → вложение «файл».
+async function storeTextFile(name, ext, content) {
+  const bytes = Buffer.from(content, "utf8");
+  if (bytes.length > MAX_OUT_FILE_BYTES) throw Object.assign(new Error("file too large"), { tooLarge: true });
+  const tmp = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.${ext}`);
+  try {
+    await fs.promises.writeFile(tmp, bytes);
+    const url = await storeGeneratedFile(tmp);
+    return { kind: "file", url, name, mimeType: OUT_FILE_TYPES[ext] ?? "text/plain", size: bytes.length };
+  } finally {
+    fs.promises.unlink(tmp).catch(() => {});
+  }
+}
+
+// Отправить файл в чат: подпись — короткая, текст ответа целиком уже в файле.
+async function sendFileReply(chat, file, caption) {
+  const attachment = await storeTextFile(file.name, file.ext, file.content);
+  return sendMessageAndBroadcast(chat, SHALTER_AI_ID, caption || `📄 ${file.name}`, { attachments: [attachment] });
 }
 
 // ---------- вложения ----------
@@ -591,6 +878,9 @@ async function readAttachment(a, { withMedia }) {
   if (a.kind === "voice" || (a.kind === "file" && /^audio\//.test(a.mimeType ?? ""))) {
     const label = a.kind === "voice" ? `голосовое сообщение${a.durationSec ? ` ${Math.round(a.durationSec)} с` : ""}` : `аудиофайл «${name}»`;
     if (a.transcript) return { text: `[${label}] ${a.transcript}` };
+    // Распознавания речи нет (ни HF_TOKEN, ни локальной модели): раньше модель молча
+    // получала «без расшифровки» и отвечала невпопад — теперь пользователь узнаёт почему.
+    if (!SPEECH_ENABLED && withMedia) return { text: `[${label} — без расшифровки]`, note: "voice" };
     if ((!withMedia && !speechCache.has(a.url)) || !SPEECH_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
     const speech = await speechOf(a.url);
     return { text: speech ? `[${label}, расшифровка речи]: ${speech}` : `[${label} — речь не распознана (тишина или музыка)]` };
@@ -621,21 +911,26 @@ async function readAttachment(a, { withMedia }) {
     }
     return {
       text: `[${label} ${Math.round(durationSec) || "?"} с — ниже ${frames.length} кадр(ов) по порядку: ${frames.map((f) => `${Math.round(f.at)} с`).join(", ")}]${speechPart}`,
-      media: frames.map((f, i) => ({ buf: f.buf, mime: "image/jpeg", name: `frame${i + 1}.jpg` })),
+      media: frames.map((f, i) => ({ buf: f.buf, mime: "image/jpeg", name: `frame${i + 1}.jpg`, image: true })),
     };
   }
-   const isImageFile = a.kind === "file" && IMAGE_MIME.test(a.mimeType ?? "");
-   if (a.kind === "image" || isImageFile) {
-    if (!withMedia) return { text: fileTextCache.get(`vision:${a.url}`) ?? "[фото]" };
+  if (isImageAttachment(a)) {
+    const label = a.kind === "image" ? "фото" : `картинка «${name}»`;
+    if (!withMedia) return { text: fileTextCache.get(`vision:${a.url}`) ?? `[${label}]` };
     if (!canSeeMedia()) return { note: "photo" };
-    if (typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: "[фото]" };
-    const buf = await readUploadBuffer(a.url, MAX_IMAGE_BYTES);
-    const mime = IMAGE_MIME.test(a.mimeType ?? "") ? a.mimeType : "image/jpeg";
+    if (typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label}]` };
+    let image;
+    try {
+      image = await visionImage(await readUploadBuffer(a.url, MAX_IMAGE_BYTES));
+    } catch (err) {
+      if (!err.unsupported) throw err;
+      return { text: `[${label} — формат картинки не удалось прочитать; попроси прислать её в JPEG или PNG]` };
+    }
     if (!remoteVision()) {
-      if (!fileTextCache.has(`vision:${a.url}`)) fileTextCache.set(`vision:${a.url}`, await localDescription(buf));
+      if (!fileTextCache.has(`vision:${a.url}`)) fileTextCache.set(`vision:${a.url}`, await localDescription(image.buf));
       return { text: fileTextCache.get(`vision:${a.url}`) };
     }
-    return { media: [{ buf, mime, name }] };
+    return { text: a.kind === "image" ? "" : `[${label}]`, media: [{ buf: image.buf, mime: image.mime, name, image: true }] };
   }
   if (a.kind !== "file" || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${a.kind}]` };
   const ext = extOf(name);
@@ -652,16 +947,17 @@ async function readAttachment(a, { withMedia }) {
     if (!withMedia) return { text: `[документ «${name}»]` };
     if (!GIGACHAT_AUTH_KEY) return { note: "document" };
     const buf = await readUploadBuffer(a.url, MAX_FILE_BYTES);
-    return { media: { buf, mime: a.mimeType || "application/octet-stream", name } };
+    // Тип — по расширению, если браузер его не сообщил: GigaChat без типа файл не берёт.
+    return { text: `[документ «${name}»]`, media: { buf, mime: a.mimeType || DOC_MIME[ext] || "application/octet-stream", name } };
   }
   return { text: `[файл «${name}» — такой формат я не читаю]` };
 }
 
-// Коллаж из кадров видео (до 4, сеткой 2×2) — для одного запроса к нейросети.
+// Коллаж из кадров видео или фото альбома (до 9, сеткой 2×2 или 3×3) — для одного запроса к нейросети.
 async function framesCollage(bufs) {
   const sharp = require("sharp");
   const cell = 448;
-  const cols = bufs.length === 1 ? 1 : 2;
+  const cols = bufs.length === 1 ? 1 : bufs.length <= 4 ? 2 : 3;
   const rows = Math.ceil(bufs.length / cols);
   const tiles = await Promise.all(bufs.map((b) => sharp(b).resize(cell, cell, { fit: "contain", background: "#000" }).jpeg().toBuffer()));
   return sharp({ create: { width: cols * cell, height: rows * cell, channels: 3, background: "#000" } })
@@ -741,6 +1037,13 @@ async function videoFrames(url, durationSec) {
 
 // ---------- разговор ----------
 
+// Стикер-картинка (не анимированный) — как фото: бот видит, что на нём.
+function imageSticker(m) {
+  const st = m.sticker;
+  if (!st || st.kind !== "image" || typeof st.url !== "string" || !st.url.startsWith("/uploads/")) return null;
+  return { kind: "file", url: st.url, name: `стикер${st.emoji ? ` ${st.emoji}` : ""}`, mimeType: "image/webp" };
+}
+
 async function loadTurns(chat, userId) {
   const settings = await getSettings(userId).catch(() => null);
   const clearedBefore = settings?.chatClears?.[chat.id] ?? null;
@@ -753,22 +1056,31 @@ async function loadTurns(chat, userId) {
   // присылают фото, а вопрос «что на фото?» — следующим сообщением. Раньше
   // смотрелось только последнее сообщение, и фото бот «не видел».
   const lastBotIdx = visible.map((m) => m.senderId === SHALTER_AI_ID).lastIndexOf(true);
+  // Последнее фото/видео/стикер-картинку держим перед глазами и после ответа: вопрос
+  // «а сколько там людей?» к фото, которое бот уже описал, раньше получал «[фото]» —
+  // и бот отвечал, что картинок не видит.
+  const isVisual = (a) => isImageAttachment(a) || a.kind === "video" || a.kind === "video-note" || (a.kind === "file" && /^video\//.test(a.mimeType ?? ""));
+  const lastVisualIdx = visible
+    .map((m) => m.senderId !== SHALTER_AI_ID && ((m.attachments ?? []).some(isVisual) || imageSticker(m)))
+    .lastIndexOf(true);
   const notes = new Set();
   const turns = [];
   for (const [i, m] of visible.entries()) {
     const role = m.senderId === SHALTER_AI_ID ? "assistant" : "user";
     const parts = [];
     const media = [];
-    for (const a of role === "user" ? (m.attachments ?? []) : []) {
+    const fresh = i > lastBotIdx;
+    const sticker = role === "user" ? imageSticker(m) : null;
+    for (const a of role === "user" ? [...(m.attachments ?? []), ...(sticker ? [sticker] : [])] : []) {
       try {
-        const r = await readAttachment(a, { withMedia: i > lastBotIdx });
+        const r = await readAttachment(a, { withMedia: fresh || i === lastVisualIdx });
         if (r.text) parts.push(r.text);
         if (r.media) media.push(...[].concat(r.media));
-        if (r.note) notes.add(r.note);
+        if (r.note && fresh) notes.add(r.note);
       } catch (err) {
         parts.push(`[вложение «${a.name || a.kind}» не удалось прочитать]`);
         if (!/too large/.test(err.message)) console.warn("shalter ai: attachment failed:", err.message);
-        else notes.add("large");
+        else if (fresh) notes.add("large");
       }
     }
     if (role === "assistant") {
@@ -777,6 +1089,11 @@ async function loadTurns(chat, userId) {
       }
     }
     if (m.sticker) parts.push(`[стикер ${m.sticker.emoji ?? ""}]`.replace(" ]", "]"));
+    if (role === "assistant") {
+      for (const a of m.attachments ?? []) {
+        if (a.kind === "file") parts.push(`[ты отправил файл «${a.name}»]`);
+      }
+    }
     if (m.gift) parts.push(`[подарок «${m.gift.name ?? "подарок"}»]`);
     let text = (m.text ?? "").trim();
     const fixedLayout = role === "user" ? fixLayout(text) : null;
@@ -797,6 +1114,7 @@ const NOTES = {
   document:
     "PDF и документы Office я пока не читаю: для этого администратору нужно подключить GigaChat. Текстовые файлы (.txt, .md, .csv, код) и .docx — читаю уже сейчас.",
   large: "Файл слишком большой: фото — до 10 МБ, документы — до 20 МБ.",
+  voice: "Голосовые я пока не расшифровываю: администратору сервера нужно подключить бесплатный ключ Hugging Face (HF_TOKEN). Напишите, пожалуйста, текстом.",
 };
 
 function startAction(chat, userId, action) {
@@ -828,11 +1146,6 @@ function takeSlot(key, max) {
 
 // ---------- рисование ----------
 
-// Граница слова для кириллицы: \b и \w в JS-регулярках без флага u видят только
-// латиницу, поэтому «нарисуй\b» не срабатывал никогда.
-const E = "(?=$|[^а-яёa-z0-9_])";
-const S = "(?:^|[^а-яёa-z0-9_])";
-const L = "[а-яёa-z]*";
 const DRAW_RE = new RegExp(`^\\s*(?:\\/image(?:@\\w+)?|\\/draw|(?:на)?рисуй(?:те)?|сгенерируй\\s+(?:картинку|изображение|фото)|draw)${E}[\\s:,\\-—]*`, "i");
 // Просьба нарисовать в любом месте фразы: «а теперь нарисуй кота», «можешь
 // нарисовать закат?», «сделай картинку с …», «сгенерируй арт», «draw me …».
@@ -1270,8 +1583,8 @@ function stopShalterAi(chatId, userId) {
   return true;
 }
 
-async function replyOnce(chat, userId) {
-  const stop = startAction(chat, userId, "typing");
+async function replyOnce(chat, userId, { wantFile = null } = {}) {
+  const stop = startAction(chat, userId, wantFile ? "upload_document" : "typing");
   let text;
   let notes;
   // Ответ печатается по мере генерации: первое сообщение появляется через пару
@@ -1310,7 +1623,8 @@ async function replyOnce(chat, userId) {
     // отвечаем пояснением, а не повторным ответом на прошлый вопрос.
     const hasContent = loaded.turns.at(-1)?.role === "user";
     lastUserText = hasContent ? String(loaded.turns.at(-1).content ?? "").split("\n")[0].slice(0, 500) : "";
-    text = hasContent ? await generate(loaded.turns, { onDelta }) : null;
+    // Файлом: ответ не печатаем по ходу — в чат уходит файл, а не его содержимое.
+    text = hasContent ? await generate(loaded.turns, { onDelta: wantFile ? undefined : onDelta }) : null;
   } finally {
     stop();
     clearTimeout(flushTimer);
@@ -1343,6 +1657,22 @@ async function replyOnce(chat, userId) {
   }
   const extra = [...(notes ?? [])].map((n) => NOTES[n]).filter(Boolean);
   if (!text && !extra.length) text = "Нейросеть сейчас перегружена и не ответила — напишите «ещё раз» через минуту, и я повторю.";
+  if (wantFile && text && !live) {
+    // Модель не оформила блок кода — кладём в файл весь ответ.
+    const file = parseFileReply(text, wantFile.ext) ?? {
+      name: `shalter-ai.${wantFile.ext || "txt"}`,
+      ext: wantFile.ext || "txt",
+      content: `${text}\n`,
+      caption: "",
+    };
+    try {
+      await sendFileReply(chat, file, [extra.join("\n\n"), file.caption].filter(Boolean).join("\n\n"));
+      return;
+    } catch (err) {
+      console.warn("shalter ai: file reply failed:", err.message);
+      if (err.tooLarge) extra.push("Файл получился больше 1 МБ — присылаю текстом.");
+    }
+  }
   const parts = splitReply([extra.join("\n\n"), text].filter(Boolean).join("\n\n"));
   let rest = parts;
   if (live) {
@@ -1352,6 +1682,15 @@ async function replyOnce(chat, userId) {
     rest = parts.slice(1);
   }
   for (const part of rest) await sendMessageAndBroadcast(chat, SHALTER_AI_ID, part);
+  // Длинный код (не влез в одно сообщение и разрезан) — ещё и файлом целиком: так его
+  // удобно сохранить, а не склеивать из кусков.
+  const longCode = text ? [...text.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].find((b) => b[2].length > MESSAGE_CHUNK) : null;
+  if (longCode) {
+    const ext = LANG_EXT[longCode[1].trim().toLowerCase()] ?? "txt";
+    await sendFileReply(chat, { name: `code.${ext}`, ext, content: `${longCode[2].replace(/\s+$/, "")}\n` }, "📄 Код целиком — файлом").catch((err) =>
+      console.warn("shalter ai: code file failed:", err.message)
+    );
+  }
 }
 
 const WELCOME =
@@ -1360,6 +1699,7 @@ const WELCOME =
   "• Разбираю фото и документы — просто пришлите их\n" +
   "• Рисую картинки: просто напишите «нарисуй …»\n" +
   "• Смотрю видео — пришлите ролик и спросите, что в нём\n" +
+  "• Присылаю ответ файлом — напишите, например, «пришли в .txt» или «сделай csv-файл»\n" +
   "• Длинный ответ оборвался? Напишите «продолжи»\n\n" +
   "/new — начать разговор заново.\n" +
   "/settings — режим, длина ответов, тон и тариф.";
@@ -1409,7 +1749,8 @@ async function dispatchShalterAi(chatId, message) {
     if (/^\/new\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Начинаем заново — о чём поговорим?"));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s*$/i.test(text)) return void (await drawImage(chat, userId, null));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s+/i.test(text)) return void (await drawImage(chat, userId, text.replace(DRAW_RE, "").trim()));
-    const drawWhat = text ? drawRequest(text) : null;
+    const wantFile = text ? fileRequest(text) : null;
+    const drawWhat = text && !wantFile ? drawRequest(text) : null;
     // «расскажи про Марс и нарисуй его» — и ответ текстом, и картинка.
     const alsoTalk = drawWhat != null && TALK_RE.test(text.replace(drawWhat, ""));
     if (drawWhat != null && !alsoTalk) {
@@ -1422,7 +1763,7 @@ async function dispatchShalterAi(chatId, message) {
     // Сразу после картинки любое короткое уточнение — тоже правка: «там снаружи»,
     // «ночью», «зимой», «на фоне гор», «кот рыжий». Кроме вопросов и реакций.
     const isReaction = REACTION_RE.test(text);
-    if (drawWhat == null && text && !message.attachments?.length && text.length < 200 && !looksLikeTalk && !isReaction) {
+    if (drawWhat == null && !wantFile && text && !message.attachments?.length && text.length < 200 && !looksLikeTalk && !isReaction) {
       const base = await lastBotImagePrompt(chat, userId, { onlyIfLast: true });
       if (base) return void (await drawImage(chat, userId, text, { basePrompt: base }));
     }
@@ -1455,7 +1796,13 @@ async function dispatchShalterAi(chatId, message) {
         activeReplies.set(chatId, { controller, userId });
         addAiUsage(userId, "text");
         const opts = { ...generationOptions(quota.settings, quota.plan), signal: controller.signal };
-        await genCtx.run(opts, () => replyOnce(chat, userId));
+        if (wantFile) {
+          // Файл — целиком: длиннее лимит и можно дописать оборванное.
+          opts.systemExtra = [opts.systemExtra, fileInstruction(wantFile.ext)].filter(Boolean).join("\n\n");
+          opts.maxTokens = Math.max(opts.maxTokens ?? 0, 4000);
+          opts.continuations = Math.max(opts.continuations ?? 0, 1);
+        }
+        await genCtx.run(opts, () => replyOnce(chat, userId, { wantFile }));
         if (controller.signal.aborted) break;
       } while (state.rerun);
     } finally {

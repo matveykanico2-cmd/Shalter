@@ -25,12 +25,12 @@ import org.json.JSONObject;
 // Запуск без интернета. Приложение открывает https://shalter.ru (server.url), и без
 // связи WebView показывал свою страницу ошибки. Теперь, если главную страницу загрузить
 // не удалось (и service worker не отдал её из кэша), открываем сборку, вшитую в APK
-// (assets/public = public/dist), но под адресом сервера: тот же origin — те же
+// (assets/public = apps/web/dist, webDir в capacitor.config.json), но под адресом сервера: тот же origin — те же
 // localStorage, IndexedDB, куки и кэш service worker'а, то есть приложение запускается
 // с сохранёнными данными, а когда сеть вернётся, запросы к API пойдут на сервер.
 //
-// Файлы сборки из APK отдаём только по точному адресу из build.json (chunk-ХЕШ.js,
-// app.js?v=ХЕШ …): адрес однозначно задаёт содержимое, так что подмешать старый файл к
+// Файлы сборки из APK отдаём только по точному адресу из build.json (precache:
+// /assets/index-ХЕШ.js …, scripts/build.js): адрес однозначно задаёт содержимое, так что подмешать старый файл к
 // новой версии с сервера нельзя — с той же версией это просто те же байты без сети.
 // Файл копирует scripts/apply-native-resources.js — android/ генерируется заново.
 final class OfflineShell extends BridgeWebViewClient {
@@ -100,9 +100,12 @@ final class OfflineShell extends BridgeWebViewClient {
         if (!"GET".equals(request.getMethod()) || !isOurs(url)) return null;
         String path = url.getEncodedPath();
         String query = url.getEncodedQuery();
-        if (path == null || !path.startsWith("/dist/") || !bundled.contains(query == null ? path : path + "?" + query)) return null;
+        if (path == null || !bundled.contains(query == null ? path : path + "?" + query)) return null;
+        // Клиент apps/web: /assets/… лежит в APK как public/assets/…; прежний клиент — /dist/… как public/….
+        String file = path.startsWith("/assets/") ? path.substring(1) : path.startsWith("/dist/") ? path.substring("/dist/".length()) : null;
+        if (file == null) return null;
         try {
-            InputStream in = bridge.getContext().getAssets().open(ASSETS + path.substring("/dist/".length()));
+            InputStream in = bridge.getContext().getAssets().open(ASSETS + file);
             return new WebResourceResponse(mimeType(path), "UTF-8", in);
         } catch (IOException e) {
             return null;
@@ -112,6 +115,10 @@ final class OfflineShell extends BridgeWebViewClient {
     private static String mimeType(String path) {
         if (path.endsWith(".js")) return "text/javascript";
         if (path.endsWith(".css")) return "text/css";
+        if (path.endsWith(".svg")) return "image/svg+xml";
+        if (path.endsWith(".woff2")) return "font/woff2";
+        if (path.endsWith(".png")) return "image/png";
+        if (path.endsWith(".wasm")) return "application/wasm";
         if (path.endsWith(".json")) return "application/json";
         return "application/octet-stream";
     }
