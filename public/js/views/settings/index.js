@@ -917,7 +917,7 @@ async function renderPremium(root) {
   let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
   let buying = false;
   let buyError = null;
-  let promoInput = "";
+  let promoInputs = [""];
   let promoError = null;
   let promoSuccess = null;
   let promoBusy = false;
@@ -1051,47 +1051,58 @@ async function renderPremium(root) {
            twRow({ icon: "Gift", title: "Магазин подарков", subtitle: "Цены в звёздах, отправка мгновенная", onClick: () => openGiftShopDialog({}) }),
          ]),
          twSection(null, [
-           el("div", { class: "settings-field" }, [
-             el("label", { class: "settings-field-label" }, "Промокод"),
-             el("input", {
-               class: "settings-input",
-               placeholder: "Введите код",
-               value: promoInput,
-               oninput: (e) => {
-                 promoInput = e.target.value.trim().toUpperCase();
-                 promoError = null;
-                 promoSuccess = null;
-               },
-             }),
-             promoError ? el("p", { class: "login-error" }, promoError) : null,
-             promoSuccess ? el("p", { class: "login-hint" }, promoSuccess) : null,
-             el("button", {
-               class: "btn-accent",
-               disabled: promoBusy || !promoInput,
-               onclick: async () => {
-                 promoBusy = true;
-                 promoError = null;
-                 promoSuccess = null;
-                 render();
-                 try {
-                   const res = await api.redeemPromoCode(promoInput);
-                   if (res.delivered) {
-                     promoSuccess = "Подарок активирован!";
-                     promoInput = "";
-                     info = await api.getPremiumInfo();
-                   } else {
-                     promoError = res.error || "Не удалось активировать";
-                   }
-                 } catch (err) {
-                   promoError = err.message || "Ошибка";
-                 } finally {
-                   promoBusy = false;
-                   render();
-                 }
-               },
-             }, promoBusy ? "Активируем…" : "Активировать"),
-           ]),
-         ]),
+            el("div", { class: "settings-field" }, [
+              el("label", { class: "settings-field-label" }, "Промокоды"),
+              promoError ? el("p", { class: "login-error" }, promoError) : null,
+              promoSuccess ? el("p", { class: "login-hint" }, promoSuccess) : null,
+              promoInputs.map((input, i) => el("div", { class: "settings-field", key: i }, [
+                el("input", {
+                  class: "settings-input",
+                  placeholder: "Введите код",
+                  value: input,
+                  oninput: (e) => {
+                    promoInputs[i] = e.target.value.trim().toUpperCase();
+                    promoError = null;
+                    promoSuccess = null;
+                  },
+                }),
+                el("button", {
+                  class: "btn-accent",
+                  disabled: promoBusy || !input,
+                  onclick: async () => {
+                    promoBusy = true;
+                    promoError = null;
+                    promoSuccess = null;
+                    render();
+                    try {
+                      const res = await api.redeemPromoCode(promoInputs[i]);
+                      if (res.delivered) {
+                        promoSuccess = "Подарок активирован!";
+                        promoInputs[i] = "";
+                        info = await api.getPremiumInfo();
+                      } else {
+                        promoError = res.error || "Не удалось активировать";
+                      }
+                    } catch (err) {
+                      promoError = err.message || "Ошибка";
+                    } finally {
+                      promoBusy = false;
+                      render();
+                    }
+                  },
+                }, promoBusy ? "Активируем…" : "Активировать"),
+              ])),
+              el("button", {
+                class: "btn-secondary",
+                type: "button",
+                disabled: promoBusy,
+                onclick: () => {
+                  promoInputs.push("");
+                  render();
+                },
+              }, "+ Ещё промокод"),
+            ]),
+          ]),
          canBuy
           ? el("div", { class: "tw-premium-footer" }, [
               el(
@@ -5729,31 +5740,37 @@ async function renderPromotions(root) {
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Новый промокод"),
           el("p", { class: "settings-toggle-hint" }, "Активируется один раз на каждый аккаунт. Приз — подарок пользователю."),
-          el("input", {
-            class: "settings-input",
-            placeholder: "Код (оставьте пустым — сгенерируем)",
-            value: form.code,
-            oninput: (e) => {
-              form.code = e.target.value.toUpperCase();
-            },
-          }),
-          ...prizeForm(),
-          el("input", {
-            class: "settings-input",
-            type: "number",
-            min: 1,
-            placeholder: "Лимит активаций (оставьте пустым — неограниченно)",
-            value: form.usesTotal,
-            oninput: (e) => {
-              form.usesTotal = e.target.value;
-            },
-          }),
+          el("div", { class: "settings-field" }, [
+            el("input", {
+              class: "settings-input",
+              placeholder: "Код (оставьте пустым — сгенерируем)",
+              value: form.code,
+              oninput: (e) => {
+                form.code = e.target.value.toUpperCase();
+              },
+            }),
+          ]),
+          el("div", { class: "settings-field" }, prizeForm()),
+          el("div", { class: "settings-field" }, [
+            el("input", {
+              class: "settings-input",
+              type: "number",
+              min: 1,
+              placeholder: "Лимит активаций (оставьте пустым — неограниченно)",
+              value: form.usesTotal,
+              oninput: (e) => {
+                form.usesTotal = e.target.value;
+              },
+            }),
+          ]),
           saveError ? el("p", { class: "login-error" }, saveError) : null,
-          el("button", {
-            class: "btn-accent",
-            disabled: creating,
-            onclick: () => saveCode(),
-          }, creating ? "Создаём…" : "Создать промокод"),
+          el("div", { class: "settings-field" }, [
+            el("button", {
+              class: "btn-accent",
+              disabled: creating,
+              onclick: () => saveCode(),
+            }, creating ? "Создаём…" : "Создать промокод"),
+          ]),
         ]),
         el("p", { class: "settings-section-title" }, "Существующие промокоды"),
         renderCodeList(codes),

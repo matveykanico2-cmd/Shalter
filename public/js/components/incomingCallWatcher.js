@@ -9,7 +9,7 @@ import { joinCallById, decline } from "../lib/callController.js";
 import { startRingtone, stopRingtone } from "../lib/ringtone.js";
 import { navigate } from "../router.js";
 
-const POLL_MS = 20000;
+const POLL_MS = 5000;
 const seen = new Set();
 let primed = false;
 let banner = null;

@@ -1,3 +1,5 @@
+import { getUserMediaSafe } from "./mediaQuality.js";
+
 async function listCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -37,7 +39,7 @@ export async function getFlippedTrack({ currentTrack, wantBack, video = {} }) {
   let lastError = null;
   for (const constraints of attempts) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
+      const stream = await getUserMediaSafe({ video: constraints });
       const track = stream.getVideoTracks()[0];
       if (!track) continue;
       if (currentId && track.getSettings?.().deviceId === currentId) {
@@ -51,7 +53,7 @@ export async function getFlippedTrack({ currentTrack, wantBack, video = {} }) {
       if (currentTrack && /NotReadable|Abort|TrackStart/i.test(err?.name ?? "")) {
         currentTrack.stop();
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
+          const stream = await getUserMediaSafe({ video: constraints });
           const track = stream.getVideoTracks()[0];
           if (track) return { track };
         } catch (err2) {

@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { getFlippedTrack, cameraCount } from "./cameraSwitch.js";
-import { HD_VIDEO, HD_SCREEN, CALL_AUDIO, cameraConstraints, tuneVideoSender, hintScreenTrack, tuneOpusSdp } from "./mediaQuality.js";
+import { HD_VIDEO, HD_SCREEN, CALL_AUDIO, cameraConstraints, tuneVideoSender, hintScreenTrack, tuneOpusSdp, getUserMediaSafe } from "./mediaQuality.js";
 import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
@@ -34,8 +34,8 @@ function sendSignal(toUserId, kind, data) {
 }
 
 const ICE_FAILURE_MESSAGE = "Не удалось установить соединение — проверьте сеть и попробуйте позвонить снова";
-const CONNECT_TIMEOUT_MS = 20000;
-const RESTART_GRACE_MS = 10000;
+const CONNECT_TIMEOUT_MS = 8000;
+const RESTART_GRACE_MS = 4000;
 
 function applyOutgoing(pc) {
   const cam = state.cameraOn ? state.localStream?.getVideoTracks()[0] ?? null : null;
@@ -331,10 +331,10 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       after = Math.max(after, sig.seq);
       await handleSignal(sig);
     }
-  }, 3000);
+  }, 1000);
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const stream = await getUserMediaSafe({
       audio: CALL_AUDIO,
       video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
     });
@@ -440,7 +440,7 @@ export async function toggleCamera() {
   } else {
     let track = null;
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({
+      const cam = await getUserMediaSafe({
         video: cameraConstraints({ facingMode: state.facingBack ? "environment" : "user" }),
       });
       track = cam.getVideoTracks()[0] ?? null;

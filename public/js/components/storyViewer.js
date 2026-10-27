@@ -481,6 +481,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       videoEl = el("video", {
         src: frame.item.previewUrl || frame.item.url,
         class: "story-media",
+        preload: "metadata",
         autoplay: true,
         playsinline: true,
         muted,
@@ -497,7 +498,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       media = videoEl;
     } else {
       videoEl = null;
-      media = el("img", { src: frame.item.url, class: "story-media" });
+      media = el("img", { src: frame.item.url, class: "story-media", decoding: "async", loading: "eager" });
     }
 
     const replyInput = el("input", {
