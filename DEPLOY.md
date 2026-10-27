@@ -308,6 +308,203 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Выкладка бэкенда на NestJS и нового клиента одним разом
+
+Этот раздел — для выкладки версии, где разом меняются бэкенд (`apps/api` на
+NestJS вместо `server/index.js`) и клиент (React из `apps/web` вместо
+`public/js`). Он собирает в один порядок шаги трёх разделов ниже: «Обновление
+работающего сервера», «Переключение на apps/api» и «Переключение на новый
+клиент». Подробности и объяснения — там, выполнять достаточно этот.
+
+Что важно знать заранее:
+- **схема базы, формат данных, `.env` и `config.env` не меняются.** Новых
+  переменных нет, таблиц новых нет — откат в любую сторону безопасен, данные
+  не теряются;
+- старый сервер остаётся в той же сборке, откат бэкенда — одна команда без
+  пересборки (шаг «Откат», вариант А);
+- простой — около минуты, пока процесс пересоздаётся (шаг 7). Сборку (шаг 3)
+  можно делать при работающем старом сервере;
+- памяти основному процессу нужно примерно на 40 МБ больше (156 МБ против
+  115 МБ на чистой базе), фоновому — около 100 МБ против 85 МБ;
+- у пользователей открытые вкладки один раз перезагрузятся сами (новый `sw.js`
+  чистит кэш старого клиента). Приложения Android/iOS/ПК пересобирать не нужно —
+  они открывают сайт.
+
+Путь приложения ниже — `/opt/shalter`, домен — `ВАШ-ДОМЕН`; если у вас другие,
+подставьте свои везде.
+
+### Шаги (PM2 + nginx)
+
+1. **Проверить, что стоит сейчас.**
+   ```bash
+   cd /opt/shalter
+   git log --oneline -1
+   node -v                                  # нужен v22 или новее
+   pm2 ls                                   # приложение shalter, online
+   grep -c 'gift-scenes' /etc/nginx/sites-available/shalter
+   ```
+   Если последняя команда напечатала `0`, на сервере nginx-конфиг старше
+   прошлой выкладки (раздел «Обновление работающего сервера»): ничего страшного,
+   шаг 5 всё равно ставит конфиг целиком. Если `node -v` ниже 22 — сначала
+   обновить Node (раздел «From a blank server…», пункт 1).
+
+2. **Резервная копия** — данные, конфиг nginx и номер текущей версии (нужен для
+   отката):
+   ```bash
+   cd /opt/shalter
+   git rev-parse HEAD > ~/shalter-prev-commit
+   tar czf ~/shalter-data-$(date +%F).tgz data
+   sudo cp /etc/nginx/sites-available/shalter ~/nginx-shalter-$(date +%F).bak
+   ls -lh ~/shalter-data-$(date +%F).tgz ~/nginx-shalter-$(date +%F).bak ~/shalter-prev-commit
+   ```
+   Ключи `MESSAGES_KEY`/`UPLOADS_KEY` (или `data/*.key`) в этой версии не
+   меняются, но убедитесь, что их копия у вас есть отдельно от архива.
+
+3. **Код, зависимости, обе сборки** (старый сервер пока работает):
+   ```bash
+   cd /opt/shalter
+   git fetch origin
+   git checkout main
+   git pull --ff-only
+   npm install
+   npm run build          # Vite собирает apps/web; в конце «Картинки из архивов: … файлов в public/dist/packs»
+   npm run build:api      # NestJS → apps/api/dist
+   test -f apps/web/dist/index.html && test -f apps/web/dist/build.json \
+     && test -f apps/api/dist/main.js && test -f apps/api/dist/worker.js && echo ok   # должно напечатать ok
+   npm prune --omit=dev
+   ```
+   Если `ok` не напечаталось — дальше не идти: старый сервер продолжает
+   работать, а `apps/` на него не влияет. Пришлите вывод `npm run build` и
+   `npm run build:api`.
+
+4. **Права на чтение для nginx** (он читает клиент прямо с диска):
+   ```bash
+   sudo chmod o+rx /opt /opt/shalter /opt/shalter/public /opt/shalter/apps /opt/shalter/apps/web
+   sudo chmod -R o+rX /opt/shalter/public /opt/shalter/apps/web/dist
+   sudo -u www-data test -r /opt/shalter/apps/web/dist/index.html && echo ok
+   sudo -u www-data test -r /opt/shalter/public/gift-scenes/index.json && echo ok
+   ```
+   Обе проверки должны напечатать `ok`.
+
+5. **Новый конфиг nginx** — целиком из `deploy/nginx.conf.example`. В нём клиент
+   раздаётся из `apps/web/dist` (`location ^~ /assets/`) вместо прежнего
+   `/dist/`. certbot дописывал в старый файл блоки TLS, поэтому после замены он
+   запускается ещё раз (сертификат не перевыпускается, а ставится обратно):
+   ```bash
+   cd /opt/shalter
+   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/shalter
+   sudo sed -i 's/your-domain.example/ВАШ-ДОМЕН/' /etc/nginx/sites-available/shalter
+   sudo nginx -t
+   sudo certbot --nginx -d ВАШ-ДОМЕН        # выбрать «reinstall», если спросит
+   sudo nginx -t
+   ```
+   **Пока не перезагружать nginx** — это шаг 6. Если `nginx -t` ругается на
+   `limit_req_zone … already defined` или `upstream … duplicate`, эти строки
+   уже есть в `/etc/nginx/nginx.conf` или в другом сайте: уберите старые,
+   оставьте новые. Если в старом конфиге были свои правки (другой путь, лишние
+   `location`), перенесите их из `~/nginx-shalter-*.bak`.
+
+6. **Переключение — nginx и процесс сразу друг за другом.** PM2 при `restart`
+   не подхватывает новый путь запуска из `ecosystem.config.js`, поэтому процесс
+   пересоздаётся:
+   ```bash
+   cd /opt/shalter
+   sudo systemctl reload nginx
+   pm2 delete shalter
+   pm2 start ecosystem.config.js
+   pm2 save
+   pm2 logs shalter --lines 40 --nostream
+   ```
+   В логе должны быть, без ошибок после них:
+   - `[worker] фоновый процесс запущен (pid …)`
+   - `[static] клиент — сборка /opt/shalter/apps/web/dist`
+   - `shalter server (nest) listening on …` — именно с `(nest)`.
+
+7. **Проверка снаружи** (с любой машины):
+   ```bash
+   D=https://ВАШ-ДОМЕН
+   curl -s $D/api/version; echo                                         # {"version":"…","startedAt":…}, version — 10 символов, не "dev"
+   curl -s -o /dev/null -w '%{http_code}\n' $D/api/chats                 # 401
+   curl -s -o /dev/null -w '%{http_code}\n' --http1.1 \
+     -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+     -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' $D/ws   # 401
+   JS=$(curl -s $D/ | grep -o 'assets/index-[^"]*\.js' | head -1); echo $JS   # не пусто
+   curl -sI -H 'Accept-Encoding: gzip' $D/$JS | grep -iE 'cache-control|content-encoding|x-powered-by'
+   curl -s -o /dev/null -w '%{http_code}\n' $D/assets/nope.js            # 404
+   curl -sI $D/gift-scenes/index.json | grep -iE 'cache-control|x-powered-by'
+   curl -s -o /dev/null -w '%{http_code}\n' $D/js/shalter-web-app.js     # 200
+   ```
+   У файла из `/assets/`: `Cache-Control: public, max-age=31536000, immutable`,
+   `Content-Encoding: gzip` и **нет** `X-Powered-By` (отдал nginx). У
+   `gift-scenes/index.json` тоже нет `X-Powered-By`. `/api/chats` и `/ws` без
+   входа — `401`.
+
+8. **Проверка в браузере** (лучше двумя аккаунтами в двух окнах):
+   - войти, открыть список чатов и чат;
+   - отправить сообщение — у второго приходит сразу, без обновления страницы;
+   - отправить фото и видео — через несколько секунд появляется превью (его
+     делает фоновый процесс);
+   - позвонить — у второго звонок появляется сразу;
+   - открыть настройки, профиль, магазин подарков (картинки и анимации на месте).
+
+   Во время этого `pm2 logs shalter` не должен писать ошибок.
+
+9. **Память через 10–15 минут работы:** `pm2 ls`. Ожидается примерно
+   150–250 МБ у `shalter` (без фонового процесса — он виден в `ps aux | grep
+   worker.js`). Лимит `max_memory_restart: 900M` прежний; если `↺` (число
+   перезапусков) растёт — смотреть `pm2 logs shalter --err`.
+
+### Откат
+
+**Вариант А — только бэкенд** (новый клиент остаётся, старый сервер отдаёт ту
+же сборку `apps/web/dist`). Без пересборки, около минуты:
+```bash
+cd /opt/shalter
+pm2 delete shalter
+SHALTER_BACKEND=legacy pm2 start ecosystem.config.js
+pm2 save
+pm2 logs shalter --lines 30 --nostream   # «shalter server listening …» без «(nest)»
+```
+Обратно на Nest — шаг 6 без `reload nginx`.
+
+**Вариант Б — всё целиком** (прежний код, прежний клиент, прежний nginx):
+```bash
+cd /opt/shalter
+git checkout $(cat ~/shalter-prev-commit)
+npm install && npm run build && npm prune --omit=dev
+sudo cp ~/nginx-shalter-*.bak /etc/nginx/sites-available/shalter
+sudo nginx -t && sudo systemctl reload nginx
+pm2 delete shalter
+pm2 start ecosystem.config.js
+pm2 save
+pm2 logs shalter --lines 30 --nostream
+```
+Данные из `data/` восстанавливать **не нужно** ни в одном варианте: формат не
+менялся. Архив из шага 2 — только на случай непредвиденного.
+
+### Docker / Dokploy
+
+1. Резервная копия тома `/app/data`:
+   `docker exec <контейнер> sqlite3 /app/data/app.db ".backup '/app/data/app-backup.db'"`
+   (или снимок тома средствами хостинга). Запомнить текущий коммит/образ в
+   Dokploy — к нему откатываться.
+2. Переключить приложение на ветку `main` (если стоит другая) и нажать Deploy:
+   `Dockerfile` сам собирает `apps/web` и `apps/api` и запускает
+   `apps/api/dist/main.js`. Сборка дольше прежней на 1–3 минуты (Vite и
+   TypeScript). Том, переменные окружения, порт `3000` и число реплик (ровно 1)
+   не трогать.
+3. В логе контейнера — `[worker] фоновый процесс запущен`,
+   `[static] клиент — сборка /app/apps/web/dist` и
+   `shalter server (nest) listening …`.
+4. Проверка — шаги 7 и 8 выше, кроме строк про `X-Powered-By`: в контейнере
+   статику отдаёт сам Node, это нормально.
+
+**Откат:** вариант А — в настройках приложения в Dokploy задать свою команду
+запуска (переопределение `CMD`)
+`node --env-file-if-exists=config.env --env-file-if-exists=.env server/index.js`
+и перезапустить; вернуться на Nest — очистить поле. Вариант Б — Redeploy
+предыдущего коммита/образа.
+
 ## Обновление работающего сервера (сцены подарков, nginx, S3)
 
 Этот раздел для того, кто выкладывает новую версию на **уже работающий**
