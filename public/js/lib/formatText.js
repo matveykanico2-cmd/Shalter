@@ -27,12 +27,29 @@ export function formatText(text, members, emoji) {
     }
     const lines = part.replace(/^\n|\n$/g, "").split("\n");
     for (let i = 0; i < lines.length; i++) {
+      // Заголовок (#, ##, ### …)
+      const h = /^(#{1,6})\s+(.*)$/s.exec(lines[i]);
+      if (h) {
+        const tag = `h${h[1].length}`;
+        out.push(el(tag, { class: "block" }, renderInline(h[2], members, emoji)));
+        continue;
+      }
       // Подряд идущие строки «> …» — одна цитата; длинная сворачивается.
       if (lines[i].startsWith("> ") || lines[i] === ">") {
         const quote = [];
         while (i < lines.length && (lines[i].startsWith("> ") || lines[i] === ">")) quote.push(lines[i++].slice(2));
         i--;
         out.push(quoteBlock(quote, members, emoji));
+        continue;
+      }
+      // Маркированный список (- или * в начале строки)
+      if (/^[-*]\s/.test(lines[i])) {
+        const items = [];
+        while (i < lines.length && /^[-*]\s/.test(lines[i])) {
+          items.push(lines[i++].replace(/^[-*]\s/, ""));
+        }
+        i--;
+        out.push(el("ul", { class: "block message-list" }, items.map((t) => el("li", {}, renderInline(t, members, emoji)))));
         continue;
       }
       // Таблица: строки вида «| a | b |», вторая может быть разделителем «|---|---|».

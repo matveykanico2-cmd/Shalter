@@ -283,7 +283,19 @@ if (!/^\/(login|qr-login)/.test(location.pathname)) {
     setTimeout(function () {
       var s = document.getElementById("boot-splash");
       if (s) s.remove();
-    }, 5000);
+    }, 3000);
+  </script>
+  <script>
+    // Глобальный предохранитель: любая необработанная ошибка при загрузке приложения
+    // должна убрать заставку, иначе пользователь останется с чёрным/белым экраном.
+    function killSplash() {
+      try {
+        var s = document.getElementById("boot-splash");
+        if (s) s.remove();
+      } catch (e) {}
+    }
+    window.addEventListener("error", killSplash);
+    window.addEventListener("unhandledrejection", killSplash);
   </script>
   <div id="view-root"></div>
   <script type="module" src="/js/app.js"></script>
