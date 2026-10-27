@@ -45,7 +45,13 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) {
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, w: number, h: number) {
+  // Текстовая история — белый холст без фото.
+  if (!img) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
   const ir = img.naturalWidth / img.naturalHeight || 1;
   const cr = w / h;
   let sx, sy, sw, sh;
@@ -63,8 +69,8 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: numb
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
 }
 
-/** JPEG 1080×1920 с наложенными слоями. */
-export async function bakeStory(bg: HTMLImageElement, layers: readonly Layer[]): Promise<File> {
+/** JPEG 1080×1920 с наложенными слоями; без фона — на белом. */
+export async function bakeStory(bg: HTMLImageElement | null, layers: readonly Layer[]): Promise<File> {
   const canvas = document.createElement("canvas");
   canvas.width = EXPORT_W;
   canvas.height = EXPORT_H;

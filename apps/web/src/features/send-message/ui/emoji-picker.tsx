@@ -58,6 +58,9 @@ export function EmojiButton({ onPick }: { onPick: (emoji: string) => void }) {
         <Menu
           at={at}
           wide
+          // Над полем ввода и без затемнения: видно, что вставилось, курсор остаётся в поле.
+          sheet={false}
+          autoFocus={false}
           label="Эмодзи"
           onClose={() => setAt(null)}
           header={
@@ -109,7 +112,15 @@ function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
             <p className={styles.title}>{g.name}</p>
             <div className={styles.grid}>
               {g.emojis.map((emoji) => (
-                <button key={emoji} type="button" className={styles.emoji} aria-label={emoji} onClick={() => onPick(emoji)}>
+                <button
+                  key={emoji}
+                  type="button"
+                  className={styles.emoji}
+                  aria-label={emoji}
+                  // Нажатие не уводит фокус из поля ввода: курсор и клавиатура остаются на месте.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPick(emoji)}
+                >
                   {emoji}
                 </button>
               ))}

@@ -3,6 +3,7 @@ import { vi } from "vitest";
 /** Дорожка микрофона или камеры. */
 export class FakeTrack {
   public enabled = true;
+  public contentHint = "";
   public readyState: "live" | "ended" = "live";
   public onended: (() => void) | null = null;
   public stop = vi.fn(() => {
@@ -39,7 +40,15 @@ export class FakeStream {
 // Звук Opus есть — tuneOpusSdp дописывает параметры.
 const SDP = "v=0\r\na=rtpmap:111 opus/48000/2\r\n";
 
-type Sender = { track: FakeTrack | null; replaceTrack: (t: FakeTrack | null) => Promise<void>; getParameters: () => { encodings: object[] }; setParameters: () => Promise<void> };
+type SendParams = { encodings: RTCRtpEncodingParameters[]; degradationPreference?: string };
+type Sender = {
+  track: FakeTrack | null;
+  replaceTrack: (t: FakeTrack | null) => Promise<void>;
+  getParameters: () => SendParams;
+  setParameters: (p: SendParams) => Promise<void>;
+  /** Что последним принял setParameters. */
+  params: SendParams | null;
+};
 
 /** RTCPeerConnection без сети: offer/answer — строки, connect() — «соединились». */
 export class FakePeer {
@@ -68,8 +77,12 @@ export class FakePeer {
       replaceTrack: async (t) => {
         sender.track = t;
       },
-      getParameters: () => ({ encodings: [] }),
-      setParameters: async () => {},
+      // Как в браузере: кодировки появляются только после согласования.
+      getParameters: () => ({ encodings: this.localDescription ? (sender.params?.encodings.map((e) => ({ ...e })) ?? [{}]) : [] }),
+      setParameters: vi.fn(async (p: SendParams) => {
+        sender.params = p;
+      }),
+      params: null,
     };
     const t = { mid: String(this.transceivers.length), direction, sender, receiver: { track: new FakeTrack(kind) } };
     this.transceivers.push(t);

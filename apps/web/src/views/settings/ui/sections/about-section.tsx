@@ -8,7 +8,10 @@ import { useOpenSupport } from "../../model/use-open-support";
 
 import styles from "./about-section.module.css";
 
-const ABOUT_TEAM = [{ name: "Shalter", role: "Независимый проект" }];
+const ABOUT_TEAM: { name: string; role: string; url?: string }[] = [
+  { name: "Николаенко Матвей", role: "Создатель Shalter", url: "https://shalter.ru" },
+  { name: "Shalter", role: "Независимый проект" },
+];
 
 /** «О приложении» — renderAbout: логотип, версия, ссылки и поддержка. */
 export function AboutSection() {
@@ -23,9 +26,13 @@ export function AboutSection() {
       </div>
       <SettingsSection>
         <SettingsRow icon="Info" color="grey" title="Версия" titleRight={version || "—"} />
-        {ABOUT_TEAM.map((m) => (
-          <SettingsRow key={m.name} icon="Users" color="purple" title={m.name} subtitle={m.role} />
-        ))}
+        {ABOUT_TEAM.map((m) =>
+          m.url ? (
+            <SettingsRow key={m.name} icon="Users" color="purple" title={m.name} subtitle={m.role} href={m.url} external newTab />
+          ) : (
+            <SettingsRow key={m.name} icon="Users" color="purple" title={m.name} subtitle={m.role} />
+          )
+        )}
       </SettingsSection>
       <SettingsSection title="Ссылки">
         {isInstalledApp() ? null : <SettingsRow icon="Download" color="green" title="Скачать приложение" href="/download" external />}

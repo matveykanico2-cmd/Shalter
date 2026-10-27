@@ -104,6 +104,16 @@ describe("звонки в оболочке", () => {
     fireEvent.click(screen.getByTitle("Микрофон"));
     expect(screen.getByTitle("Микрофон").getAttribute("aria-pressed")).toBe("true");
 
+    // «Жесты» — по умолчанию выключены, выбор запоминается; без камеры распознавание не грузится.
+    const gestures = screen.getByRole("button", { name: "Жесты" });
+    expect(gestures.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(gestures);
+    expect(gestures.getAttribute("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("shalter.callGestures")).toBe("1");
+    expect(document.querySelector('script[src*="mediapipe"]')).toBeNull();
+    fireEvent.click(gestures);
+    expect(localStorage.getItem("shalter.callGestures")).toBe("0");
+
     // Свернуть — в чат звонка; звонок идёт, в углу пузырь с собеседником и таймером.
     fireEvent.click(screen.getByTitle("Свернуть (PiP)"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_1"));

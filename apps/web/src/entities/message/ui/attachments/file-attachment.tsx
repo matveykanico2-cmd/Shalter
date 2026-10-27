@@ -42,15 +42,15 @@ export function FileAttachment(props: Props) {
 }
 
 function AudioFile({ attachment: a, canDownload, message, senderName }: Props) {
-  const { ref: audio, toggle, playing, current, duration } = usePlayer(message, a, "audio", senderName);
+  const { ref: audio, toggle, playing, current, duration, failed } = usePlayer(message, a, "audio", senderName);
   const seek = useSeek(audio, duration);
   const title = (a.name || "Аудио").replace(AUDIO_EXT_RE, "");
   const started = current > 0 || playing;
-  const sub = started && duration ? `${clockTime(current)} / ${clockTime(duration)}` : a.size ? formatSize(a.size) : duration ? clockTime(duration) : "";
+  const sub = failed ? "Не загрузилось — нажмите, чтобы повторить" : started && duration ? `${clockTime(current)} / ${clockTime(duration)}` : a.size ? formatSize(a.size) : duration ? clockTime(duration) : "";
   return (
     <div className={styles.audio}>
-      <button type="button" className={styles.audioPlay} aria-label={playing ? "Пауза" : "Слушать"} onClick={toggle}>
-        <Icon name={playing ? "PauseFill" : "PlayFill"} size={22} />
+      <button type="button" className={styles.audioPlay} aria-label={failed ? "Повторить загрузку" : playing ? "Пауза" : "Слушать"} onClick={toggle}>
+        <Icon name={failed ? "RotateCw" : playing ? "PauseFill" : "PlayFill"} size={22} />
       </button>
       <span className={styles.audioInfo}>
         <span className={styles.audioTitle}>{title}</span>

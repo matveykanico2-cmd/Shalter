@@ -55,6 +55,10 @@ export const chatCache = {
     updateChats(client, (chats) =>
       chats.some((c) => c.id === chatId && (c.draft ?? "") !== draft) ? chats.map((c) => (c.id === chatId ? { ...c, draft: draft || null } : c)) : chats
     );
+    // И в карточке открытого чата: из неё поле ввода берёт черновик при следующем открытии.
+    client.setQueryData(chatQueries.card(chatId).queryKey, (card) =>
+      card && (card.chat.draft ?? "") !== draft ? { ...card, chat: { ...card.chat, draft: draft || null } } : card
+    );
   },
 
   /** Изменили сам чат (звук, архив, запрет пересылки, темы) — в списке и в открытой карточке. */

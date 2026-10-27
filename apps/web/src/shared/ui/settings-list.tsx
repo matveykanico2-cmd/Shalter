@@ -79,7 +79,10 @@ type RowProps = {
   toggle?: { checked: boolean; onChange: (next: boolean) => void; disabled?: boolean };
   /** Подсказка при наведении и доступное имя, если заголовок не текст. */
   label?: string;
-} & ({ href: string; external?: boolean; onClick?: never } | { onClick?: () => void; href?: never; external?: never });
+} & (
+  | { href: string; external?: boolean; /** Внешняя ссылка — в новой вкладке. */ newTab?: boolean; onClick?: never }
+  | { onClick?: () => void; href?: never; external?: never; newTab?: never }
+);
 
 /** Строка настроек (twRow): href — ссылка роутера (role link), onClick — кнопка, без них — просто строка. */
 export function SettingsRow(props: RowProps) {
@@ -133,7 +136,7 @@ export function SettingsRow(props: RowProps) {
   }
   if (props.href != null) {
     return props.external ? (
-      <a className={`${cls} ${styles.clickable}`} href={props.href} aria-label={label}>
+      <a className={`${cls} ${styles.clickable}`} href={props.href} aria-label={label} {...(props.newTab ? { target: "_blank", rel: "noopener" } : {})}>
         {body}
       </a>
     ) : (

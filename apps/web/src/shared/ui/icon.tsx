@@ -26,6 +26,7 @@ const PATHS = {
   EyeOff:
     '<path d="M10.6 5.1A10.5 10.5 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.6 3.5"/><path d="M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/>',
   File: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
+  FileText: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M8 12h8"/><path d="M8 16h5"/>',
   Filter: '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
   FlipCamera: '<path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 5v3.5h-3.5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 19v-3.5h3.5"/><circle cx="12" cy="12" r="2.3"/>',
   Folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/>',
@@ -112,6 +113,7 @@ export function Icon({ name, size = 20, className }: Props) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      data-icon={name}
       // Контуры — постоянные строки из PATHS, не данные пользователя.
       dangerouslySetInnerHTML={{ __html: PATHS[name] }}
     />

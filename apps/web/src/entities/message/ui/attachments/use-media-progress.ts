@@ -1,8 +1,11 @@
 import { type RefObject, useEffect, useState } from "react";
 
-/** Играет ли и сколько прошло — для кнопки, полоски и таймера плеера. */
+/**
+ * Играет ли и сколько прошло — для кнопки, полоски и таймера плеера. failed — файл не
+ * загрузился (нет доступа, удалён, нет сети): плеер показывает «Повторить», а не вечную кнопку.
+ */
 export function useMediaProgress(ref: RefObject<HTMLMediaElement | null>, knownDuration = 0) {
-  const [state, setState] = useState({ playing: false, current: 0, duration: knownDuration });
+  const [state, setState] = useState({ playing: false, current: 0, duration: knownDuration, failed: false });
   useEffect(() => {
     const media = ref.current;
     if (!media) return;
@@ -11,11 +14,12 @@ export function useMediaProgress(ref: RefObject<HTMLMediaElement | null>, knownD
         playing: !media.paused && !media.ended,
         current: media.ended ? 0 : media.currentTime,
         duration: knownDuration > 0 ? knownDuration : Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0,
+        failed: !!media.error,
       });
-    const events = ["play", "pause", "ended", "timeupdate", "seeking", "loadedmetadata"] as const;
+    const events = ["play", "pause", "ended", "timeupdate", "seeking", "loadedmetadata", "error", "loadstart"] as const;
     for (const ev of events) media.addEventListener(ev, sync);
-    // Плеер смонтировали заново, а запись уже играет (общий плеер) — сразу её состояние.
-    if (!media.paused || media.currentTime > 0) sync();
+    // Плеер смонтировали заново, а запись уже играет (общий плеер) или уже не загрузилась — сразу её состояние.
+    if (!media.paused || media.currentTime > 0 || media.error) sync();
     return () => {
       for (const ev of events) media.removeEventListener(ev, sync);
     };

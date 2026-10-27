@@ -64,6 +64,51 @@ describe("звонок", () => {
     expect(getCall()).toBeNull();
   });
 
+  it("видеозвонок: камера с подсказкой motion, после согласования — потолок 2,5 Мбит/с, 30 кадров, balanced", async () => {
+    fakeApi({ "POST /api/calls": { body: { call: { ...CALL, kind: "video" } } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+    const { getUserMedia } = fakeRtc();
+    await placeCall("c_1", "video", ME);
+    // 720p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
+    });
+    const peer = FakePeer.instances[0]!;
+    const cam = peer.transceivers.find((t) => t.sender.track?.kind === "video")!.sender;
+    expect((cam.track as unknown as { contentHint?: string }).contentHint).toBe("motion");
+    // Дорожка камеры пришла через addTrack (не replaceTrack) — её тоже настраивают.
+    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 2_500_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
+    // Голос: моно, FEC, без DTX.
+    const offer = sentSignals().find((m) => m.kind === "offer")!.data as { sdp: string };
+    expect(offer.sdp).toContain("stereo=0");
+    expect(offer.sdp).not.toContain("usedtx=1");
+  });
+
+  it("медленная сеть: перезапуск ICE не раньше 20 с, ошибка — ещё через 10 с; соединились — ошибки нет", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+      await placeCall("c_1", "audio", ME);
+      const peer = FakePeer.instances[0]!;
+      const restartIce = vi.spyOn(peer, "restartIce");
+      FakeSocket.last().receive({ type: "call:signal", signal: signal("answer", { type: "answer", sdp: "v=0" }, 1) });
+      await vi.waitFor(() => expect(peer.currentRemoteDescription).toMatchObject({ type: "answer" }));
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(restartIce).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(restartIce).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(8_000);
+      expect(getCall()?.connectionError).toBeNull();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(getCall()?.connectionError).toMatch(/Не удалось установить соединение/);
+      // ICE всё-таки сошёлся — ошибка уходит, разговор идёт.
+      peer.connect();
+      expect(getCall()).toMatchObject({ connectionError: null, phase: "connected" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("не дождались ответа — сброс отмечает звонок «без ответа»", async () => {
     const { calls } = fakeApi({
       "POST /api/calls": { body: { call: CALL } },

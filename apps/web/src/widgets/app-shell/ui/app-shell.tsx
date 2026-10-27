@@ -13,7 +13,7 @@ import { StoryViewerHost } from "@/features/stories";
 import { openGamesCatalog } from "@/entities/game";
 import type { SelfUser } from "@/entities/session";
 
-import { Avatar, Icon, type IconName } from "@/shared/ui";
+import { Avatar, Icon, type IconName, NowPlayingBar } from "@/shared/ui";
 
 import styles from "./app-shell.module.css";
 
@@ -47,6 +47,10 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
 
   return (
     <div className={mainOpen ? `${styles.shell} ${styles.mainOpen}` : styles.shell}>
+      {/* «Сейчас играет» — над всем приложением, как в ВК и Telegram: звук не прерывается при переходах. */}
+      <div className={styles.media}>
+        <NowPlayingBar />
+      </div>
       <aside className={styles.sidebar}>
         {sidebar}
         {side ? <div className={styles.side}>{side}</div> : null}

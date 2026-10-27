@@ -48,15 +48,25 @@ test("аудиозвонок из лички: входящий, ответ, PiP 
   }
   const callUrl = a.url();
 
-  // Алиса уходит из звонка в переписку — звонок не обрывается, оболочка показывает
-  // пузырь PiP с собеседником и таймером.
-  await chatRow(a, "Борис", "Сейчас позвоню").click();
+  // Экран звонка — на всё окно, поверх списка чатов и нижней панели: оба угла окна
+  // принадлежат ему (кнопки «Завершить» и остальные лежат прямо в нём).
+  const coversWindow = () =>
+    a.evaluate(() => {
+      const hangup = [...document.querySelectorAll("button")].find((el) => el.title === "Завершить");
+      const screen = hangup?.parentElement?.parentElement;
+      const corners = [document.elementFromPoint(2, 2), document.elementFromPoint(innerWidth - 2, innerHeight - 2)];
+      return !!screen && corners.every((el) => !!el && screen.contains(el));
+    });
+  expect(await coversWindow()).toBe(true);
+
+  // Алиса сворачивает звонок и уходит в переписку — звонок не обрывается, оболочка
+  // показывает пузырь PiP с собеседником и таймером.
+  await a.getByRole("button", { name: "Свернуть (PiP)", exact: true }).click();
   await expect(a).toHaveURL(new RegExp(`/chat/${chat.id}$`));
   await expect(messageText(a, "Сейчас позвоню")).toBeVisible();
   const pip = a.getByRole("button", { name: PIP_NAME });
   await expect(pip).toBeVisible();
-  // Пузырь переживает и переход в боковой раздел. (Если уйти в боковой раздел прямо
-  // с экрана звонка, звонок не сворачивается — он остаётся в правой колонке.)
+  // Пузырь переживает и переход в боковой раздел.
   await navLink(a, "Контакты").click();
   await expect(a).toHaveURL(/\/contacts$/);
   await expect(pip).toBeVisible();

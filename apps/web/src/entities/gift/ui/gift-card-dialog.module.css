@@ -39,6 +39,8 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   place-items: center;
+  /* Узор из символов скрыт — герой карточки только градиентом (как в main2). */
+  opacity: 0;
   pointer-events: none;
 }
 .pattern > span {

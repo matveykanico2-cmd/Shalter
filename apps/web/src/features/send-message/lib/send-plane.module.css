@@ -1,0 +1,46 @@
+/* Самолётик при отправке — .send-plane в main2 (public/styles/components.css). Координаты —
+   от левого верхнего угла окна, поэтому сам элемент стоит в (0, 0). */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  pointer-events: none;
+}
+.plane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  color: var(--color-accent);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  opacity: 0;
+  animation: send-plane-fly 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes send-plane-fly {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) rotate(-45deg) scale(0.5);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--mid-x), var(--mid-y)) rotate(var(--mid-rot)) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--end-x), var(--end-y)) rotate(var(--end-rot)) scale(0.8);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plane {
+    display: none;
+  }
+}
+:global(html[data-reduce-motion]) .plane {
+  display: none;
+}

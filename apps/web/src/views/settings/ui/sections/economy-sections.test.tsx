@@ -47,4 +47,16 @@ describe("«Игры» и «О приложении»", () => {
     expect(await screen.findByText("1.2.3")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Поддержка — Hugo/ })).toBeTruthy();
   });
+
+  it("создатель в «О приложении» — ссылкой на shalter.ru в новой вкладке, перед самим проектом", async () => {
+    fakeApi({ "GET /api/version": { body: { version: "1.2.3", startedAt: "2026-10-26T10:00:00.000Z" } } });
+    wrap(<AboutSection />);
+    await screen.findByText("1.2.3");
+    const creator = screen.getByRole("link", { name: /Николаенко Матвей.*Создатель Shalter/ });
+    expect(creator.getAttribute("href")).toBe("https://shalter.ru");
+    expect(creator.getAttribute("target")).toBe("_blank");
+    expect(creator.getAttribute("rel")).toBe("noopener");
+    const project = screen.getByText("Независимый проект");
+    expect(creator.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

@@ -72,11 +72,14 @@
   padding: 28px 0 10px;
 }
 
+/* Аватар — посередине баннера, а не у его нижнего края. */
 .withBanner {
   position: relative;
   align-self: stretch;
+  align-items: center;
+  min-height: 168px;
   margin: 0 -16px 10px;
-  padding-top: 92px;
+  padding: 36px 0;
   isolation: isolate;
 }
 

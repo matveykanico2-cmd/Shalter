@@ -13,8 +13,9 @@ import { ChannelStoryButton } from "@/features/stories";
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, levelForPoints, memberRoleLabel } from "@/entities/chat";
 import { openGiftShop } from "@/entities/gift";
 import { ReportDialog, type ReportTarget } from "@/entities/report";
+import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
-import { openUserProfile, ProfileRows } from "@/entities/user";
+import { openUserProfile, ProfileRows, ProfileStatusBadge } from "@/entities/user";
 
 import { statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
@@ -95,6 +96,24 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
                 <Icon name="Verified" size={16} />
               </span>
             ) : null}
+            {/* Значки собеседника, как info-panel-title в infoPanel.js: разработчик, Premium, статус, метка безопасности. */}
+            {other?.isDeveloper ? (
+              <span className={styles.developer} role="img" aria-label="Разработчик Shalter" title="Разработчик Shalter">
+                <Icon name="Code" size={16} />
+              </span>
+            ) : null}
+            {other?.isPremium ? (
+              <span className={styles.premium} role="img" aria-label="Shalter Premium" title="Shalter Premium">
+                <Icon name="Star" size={18} />
+              </span>
+            ) : null}
+            {other?.statusIcon ? (
+              // Клики по значку и его просмотрщику (портал) не всплывают до «открыть профиль».
+              <span className={styles.statusSlot} onClick={(e) => e.stopPropagation()}>
+                <ProfileStatusBadge user={other} size={18} />
+              </span>
+            ) : null}
+            {other?.safetyLabel ? <SafetyBadge label={other.safetyLabel} /> : null}
             {level > 0 ? (
               <span className={styles.levelBadge} title={`${chat.points} баллов`}>
                 ★ Ур. {level}

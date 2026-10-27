@@ -15,7 +15,7 @@ import { closeUserProfile } from "@/entities/user";
 
 import { ws } from "@/shared/api";
 import { fakeApi, fakeMedia, FakeMediaRecorder, fakeRtc, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
-import { AskHost, BrowserHost, Toaster } from "@/shared/ui";
+import { AskHost, BrowserHost, NowPlayingBar, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
 
@@ -85,9 +85,10 @@ function renderChat(c: ChatSummary = chat()) {
   const router = createMemoryRouter(
     [
       {
-        // Профиль — панель поверх экранов, как в оболочке (app/ui/app-routes.tsx).
+        // Профиль — панель поверх экранов, «сейчас играет» — над ними, как в оболочке (app/ui/app-routes.tsx).
         element: (
           <>
+            <NowPlayingBar />
             <Outlet />
             <UserProfileHost />
           </>
@@ -473,16 +474,20 @@ describe("действия с сообщением", () => {
     await screen.findByText("Сообщений пока нет — напишите первым");
     const input = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Сообщение" });
     fireEvent.change(input, { target: { value: "привет мир" } });
+    input.focus();
     input.setSelectionRange(6, 6);
 
     fireEvent.click(screen.getByTitle("Эмодзи"));
     const panel = screen.getByRole("menu", { name: "Эмодзи" });
+    // Курсор остаётся в поле: панель не забирает фокус ни при открытии, ни после выбора.
+    expect(document.activeElement).toBe(input);
     expect(within(panel).queryByRole("region", { name: "Недавние" })).toBeNull();
     fireEvent.click(within(panel).getByRole("button", { name: "😀" }));
     expect(input.value).toBe("привет😀 мир");
     // Панель остаётся открытой — можно добавить ещё.
     fireEvent.click(within(panel).getByRole("button", { name: "🐻" }));
     expect(input.value).toBe("привет😀🐻 мир");
+    expect(document.activeElement).toBe(input);
 
     fireEvent.click(screen.getByTitle("Эмодзи"));
     expect(screen.queryByRole("menu", { name: "Эмодзи" })).toBeNull();

@@ -1,0 +1,89 @@
+/* Приветствие после входа — .qr-login-animation-overlay и .qr-welcome-bubble в main2, ускоренные до 1,15 с. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.leaving {
+  opacity: 0;
+}
+.bubble {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  animation: welcome-bubble-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.avatar {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-alt, var(--color-accent)));
+  color: var(--color-accent-contrast);
+}
+.text {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.plane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  color: var(--color-accent);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  opacity: 0;
+  animation: welcome-plane 0.5s 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes welcome-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes welcome-plane {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) rotate(-45deg) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--mid-x), var(--mid-y)) rotate(-30deg) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--end-x), var(--end-y)) rotate(-45deg) scale(0.8);
+    opacity: 0;
+  }
+}
+@media (max-width: 360px) {
+  .text {
+    white-space: normal;
+  }
+}

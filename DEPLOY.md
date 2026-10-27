@@ -512,6 +512,38 @@ pm2 logs shalter --lines 30 --nostream
 и перезапустить; вернуться на Nest — очистить поле. Вариант Б — Redeploy
 предыдущего коммита/образа.
 
+### Старые фото, видео и голосовые не открываются (доступ к файлам)
+
+После переезда файл, не привязанный к чату в `upload_access`, скачивает только
+загрузивший, а для файлов времён `main2` загрузивших никто не записывал — такие
+вложения отвечали `404`, и в клиенте висели пустые плитки и неработающие кнопки.
+Исправление — разовый перенос `upload-access-backfill-2` в `server/db.js`: он сам
+выполняется при первом запуске новой версии (обоих бэкендов), отдельных команд не
+нужно. Проверить до и после выкладки (PM2; в Docker — те же запросы через
+`docker exec <контейнер> sqlite3 /app/data/app.db "…"`):
+```bash
+cd /opt/shalter
+# Вложений сообщений без привязки к своему чату: до выкладки — сколько сломано, после — 0.
+sqlite3 data/app.db "WITH RECURSIVE refs(chatId, rest, name) AS (
+  SELECT chatId, attachments, NULL FROM messages WHERE instr(attachments, '/uploads/') > 0
+  UNION ALL
+  SELECT chatId, substr(rest, instr(rest, '/uploads/') + 9),
+         substr(rest, instr(rest, '/uploads/') + 9, 30)
+    FROM refs WHERE instr(rest, '/uploads/') > 0)
+SELECT count(DISTINCT r.chatId || ' ' || r.name) FROM (
+  SELECT chatId, substr(name, 1, CASE WHEN instr(name, '\"') > 0 THEN instr(name, '\"') - 1 ELSE length(name) END) AS name
+    FROM refs WHERE name IS NOT NULL) r
+ WHERE NOT EXISTS (SELECT 1 FROM upload_access a WHERE a.filename = r.name AND a.chatId = r.chatId);"
+# Перенос выполнен (после первого запуска):
+sqlite3 data/app.db "SELECT * FROM data_migrations WHERE name = 'upload-access-backfill-2';"
+```
+Если после выкладки первое число не `0` или старое вложение всё равно не
+открывается — проверить сам файл: `ls -la data/uploads/<имя>` (на S3 — объект
+`<S3_PREFIX><имя>` в бакете). Нет файла — его убрала уборка «отдано и забыто»
+(`server/lib/orphanSweep.js`: вложения старше недели, прочитанные всеми
+участниками, удаляются с диска, если на них больше ничего не ссылается) — это
+прежнее поведение, а не ошибка переезда.
+
 ## Обновление работающего сервера (сцены подарков, nginx, S3)
 
 Этот раздел для того, кто выкладывает новую версию на **уже работающий**

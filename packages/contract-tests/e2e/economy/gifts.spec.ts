@@ -165,6 +165,8 @@ test("встроенная сцена подарка грузится отдел
 
   // «Утёнок на отдыхе» своей анимации не имеет — рисуется встроенной сценой (SVG).
   const duck = shop(page).getByRole("button", { name: "Утёнок на отдыхе", exact: true });
+  // Картинки подарков грузятся, когда подарок подходит к экрану: утёнок ниже первого экрана.
+  await duck.scrollIntoViewIfNeeded();
   await expect(duck.locator("svg.ce-scene")).toBeVisible();
 
   expect(sceneRequests).toContain("/gift-scenes/index.json");

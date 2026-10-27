@@ -41,6 +41,8 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
   const [themeId, setThemeId] = useState(savedTheme);
   const theme = QR_THEMES.find((t) => t.id === themeId) ?? QR_THEMES[0]!;
   const [note, setNote] = useState("");
+  // Отправок может идти несколько сразу (выбрали несколько чатов) — считаем, а не флаг.
+  const [sending, setSending] = useState(0);
   const [picking, setPicking] = useState(false);
   const svg = useMemo(() => prettyQrSvg(url, { color: theme.ink }), [url, theme.ink]);
 
@@ -86,6 +88,7 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
   const uploaded = useRef<Promise<Uploaded> | null>(null);
   const sent = useRef(0);
   const sendTo = async (chatId: string) => {
+    setSending((n) => n + 1);
     setNote("Отправляем…");
     uploaded.current ??= preparedCard()
       .then((file) => uploadFile(file, "image"))
@@ -99,6 +102,8 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
       setNote(sent.current > 1 ? `QR-код отправлен в ${sent.current} чатов ✓` : "QR-код отправлен ✓");
     } catch {
       setNote("Не удалось отправить QR-код");
+    } finally {
+      setSending((n) => n - 1);
     }
   };
 
@@ -177,6 +182,8 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
           </Button>
         </div>
         <p className={styles.note} role="status">
+          {/* Спиннер — отдельным узлом рядом с текстом, смена текста его не стирает. */}
+          {sending > 0 ? <span className={styles.spinner} aria-hidden="true" data-testid="qr-send-spinner" /> : null}
           {note}
         </p>
       </Dialog>

@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ContactPicker } from "@/entities/user";
 
@@ -8,7 +8,9 @@ import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, Volu
 import { callApi, type CallPeer } from "../api/call-api";
 import { formatElapsed } from "../lib/format";
 import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleMute, toggleScreenShare } from "../model/call-store";
+import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
+import { GestureEffect } from "./call-gestures";
 import styles from "./call-screen.module.css";
 import { InviteDialog } from "./invite-dialog";
 import { useDraggable } from "./use-draggable";
@@ -24,6 +26,32 @@ type Props = {
 
 const hasVideo = (stream: MediaStream | null | undefined): stream is MediaStream => !!stream && stream.getVideoTracks().some((t) => t.readyState === "live");
 
+// Полноэкранный режим — на весь документ, а не на экран звонка: меню, диалоги и тосты
+// рисуются в body и должны оставаться видны. Экран звонка и так закрывает всё окно.
+const canFullscreen = () => typeof document !== "undefined" && document.fullscreenEnabled !== false && typeof document.documentElement.requestFullscreen === "function";
+const subscribeFullscreen = (fn: () => void) => {
+  document.addEventListener("fullscreenchange", fn);
+  return () => document.removeEventListener("fullscreenchange", fn);
+};
+const isFullscreen = () => !!document.fullscreenElement;
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  else document.documentElement.requestFullscreen?.({ navigationUI: "hide" }).catch(() => {});
+}
+
+// Иконки полноэкранного режима и «кадр целиком» (в общем наборе их нет).
+const FULLSCREEN_ICON = "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5";
+const EXIT_FULLSCREEN_ICON = "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5";
+const FIT_ICON = "M3 7h18v10H3zM8 4h8M8 20h8";
+function Glyph({ d }: { d: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
+
 /** Экран звонка — как public/js/views/callScreen.js. */
 export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const screen = useRef<HTMLDivElement>(null);
@@ -33,8 +61,20 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [addMenu, setAddMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
   const [pickingContact, setPickingContact] = useState(false);
+  // Собеседник заполняет экран (cover, края обрезаются); «Кадр целиком» — без обрезки.
+  const [wholeFrame, setWholeFrame] = useState(false);
+  const fullscreen = useSyncExternalStore(subscribeFullscreen, isFullscreen, () => false);
+  // Ушли с экрана звонка (свернули, положили трубку) — из полноэкранного режима тоже.
+  useEffect(
+    () => () => {
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    },
+    []
+  );
   const { attach: pipAttach, style: pipStyle, onPointerDown: pipDown, justDragged: pipDragged } = useDraggable("shalter.callPipPos");
   const { attach: stripAttach, style: stripStyle, onPointerDown: stripDown, justDragged: stripDragged } = useDraggable("shalter.callStripPos");
+  const [gesturesOn, toggleGestures] = useGesturesEnabled();
+  const gestures = useCallGestures(s.phase !== "ended" && s.cameraOn ? s.localStream : null, gesturesOn);
 
   if (s.phase === "ended") {
     return (
@@ -49,10 +89,6 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   // Кто-то показывает экран — он крупно, остальные полосой сверху.
   const stageMode = s.sharing || !!remoteSharerId;
   const swap = swapped && !stageMode;
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    else screen.current?.requestFullscreen?.().catch(() => {});
-  };
   const toggleSwap = () => {
     if (pipDragged() || stripDragged() || stageMode) return;
     setSwapped((v) => !v);
@@ -196,24 +232,52 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const who = swap && first ? first : me;
 
   return (
-    <div ref={screen} className={styles.screen}>
-      <div className={styles.header}>
-        <button type="button" className={styles.headerButton} title="Свернуть (PiP)" onClick={onMinimize}>
-          <Icon name="ChevronLeft" size={20} />
-        </button>
-        <div className={styles.headerCenter}>
-          <p className={styles.title}>{s.chatTitle}</p>
-          <p className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
-        </div>
-        <button type="button" className={`${styles.headerButton} ${styles.invite}`} title="Пригласить по ссылке" onClick={() => void inviteByLink()}>
-          <Icon name="Link" size={17} />
-          <span className={styles.inviteLabel}>Пригласить</span>
-        </button>
-      </div>
-      {s.mediaError ? <p className={styles.error}>{s.mediaError}</p> : null}
-      {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : null}
-      {linkStatus ? <p className={`${styles.error} ${styles.linkStatus}`}>{linkStatus}</p> : null}
+    <div ref={screen} className={wholeFrame ? `${styles.screen} ${styles.wholeFrame}` : styles.screen}>
       {area}
+      <div className={styles.top}>
+        <div className={styles.header}>
+          <button type="button" className={styles.headerButton} title="Свернуть (PiP)" onClick={onMinimize}>
+            <Icon name="ChevronLeft" size={20} />
+          </button>
+          <div className={styles.headerCenter}>
+            <p className={styles.title}>{s.chatTitle}</p>
+            <p className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
+          </div>
+          <div className={styles.headerActions}>
+            {stageMode ? null : (
+              <button
+                type="button"
+                className={styles.headerButton}
+                title={wholeFrame ? "Заполнить экран" : "Показать кадр целиком"}
+                aria-label="Кадр целиком"
+                aria-pressed={wholeFrame}
+                onClick={() => setWholeFrame((v) => !v)}
+              >
+                <Glyph d={FIT_ICON} />
+              </button>
+            )}
+            {canFullscreen() ? (
+              <button
+                type="button"
+                className={styles.headerButton}
+                title={fullscreen ? "Выйти из полноэкранного режима (Esc)" : "На весь экран"}
+                aria-label="На весь экран"
+                aria-pressed={fullscreen}
+                onClick={toggleFullscreen}
+              >
+                <Glyph d={fullscreen ? EXIT_FULLSCREEN_ICON : FULLSCREEN_ICON} />
+              </button>
+            ) : null}
+            <button type="button" className={`${styles.headerButton} ${styles.invite}`} title="Пригласить по ссылке" onClick={() => void inviteByLink()}>
+              <Icon name="Link" size={17} />
+              <span className={styles.inviteLabel}>Пригласить</span>
+            </button>
+          </div>
+        </div>
+        {s.mediaError ? <p className={styles.error}>{s.mediaError}</p> : null}
+        {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : null}
+        {linkStatus ? <p className={`${styles.error} ${styles.linkStatus}`}>{linkStatus}</p> : null}
+      </div>
       <div
         ref={pipAttach}
         data-draggable=""
@@ -258,6 +322,18 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         <button type="button" className={s.sharing ? `${styles.control} ${styles.accent}` : styles.control} title={s.sharing ? "Остановить показ экрана" : "Демонстрация экрана"} onClick={() => void toggleScreenShare()}>
           <Icon name="Monitor" size={20} />
         </button>
+        <button
+          type="button"
+          className={gesturesOn ? `${styles.control} ${styles.accent}` : styles.control}
+          title={gestures.failed ? "Жесты: не удалось загрузить распознавание" : gesturesOn && !s.cameraOn ? "Жесты: включите камеру" : "Жесты"}
+          aria-label="Жесты"
+          aria-pressed={gesturesOn}
+          onClick={toggleGestures}
+        >
+          <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>
+            ✋
+          </span>
+        </button>
         <VolumeControl className={styles.volume} />
         <button type="button" className={styles.control} title="Добавить участника" onClick={(e) => void openAddMenu(e)}>
           <Icon name="Plus" size={20} />
@@ -266,6 +342,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <Icon name="Phone" size={22} className={styles.hangupIcon} />
         </button>
       </div>
+      <GestureEffect shown={gestures.shown} />
       {addMenu ? <Menu at={addMenu.at} label="Добавить участника" items={addMenu.items} onClose={() => setAddMenu(null)} /> : null}
       {pickingContact ? (
         <ContactPicker

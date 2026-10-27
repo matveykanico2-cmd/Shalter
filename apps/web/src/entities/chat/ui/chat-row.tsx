@@ -187,7 +187,8 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
           )}
           <span className={styles.badges}>
             {chat.pinned ? <Icon name="Pin" size={12} /> : null}
-            {muted ? <Icon name="BellOff" size={12} /> : null}
+            {/* Звук чата — всегда: перечёркнутый динамик, когда уведомления выключены. */}
+            <Icon name={muted ? "VolumeOff" : "Volume"} size={12} className={styles.sound} />
             {chat.hasUnreadMention ? <span className={styles.mention}>@</span> : null}
             {chat.unreadCount > 0 ? (
               <span className={styles.unread}>{chat.unreadCount > 99 ? "99+" : String(chat.unreadCount)}</span>

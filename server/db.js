@@ -1384,6 +1384,31 @@ runOnce("birthday-suggestions-trim", () => {
   }
 });
 
+// Доступ к старым файлам (lib/uploadAccess.js). Раньше файл, не привязанный ни к одному
+// чату, скачивал любой вошедший, а привязку (upload_access) писала не каждая отправка:
+// Bot API (forwardMessage, publishPost), системный чат, стикеры-не-картинки — и
+// разовое заполнение выше (только пока таблица пуста). Теперь непривязанный файл видит
+// лишь загрузивший (upload_uploaders), а для старых файлов загрузивших никто не
+// записывал, — и старые фото, видео и голосовые из таких сообщений перестали
+// открываться даже участникам чата. Привязываем файлы всех сообщений к их чатам, как
+// registerAttachments при отправке, а файлы отложенных сообщений — к отправителю (он
+// их и загрузил; без этого при отправке привязка с проверкой «by» их пропустит).
+runOnce("upload-access-backfill-2", () => {
+  const FILE_RE = /\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)/g;
+  const access = db.prepare("INSERT OR IGNORE INTO upload_access (filename, chatId) VALUES (?, ?)");
+  for (const row of db
+    .prepare("SELECT chatId, attachments, sticker FROM messages WHERE instr(attachments, '/uploads/') > 0 OR instr(sticker, '/uploads/') > 0")
+    .all()) {
+    for (const value of [row.attachments, row.sticker]) {
+      for (const m of String(value ?? "").matchAll(FILE_RE)) access.run(m[1], row.chatId);
+    }
+  }
+  const uploader = db.prepare("INSERT OR IGNORE INTO upload_uploaders (filename, userId, createdAt) VALUES (?, ?, ?)");
+  for (const row of db.prepare("SELECT senderId, attachments, createdAt FROM scheduled_messages WHERE instr(attachments, '/uploads/') > 0").all()) {
+    for (const m of String(row.attachments).matchAll(FILE_RE)) uploader.run(m[1], row.senderId, row.createdAt);
+  }
+});
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS promo_codes (
   id TEXT PRIMARY KEY,

@@ -20,15 +20,22 @@
   --chat-gradient: linear-gradient(135deg, #dbddbb 0%, #a8c89a 30%, #d5d88d 60%, #88b884 100%);
   --color-date-pill: rgba(0, 0, 0, 0.18);
   --bubble-radius: 15px;
-  --bubble-radius-small: 5px;
+  --bubble-radius-small: 10px;
   --bubble-shadow: 0 1px 2px 0 rgba(16, 35, 47, 0.15);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-control: 12px;
+  /* Общие цвета tweb из public/styles/components.css («tweb: общие компоненты»). */
+  --tw-secondary: #c4c9cc;
+  --tw-hover: color-mix(in srgb, var(--color-text) 8%, transparent);
+  --tw-input-border: #dfe1e5;
 }
 
+/* Тёмная тема: по системе, если в настройках «Как в системе»; явный выбор в настройках
+   (data-theme на <html>, app/model/use-appearance.ts) важнее системы. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --color-bg: #181818;
     --color-surface: #212121;
     --color-surface-alt: #2c2c2c;
@@ -49,5 +56,37 @@
     --color-chat-bg: #0f0f0f;
     --chat-gradient: linear-gradient(135deg, #1f2b23 0%, #121a16 45%, #1c2420 100%);
     --color-date-pill: rgba(255, 255, 255, 0.12);
+    --tw-secondary: #707579;
+    --tw-input-border: #2f2f2f;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #181818;
+  --color-surface: #212121;
+  --color-surface-alt: #2c2c2c;
+  --color-text: #ffffff;
+  --color-muted: #aaaaaa;
+  --color-border: #303030;
+  --color-accent: #8774e1;
+  --color-accent-contrast: #ffffff;
+  --color-accent-soft: #2f2a47;
+  --color-danger: #ff595a;
+  --color-warning: #f0ad4e;
+  --color-success: #5cc85a;
+  --color-bubble-in: #212121;
+  --color-bubble-out: #766ac8;
+  --color-bubble-out-meta: rgba(255, 255, 255, 0.6);
+  --color-bubble-out-accent: #ffffff;
+  --color-bubble-out-link: #ffffff;
+  --color-chat-bg: #0f0f0f;
+  --chat-gradient: linear-gradient(135deg, #1f2b23 0%, #121a16 45%, #1c2420 100%);
+  --color-date-pill: rgba(255, 255, 255, 0.12);
+  --tw-secondary: #707579;
+  --tw-input-border: #2f2f2f;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }

@@ -83,6 +83,12 @@
   color: var(--color-muted);
 }
 
+/* Значок звука чата — всегда виден (Volume / VolumeOff). */
+.sound {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
 .unread,
 .mention {
   display: flex;

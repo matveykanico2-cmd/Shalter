@@ -8,7 +8,7 @@ import { ProfileQrDialog } from "@/features/profile-qr";
 import { ChatPickerDialog, chatQueries, openDm, useChats } from "@/entities/chat";
 import { openGiftShop } from "@/entities/gift";
 import { ReportDialog } from "@/entities/report";
-import { useSafetyLabel } from "@/entities/safety-label";
+import { SafetyBadge, useSafetyLabel } from "@/entities/safety-label";
 import { isServerModerator, type SelfUser, sessionQueries } from "@/entities/session";
 import { hasUnseen, openStoryViewer, storyQueries, storyWord } from "@/entities/story";
 import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, ProfileStatusBadge, ProfileTrackCard, type UserProfile, userQueries } from "@/entities/user";
@@ -276,6 +276,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           </span>
         ) : null}
         <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, name: u.name }} size={18} />
+        {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>
       <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{status ?? "был(а) недавно"}</p>
       {/* Имя уже показано так, как вы записали человека; его собственное — подсказкой. */}
@@ -297,7 +298,7 @@ export function UserProfilePanel({ userId, me }: Props) {
         {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Phone" label="Звонок" onClick={() => void call("audio")} /> : null}
         {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Video" label="Видео" onClick={() => void call("video")} /> : null}
         {u.username ? <QuickAction icon="Copy" label="Ссылка" onClick={() => void copyText(profileLink(), "Ссылка на профиль скопирована")} /> : null}
-        {isSelf && u.username ? <QuickAction icon="Qrcode" label="QR-код" onClick={() => setOverlay("qr")} /> : null}
+        {u.username ? <QuickAction icon="Qrcode" label="QR-код" onClick={() => setOverlay("qr")} /> : null}
         {isSelf ? (
           <QuickAction
             icon="Edit"

@@ -10,7 +10,7 @@ export type RingingCall = Pick<CallListItem, "id" | "kind" | "callerId" | "statu
   otherUser?: { name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null } | null;
 };
 
-const POLL_MS = 20_000;
+const POLL_MS = 5_000;
 // Звонок старше минуты уже не звонит: звонящий мог сбросить, пока связи не было.
 const RINGING_WINDOW_MS = 60_000;
 // Уже показанные (и завершённые к первому опросу) звонки — на всю вкладку.
@@ -19,7 +19,7 @@ let primed = false;
 
 /**
  * Входящие — как public/js/components/incomingCallWatcher.js: по сокету, а пока сокета
- * нет — опросом раз в 20 с; после переподключения и возврата во вкладку сверяемся сразу.
+ * нет — опросом раз в 5 с; после переподключения и возврата во вкладку сверяемся сразу.
  */
 export function useIncomingCall(meId: string) {
   const [ringing, setRinging] = useState<RingingCall | null>(null);

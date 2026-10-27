@@ -44,3 +44,9 @@ export async function postStory(files: File[], { edit, progress, channelId }: Ho
   await (channelId ? storyApi.postToChannel(channelId, items) : storyApi.post(items));
   return true;
 }
+
+/** Текстовая история: готовая картинка из редактора — как обычное фото одной историей. */
+export async function postTextStory(image: File) {
+  const { url } = await uploadFile(image, "image");
+  await storyApi.post([{ kind: "image", url }]);
+}

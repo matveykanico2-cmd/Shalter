@@ -1,6 +1,6 @@
 // Признаки подарка и его картинка — перенос public/js/lib/giftTraits.js. Встроенные сцены лежат
 // по файлу на подарок в /gift-scenes/<id>.json (scripts/gift-scenes.js) и грузятся только для
-// показанных подарков; какие сцены есть — в /gift-scenes/index.json.
+// подарков у экрана; какие сцены есть — в /gift-scenes/index.json (25 тыс. id, ~110 КБ gzip).
 import { emojiArtName, lottieNameFor, renderCustomScene, renderEmojiArt, renderLottie, renderScene } from "@/shared/lib/anim";
 
 import type { GiftLike } from "../model/types";
@@ -98,27 +98,65 @@ function loadScene(id: string): Promise<unknown> {
 
 export type GiftArtOptions = { size?: number; replay?: boolean };
 
+// Картинки подарков рисуются, только когда подарок подъезжает к экрану: в витрине их
+// больше сотни, и почти у каждой своя lottie-анимация (~70 файлов, 8 МБ JSON) — разом
+// они грузились, разбирались и строили SVG, и витрина открывалась секундами. Один
+// наблюдатель на все подарки; без IntersectionObserver (старый браузер, тесты) — сразу.
+const pending = new WeakMap<Element, () => void>();
+let viewObserver: IntersectionObserver | null = null;
+let observerCtor: typeof IntersectionObserver | null = null;
+
+function whenNearView(el: Element, start: () => void) {
+  const IO = typeof IntersectionObserver === "function" ? IntersectionObserver : null;
+  if (!IO) return start();
+  if (!viewObserver || observerCtor !== IO) {
+    observerCtor = IO;
+    viewObserver = new IO(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          viewObserver?.unobserve(e.target);
+          const run = pending.get(e.target);
+          pending.delete(e.target);
+          run?.();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+  }
+  pending.set(el, start);
+  viewObserver.observe(el);
+}
+
 /**
- * Узел сразу: пока список сцен или сама сцена не загружены, отдаётся обёртка
- * (display: contents), в которую картинка дорисовывается после загрузки.
+ * Узел сразу: рамка размера картинки с эмодзи-заглушкой. Картинка (сцена, анимация,
+ * эмодзи-рисунок) строится, когда подарок рядом с экраном, — и только тогда грузятся
+ * список сцен и сама сцена. Картинка по ссылке (mediaUrl) списка сцен не ждёт.
  */
 export function renderGiftArt(gift: GiftLike | null | undefined, opts: GiftArtOptions = {}): Node {
-  if (gift?.scene) return renderCustomScene(gift.scene, { size: opts.size ?? 84, replay: opts.replay ?? true });
-  if (sceneIds) {
-    const id = builtinSceneId(gift);
-    const scene = id ? scenes.get(id) : null;
-    if (!id || (scenes.has(id) && !(scene instanceof Promise))) return renderWithScene(scene, gift, opts);
-  }
-  const slot = document.createElement("span");
-  slot.className = "gift-art-slot";
-  slot.style.display = "contents";
-  void loadSceneIds()
-    .then(() => {
+  const size = opts.size ?? 84;
+  if (gift?.scene) return renderCustomScene(gift.scene, { size, replay: opts.replay ?? true });
+  if (gift?.mediaUrl) return renderWithScene(null, gift, opts);
+
+  const host = document.createElement("span");
+  host.className = "gift-art-host";
+  Object.assign(host.style, { display: "inline-flex", alignItems: "center", justifyContent: "center", width: `${size}px`, height: `${size}px` });
+  host.appendChild(renderScene(gift?.emoji ?? "🎁", { size, replay: false }));
+  whenNearView(host, () => {
+    // Список сцен и сцена уже в памяти — картинка сразу, без лишнего кадра с заглушкой.
+    if (sceneIds) {
       const id = builtinSceneId(gift);
-      return id ? loadScene(id) : null;
-    })
-    .then((scene) => slot.replaceChildren(renderWithScene(scene, gift, opts)));
-  return slot;
+      const scene = id ? scenes.get(id) : null;
+      if (!id || (scenes.has(id) && !(scene instanceof Promise))) return void host.replaceChildren(renderWithScene(scene, gift, opts));
+    }
+    void loadSceneIds()
+      .then(() => {
+        const id = builtinSceneId(gift);
+        return id ? loadScene(id) : null;
+      })
+      .then((scene) => host.replaceChildren(renderWithScene(scene, gift, opts)));
+  });
+  return host;
 }
 
 function renderWithScene(builtin: unknown, gift: GiftLike | null | undefined, { size = 84, replay = true }: GiftArtOptions = {}): Node {
@@ -141,6 +179,8 @@ function renderWithScene(builtin: unknown, gift: GiftLike | null | undefined, { 
   img.style.width = `${size}px`;
   img.style.height = `${size}px`;
   img.style.objectFit = "contain";
+  img.loading = "lazy";
+  img.decoding = "async";
   img.addEventListener("error", () => img.replaceWith(art()), { once: true });
   return img;
 }

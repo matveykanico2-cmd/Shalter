@@ -4,7 +4,7 @@
 // (камера или экран) и второй — камера, пока показывают экран.
 import { ws } from "@/shared/api";
 import { cameraCount, getFlippedTrack } from "@/shared/lib/media/camera-switch";
-import { CALL_AUDIO, cameraConstraints, getUserMediaSafe, HD_SCREEN, HD_VIDEO, hintScreenTrack, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
+import { CALL_AUDIO, cameraConstraints, getUserMediaSafe, HD_SCREEN, HD_VIDEO, hintScreenTrack, hintVideoTrack, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
 import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
@@ -54,8 +54,10 @@ type State = CallState & {
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 const ICE_FAILURE_MESSAGE = "Не удалось установить соединение — проверьте сеть и попробуйте позвонить снова";
-const CONNECT_TIMEOUT_MS = 8000;
-const RESTART_GRACE_MS = 4000;
+// Через TURN и мобильную сеть ICE сходится и за 10–15 с: раньше 20 с не трогаем, иначе
+// перезапуск ICE обрывает почти готовое соединение (8 с/4 с из main2 рвали такие звонки).
+const CONNECT_TIMEOUT_MS = 20_000;
+const RESTART_GRACE_MS = 10_000;
 const NO_ANSWER_MS = 45_000;
 const POLL_MS = 1000;
 
@@ -106,6 +108,18 @@ function applyOutgoing(pc: RTCPeerConnection) {
   put(s.video, main, { screen: state.sharing });
   put(s.cam, second, {});
   put(s.audio, audio, {});
+}
+
+/**
+ * Потолки битрейта и кадров на всех видеоотправителях пира. Кодировки появляются только
+ * после согласования, а дорожка, добавленная addTrack, через replaceTrack не проходит —
+ * поэтому настраиваем после каждого setLocalDescription и когда соединились.
+ */
+function tunePeer(pc: RTCPeerConnection) {
+  const s = senders.get(pc);
+  if (!s || !state) return;
+  void tuneVideoSender(s.video, { screen: state.sharing });
+  void tuneVideoSender(s.cam);
 }
 
 function sendMedia(userId: string) {
@@ -192,6 +206,9 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     state.connectedPeers = { ...state.connectedPeers, [otherUserId]: looksConnected() };
     if (looksConnected()) {
       clearTimeout(watchdog);
+      // Следующий обрыв (сменилась сеть) снова получит перезапуск ICE, а не сразу ошибку.
+      restarted = false;
+      tunePeer(pc);
       state.connectionError = null;
       if (state.phase === "ringing") {
         state.phase = "connected";
@@ -223,6 +240,7 @@ async function renegotiate(userId: string) {
     const offer = tuneOpusSdp(await pc.createOffer());
     await pc.setLocalDescription(offer);
     sendSignal(userId, "offer", offer);
+    tunePeer(pc);
   } catch {
     // Пир уже закрыт.
   }
@@ -236,6 +254,7 @@ async function offerTo(userId: string) {
     const offer = tuneOpusSdp(await pc.createOffer());
     await pc.setLocalDescription(offer);
     sendSignal(userId, "offer", offer);
+    tunePeer(pc);
   } catch {
     // Пир закрыт, пока готовили offer.
   }
@@ -268,8 +287,11 @@ async function handleSignal(sig: Signal) {
       const answer = tuneOpusSdp(await pc.createAnswer());
       await pc.setLocalDescription(answer);
       sendSignal(sig.fromUserId, "answer", answer);
+      tunePeer(pc);
     } else if (sig.kind === "answer") {
-      await state.peers.get(sig.fromUserId)?.setRemoteDescription(new RTCSessionDescription(data));
+      const pc = state.peers.get(sig.fromUserId);
+      await pc?.setRemoteDescription(new RTCSessionDescription(data));
+      if (pc) tunePeer(pc);
     } else if (sig.kind === "ice") {
       await state.peers.get(sig.fromUserId)?.addIceCandidate(new RTCIceCandidate(data));
     } else if (sig.kind === "end") {
@@ -405,6 +427,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       markReady();
       return;
     }
+    hintVideoTrack(stream.getVideoTracks()[0], "motion");
     mine.localStream = stream;
     void refreshCameraCount();
   } catch {
@@ -542,6 +565,7 @@ export async function toggleCamera() {
     try {
       const cam = await getUserMediaSafe({ video: cameraConstraints({ facingMode: state.facingBack ? "environment" : "user" }) });
       track = cam.getVideoTracks()[0] ?? null;
+      hintVideoTrack(track, "motion");
     } catch {
       // Ниже — «Нет доступа к камере».
     }
@@ -577,6 +601,7 @@ export async function flipCamera() {
     flashCameraError(error ?? "Не удалось переключить камеру");
     return;
   }
+  hintVideoTrack(newTrack, "motion");
   state.facingBack = !state.facingBack;
   state.cameraError = null;
   // Меняем трек внутри того же потока: <video> не перезагружается и не мигает чёрным.

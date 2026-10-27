@@ -19,6 +19,7 @@ import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
 import { splitLongText } from "../lib/long-text";
+import { playSendPlane } from "../lib/send-plane";
 import { type BotCommand, parseSlashCommand, suggestSlashCommands } from "../lib/slash-commands";
 import { type Edit, formatShortcut, linkSelection, quoteSelection, wrapSelection } from "../lib/text-format";
 import { typingPingDue } from "../lib/typing";
@@ -135,6 +136,7 @@ export function Composer(props: Props) {
   const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId, thread?.postId);
   const send: typeof sendOne = async (...args) => {
     const message = await sendOne(...args);
+    playSendPlane(textarea.current);
     thread?.onSent(message);
     return message;
   };
@@ -201,7 +203,15 @@ export function Composer(props: Props) {
     if (threadOpen) textarea.current?.focus();
   }, [threadOpen]);
 
-  useEffect(() => () => clearTimeout(draftTimer.current), []);
+  // Ушли из чата раньше, чем черновик сохранился, — сохраняем сразу, а не теряем.
+  const pendingDraft = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      clearTimeout(draftTimer.current);
+      pendingDraft.current?.();
+    },
+    []
+  );
 
   const attach = (files: File[]) => {
     if (!editing && files.length) setPicked(files);
@@ -210,10 +220,13 @@ export function Composer(props: Props) {
   const scheduleDraft = (value: string) => {
     if (thread) return;
     clearTimeout(draftTimer.current);
-    draftTimer.current = setTimeout(() => {
+    const save = () => {
+      pendingDraft.current = null;
       chatCache.setDraft(client, chatId, value);
       saveDraft(chatId, value).catch(() => {});
-    }, DRAFT_SAVE_MS);
+    };
+    pendingDraft.current = save;
+    draftTimer.current = setTimeout(save, DRAFT_SAVE_MS);
   };
 
   const onChange = (value: string) => {

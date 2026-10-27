@@ -82,4 +82,16 @@ describe("строка чата", () => {
     expect(row.textContent).toContain("Вы: Фото");
     expect(row.querySelector('img[src="/uploads/p.jpg"]')).toBeTruthy();
   });
+
+  it("значок звука виден всегда: динамик, у заглушённого — перечёркнутый", () => {
+    renderRow(chat());
+    const row = screen.getByRole("button", { name: /Дача/ });
+    expect(row.querySelector('[data-icon="Volume"]')).toBeTruthy();
+    expect(row.querySelector('[data-icon="VolumeOff"]')).toBeNull();
+    cleanup();
+    renderRow(chat({ muted: true }));
+    const muted = screen.getByRole("button", { name: /Дача/ });
+    expect(muted.querySelector('[data-icon="VolumeOff"]')).toBeTruthy();
+    expect(muted.querySelector('[data-icon="BellOff"]')).toBeNull();
+  });
 });

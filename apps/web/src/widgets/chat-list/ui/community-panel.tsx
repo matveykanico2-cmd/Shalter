@@ -55,8 +55,8 @@ function useCommunityMenu(community: JoinedCommunity & { requestsCount: number }
     ...(inPanel ? [] : [{ icon: "Layers" as const, label: "Открыть сообщество", onClick: () => void openCommunity(community.id) }]),
     { icon: "Pin", label: community.pinned ? "Открепить" : "Закрепить", onClick: () => void run(() => communityApi.prefs(community.id, { pinned: !community.pinned }), "Не удалось закрепить") },
     muted
-      ? { icon: "Bell", label: "Включить уведомления", onClick: () => void run(() => communityApi.mute(community.id, { off: true }), "Не удалось включить уведомления") }
-      : { icon: "BellOff", label: "Отключить уведомления", onClick: () => setDialog({ kind: "mute" }) },
+      ? { icon: "VolumeOff", label: "Включить уведомления", onClick: () => void run(() => communityApi.mute(community.id, { off: true }), "Не удалось включить уведомления") }
+      : { icon: "Volume", label: "Отключить уведомления", onClick: () => setDialog({ kind: "mute" }) },
     ...(unread ? [{ icon: "Check" as const, label: "Отметить как прочитанное", onClick: () => void run(() => communityApi.read(community.id), "Не удалось отметить прочитанным") }] : []),
     {
       icon: "Layers",
@@ -142,7 +142,7 @@ export function CommunityRow({ community, chats, meId, active }: RowProps) {
             </span>
             <span className={styles.badges}>
               {community.pinned ? <Icon name="Pin" size={12} /> : null}
-              {muted ? <Icon name="BellOff" size={12} /> : null}
+              <Icon name={muted ? "VolumeOff" : "Volume"} size={12} className={styles.sound} />
               {community.requestsCount ? <span className={styles.requestsDot} title={`Заявок: ${community.requestsCount}`} /> : null}
               {mention ? <span className={styles.mention}>@</span> : null}
               {total ? <span className={unread ? styles.unread : `${styles.unread} ${styles.mutedBadge}`}>{total > 99 ? "99+" : String(total)}</span> : null}

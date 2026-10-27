@@ -23,14 +23,16 @@ let uid = 0;
  * Редактор фото истории — как openStoryEditor в public/js/components/storyEditor.js: текст «Aa»,
  * эмодзи и картинки поверх фото, перетаскивание, поворот и масштаб за уголок. «Готово» —
  * новый JPEG 1080×1920, «Пропустить» — исходный файл, «Отмена» и Esc — null.
+ * Без файла — текстовая история: белый холст и сразу поле для текста.
  */
-export function StoryEditor({ file, onDone }: { file: File; onDone: (result: File | null) => void }) {
+export function StoryEditor({ file, onDone }: { file: File | null; onDone: (result: File | null) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState<HTMLImageElement | null>(null);
-  const [layers, setLayers] = useState<Layer[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: TEXT_COLORS[1]!, bg: false }));
+  const [layers, setLayers] = useState<Layer[]>(() => (initialText ? [initialText] : []));
+  const [selectedId, setSelectedId] = useState<number | null>(initialText?.id ?? null);
+  const [editingId, setEditingId] = useState<number | null>(initialText?.id ?? null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState({ width: 320, height: 568 });
@@ -47,6 +49,7 @@ export function StoryEditor({ file, onDone }: { file: File; onDone: (result: Fil
   };
 
   useEffect(() => {
+    if (!file) return;
     let alive = true;
     loadImage(objectUrl(file)).then(
       (img) => alive && setBg(img),
@@ -81,7 +84,8 @@ export function StoryEditor({ file, onDone }: { file: File; onDone: (result: Fil
   const patch = (id: number, p: Partial<Layer>) => setLayers((list) => list.map((l) => (l.id === id ? { ...l, ...p } : l)));
 
   const addLayer = (partial: Omit<Layer, "id" | "color" | "bg">) => {
-    const layer: Layer = { id: ++uid, color: "#ffffff", bg: false, ...partial };
+    // На белом холсте белый текст не виден — там по умолчанию тёмный.
+    const layer: Layer = { id: ++uid, color: file ? "#ffffff" : TEXT_COLORS[1]!, bg: false, ...partial };
     setLayers((list) => [...list, layer]);
     setSelectedId(layer.id);
     return layer;
@@ -136,10 +140,11 @@ export function StoryEditor({ file, onDone }: { file: File; onDone: (result: Fil
     if (busy) return;
     setBusy(true);
     try {
-      if (!bg) throw new Error("нет фона");
+      if (file && !bg) throw new Error("нет фона");
       onDone(await bakeStory(bg, layers));
     } catch {
-      onDone(file);
+      if (file) onDone(file);
+      else setBusy(false);
     }
   };
 
@@ -163,12 +168,14 @@ export function StoryEditor({ file, onDone }: { file: File; onDone: (result: Fil
               <Icon name="Image" size={18} />
             </button>
           </div>
-          <button type="button" className={styles.skip} onClick={() => onDone(file)}>
-            Пропустить
-          </button>
+          {file ? (
+            <button type="button" className={styles.skip} onClick={() => onDone(file)}>
+              Пропустить
+            </button>
+          ) : null}
         </div>
 
-        <div ref={stageRef} className={styles.stage} onPointerDown={(e) => e.target === e.currentTarget && setSelectedId(null)}>
+        <div ref={stageRef} className={file ? styles.stage : `${styles.stage} ${styles.blank}`} onPointerDown={(e) => e.target === e.currentTarget && setSelectedId(null)}>
           {bg ? <img className={styles.bg} src={bg.src} alt="" /> : null}
           {layers.map((layer) => (
             <LayerView

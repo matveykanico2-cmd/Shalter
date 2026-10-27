@@ -7,7 +7,7 @@ import type { SelfUser } from "@/entities/session";
 import { closeStoryViewer } from "@/entities/story";
 
 import { ws } from "@/shared/api";
-import { fakeApi, FakeSocket, fakeSocket } from "@/shared/lib/test";
+import { fakeApi, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
 import { AskHost, Toaster } from "@/shared/ui";
 
 import { StoriesBar } from "./stories-bar";
@@ -157,5 +157,29 @@ describe("истории", () => {
     feed = [];
     act(() => FakeSocket.last().receive({ type: "story:deleted", storyId: ALICE_STORY, userId: ALICE.id }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /Алиса$/ })).toBeNull());
+  });
+
+  it("текстовая история: белый холст с текстом, картинка уходит как фото-история", async () => {
+    fakeXhr();
+    // В jsdom нет canvas — подменяем рисование и toBlob.
+    const ctx = new Proxy({}, { get: (_t, key) => (key === "measureText" ? () => ({ width: 10 }) : () => {}), set: () => true });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((cb) => cb(new Blob(["jpg"], { type: "image/jpeg" })));
+    const { calls } = fakeApi({
+      "GET /api/stories": { body: { groups: [] } },
+      "POST /api/stories": { body: { story: story(MY_STORY, ME.id) } },
+    });
+    renderBar();
+    fireEvent.click(screen.getByRole("button", { name: "Текст" }));
+    const editor = await screen.findByRole("dialog", { name: "Редактор истории" });
+    // Фото нет — пропускать нечего; поле текста уже на холсте.
+    expect(within(editor).queryByRole("button", { name: "Пропустить" })).toBeNull();
+    expect(within(editor).getByText("Текст")).toBeTruthy();
+    fireEvent.click(within(editor).getByRole("button", { name: "Готово" }));
+    await vi.waitFor(() => expect(FakeXhr.requests.length).toBe(1));
+    expect(FakeXhr.requests[0]!.params).toMatchObject({ kind: "image", name: "story.jpg", mimeType: "image/jpeg" });
+    FakeXhr.requests[0]!.respond(200, { url: "/uploads/sha_text.jpg", name: "story.jpg", size: 3, mimeType: "image/jpeg" });
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/stories")?.body).toEqual({ items: [{ kind: "image", url: "/uploads/sha_text.jpg" }] }));
+    vi.restoreAllMocks();
   });
 });

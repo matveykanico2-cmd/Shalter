@@ -41,6 +41,7 @@ import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
 import { type FeedRow, feedRows, lastEditable } from "../lib/feed-rows";
 import { buildGallery, galleryIndex } from "../lib/gallery";
+import { useEntrance } from "../model/use-entrance";
 import { useHistorySync } from "../model/use-history-sync";
 
 import { BotThinking } from "./bot-thinking";
@@ -114,6 +115,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   if (unreadId === undefined && history.isFetchedAfterMount && data) setUnreadId(data.firstUnreadId);
 
   const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null), [data?.messages, unreadId]);
+  const entrance = useEntrance(chat.id, data?.messages, meId);
   const senders = useSenders(chat, members);
   const attachmentActions = useMemo<AttachmentActions>(
     () => ({
@@ -350,7 +352,20 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                       <span>Непрочитанные сообщения</span>
                     </div>
                   ) : (
-                    <div className={row.message.id === highlightId ? `${styles.message} ${styles.highlight}` : styles.message}>
+                    <div
+                      className={[
+                        styles.message,
+                        row.groupStart ? styles.groupStart : "",
+                        row.groupEnd ? styles.groupEnd : "",
+                        entrance.entering(row.message) ? styles.entering : "",
+                        row.message.id === highlightId ? styles.highlight : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      onAnimationEnd={(e) => {
+                        if (e.target === e.currentTarget) entrance.finish(row.message.id);
+                      }}
+                    >
                       <MessageRow
                         message={row.message}
                         meId={meId}

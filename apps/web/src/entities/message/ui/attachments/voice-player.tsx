@@ -18,7 +18,7 @@ const BARS = 40;
  * осциллограмма с перемоткой, длительность и кнопка расшифровки.
  */
 export function VoicePlayer({ attachment: a, message, senderName }: { attachment: Attachment; message: FeedMessage; senderName: string | null }) {
-  const { key, ref: audio, toggle, playing, current, duration } = usePlayer(message, a, "voice", senderName);
+  const { key, ref: audio, toggle, playing, current, duration, failed } = usePlayer(message, a, "voice", senderName);
   const seek = useSeek(audio, duration);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const bars = useMemo(() => (a.waveform?.length ? resampleWaveform(a.waveform, BARS) : new Array<number>(BARS).fill(0)), [a.waveform]);
@@ -34,8 +34,14 @@ export function VoicePlayer({ attachment: a, message, senderName }: { attachment
   return (
     <div className={styles.voiceBlock}>
       <div className={styles.voice} data-voice-key={key}>
-        <button type="button" data-voice-play="" className={playing ? `${styles.voicePlay} ${styles.playing}` : styles.voicePlay} aria-label={playing ? "Пауза" : "Слушать"} onClick={toggle}>
-          <Icon name={playing ? "PauseFill" : "PlayFill"} size={24} />
+        <button
+          type="button"
+          data-voice-play=""
+          className={playing ? `${styles.voicePlay} ${styles.playing}` : styles.voicePlay}
+          aria-label={failed ? "Повторить загрузку" : playing ? "Пауза" : "Слушать"}
+          onClick={toggle}
+        >
+          <Icon name={failed ? "RotateCw" : playing ? "PauseFill" : "PlayFill"} size={24} />
         </button>
         <span className={styles.voiceBody}>
           <span
@@ -53,7 +59,7 @@ export function VoicePlayer({ attachment: a, message, senderName }: { attachment
               <span key={i} className={i < lit ? `${styles.bar} ${styles.played}` : styles.bar} style={{ ["--h" as string]: Math.max(0.12, v).toFixed(3) }} />
             ))}
           </span>
-          <span className={styles.voiceTime}>{current > 0 ? clockTime(current) : clockTime(duration)}</span>
+          <span className={styles.voiceTime}>{failed ? "Не загрузилось — нажмите, чтобы повторить" : current > 0 ? clockTime(current) : clockTime(duration)}</span>
         </span>
         {a.transcript ? (
           <button

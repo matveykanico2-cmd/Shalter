@@ -88,7 +88,9 @@
 .title {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 12px 0 2px;
   font-size: 20px;
   font-weight: 500;
@@ -98,6 +100,44 @@
 .verified {
   display: flex;
   color: var(--color-accent);
+}
+
+/* .developer-mini-badge в public/styles/components.css: голубой значок с пульсацией. */
+.developer {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #1c9bd9;
+  animation: developer-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes developer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0 rgba(28, 155, 217, 0));
+  }
+
+  50% {
+    opacity: 0.75;
+    filter: drop-shadow(0 0 5px rgba(28, 155, 217, 0.9));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .developer {
+    animation: none;
+  }
+}
+
+.premium {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #8f6bff;
+}
+
+.statusSlot {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 /* Как .group-level-badge в public/styles/components.css. */

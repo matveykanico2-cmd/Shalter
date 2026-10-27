@@ -78,7 +78,16 @@
   margin-top: 2px;
 }
 
+/* Значки после имени уступают место первыми — имя не сжимается в ноль (время не трогаем). */
+.line:first-child > :not(.title, .time) {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .title {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   font-size: 15px;
   font-weight: 500;
@@ -137,6 +146,12 @@
   gap: 4px;
   margin-left: auto;
   color: var(--color-muted);
+}
+
+/* Значок звука чата — всегда виден (Volume / VolumeOff). */
+.sound {
+  flex-shrink: 0;
+  opacity: 0.75;
 }
 
 .unread,

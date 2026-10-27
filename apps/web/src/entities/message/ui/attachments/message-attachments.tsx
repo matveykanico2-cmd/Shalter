@@ -55,7 +55,7 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
   const tile = (a: Attachment, i: number, inAlbum: boolean) => {
     const view =
       a.kind === "video" ? (
-        <VideoAttachment attachment={a} messageId={message.id} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
+        <VideoAttachment attachment={a} messageId={message.id} sentAt={message.createdAt} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
       ) : (
         <ImageAttachment attachment={a} inAlbum={inAlbum} onOpen={() => onOpenMedia?.(a.url!)} onDoubleTap={onDoubleTap} />
       );

@@ -137,4 +137,22 @@ describe("профиль человека", () => {
     expect(await screen.findByRole("dialog", { name: "QR-код" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Скопировать ссылку" })).toBeTruthy();
   });
+
+  it("QR-код есть и в чужом профиле с именем пользователя, без имени — нет", async () => {
+    fakeApi({
+      "GET /api/users/u_boris0000": { body: profile() },
+      "GET /api/users/u_nousername": { body: profile({ user: { ...BORIS, id: "u_nousername", username: null } }) },
+    });
+    renderHost();
+    act(() => openUserProfile(BORIS.id));
+    const panel = await screen.findByRole("complementary", { name: "Профиль" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "QR-код" }));
+    const dialog = await screen.findByRole("dialog", { name: "QR-код" });
+    expect(within(dialog).getByText("@boris")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Закрыть" }));
+
+    act(() => openUserProfile("u_nousername"));
+    await waitFor(() => expect(within(screen.getByRole("complementary", { name: "Профиль" })).queryByRole("button", { name: "Ссылка" })).toBeNull());
+    expect(within(screen.getByRole("complementary", { name: "Профиль" })).queryByRole("button", { name: "QR-код" })).toBeNull();
+  });
 });

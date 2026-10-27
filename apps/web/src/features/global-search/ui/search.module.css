@@ -123,35 +123,47 @@
   text-align: center;
 }
 
-/* Строка поиска над вкладками (.chat-search-input). */
+/* Поле поиска в левой колонке — .chat-search-input-wrap / .chat-search-input (tweb .input-search). */
 .searchBox {
   position: relative;
   display: flex;
+  flex: 1;
   align-items: center;
-  padding: 0 10px 6px;
+  min-width: 0;
 }
 
 .searchIcon {
   position: absolute;
-  left: 22px;
+  left: 13px;
   display: flex;
   color: var(--color-muted);
   pointer-events: none;
 }
 
+.searchBox:focus-within .searchIcon {
+  color: var(--color-accent);
+}
+
 .searchInput {
   width: 100%;
-  padding: 8px 12px 8px 34px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface-alt);
+  height: 44px;
+  padding: 0 16px 0 44px;
+  border: 1px solid var(--tw-input-border);
+  border-radius: 22px;
+  background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
+}
+
+.searchInput::placeholder {
+  color: #9ba0a5;
 }
 
 .searchInput:focus {
-  outline: 2px solid var(--color-accent);
+  padding: 0 15px 0 43px;
+  border: 2px solid var(--color-accent);
+  outline: none;
 }
 
 /* Игра в результатах поиска (.search-game-emoji). */

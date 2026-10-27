@@ -21,6 +21,10 @@ type Props = {
   label?: string;
   /** Панель шире обычного меню (эмодзи, стикеры, все реакции) — ширину задаёт она. */
   wide?: boolean;
+  /** false — у точки нажатия и на узком экране, без шторки и затемнения (эмодзи над полем ввода). */
+  sheet?: boolean;
+  /** false — фокус остаётся, где был (курсор в поле ввода). */
+  autoFocus?: boolean;
   onClose: () => void;
 };
 
@@ -31,9 +35,16 @@ const SHEET_QUERY = "(max-width: 560px)";
  * Выпадающее меню у точки нажатия — как openDropdownMenu в public/js/components/dropdownMenu.js;
  * на узком экране — шторкой снизу.
  */
-export function Menu({ at, items = [], header, label = "Меню", wide = false, onClose }: Props) {
+export function Menu({ at, items = [], header, label = "Меню", wide = false, sheet: allowSheet = true, autoFocus = true, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [sheet] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches);
+  const [sheet] = useState(() => allowSheet && typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches);
+  // onClose у вызывающих — новая функция на каждый рендер; подписки ниже живут, пока открыто
+  // меню, иначе каждый выбор (эмодзи подряд) заново ставил фокус на первую кнопку.
+  const closeRef = useRef(onClose);
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  });
+  const focusOnOpen = useRef(autoFocus);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   // Меню не выходит за край окна: у правого и нижнего края открывается влево и вверх.
@@ -55,7 +66,8 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
   }, [at.x, at.y, sheet]);
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    if (focusOnOpen.current) ref.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    const onClose = () => closeRef.current();
     const onPointerDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
@@ -74,7 +86,7 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
       window.removeEventListener("resize", onClose);
       window.removeEventListener("blur", onClose);
     };
-  }, [onClose]);
+  }, []);
 
   // Стрелки ходят по пунктам.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {

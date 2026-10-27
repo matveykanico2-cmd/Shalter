@@ -19,6 +19,7 @@ import {
   type TwoFactorChallenge,
   uploadAvatar,
 } from "../api/sign-in";
+import { playWelcome } from "../lib/welcome";
 
 import { CodePanel } from "./code-panel";
 import { QrPanel } from "./qr-panel";
@@ -57,10 +58,11 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
   };
   const finish = useCallback(
     async (user: SignedInUser) => {
-      await queryClient.invalidateQueries({ queryKey: sessionQueries.baseKey });
+      // Приветствие играет, пока перечитывается сессия; внутри чужого экрана (QR, OAuth) — без него.
+      await Promise.all([queryClient.invalidateQueries({ queryKey: sessionQueries.baseKey }), embedded ? null : playWelcome()]);
       onSignedIn(user);
     },
-    [queryClient, onSignedIn]
+    [queryClient, onSignedIn, embedded]
   );
   const onResult = (res: LoginResult | TwoFactorChallenge) => (isTwoFactorChallenge(res) ? setChallenge(res) : void finish(res.user));
   const back = () => setMode("login");

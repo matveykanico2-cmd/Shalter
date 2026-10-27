@@ -73,6 +73,10 @@
   background: #111;
   touch-action: none;
 }
+/* Текстовая история — белый холст, как drawCover без фото. */
+.blank {
+  background: #ffffff;
+}
 .bg {
   position: absolute;
   inset: 0;

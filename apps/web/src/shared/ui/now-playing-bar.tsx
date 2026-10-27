@@ -11,7 +11,7 @@ const clock = (sec: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-/** «Сейчас играет» — под шапкой чата и над списком (AudioPlayerBar в public/js/components/audioPlayerBar.js). */
+/** «Сейчас играет» — полоской над всем приложением (AudioPlayerBar в public/js/components/audioPlayerBar.js, .shell-media-bar). */
 export function NowPlayingBar() {
   const { np, rate, paused } = useSyncExternalStore(nowPlaying.subscribe, nowPlaying.get);
   const navigate = useNavigate();

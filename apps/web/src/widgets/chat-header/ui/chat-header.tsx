@@ -14,6 +14,7 @@ import { useTopicsToggle } from "@/features/topics";
 import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
+import { ProfileStatusBadge } from "@/entities/user";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
 
@@ -62,7 +63,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
     // Шапка чата — banner, как <header> старого клиента вне <main>.
     <header className={styles.header} role="banner">
       <Link to="/" className={styles.back} title="Назад к чатам">
-        <Icon name="ChevronLeft" size={22} />
+        <Icon name="ChevronLeft" size={20} />
       </Link>
       {/* Нажатие на аватар и название — как .chat-header-info-btn; с клавиатуры — кнопка «i» и пункт меню. */}
       <div
@@ -83,7 +84,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
           </span>
         ) : (
           <Avatar
-            size={40}
+            size={42}
             name={other?.name ?? title}
             color={other?.avatarColor ?? chat.avatarColor}
             image={other?.avatarImage ?? chat.avatarImage}
@@ -91,7 +92,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
           />
         )}
         <div className={styles.titles}>
-          <h1 className={styles.title} translate="no">
+          <h1 className={chat.secret ? `${styles.title} ${styles.secretTitle}` : styles.title} translate="no">
             {chat.secret ? (
               <span className={styles.lock} title="Секретный чат">
                 <Icon name="Lock" size={14} />
@@ -115,6 +116,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
                 <Icon name="Star" size={15} />
               </span>
             ) : null}
+            {chat.type === "dm" && other ? <ProfileStatusBadge user={other} size={15} /> : null}
             {chat.type === "dm" && other?.safetyLabel ? <SafetyBadge label={other.safetyLabel} mini /> : null}
           </h1>
           {subtitle.text ? (
@@ -126,10 +128,11 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
       </div>
       {bot ? <BotAppButton bot={bot} chatId={chat.id} /> : null}
       <CallButtons chat={chat} me={me} />
+      <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
+      {/* «i» — после «Ещё», как .info-toggle в chatView.js. */}
       <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
         <Icon name="Info" size={18} />
       </button>
-      <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
       {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
       {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
       {dialog === "ai" ? <AiSettingsDialog onClose={() => setDialog(null)} /> : null}

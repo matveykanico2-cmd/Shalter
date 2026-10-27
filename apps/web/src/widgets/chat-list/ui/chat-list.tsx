@@ -20,7 +20,7 @@ import { useWsEvent } from "@/shared/api";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
-import { Icon, Menu, NowPlayingBar } from "@/shared/ui";
+import { Icon, Menu } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
 import { useChatListSync } from "../model/use-chat-list-sync";
@@ -192,15 +192,11 @@ export function ChatList({ meId }: { meId: string }) {
         <span>{connection ?? "Shalter"}</span>
       </div>
 
-      {/* Что-то играет — полоска и над списком: на телефоне из чата уходят, а звук продолжает играть. */}
-      <div className={currentId ? styles.nowPlayingBesideChat : undefined}>
-        <NowPlayingBar />
-      </div>
       <div className={styles.searchRow}>
         {/* Меню ☰ как в tweb (SidebarHeader в chatList.js): аккаунты, разделы, тема. */}
         <button
           type="button"
-          className={styles.iconButton}
+          className={styles.menuButton}
           title="Меню"
           aria-label="Меню"
           onClick={(e) => {
@@ -210,19 +206,20 @@ export function ChatList({ meId }: { meId: string }) {
         >
           <Icon name="Menu" size={20} />
         </button>
-        <div className={styles.searchBox}>
-          <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
-        </div>
+        <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
         {/* Загрузки — отдельной кнопкой на главном экране, как в chatList.js. */}
-        <button type="button" className={styles.iconButton} title="Загрузки" aria-label="Загрузки" onClick={() => setDownloadsOpen(true)}>
+        <button type="button" className={styles.menuButton} title="Загрузки" aria-label="Загрузки" onClick={() => setDownloadsOpen(true)}>
           <Icon name="Download" size={20} />
         </button>
       </div>
       {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
 
+      {/* Полоса историй — между поиском и вкладками, как StoriesBar в chatList.js; пока ищут — скрыта. */}
+      {me && !searching ? <StoriesBar me={me} /> : null}
+
       {searching || panelCommunity ? null : showArchive ? (
         <div className={styles.archiveHead}>
-          <button type="button" className={styles.iconButton} title="Назад к чатам" onClick={() => setShowArchive(false)}>
+          <button type="button" className={styles.archiveBack} title="Назад к чатам" onClick={() => setShowArchive(false)}>
             <Icon name="ChevronLeft" size={20} />
           </button>
           <span className={styles.archiveTitle}>Архив</span>
@@ -253,7 +250,7 @@ export function ChatList({ meId }: { meId: string }) {
           </div>
           <button
             type="button"
-            className={unreadOnly ? `${styles.iconButton} ${styles.filterOn}` : styles.iconButton}
+            className={unreadOnly ? `${styles.filterButton} ${styles.filterOn}` : styles.filterButton}
             title={unreadOnly ? "Показать все чаты" : "Только непрочитанные"}
             aria-pressed={unreadOnly}
             onClick={toggleUnreadOnly}
@@ -262,9 +259,6 @@ export function ChatList({ meId }: { meId: string }) {
           </button>
         </div>
       )}
-
-      {/* Полоса историй — над чатами, как StoriesBar в chatList.js. */}
-      {me ? <StoriesBar me={me} /> : null}
 
       {!searching && panelCommunity ? (
         <CommunityPanel

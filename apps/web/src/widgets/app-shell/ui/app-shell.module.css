@@ -2,9 +2,23 @@
 .shell {
   display: grid;
   grid-template-columns: 420px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas: "list main" "nav nav";
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "media media" "list main" "nav nav";
   height: 100dvh;
+}
+
+/* Полоска «сейчас играет» во всю ширину над приложением (.shell-media-bar). */
+.media {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  grid-area: media;
+  min-width: 0;
+}
+
+/* Нижняя граница — у самой полоски (.bar), здесь только тень. */
+.media > * {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .sidebar {
@@ -83,7 +97,7 @@
 @media (max-width: 767px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "list" "nav";
+    grid-template-areas: "media" "list" "nav";
   }
 
   .sidebar {
@@ -102,8 +116,8 @@
   }
 
   .mainOpen {
-    grid-template-areas: "main";
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "media" "main";
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .mainOpen .sidebar,

@@ -20,6 +20,8 @@ export function usePlayer(message: FeedMessage, a: Attachment, kind: "voice" | "
   const title = kind === "voice" ? (senderName ?? "Голосовое сообщение") : (a.name || "Аудио").replace(AUDIO_EXT_RE, "");
   const toggle = () => {
     if (!media.paused) return media.pause();
+    // Не загрузилась (нет доступа, нет сети) — запрашиваем файл заново, а не молчим.
+    if (media.error) media.load();
     play(media, {
       key,
       kind,

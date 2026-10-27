@@ -167,19 +167,32 @@
   opacity: 0.55;
 }
 
+/* Тёмная тема: по системе или явным выбором в настройках (data-theme). */
 @media (prefers-color-scheme: dark) {
-  .nameColor {
+  :global(:root:not([data-theme="light"])) .nameColor {
     color: var(--name-dark, var(--color-accent));
   }
 
-  .nameSwatch {
+  :global(:root:not([data-theme="light"])) .nameSwatch {
     background: var(--name-dark);
   }
 
-  .nameNone {
+  :global(:root:not([data-theme="light"])) .nameNone {
     background: color-mix(in srgb, var(--color-muted) 10%, transparent);
   }
 }
+:global(:root[data-theme="dark"]) .nameColor {
+  color: var(--name-dark, var(--color-accent));
+}
+
+:global(:root[data-theme="dark"]) .nameSwatch {
+  background: var(--name-dark);
+}
+
+:global(:root[data-theme="dark"]) .nameNone {
+  background: color-mix(in srgb, var(--color-muted) 10%, transparent);
+}
+
 
 .bannerPreview {
   height: 110px;

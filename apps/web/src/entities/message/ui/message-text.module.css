@@ -157,8 +157,9 @@
   }
 }
 
+/* Тёмная тема: по системе или явным выбором в настройках (data-theme). */
 @media (prefers-color-scheme: dark) {
-  .codeBlock {
+  :global(:root:not([data-theme="light"])) .codeBlock {
     --tk-keyword: #e48ad5;
     --tk-string: #9ad48a;
     --tk-number: #f6b26b;
@@ -170,6 +171,18 @@
     --tk-operator: #aab0b6;
   }
 }
+:global(:root[data-theme="dark"]) .codeBlock {
+  --tk-keyword: #e48ad5;
+  --tk-string: #9ad48a;
+  --tk-number: #f6b26b;
+  --tk-comment: #7f868c;
+  --tk-function: #7cb7ff;
+  --tk-type: #f1d07a;
+  --tk-prop: #74d4e2;
+  --tk-literal: #f6b26b;
+  --tk-operator: #aab0b6;
+}
+
 
 .tk-keyword { color: var(--tk-keyword); }
 .tk-string { color: var(--tk-string); }

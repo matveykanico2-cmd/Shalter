@@ -8,7 +8,7 @@ import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { Avatar, Icon, toast } from "@/shared/ui";
 
-import { postStory } from "../model/post-story";
+import { postStory, postTextStory } from "../model/post-story";
 
 import styles from "./stories-bar.module.css";
 import { StoryEditor } from "./story-editor";
@@ -21,7 +21,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const groups = useQuery(storyQueries.feed()).data?.groups ?? NO_GROUPS;
   const fileRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ file: File; resolve: (f: File | null) => void } | null>(null);
+  const [editing, setEditing] = useState<{ file: File | null; resolve: (f: File | null) => void } | null>(null);
 
   const refetch = () => void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
   useWsEvent("story:new", refetch);
@@ -37,6 +37,21 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         progress: setProgress,
       });
       if (posted) await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+    } catch (err) {
+      toast(errorText(err, "Не удалось выложить историю"), { error: true });
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  // «Текст» — пустой белый холст в редакторе; готовая картинка уходит как фото-история.
+  const textStory = async () => {
+    const image = await new Promise<File | null>((resolve) => setEditing({ file: null, resolve }));
+    if (!image) return;
+    try {
+      setProgress("Загружаем историю…");
+      await postTextStory(image);
+      await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
@@ -87,6 +102,12 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           if (files.length) void pick(files);
         }}
       />
+      <button type="button" className={styles.item} title="Текстовая история" onClick={() => void textStory()}>
+        <span className={styles.textRing}>
+          <Icon name="FileText" size={22} />
+        </span>
+        <span className={styles.label}>Текст</span>
+      </button>
       {groups.map((g, i) =>
         g.user.id === me.id ? null : (
           <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
@@ -99,7 +120,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       )}
       {editing ? (
         <StoryEditor
-          key={editing.file.name + editing.file.lastModified}
+          key={editing.file ? editing.file.name + editing.file.lastModified : "text"}
           file={editing.file}
           onDone={(result) => {
             setEditing(null);

@@ -57,8 +57,8 @@ export function ChatRowMenu({ chat, me, at, onClose }: Props) {
   const items: MenuItem[] = [
     { icon: "Pin", label: chat.pinned ? "Открепить" : "Закрепить", onClick: () => void actions.togglePin() },
     muted
-      ? { icon: "Bell", label: "Включить уведомления", onClick: () => void actions.mute({ off: true }) }
-      : { icon: "BellOff", label: "Отключить уведомления", onClick: () => setStep("mute") },
+      ? { icon: "VolumeOff", label: "Включить уведомления", onClick: () => void actions.mute({ off: true }) }
+      : { icon: "Volume", label: "Отключить уведомления", onClick: () => setStep("mute") },
     { icon: "Folder", label: "Добавить в папку", onClick: () => setStep("folders") },
     { icon: "Archive", label: chat.archived ? "Вернуть из архива" : "Архивировать", onClick: () => void actions.toggleArchive() },
     hasUnread(chat)
