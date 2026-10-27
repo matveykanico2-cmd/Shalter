@@ -113,3 +113,31 @@ describe("регистрация", () => {
   });
 });
 
+
+describe("гостевой вход", () => {
+  it("«Продолжить как гость» — POST /api/auth/guest, «Входим…», вошли как после пароля", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(`${init?.method} ${String(input)}`).toBe("POST /api/auth/guest");
+      expect(JSON.parse(String(init?.body))).toEqual({});
+      await gate;
+      return new Response(JSON.stringify({ user: { ...user, isGuest: true }, alreadyLinked: false }), { headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
+    expect(((await screen.findByRole("button", { name: "Входим…" })) as HTMLButtonElement).disabled).toBe(true);
+    release();
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: user.id, isGuest: true })));
+  });
+
+  it("гостевой режим отключён — ошибка сервера, как у остальных способов входа", async () => {
+    fakeApi({ "POST /api/auth/guest": { status: 404, body: { error: "Гостевой режим отключён" } } });
+    const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
+    expect(await screen.findByText("Гостевой режим отключён")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Продолжить как гость" })).toBeTruthy();
+    expect(onSignedIn).not.toHaveBeenCalled();
+  });
+});

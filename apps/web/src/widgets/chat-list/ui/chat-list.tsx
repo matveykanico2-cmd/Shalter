@@ -19,6 +19,7 @@ import { useSession } from "@/entities/session";
 import { useWsEvent } from "@/shared/api";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
+import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, Menu, NowPlayingBar } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
@@ -42,6 +43,8 @@ const NO_COMMUNITIES: JoinedCommunity[] = [];
 export function ChatList({ meId }: { meId: string }) {
   useChatListSync(meId);
   const chatsQuery = useChats();
+  // Сменили 12/24 часа — строки перерисуются с новым временем.
+  useTimeFormat();
   const folders = useChatFolders().data ?? NO_FOLDERS;
   const chats = chatsQuery.data;
   const connection = useConnectionTitle();

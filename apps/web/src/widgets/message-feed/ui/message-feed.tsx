@@ -36,6 +36,7 @@ import { type ReportInfo, ReportMessage } from "@/entities/report";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
+import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
 import { type FeedRow, feedRows, lastEditable } from "../lib/feed-rows";
@@ -86,6 +87,8 @@ const noop = () => {};
 
 export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic, ref }: Props) {
   const meId = me.id;
+  // Сменили 12/24 часа — пузыри перерисуются с новым временем.
+  useTimeFormat();
   const client = useQueryClient();
   const menu = useMessageMenu();
   const actions = useMessageActions(chat, me);

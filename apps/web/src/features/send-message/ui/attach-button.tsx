@@ -8,6 +8,8 @@ type Props = {
   onFiles: (files: File[]) => void;
   onPoll: () => void;
   onChecklist: () => void;
+  /** «Статья (Premium)»; нет — пункта нет (пост канала статьёй не публикуется). */
+  onArticle?: () => void;
   onDice: (emoji: string) => void;
   /** Каталог игр — карточка выбранной игры уходит в чат. */
   onGames: () => void;
@@ -32,7 +34,7 @@ const DICE: [string, string][] = [
 ];
 
 /** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, мем, рисунок, опрос, чек-лист, кубики, геолокация, контакт. */
-export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onGames, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
+export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, onGames, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [diceAt, setDiceAt] = useState<{ x: number; y: number } | null>(null);
   const media = useRef<HTMLInputElement>(null);
@@ -57,6 +59,7 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onGames, on
     { icon: "Edit", label: "Рисунок", onClick: onPaint },
     { icon: "BarChart", label: "Опрос", onClick: onPoll },
     { icon: "CheckCheck", label: "Чек-лист", onClick: onChecklist },
+    ...(onArticle ? [{ icon: "Star" as const, label: "Статья (Premium)", onClick: onArticle }] : []),
     // Меню закрывается раньше, чем откроется следующее, — второе ставим в ту же точку.
     { icon: "Smile", label: "Кубик и игры", onClick: () => setTimeout(() => setDiceAt(at), 0) },
     { icon: "MapPin", label: "Геолокация", onClick: () => onLocation(false) },

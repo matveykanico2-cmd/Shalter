@@ -56,7 +56,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
           ) : null}
           <ProfileStatusBadge user={me} size={18} />
         </p>
-        <p className={styles.heroStatus}>в сети</p>
+        <p className={styles.heroStatus}>{me.isGuest ? "в сети · Гость" : "в сети"}</p>
       </div>
       <SettingsSection>
         {me.phone ? <SettingsRow icon="Phone" title={me.phone} subtitle="Телефон" onClick={() => void copyText(me.phone, "Номер скопирован")} /> : null}

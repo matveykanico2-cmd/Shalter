@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { setTimeFormat } from "@/shared/lib/time-format";
+
 import type { ChatSummary } from "../model/types";
 
-import { isChatMuted, sortChats } from "./chat-list";
+import { isChatMuted, sortChats, timeLabel } from "./chat-list";
 
 // Перенесено из packages/contract-tests/unit/chatSort.test.ts (тест public/js/lib/chatSort.js).
 const chat = (id: string, extra: Partial<ChatSummary> = {}) => ({ id, createdAt: "2026-01-01T00:00:00.000Z", ...extra }) as ChatSummary;
@@ -36,5 +38,20 @@ describe("порядок списка чатов", () => {
     expect(isChatMuted({ muted: false, mutedUntil: new Date(Date.now() + 3600e3).toISOString() })).toBe(true);
     expect(isChatMuted({ muted: false, mutedUntil: new Date(Date.now() - 1000).toISOString() })).toBe(false);
     expect(isChatMuted({ muted: false, mutedUntil: null })).toBe(false);
+  });
+});
+
+describe("время в строке списка", () => {
+  it("сегодня — время по настройке 12/24 часа, раньше — дата", () => {
+    const now = new Date(2026, 9, 27, 18, 0);
+    const today = new Date(2026, 9, 27, 9, 7).toISOString();
+    expect(timeLabel(today, now)).toBe("09:07");
+    setTimeFormat(12);
+    try {
+      expect(timeLabel(today, now)).toBe("09:07 AM");
+      expect(timeLabel(new Date(2026, 9, 26, 21, 0).toISOString(), now)).toBe("26.10");
+    } finally {
+      setTimeFormat(24);
+    }
   });
 });

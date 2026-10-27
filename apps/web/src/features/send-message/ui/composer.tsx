@@ -3,7 +3,8 @@ import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImpera
 
 import { chatCache } from "@/entities/chat";
 import { gameAttachmentFor, openGamesCatalog } from "@/entities/game";
-import { MediaPreview, type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
+import { MediaPreview, type Message, messagePreview, splitArticle, stripCustomEmoji } from "@/entities/message";
+import { useSession } from "@/entities/session";
 import { useSettings } from "@/entities/settings";
 import { ContactPicker, type PickedContact } from "@/entities/user";
 
@@ -24,6 +25,7 @@ import { typingPingDue } from "../lib/typing";
 import { useSendMessage } from "../model/use-send-message";
 import { useUploads } from "../model/use-uploads";
 
+import { type ArticleDraft, ArticleEditor } from "./article-editor";
 import { AttachButton } from "./attach-button";
 import { BotCommandsButton } from "./bot-commands-button";
 import { ChecklistDialog } from "./checklist-dialog";
@@ -123,7 +125,11 @@ export function Composer(props: Props) {
   const placeholder = props.placeholder ?? (paid ? `${paid.kind === "comment" ? "Комментарий" : "Сообщение"} · ${paid.stars} ⭐` : "Сообщение");
   const mentions = props.mentions ?? NO_MENTIONS;
   const botCommands = props.botCommands ?? NO_COMMANDS;
-  const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
+  const { onSaveEdit, onCancelEdit, onEditLast, ref } = props;
+  // Статью правят в её окне (заголовок и текст), а не в поле ввода.
+  const editingArticle = props.editing?.type === "article" ? props.editing : null;
+  const editing = editingArticle ? null : (props.editing ?? null);
+  const isPremium = !!useSession().data?.user?.isPremium;
   const client = useQueryClient();
   const thread = props.thread;
   const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId, thread?.postId);
@@ -163,6 +169,8 @@ export function Composer(props: Props) {
   const [picked, setPicked] = useState<File[] | null>(null);
   const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | "meme" | "paint" | null>(null);
   const [hugo, setHugo] = useState<HugoState | null>(null);
+  // Окно статьи; initial — черновик, вернувшийся после неудачной отправки.
+  const [article, setArticle] = useState<{ initial: ArticleDraft | null } | null>(null);
   const [scheduling, setScheduling] = useState<"dialog" | "list" | null>(null);
   const [placePicker, setPlacePicker] = useState<{ reason: string; resolve: (value: PickedLocation) => void } | null>(null);
   const [recording, setRecording] = useState<{ mode: RecordMode; hold: boolean } | null>(null);
@@ -404,6 +412,34 @@ export function Composer(props: Props) {
       setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
       return null;
     });
+  };
+
+  // Статья — только с Premium (сервер проверяет то же: 403).
+  const openArticle = () => {
+    if (!isPremium) {
+      toast("Создание статей доступно только Premium", { error: true });
+      return;
+    }
+    setArticle({ initial: null });
+  };
+  // Обложка загружается как фото (окно ждёт: «Публикация…»), потом статья уходит
+  // сообщением с article: true — временный пузырь сразу статьёй. Не ушла — окно снова с черновиком.
+  const sendArticle = async ({ text: articleText, title, body, cover }: { text: string; title: string; body: string; cover: File | null }) => {
+    const atts: OutgoingAttachment[] = [];
+    if (cover) {
+      const { uploaded, error: uploadError } = await uploads.upload([{ file: cover, kind: "image" }]);
+      if (!uploaded[0]) return uploadError || "Не удалось загрузить обложку";
+      atts.push(uploaded[0]);
+    }
+    const reply = replyTo;
+    const options: SendOptions = { ...takeAsGroup(), article: true };
+    onCancelReply();
+    onSent?.();
+    send(articleText, reply, atts, undefined, options).catch((err: unknown) => {
+      setError(err instanceof TypeError ? "Нет связи с сервером — статья не опубликована" : errorText(err, "Не удалось опубликовать статью"));
+      setArticle({ initial: { title, body, cover } });
+    });
+    return null;
   };
 
   // GPS → координаты; не вышло — окно выбора места (примерное по IP или поиск адреса),
@@ -703,6 +739,7 @@ export function Composer(props: Props) {
                 onFiles={attach}
                 onPoll={() => setCreating("poll")}
                 onChecklist={() => setCreating("checklist")}
+                onArticle={channel ? undefined : openArticle}
                 onDice={(emoji) => void sendAttachment("", { kind: "dice", meta: { emoji } })}
                 onGames={openGames}
                 onLocation={(live) => void sendLocation(live)}
@@ -789,6 +826,19 @@ export function Composer(props: Props) {
           />
         )}
       </div>
+      {article ? <ArticleEditor initial={article.initial} onSubmit={sendArticle} onClose={() => setArticle(null)} /> : null}
+      {editingArticle ? (
+        <ArticleEditor
+          key={editingArticle.id}
+          editing
+          initial={{ ...splitArticle(editingArticle.text), cover: null }}
+          onSubmit={({ text: next }) => {
+            if (next !== (editingArticle.text ?? "").trim()) onSaveEdit?.(editingArticle, next);
+            return null;
+          }}
+          onClose={() => onCancelEdit?.()}
+        />
+      ) : null}
       {creating === "meme" ? <MemeDialog onDone={(file) => void sendImageNow(file)} onClose={() => setCreating(null)} /> : null}
       {creating === "paint" ? <PaintDialog onDone={(file) => void sendImageNow(file)} onClose={() => setCreating(null)} /> : null}
       {creating === "poll" ? (

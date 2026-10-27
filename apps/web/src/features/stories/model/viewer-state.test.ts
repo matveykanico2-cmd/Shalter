@@ -11,7 +11,7 @@ const story = (id: string, userId: string, frames = 1) => ({
   url: `/u/${id}`,
   items: Array.from({ length: frames }, (_, i) => ({ kind: "image", url: `/u/${id}/${i}` })),
   createdAt: "2026-10-26T10:00:00.000Z",
-  expiresAt: "2026-10-27T10:00:00.000Z",
+  expiresAt: "2099-10-27T10:00:00.000Z",
   viewed: false,
   liked: false,
   likeCount: 0,

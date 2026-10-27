@@ -20,9 +20,9 @@ import { MessageLinks } from "../model/message-links";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
 import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
-import { ArticleCard } from "./article-card";
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
+import { ArticleCard } from "./article-card";
 import { MessageKeyboard } from "./keyboard";
 import { MediaPreview } from "./media-preview";
 import styles from "./message-bubble.module.css";

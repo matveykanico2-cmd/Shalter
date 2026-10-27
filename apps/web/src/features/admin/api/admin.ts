@@ -24,9 +24,9 @@ import type {
   verifyUserBody,
 } from "@shalter/shared/schemas/admin";
 import type { reviewListBody } from "@shalter/shared/schemas/ads";
-import type { promoCodeBody, promoListBody } from "@shalter/shared/schemas/promotions";
 import type { donationStatusBody } from "@shalter/shared/schemas/donations";
 import type { catalogBody, giftBody, shopBody } from "@shalter/shared/schemas/gifts";
+import type { promoCodeBody, promoListBody } from "@shalter/shared/schemas/promotions";
 import type { emojiBody, emojiListBody } from "@shalter/shared/schemas/stickers";
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";

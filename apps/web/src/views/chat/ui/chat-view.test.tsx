@@ -1929,7 +1929,7 @@ describe("меню чата в шапке", () => {
   const listed = (client: QueryClient) => client.getQueryData(chatQueries.list().queryKey)?.[0];
 
   it("уведомления: срок из списка, затем «Включить уведомления»", async () => {
-    const until = "2026-10-27T10:00:00.000Z";
+    const until = "2099-10-27T10:00:00.000Z";
     const { calls } = fakeApi({
       "GET /api/chats/c_1": card(),
       [HISTORY]: page([]),

@@ -16,7 +16,7 @@ import { StoryViewerHost } from "./story-viewer-host";
 const ME = { id: "u_me0000000", name: "Аня", avatarColor: "#3390ec", avatarImage: null, isDeveloper: false, adminSections: [] } as unknown as SelfUser;
 const ALICE = { id: "u_alice0000", name: "Алиса Петрова", avatarColor: "#c6403b", avatarImage: null };
 const at = "2026-10-26T10:00:00.000Z";
-const later = "2026-10-27T10:00:00.000Z";
+const later = "2099-10-27T10:00:00.000Z";
 const story = (id: string, userId: string, patch: Record<string, unknown> = {}) => ({
   id,
   userId,
