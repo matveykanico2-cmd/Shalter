@@ -14,6 +14,8 @@ export type SettingsSectionEntry = {
   group?: "main" | "extra" | "admin";
   /** Только разработчику или тому, кому раздел выдан (adminSections). */
   adminOnly?: boolean;
+  /** Раздел администрации, который открывает этот пункт (по умолчанию — id): «Промокоды» входят в «pricing». */
+  adminSection?: string;
   /** Компонент раздела отдельным чанком: без пропсов, сам берёт useSession/useSettings. */
   load: () => Promise<SectionModule>;
 };
@@ -54,9 +56,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "emojicatalog", label: "Эмодзи", icon: "Smile", color: "orange", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.EmojiCatalogSection })) },
   { id: "donations", label: "Донаты", icon: "Zap", color: "pink", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.DonationsSection })) },
   { id: "pricing", label: "Цены и тарифы", icon: "Star", color: "green", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.PricingSection })) },
+  { id: "promotions", label: "Промокоды", icon: "Gift", color: "orange", group: "admin", adminOnly: true, adminSection: "pricing", load: () => import("@/features/admin").then((m) => ({ default: m.PromotionsSection })) },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "grey", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.LegalSection })) },
 ];
 
 /** Виден ли раздел этому пользователю (adminOnly — разработчику или по adminSections). */
 export const canSeeSection = (s: SettingsSectionEntry, me: { isDeveloper?: boolean; adminSections?: readonly string[] }) =>
-  !s.adminOnly || !!me.isDeveloper || !!me.adminSections?.includes(s.id);
+  !s.adminOnly || !!me.isDeveloper || !!me.adminSections?.includes(s.adminSection ?? s.id);

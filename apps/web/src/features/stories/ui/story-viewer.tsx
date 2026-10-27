@@ -54,6 +54,7 @@ export function StoryViewer({ request, me }: { request: StoryViewerRequest; me: 
   const [replyNote, setReplyNote] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [videoFailed, setVideoFailed] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
 
   const group = s.groups[s.gi];
@@ -381,6 +382,7 @@ export function StoryViewer({ request, me }: { request: StoryViewerRequest; me: 
               className={styles.media}
               src={frame.item.previewUrl || frame.item.url}
               poster={frame.item.posterUrl}
+              preload="metadata"
               playsInline
               muted={muted}
               onEnded={() => dispatch({ type: "next" })}
@@ -393,7 +395,14 @@ export function StoryViewer({ request, me }: { request: StoryViewerRequest; me: 
             />
           )
         ) : (
-          <img key={frameKey} className={styles.media} src={frame.item.url} alt="" />
+          imageFailed === frameKey ? (
+            <div className={`${styles.media} ${styles.processing}`}>
+              <span className={styles.spinner} />
+              <p>Картинка не загрузилась — повторите позже</p>
+            </div>
+          ) : (
+            <img key={frameKey} className={styles.media} src={frame.item.url} alt="" decoding="async" loading="eager" onError={() => setImageFailed(frameKey)} />
+          )
         )}
 
         <div className={styles.tapZones}>

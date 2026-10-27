@@ -1,10 +1,10 @@
 // Звонок — как public/js/lib/callController.js: один на вкладку, живёт вне экранов
 // (свернулся в пузырь — разговор идёт). WebRTC «каждый с каждым», сигналы по сокету,
-// HTTP — запасной путь (опрос раз в 3 с). У каждого пира два видеоканала: основной
+// HTTP — запасной путь (опрос раз в секунду). У каждого пира два видеоканала: основной
 // (камера или экран) и второй — камера, пока показывают экран.
 import { ws } from "@/shared/api";
 import { cameraCount, getFlippedTrack } from "@/shared/lib/media/camera-switch";
-import { CALL_AUDIO, cameraConstraints, HD_SCREEN, HD_VIDEO, hintScreenTrack, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
+import { CALL_AUDIO, cameraConstraints, getUserMediaSafe, HD_SCREEN, HD_VIDEO, hintScreenTrack, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
 import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
@@ -54,10 +54,10 @@ type State = CallState & {
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 const ICE_FAILURE_MESSAGE = "Не удалось установить соединение — проверьте сеть и попробуйте позвонить снова";
-const CONNECT_TIMEOUT_MS = 20_000;
-const RESTART_GRACE_MS = 10_000;
+const CONNECT_TIMEOUT_MS = 8000;
+const RESTART_GRACE_MS = 4000;
 const NO_ANSWER_MS = 45_000;
-const POLL_MS = 3000;
+const POLL_MS = 1000;
 
 let iceServers = STUN_FALLBACK;
 let state: State | null = null;
@@ -396,7 +396,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   ];
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const stream = await getUserMediaSafe({
       audio: CALL_AUDIO,
       video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
     });
@@ -540,7 +540,7 @@ export async function toggleCamera() {
   } else {
     let track: MediaStreamTrack | null = null;
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints({ facingMode: state.facingBack ? "environment" : "user" }) });
+      const cam = await getUserMediaSafe({ video: cameraConstraints({ facingMode: state.facingBack ? "environment" : "user" }) });
       track = cam.getVideoTracks()[0] ?? null;
     } catch {
       // Ниже — «Нет доступа к камере».

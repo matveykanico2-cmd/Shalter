@@ -1,6 +1,7 @@
+import { randomBytes, randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { PREMIUM_GRANT_DAYS, isAdminPhone } from "../../common/config/accounts.js";
+import { GUEST_MODE_ENABLED, PREMIUM_GRANT_DAYS, isAdminPhone } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import { hashPassword, passwordMatches } from "../../common/lib/password.js";
@@ -20,6 +21,7 @@ import { TwoFactorTicketsStore } from "./stores/two-factor-tickets.store.js";
 import { SystemNoticesService } from "./system-notices.service.js";
 
 const DELETION_DELAY_DAYS = 7;
+const GUEST_AVATAR_COLORS = ["#2E56D9", "#2E86AB", "#A23B72", "#F14668", "#008080", "#5B2C6F", "#1B998B", "#E76F51"];
 
 // Аккаунт: регистрация, пароль, почта, удаление.
 @Injectable()
@@ -92,6 +94,29 @@ export class AccountService {
     this.sessionCookies.addAccount(req, res, user.id);
     await this.signIn.recordSession(req, res, user.id);
     return { user: selfUser(user) };
+  }
+
+  /** Гость — аккаунт без телефона, почты и пароля (createGuestUser в server/data/users.js). */
+  public async guest(req: Request, res: Response) {
+    if (!GUEST_MODE_ENABLED) throw new ApiError(404, "Гостевой режим отключён");
+    let username = "";
+    for (let i = 0; i < 5 && !username; i++) {
+      const candidate = `guest_${randomBytes(5).toString("hex")}`;
+      if (!(await checkUsername(candidate))) username = candidate;
+    }
+    const user = this.usersRepository.create({
+      id: genId("u"),
+      name: `Гость ${randomInt(1000, 10000)}`,
+      username,
+      phone: "",
+      email: null,
+      avatarColor: GUEST_AVATAR_COLORS[randomInt(GUEST_AVATAR_COLORS.length)],
+      bio: "",
+      online: 1,
+      lastSeen: new Date().toISOString(),
+      isGuest: 1,
+    });
+    return this.signIn.finishLogin(req, res, user);
   }
 
   public async usernameAvailable(handle: string) {

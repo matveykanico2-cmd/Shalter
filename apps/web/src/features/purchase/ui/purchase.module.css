@@ -510,3 +510,15 @@
 .perk:hover {
   background: color-mix(in srgb, var(--color-text) 6%, transparent);
 }
+
+.promoSuccess {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-success);
+}
+
+.promoError {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}

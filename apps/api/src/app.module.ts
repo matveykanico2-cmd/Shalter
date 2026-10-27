@@ -32,6 +32,7 @@ import { ExportModule } from "./modules/export/export.module.js";
 import { SupportModule } from "./modules/support/support.module.js";
 import { ShalterAiModule } from "./modules/shalter-ai/shalter-ai.module.js";
 import { PremiumModule } from "./modules/premium/premium.module.js";
+import { PromotionsModule } from "./modules/promotions/promotions.module.js";
 import { OAuthModule } from "./modules/oauth/oauth.module.js";
 import { PostsModule } from "./modules/posts/posts.module.js";
 import { DownloadsModule } from "./modules/downloads/downloads.module.js";
@@ -56,7 +57,7 @@ import { TEST_MODE } from "./common/lib/test-mode.js";
 // при BACKGROUND_WORKER=0 (обычно они в фоновом процессе, worker.ts); TestSweepsModule —
 // служебный вызов контрактных тестов.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule, ShareTargetModule, DownloadsModule, OAuthModule, GamesModule, BotsModule, GiftsModule, AdsModule, LiveModule, CommunitiesModule, AdminModule, VersionModule, BackgroundModule, ...(TEST_MODE ? [TestSweepsModule] : [])],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, PromotionsModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule, ShareTargetModule, DownloadsModule, OAuthModule, GamesModule, BotsModule, GiftsModule, AdsModule, LiveModule, CommunitiesModule, AdminModule, VersionModule, BackgroundModule, ...(TEST_MODE ? [TestSweepsModule] : [])],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

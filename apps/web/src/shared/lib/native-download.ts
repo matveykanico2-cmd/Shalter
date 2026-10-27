@@ -1,5 +1,6 @@
-// Скачивание файлов в Android-приложении, как public/js/lib/nativeDownload.js. WebView сам не
-// скачивает: <a download> там игнорируется. Забираем файл изнутри приложения (с cookie сессии)
+// Скачивание файлов в приложении (Android и iOS), как public/js/lib/nativeDownload.js. WebView сам
+// не скачивает: <a download> там игнорируется (Android) или открывает «Поделиться» и уводит
+// приложение на домашний экран (iOS). Забираем файл изнутри приложения (с cookie сессии)
 // и сохраняем в «Документы/Shalter»; не вышло — системное «Поделиться».
 const FOLDER = "Shalter";
 
@@ -9,12 +10,12 @@ type Fs = {
 };
 type Share = { share: (o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }) => Promise<unknown> };
 type CapWindow = Window & {
-  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string; Plugins?: { Filesystem?: Fs; Share?: Share } };
+  Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { Filesystem?: Fs; Share?: Share } };
 };
 
 function plugins() {
   const cap = (window as CapWindow).Capacitor;
-  if (!cap?.isNativePlatform?.() || cap.getPlatform?.() !== "android") return null;
+  if (!cap?.isNativePlatform?.()) return null;
   const fs = cap.Plugins?.Filesystem;
   return fs ? { fs, share: cap.Plugins?.Share ?? null } : null;
 }
@@ -58,7 +59,7 @@ async function save(p: { fs: Fs; share: Share | null }, pending: Promise<Respons
   }
 }
 
-/** Перехват <a download> в Android-приложении; в браузере ничего не делает. */
+/** Перехват <a download> в приложении на Android и iOS; в браузере ничего не делает. */
 export function installNativeDownloads(notify: (text: string) => void) {
   const p = plugins();
   if (!p) return () => {};

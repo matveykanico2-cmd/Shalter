@@ -43,7 +43,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         id: localId,
         chatId,
         senderId: meId,
-        type: sticker ? "sticker" : "text",
+        type: sticker ? "sticker" : options.article ? "article" : "text",
         ...(sticker ? { sticker } : {}),
         text,
         createdAt: new Date().toISOString(),

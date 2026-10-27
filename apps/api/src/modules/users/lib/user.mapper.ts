@@ -74,6 +74,7 @@ export function toUser(row: UserRow) {
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
+    isGuest: !!row.isGuest || undefined,
     blockedUserIds: safeParse<string[]>(row.blockedUserIds, []),
     isPremium: !!row.premiumUntil && row.premiumUntil > now,
     premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,

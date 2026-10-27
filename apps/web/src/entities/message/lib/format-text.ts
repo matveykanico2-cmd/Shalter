@@ -12,13 +12,20 @@ export type Block =
   | { kind: "line"; inline: Inline[] }
   | { kind: "code"; code: string; lang: string }
   | { kind: "quote"; lines: Inline[][] }
-  | { kind: "table"; header: Inline[][] | null; rows: Inline[][][] };
+  | { kind: "table"; header: Inline[][] | null; rows: Inline[][][] }
+  // Только в теле статьи (parseText(text, { markdown: true })): «## …» и списки «- …».
+  | { kind: "heading"; level: 2 | 3 | 4 | 5 | 6; inline: Inline[] }
+  | { kind: "list"; items: Inline[][] };
 
 /** Цитата длиннее этого сворачивается. */
 export const QUOTE_COLLAPSE_LINES = 4;
 const MAX_TABLE_COLS = 10;
 
-export function parseText(text: string): Block[] {
+/**
+ * markdown — тело статьи: ещё заголовки «## »…«###### » и списки «- »/«* ». В обычных
+ * сообщениях их нет: «# привет» остаётся текстом с хештегом.
+ */
+export function parseText(text: string, { markdown = false }: { markdown?: boolean } = {}): Block[] {
   // ```блок кода``` — может занимать несколько строк, внутри разметка не работает.
   const out: Block[] = [];
   for (const part of text.split(/(```[\s\S]*?```)/g)) {
@@ -39,6 +46,20 @@ export function parseText(text: string): Block[] {
         out.push({ kind: "quote", lines: quote });
         continue;
       }
+      if (markdown) {
+        const heading = HEADING_RE.exec(lines[i]!);
+        if (heading) {
+          out.push({ kind: "heading", level: Math.max(2, heading[1]!.length) as 2 | 3 | 4 | 5 | 6, inline: parseInline(heading[2]!) });
+          continue;
+        }
+        if (LIST_RE.test(lines[i]!)) {
+          const items: Inline[][] = [];
+          while (i < lines.length && LIST_RE.test(lines[i]!)) items.push(parseInline(lines[i++]!.replace(LIST_RE, "")));
+          i--;
+          out.push({ kind: "list", items });
+          continue;
+        }
+      }
       // Таблица: строки вида «| a | b |», вторая может быть разделителем «|---|---|».
       if (isTableRow(lines[i]!) && isTableRow(lines[i + 1] ?? "")) {
         const rows: string[] = [];
@@ -52,6 +73,9 @@ export function parseText(text: string): Block[] {
   }
   return out;
 }
+
+const HEADING_RE = /^(#{1,6}) +(\S.*)$/;
+const LIST_RE = /^[-*] +/;
 
 const isQuoteLine = (line: string) => line.startsWith("> ") || line === ">";
 

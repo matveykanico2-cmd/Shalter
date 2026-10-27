@@ -19,6 +19,9 @@ export function isPrimaryAdmin(phone: string | null | undefined): boolean {
 // Дней Premium за приглашение друга — обоим (server/config.js).
 export const PREMIUM_GRANT_DAYS = 30;
 
+// Гостевой вход: включён, пока GUEST_MODE не 0/off/false/no (server/config.js).
+export const GUEST_MODE_ENABLED = !/^(0|off|false|no)$/i.test(process.env.GUEST_MODE || "");
+
 // Служебный бот «Shalter»: коды входа и оповещения о безопасности (server/data/systemBot.js
 // создаёт его при старте).
 export const SYSTEM_BOT_ID = "bot_shalter";

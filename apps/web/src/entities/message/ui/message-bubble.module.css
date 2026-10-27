@@ -823,3 +823,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Статья — карточка внутри пузыря (article-card), время в её подвале. */
+.articleBubble {
+  max-width: min(440px, 92%);
+  padding: 4px;
+}
+
+.articleBubble .meta,
+.out.articleBubble .meta {
+  top: 0;
+  float: none;
+  color: var(--color-muted);
+}

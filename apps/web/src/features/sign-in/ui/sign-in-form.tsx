@@ -11,6 +11,7 @@ import { Button, DateField, Icon, PhoneField, TextField, toast } from "@/shared/
 
 import {
   isTwoFactorChallenge,
+  loginAsGuest,
   loginByEmail,
   type LoginResult,
   register,
@@ -118,16 +119,17 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
   const [avatar, setAvatar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(message);
   const [pending, setPending] = useState(false);
+  const [guestPending, setGuestPending] = useState(false);
 
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: () => Promise<void>, setBusy = setPending) => {
     setError(null);
-    setPending(true);
+    setBusy(true);
     try {
       await action();
     } catch (err) {
       setError(errorText(err));
     } finally {
-      setPending(false);
+      setBusy(false);
     }
   };
 
@@ -213,6 +215,13 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
           <button type="button" className={`${styles.link} ${styles.muted}`} onClick={() => onMode("recover")}>
             Забыли пароль?
           </button>
+          <Button
+            variant="secondary"
+            disabled={pending || guestPending}
+            onClick={() => void run(async () => onResult(await loginAsGuest()), setGuestPending)}
+          >
+            {guestPending ? "Входим…" : "Продолжить как гость"}
+          </Button>
         </div>
       )}
       {!embedded && !isInstalledApp() && (

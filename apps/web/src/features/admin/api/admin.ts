@@ -24,6 +24,7 @@ import type {
   verifyUserBody,
 } from "@shalter/shared/schemas/admin";
 import type { reviewListBody } from "@shalter/shared/schemas/ads";
+import type { promoCodeBody, promoListBody } from "@shalter/shared/schemas/promotions";
 import type { donationStatusBody } from "@shalter/shared/schemas/donations";
 import type { catalogBody, giftBody, shopBody } from "@shalter/shared/schemas/gifts";
 import type { emojiBody, emojiListBody } from "@shalter/shared/schemas/stickers";
@@ -49,6 +50,14 @@ export type ReviewCampaign = ReviewList["campaigns"][number];
 export type GiftCatalog = z.infer<typeof catalogBody>;
 export type CatalogGift = GiftCatalog["gifts"][number];
 export type CustomEmoji = z.infer<typeof emojiListBody>["emoji"][number];
+export type PromoCode = z.infer<typeof promoListBody>["codes"][number];
+export type PromoPrize = "premium" | "stars" | "ads" | "business";
+export type NewPromoCode = {
+  code?: string;
+  prize: PromoPrize;
+  config: { days: number } | { amount: number };
+  usesTotal?: number | null;
+};
 export type ExportEntry = z.infer<typeof exportsBody>["exports"][number];
 /** Срок выдачи: дней или навсегда. */
 export type GrantTerm = { days: number } | { forever: true };
@@ -73,6 +82,11 @@ export const adminQueries = {
       queryKey: [...baseKey, "pricing"],
       queryFn: ({ signal }) => http.get<z.infer<typeof pricingWithDefaultsBody>>("/api/admin/pricing", signal),
       staleTime: 0,
+    }),
+  promotions: () =>
+    queryOptions({
+      queryKey: [...baseKey, "promotions"],
+      queryFn: async ({ signal }) => (await http.get<z.infer<typeof promoListBody>>("/api/promotions/admin", signal)).codes,
     }),
   exports: () =>
     queryOptions({
@@ -131,6 +145,9 @@ export const deleteUser = (userId: string, confirm: string, reason: string) =>
   http.delete<z.infer<typeof deleteUserBody>>(`/api/admin/users/${q(userId)}`, { confirm, reason });
 export const resetPassword = (userId: string, body: { password: string; confirm: string; reason: string; disableTwoFactor: boolean }) =>
   http.post<z.infer<typeof resetPasswordBody>>(`/api/admin/users/${q(userId)}/reset-password`, body);
+/** Снять 2FA без сброса пароля; ответ — как у сброса пароля. */
+export const disableTwoFactor = (userId: string, body: { confirm: string; reason: string }) =>
+  http.post<z.infer<typeof resetPasswordBody>>(`/api/admin/users/${q(userId)}/disable-2fa`, body);
 
 type GrantedUser = { user: Partial<AdminUser> & Record<string, unknown> };
 export const grantPremium = (userId: string, premium: boolean, term?: GrantTerm) => http.post<GrantedUser>("/api/premium/grant", { userId, premium, ...term });
@@ -146,6 +163,12 @@ export const reviewAd = (id: string, approve: boolean, reason: string) => http.p
 // ——— Цены ———
 export const updatePricing = (patch: Pricing) => http.put<z.infer<typeof pricingBody>>("/api/admin/pricing", patch);
 export const resetPricing = () => http.delete<z.infer<typeof pricingBody>>("/api/admin/pricing");
+
+// ——— Промокоды ———
+export const createPromoCode = (body: NewPromoCode) => http.post<z.infer<typeof promoCodeBody>>("/api/promotions/admin/create", body);
+export const updatePromoCode = (id: string, patch: { usesTotal: number | null }) =>
+  http.patch<z.infer<typeof promoCodeBody>>(`/api/promotions/admin/${q(id)}`, patch);
+export const deletePromoCode = (id: string) => http.delete<{ ok: true }>(`/api/promotions/admin/${q(id)}`);
 
 // ——— Каталог подарков ———
 export const setGiftSupply = (id: string, supply: number) => http.post<unknown>(`/api/gifts/catalog/${q(id)}/supply`, { supply });

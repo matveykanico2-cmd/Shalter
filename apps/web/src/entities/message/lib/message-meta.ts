@@ -1,9 +1,10 @@
 // Подписи и признаки пузыря — как в public/js/components/messageBubble.js.
+import { formatClock } from "@/shared/lib/time-format";
+
 import type { Message } from "../model/types";
 
-// Один форматтер на всё: toLocaleTimeString создавал бы его на каждый пузырь.
-const TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
-export const timeLabel = (iso: string) => TIME_FORMAT.format(new Date(iso));
+// Один форматтер на всё (shared/lib/time-format): 12 или 24 часа — по настройке.
+export const timeLabel = (iso: string) => formatClock(new Date(iso));
 
 // Цвет имени (Premium) — peer colors из Telegram, как public/js/lib/nameColors.js.
 export const NAME_COLORS: Record<string, { light: string; dark: string }> = {

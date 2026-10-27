@@ -46,6 +46,12 @@ export class AuthController {
     return this.account.register(req, res, dto);
   }
 
+  @Post("guest")
+  @HttpCode(200)
+  public guest(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.account.guest(req, res);
+  }
+
   @Get("username-available")
   public usernameAvailable(@Query(new ZodValidationPipe(usernameQuerySchema)) query: UsernameQuery) {
     return this.account.usernameAvailable(query.u);

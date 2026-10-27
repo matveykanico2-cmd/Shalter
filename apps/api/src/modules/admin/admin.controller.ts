@@ -20,6 +20,7 @@ import {
   chatLookupQuerySchema,
   pricingSchema,
   reasonSchema,
+  disableTwoFactorSchema,
   resetPasswordSchema,
   updateLabelSchema,
   createLabelSchema,
@@ -37,6 +38,7 @@ import {
   type ChatLookupQuery,
   type PricingDto,
   type ReasonDto,
+  type DisableTwoFactorDto,
   type ResetPasswordDto,
   type CreateLabelDto,
   type UpdateLabelDto,
@@ -143,6 +145,12 @@ export class AdminController {
   @Delete("users/:id")
   public deleteUser(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(deleteUserSchema)) dto: DeleteUserDto) {
     return this.moderation.deleteUser(req.uid!, id, dto);
+  }
+
+  @Post("users/:id/disable-2fa")
+  @HttpCode(200)
+  public disableTwoFactor(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(disableTwoFactorSchema)) dto: DisableTwoFactorDto) {
+    return this.moderation.disableTwoFactor(req.uid!, id, dto);
   }
 
   @Post("users/:id/reset-password")

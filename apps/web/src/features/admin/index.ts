@@ -5,5 +5,6 @@ export { GiftShopSection } from "./ui/gift-shop-section";
 export { LegalSection } from "./ui/legal-section";
 export { ModerationSection } from "./ui/moderation-section";
 export { PricingSection } from "./ui/pricing-section";
+export { PromotionsSection } from "./ui/promotions-section";
 export { ServerSection } from "./ui/server-section";
 export { UserCard } from "./ui/user-card";

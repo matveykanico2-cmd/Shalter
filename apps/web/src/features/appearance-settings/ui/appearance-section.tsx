@@ -236,6 +236,19 @@ export function AppearanceSection() {
           </label>
         </div>
       </SettingsSection>
+      <SettingsSection title="Формат времени">
+        <div className={styles.block}>
+          <select
+            className={styles.select}
+            aria-label="Формат времени"
+            value={String(settings.timeFormat ?? 24)}
+            onChange={(e) => update.mutate({ timeFormat: e.target.value === "12" ? 12 : 24 })}
+          >
+            <option value="24">24 часа</option>
+            <option value="12">12 часов (AM/PM)</option>
+          </select>
+        </div>
+      </SettingsSection>
     </SettingsPage>
   );
 }

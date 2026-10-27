@@ -110,6 +110,20 @@ describe("истории", () => {
     expect(screen.queryByRole("dialog", { name: "История" })).toBeNull();
   });
 
+  it("картинка истории не загрузилась — пояснение вместо чёрного экрана", async () => {
+    fakeApi({
+      "GET /api/stories": { body: { groups: [{ user: ALICE, stories: [story(ALICE_STORY, ALICE.id)] }] } },
+      [`POST /api/stories/${ALICE_STORY}/view`]: { body: { story: story(ALICE_STORY, ALICE.id, { viewed: true }) } },
+    });
+    renderBar();
+    fireEvent.click(await screen.findByRole("button", { name: /Алиса$/ }));
+    const viewer = await screen.findByRole("dialog", { name: "История" });
+    const img = viewer.querySelector<HTMLImageElement>(`img[src="/uploads/${ALICE_STORY}.jpg"]`)!;
+    expect(img.getAttribute("decoding")).toBe("async");
+    fireEvent.error(img);
+    expect(await within(viewer).findByText("Картинка не загрузилась — повторите позже")).toBeTruthy();
+  });
+
   it("своя история: кто смотрел, удаление с подтверждением; удалённая по сокету пропадает из полосы", async () => {
     let feed: unknown[] = [
       { user: { ...ME }, stories: [story(MY_STORY, ME.id, { viewed: true, viewedByIds: ["u_alice0000"], likedByIds: [], viewCount: 1 })] },

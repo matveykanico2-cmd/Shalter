@@ -6,9 +6,12 @@
 <title>Скачать Shalter — Windows, macOS, Linux, Android, iPhone</title>
 <meta name="description" content="Скачайте Shalter для Windows, Linux и Android — или откройте прямо в браузере, без установки." />
 <meta name="theme-color" content="#2e56d9" />
+<link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
 <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Shalter" />
 <link rel="stylesheet" href="/styles/base.css" />
 <link rel="stylesheet" href="/styles/download.css" />
 </head>
@@ -33,10 +36,16 @@
     <section class="dl-web">
       <div class="dl-web-text">
         <h2>Открыть в браузере</h2>
-        <p>Ничего скачивать не нужно: Shalter — полноценное веб-приложение. Его можно добавить на главный экран телефона или на рабочий стол компьютера и пользоваться как обычной программой.</p>
+        <p>Ничего скачивать не нужно: Shalter — полноценное веб-приложение. Его можно добавить на главный экран телефона и пользоваться как обычной программой.</p>
       </div>
       <a class="dl-web-btn" href="/">Открыть Shalter</a>
     </section>
+
+    <div class="dl-install-card" id="ios-install-card" style="display:none">
+      <h3 class="dl-install-title">Установить на iPhone и iPad</h3>
+      <p class="dl-install-desc">Нажмите «Поделиться» → «На экран «Домой»» → «Добавить». Shalter появится на главном экране и будет открываться как обычное приложение.</p>
+      <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее.</p>
+    </div>
 
     <h2 class="dl-section-title">Установить приложение</h2>
 
@@ -185,11 +194,21 @@
     .catch(function () {
       render({ artifacts: [] });
     });
+
+  // iOS: программно добавить сайт на главный экран нельзя — показываем, как это сделать в Safari.
+  (function () {
+    var ua = navigator.userAgent;
+    var isIOS = /iPhone|iPad|iPod/i.test(ua);
+    var isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
+    var card = document.getElementById("ios-install-card");
+    if (isIOS && isSafari && card) card.style.display = "flex";
+  })();
   // На Linux сразу раскрываем инструкцию с командой установки.
   try {
     if (detectOs() === "linux") document.getElementById("linux-help").open = true;
   } catch (e) {}
 })();
+
 </script>
 </body>
 </html>

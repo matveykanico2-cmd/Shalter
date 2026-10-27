@@ -109,20 +109,28 @@ async function getMic(video?: MediaTrackConstraints) {
   }
 }
 
-/** Первый настоящий кадр камеры (не дольше 1,5 с). */
-function firstFrame(video: HTMLVideoElement) {
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, 1500);
-    const done = () => {
+/** Первый настоящий кадр камеры (не дольше 1,5 с): true — кадр есть, false — не дождались. */
+export function firstFrame(video: HTMLVideoElement) {
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      resolve();
+      resolve(ok);
     };
-    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => done());
-    else
+    const timer = setTimeout(() => finish(false), 1500);
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => finish(true));
+    else {
+      // Без requestVideoFrameCallback размер видео бывает виден с опозданием — под конец
+      // ожидания считаем, что кадр есть (как в public/js/lib/recorder.js).
+      const start = Date.now();
       (function check() {
-        if (video.readyState >= 2 && video.videoWidth) return done();
+        if (settled) return;
+        if ((video.readyState >= 2 && video.videoWidth) || Date.now() - start > 1400) return finish(true);
         requestAnimationFrame(check);
       })();
+    }
   });
 }
 
@@ -155,7 +163,7 @@ async function startSquareVideo({ bitrates, maxSec }: (typeof SQUARE_CAPTURE_MOD
   let switching = false;
   (function draw() {
     if (!drawing) return;
-    if (!switching && camVideo.readyState >= 2) drawFrame();
+    if (!switching && camVideo.readyState >= 2 && camVideo.videoWidth > 0) drawFrame();
     requestAnimationFrame(draw);
   })();
 
@@ -181,11 +189,18 @@ async function startSquareVideo({ bitrates, maxSec }: (typeof SQUARE_CAPTURE_MOD
     nextVideo.playsInline = true;
     nextVideo.srcObject = nextStream;
     await nextVideo.play().catch(() => {});
-    await firstFrame(nextVideo);
+    const gotFrame = await firstFrame(nextVideo);
     if (!drawing) {
       track.stop();
       nextVideo.srcObject = null;
       return { error: "Запись уже остановлена" };
+    }
+    // Новая камера кадра не дала — в кружке был бы чёрный экран; пишем дальше со старой.
+    if (!gotFrame) {
+      switching = false;
+      track.stop();
+      nextVideo.srcObject = null;
+      return { error: "Камера не отдала кадр" };
     }
     const oldVideo = camVideo;
     camVideo = nextVideo;

@@ -1,5 +1,6 @@
 export { inTopic, loadOlderHistory, messageQueries, PAGE_SIZE, type TopicFilter } from "./api/message-queries";
 export { paidMediaQuery, type PaidMediaState } from "./api/paid-media";
+export { ARTICLE_MAX_CHARS, ARTICLE_TITLE_RE, buildArticleText, isArticle, splitArticle } from "./lib/article";
 export { attachmentsOf, isVisualMedia, mediaItem } from "./lib/attachments";
 export { canApplyLive, emptyHistory } from "./lib/history";
 export type { KeyboardButton } from "./lib/keyboard";

@@ -89,6 +89,9 @@ export const resetPasswordSchema = requestBody({
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
 
+export const disableTwoFactorSchema = requestBody({ confirm: confirm(), reason: reason() });
+export type DisableTwoFactorDto = z.infer<typeof disableTwoFactorSchema>;
+
 /** Новая метка: id из id или короткой надписи; пустой id сервис заменит на сгенерированный. */
 export const createLabelSchema = requestBody({ id: raw(), short: raw(), label: text(), hint: text(), color: raw() }).transform((b) => ({
   id: normalizeLabelId(b.id || b.short),

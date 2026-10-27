@@ -65,6 +65,10 @@ export function MediaPreview({ message: m, who, size = 20, className }: Props) {
       </span>,
       label(gift.name || "Подарок"),
     );
+  } else if (m.type === "article") {
+    // Статья: миниатюра обложки и «📰 Заголовок», без markdown тела.
+    if (a && isImage(a) && thumbOf(a)) parts.push(<Mini key="thumb" a={a} size={size} />);
+    parts.push(label(messagePreview(m as Message)));
   } else if (!a || m.type === "sticker") {
     parts.push(label(messagePreview(m as Message)));
   } else if (a.kind === "video-note" || a.kind === "voice") {

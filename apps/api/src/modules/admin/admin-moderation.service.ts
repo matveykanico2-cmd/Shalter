@@ -24,6 +24,7 @@ import type {
   DirectoryQuery,
   LabelUserDto,
   ReasonDto,
+  DisableTwoFactorDto,
   ResetPasswordDto,
   VerifyDto,
 } from "./model/schemas/admin.schema.js";
@@ -274,6 +275,35 @@ export class AdminModerationService {
       "password reset notice",
     );
     return { ok: true, twoFactorLifted: liftTwoFactor };
+  }
+
+  /**
+   * Снятие 2FA без сброса пароля — когда человек потерял приложение-аутентификатор и коды
+   * восстановления. Подтверждение и журнал — как у сброса пароля.
+   */
+  public async disableTwoFactor(uid: string, id: string, dto: DisableTwoFactorDto) {
+    const admin = this.access.require(uid, "moderation");
+    const target = this.access.target(id);
+    if (target.isBot) throw new ApiError(400, "У ботов нет двухфакторной аутентификации");
+    if (target.id !== uid) this.access.assertOutranks(admin, target);
+    this.access.assertConfirmed(target, dto.confirm);
+    const reason = requireReason(dto.reason, "Укажите основание — оно попадёт в журнал");
+    if (!target.twoFactorEnabled) return { ok: true, twoFactorLifted: false };
+
+    this.exports.log({
+      adminId: uid,
+      targetUserId: target.id,
+      reason: `СНЯТА 2FA @${target.username || target.id} (${target.name}): ${reason}`,
+      messageCount: 0,
+    });
+    this.users.disableTotp(target.id);
+
+    await this.access.notify(
+      target.id,
+      `🔐 Администрация Shalter сняла с вашего аккаунта двухфакторную аутентификацию.\nОснование: ${reason}\n\nВключите её заново: Настройки → Конфиденциальность.\n\nЕсли вы этого не просили — немедленно смените пароль в настройках.`,
+      "2fa disable notice",
+    );
+    return { ok: true, twoFactorLifted: true };
   }
 
   /** Каталог аккаунтов, ботов, групп и каналов с поиском; первые 100 по алфавиту и сколько всего. */

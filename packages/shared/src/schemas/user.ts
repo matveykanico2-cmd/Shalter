@@ -15,6 +15,7 @@ const publicUserShape = {
   online: z.boolean(),
   lastSeen: isoDate.optional(),
   isBot: z.literal(true).optional(),
+  isGuest: z.literal(true).optional(),
   isPremium: z.boolean(),
   premiumUntil: isoDate.optional(),
   premiumForever: z.literal(true).optional(),

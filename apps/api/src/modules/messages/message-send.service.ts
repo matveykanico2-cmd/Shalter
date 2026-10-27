@@ -106,7 +106,7 @@ export class MessageSendService {
       if (!this.users.findById(uid)?.isPremium) throw new ApiError(403, "Создание статей доступно только с Shalter Premium");
       if (!hasArticleTitle((body.text as string | undefined) ?? "")) throw new ApiError(400, "У статьи должен быть заголовок");
     }
-    const limit = textLimit(body.article);
+    const limit = textLimit(body.article === true);
     if (((body.text as string | undefined) ?? "").length > limit) throw new ApiError(400, `Сообщение длиннее ${limit} символов`);
     if (chat.type === "channel" && !isStaff(chat, uid)) throw new ApiError(403, "Публиковать в канале могут только администраторы");
 

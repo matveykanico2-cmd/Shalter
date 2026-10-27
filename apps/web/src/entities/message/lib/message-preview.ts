@@ -1,6 +1,8 @@
 // Превью сообщения одной строкой — как public/js/lib/messagePreview.js.
 import type { Message } from "../model/types";
 
+import { splitArticle } from "./article";
+
 type Attachment = { kind?: string; name?: string; mimeType?: string; meta?: { emoji?: string; value?: number; title?: string } };
 
 const ATTACHMENT_LABEL: Record<string, string | null> = {
@@ -91,6 +93,7 @@ export function messagePreview(m: Message | null | undefined) {
   const gift = m.gift as { name?: string } | undefined;
   if (m.type === "sticker") return `${sticker?.emoji ?? ""} Стикер`.trim();
   if (m.type === "gift") return `🎁 ${gift?.name ?? "Подарок"}`;
+  if (m.type === "article") return `📰 ${plainText(stripCustomEmoji(splitArticle(m.text).title)) || "Статья"}`;
   const att = m.attachments?.[0] as Attachment | undefined;
   const text = ceText(m.text);
   if (att) {

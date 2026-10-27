@@ -22,6 +22,7 @@ export const users = sqliteTable("users", {
   online: integer().default(0).notNull(),
   lastSeen: text(),
   isBot: integer().default(0).notNull(),
+  isGuest: integer().default(0).notNull(),
   blockedUserIds: text().default("[]").notNull(),
   isPremium: integer().default(0).notNull(),
   referralCode: text(),
@@ -875,3 +876,23 @@ export const dataMigrations = sqliteTable("data_migrations", {
   name: text().primaryKey(),
   doneAt: text().notNull(),
 });
+
+export const promoCodes = sqliteTable("promo_codes", {
+  id: text().primaryKey(),
+  code: text().notNull(),
+  prize: text().notNull(),
+  config: text().notNull(),
+  usesTotal: integer(),
+  used: integer().default(0).notNull(),
+  createdBy: text().notNull(),
+  createdAt: text().notNull(),
+});
+
+export const promoCodeRedemptions = sqliteTable("promo_code_redemptions", {
+  codeId: text().notNull().references(() => promoCodes.id, { onDelete: "cascade" }),
+  userId: text().notNull(),
+  redeemedAt: text().notNull(),
+},
+(table) => [
+  primaryKey({ columns: [table.codeId, table.userId], name: "promo_code_redemptions_codeId_userId_pk" }),
+]);

@@ -1,5 +1,7 @@
 // Переключение камеры — как public/js/lib/cameraSwitch.js: по подписи устройства, по
 // очереди или через facingMode; занятую камеру на части телефонов надо сначала отпустить.
+import { getUserMediaSafe } from "./media-quality";
+
 async function listCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -35,7 +37,7 @@ export async function getFlippedTrack({ currentTrack, wantBack, video = {} }: { 
   let lastError: unknown = null;
   for (const constraints of attempts) {
     try {
-      const track = (await navigator.mediaDevices.getUserMedia({ video: constraints })).getVideoTracks()[0];
+      const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
       if (!track) continue;
       if (currentId && track.getSettings?.().deviceId === currentId) {
         track.stop();
@@ -48,7 +50,7 @@ export async function getFlippedTrack({ currentTrack, wantBack, video = {} }: { 
       if (currentTrack && /NotReadable|Abort|TrackStart/i.test((err as Error)?.name ?? "")) {
         currentTrack.stop();
         try {
-          const track = (await navigator.mediaDevices.getUserMedia({ video: constraints })).getVideoTracks()[0];
+          const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
           if (track) return { track };
         } catch (err2) {
           lastError = err2;

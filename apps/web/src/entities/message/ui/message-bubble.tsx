@@ -6,6 +6,7 @@ import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
 
+import { isArticle } from "../lib/article";
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
 import { keyboardOf } from "../lib/keyboard";
@@ -19,6 +20,7 @@ import { MessageLinks } from "../model/message-links";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
 import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
+import { ArticleCard } from "./article-card";
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
 import { MessageKeyboard } from "./keyboard";
@@ -168,9 +170,11 @@ export function MessageBubble(props: Props) {
   const giftLine = m.type === "gift" && !gift ? messagePreview(m) : null;
   // У опроса и чек-листа текст — их заголовок, его рисует само вложение.
   const titled = m.attachments?.some((a) => (a as { kind?: string }).kind === "poll" || (a as { kind?: string }).kind === "checklist");
-  const text = !isCall && !sticker && !gift && !titled && m.text?.trim() ? m.text : null;
-  const mediaOnly = !isCall && isMediaOnly(m);
-  const preview = linkPreviewOf(m);
+  // Статья — своей карточкой: обложка (первое фото), заголовок и тело в markdown.
+  const article = isArticle(m);
+  const text = !isCall && !sticker && !gift && !titled && !article && m.text?.trim() ? m.text : null;
+  const mediaOnly = !isCall && !article && isMediaOnly(m);
+  const preview = article ? null : linkPreviewOf(m);
   const summary = props.summary;
   // Под текстом ещё что-то (карточка ссылки, сводка) — время уходит в свою строку.
   const below = !!preview || summary !== undefined || !!props.metaApart;
@@ -257,7 +261,7 @@ export function MessageBubble(props: Props) {
   if (m.storyReply) body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} />);
   if (giftLine) body.push(<p key="gift" className={styles.attachment}>{giftLine}</p>);
   if (gift) body.push(<GiftMessage key="gift" messageId={m.id} gift={gift} mine={mine} meta={meta} />);
-  if (m.attachments?.length && !isCall) {
+  if (m.attachments?.length && !isCall && !article) {
     body.push(
       <MessageAttachments
         key="att"
@@ -274,6 +278,16 @@ export function MessageBubble(props: Props) {
   }
 
   if (isCall) body.push(<CallBody key="call" message={m} mine={mine} onCallBack={props.onCallBack} />);
+  else if (article) {
+    body.push(
+      <ArticleCard
+        key="article"
+        message={m}
+        meta={reactionsOf(m).length ? null : meta}
+        onOpenCover={props.onOpenMedia ? (url) => props.onOpenMedia?.(m, url) : undefined}
+      />
+    );
+  }
   else if (sticker) {
     body.push(<StickerBody key="sticker" messageId={m.id} sticker={sticker} />);
   }
@@ -327,11 +341,11 @@ export function MessageBubble(props: Props) {
         {meta}
       </span>
     );
-  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall && !gift) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall && !gift && !article) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   if (props.footer) body.push(<div key="footer">{props.footer}</div>);
 
-  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", gift ? styles.giftBubble : "", mediaOnly ? styles.mediaOnly : ""]
+  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", gift ? styles.giftBubble : "", mediaOnly ? styles.mediaOnly : "", article ? styles.articleBubble : ""]
     .filter(Boolean)
     .join(" ");
 

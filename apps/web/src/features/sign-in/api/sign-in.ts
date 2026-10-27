@@ -20,6 +20,9 @@ export type SignedInUser = LoginResult["user"];
 export const loginByEmail = (email: string, password: string) =>
   http.post<LoginResult | TwoFactorChallenge>("/api/auth/login-email", { email, password });
 
+/** Гостевой вход: сервер заводит временный аккаунт; 404 — гостевой режим отключён. */
+export const loginAsGuest = () => http.post<LoginResult>("/api/auth/guest", {});
+
 export const loginByTwoFactor = (ticket: string, code: string) => http.post<LoginResult>("/api/auth/2fa/login", { ticket, code });
 
 /** Код второго фактора ещё раз в чат с Shalter (метод «chat»). */

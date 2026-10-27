@@ -45,3 +45,13 @@ export function formatShortcut(e: { code: string; shiftKey: boolean; ctrlKey: bo
   const marks: Record<string, string> = e.shiftKey ? { KeyX: "~~", KeyM: "`", KeyP: "||", KeyK: "```" } : { KeyB: "**", KeyI: "*", KeyU: "__" };
   return marks[e.code] ?? null;
 }
+
+/** Префикс строки под курсором («## », «- », «> »): нет — ставим, есть — убираем. */
+export function toggleLinePrefix(value: string, at: number, prefix: string): Edit {
+  const start = value.lastIndexOf("\n", at - 1) + 1;
+  if (value.startsWith(prefix, start)) {
+    const pos = Math.max(start, at - prefix.length);
+    return { text: value.slice(0, start) + value.slice(start + prefix.length), start: pos, end: pos };
+  }
+  return { text: value.slice(0, start) + prefix + value.slice(start), start: at + prefix.length, end: at + prefix.length };
+}

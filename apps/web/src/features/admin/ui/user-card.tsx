@@ -13,6 +13,7 @@ import {
   type AdminUser,
   deleteUser,
   deliverGift,
+  disableTwoFactor,
   exportUser,
   grantAds,
   grantBusiness,
@@ -182,6 +183,21 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
     void run(async () => {
       const res = await resetPassword(state.id, { password, confirm: typed, reason: reason.trim(), disableTwoFactor });
       return { notice: res.twoFactorLifted ? "Пароль сброшен, 2FA снята" : "Пароль сброшен" };
+    });
+  };
+
+  const runDisableTwoFactor = async () => {
+    const handle = state.username || state.id;
+    const typed = await askText(`Снять двухфакторную аутентификацию с ${state.name}?\n\nДля подтверждения введите @${handle}`, { okLabel: "OK" });
+    if (typed == null) return;
+    const reason = await askText("Основание — оно попадёт в журнал администрации:", { okLabel: "OK" });
+    if (reason == null || !reason.trim()) return;
+    void run(async () => {
+      const res = await disableTwoFactor(state.id, { confirm: typed, reason: reason.trim() });
+      return {
+        patch: { twoFactorEnabled: false },
+        notice: res.twoFactorLifted ? "Двухфакторная аутентификация снята" : "У пользователя не включена 2FA",
+      };
     });
   };
 
@@ -435,6 +451,16 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
         </p>
         <button type="button" className={styles.outline} disabled={busy} onClick={() => void runResetPassword()}>
           <Icon name="Lock" size={14} /> Сбросить пароль
+        </button>
+
+        <p className={styles.cardSection}>Двухфакторная аутентификация</p>
+        <p className={styles.hint}>
+          {state.twoFactorEnabled === false
+            ? "Двухфакторная аутентификация выключена."
+            : "Снять 2FA, не трогая пароль, — когда владелец потерял приложение-аутентификатор и коды восстановления. Владелец получит уведомление в чат Shalter."}
+        </p>
+        <button type="button" className={styles.outline} disabled={busy} onClick={() => void runDisableTwoFactor()}>
+          <Icon name="Shield" size={14} /> Снять 2FA
         </button>
 
         <p className={styles.cardSection}>Удаление аккаунта</p>

@@ -13,6 +13,7 @@ import { buyPremiumWithStars, type PremiumInfo, premiumQueries, requestPremium }
 import { formatPremiumUntil, PREMIUM_COMPARE, PREMIUM_PERKS } from "../lib/premium-plans";
 
 import { PremiumFeaturesDialog } from "./premium-features-dialog";
+import { PromoRedeem } from "./promo-redeem";
 import styles from "./purchase.module.css";
 
 /** «Настройки → Shalter Premium» (renderPremium): срок, оплата рублями или звёздами, возможности и сравнение. */
@@ -125,6 +126,7 @@ function Premium({ info }: { info: PremiumInfo }) {
         <SettingsRow icon="Link" title="Публичная страница Premium" subtitle="Откроется у любого, даже без аккаунта" href="/premium" external />
         <SettingsRow icon="Gift" title="Магазин подарков" subtitle="Цены в звёздах, отправка мгновенная" onClick={() => openGiftShop({})} />
       </SettingsSection>
+      <PromoRedeem />
       {canBuy ? (
         <div className={styles.footer}>
           <button type="button" className={styles.premiumButton} disabled={buying || !current} onClick={() => void buyPremium()}>

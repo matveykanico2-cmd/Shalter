@@ -1,5 +1,6 @@
 import type { donationOrderBody, requestToAdminBody } from "@shalter/shared/schemas/donations";
 import type { buyWithStarsBody, premiumMeBody } from "@shalter/shared/schemas/premium";
+import type { promoRedeemBody } from "@shalter/shared/schemas/promotions";
 import type { searchBody } from "@shalter/shared/schemas/search";
 import type { messagePriceBody, starsGrantedSelfBody, transferBody } from "@shalter/shared/schemas/stars";
 import { queryOptions } from "@tanstack/react-query";
@@ -38,3 +39,6 @@ export const requestPremium = (plan: string) => http.post<PurchaseResponse>("/ap
 export const buyPremiumWithStars = (plan: string) => http.post<z.infer<typeof buyWithStarsBody>>("/api/premium/buy-with-stars", { plan });
 
 export const openSupportChat = () => http.post<{ chatId: string }>("/api/support/chat");
+
+/** Активировать промокод: приз начисляется сразу, message — что сказать пользователю. */
+export const redeemPromoCode = (code: string) => http.post<z.infer<typeof promoRedeemBody>>("/api/promotions/redeem", { code });

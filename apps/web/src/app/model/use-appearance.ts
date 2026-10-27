@@ -3,6 +3,8 @@ import { useEffect } from "react";
 
 import { settingsQueries } from "@/entities/settings";
 
+import { setTimeFormat } from "@/shared/lib/time-format";
+
 // Значения по умолчанию из прошлых версий: при них — цвета и размер из темы (lib/accent.js).
 const OLD_DEFAULT_ACCENT = "#2E56D9";
 const OLD_DEFAULT_FONT = 15;
@@ -19,6 +21,10 @@ export function useAppearance(ready: boolean) {
   const accent = settings?.accent;
   const fontSize = settings?.fontSize;
   const reduceMotion = settings?.reduceMotion;
+  const timeFormat = settings?.timeFormat;
+
+  // 12 или 24 часа — для всех подписей времени (shared/lib/time-format).
+  useEffect(() => setTimeFormat(timeFormat === 12 ? 12 : 24), [timeFormat]);
 
   useEffect(() => {
     if (theme === undefined) return;

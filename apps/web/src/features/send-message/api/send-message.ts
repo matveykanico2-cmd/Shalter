@@ -19,8 +19,11 @@ export type OutgoingAttachment =
 /** Платный пост: цена и размытая миниатюра, которую видят до оплаты. */
 export type PaidMediaRequest = { stars: number; blur?: string; width?: number; height?: number };
 
-/** Как отправить: без звука у получателей, с эффектом (в личке), от имени группы, за звёзды. */
-export type SendOptions = { silent?: true; effect?: string; anonymous?: true; paidMedia?: PaidMediaRequest };
+/**
+ * Как отправить: без звука у получателей, с эффектом (в личке), от имени группы, за звёзды;
+ * article — статья (Premium): текст «# Заголовок\n\n…», обложка — первое фото.
+ */
+export type SendOptions = { silent?: true; effect?: string; anonymous?: true; paidMedia?: PaidMediaRequest; article?: true };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 

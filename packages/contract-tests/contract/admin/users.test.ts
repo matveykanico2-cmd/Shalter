@@ -402,6 +402,48 @@ describe("POST /api/admin/users/:id/reset-password", () => {
   });
 });
 
+describe("POST /api/admin/users/:id/disable-2fa", () => {
+  const disable = (actor: TestUser, id: string, body: unknown) => actor.api.post(`/api/admin/users/${id}/disable-2fa`, body);
+
+  test("снимает 2FA без сброса пароля и сеансов, пишет в журнал и в чат с ботом", async () => {
+    const { baseUrl } = server();
+    const m = await moderator();
+    const target = await registerUser(baseUrl);
+    await enableTotp(target);
+
+    const res = await disable(m, target.id, { confirm: `@${target.username}`, reason: "потерял телефон" });
+    expect(expectOk(res, resetPasswordBody)).toEqual({ ok: true, twoFactorLifted: true });
+    expect((await target.api.get("/api/chats")).status).toBe(200);
+    const api = await login(baseUrl, target);
+    expect(expectOk(await api.get("/api/auth/session"), sessionBody).user).toMatchObject({ id: target.id, twoFactorEnabled: false });
+    expect((await systemMessages(api)).map((msg) => msg.text)).toContain(
+      "🔐 Администрация Shalter сняла с вашего аккаунта двухфакторную аутентификацию.\nОснование: потерял телефон\n\nВключите её заново: Настройки → Конфиденциальность.\n\nЕсли вы этого не просили — немедленно смените пароль в настройках."
+    );
+    const log = expectOk(await m.api.get("/api/admin/exports"), exportsBody).exports;
+    expect(log.some((e) => e.target.id === target.id && e.reason === `СНЯТА 2FA @${target.username} (${target.name}): потерял телефон`)).toBe(true);
+
+    // Без включённой 2FA — twoFactorLifted: false, в журнал не пишется.
+    expect(expectOk(await disable(m, target.id, { confirm: target.username, reason: "ещё раз" }), resetPasswordBody)).toEqual({ ok: true, twoFactorLifted: false });
+  });
+
+  test("ошибки: права, 404, бот, ранг, подтверждение, основание", async () => {
+    const { baseUrl } = server();
+    const m = await moderator();
+    const p = await primary();
+    const target = await registerUser(baseUrl);
+    const owner = await registerUser(baseUrl);
+    const bot = await owner.api.post("/api/bots", { name: "Двухфактобот" });
+    expect(bot.status, bot.text).toBe(200);
+
+    expectError(await disable(owner, target.id, {}), 403, "Недостаточно прав");
+    expectError(await disable(m, "u_nonexistent00", {}), 404, USER_NOT_FOUND);
+    expectError(await disable(m, bot.body.bot.user.id, {}), 400, "У ботов нет двухфакторной аутентификации");
+    expectError(await disable(m, p.id, { confirm: p.username, reason: "x" }), 403, RANK_ERROR);
+    expectError(await disable(m, target.id, { confirm: "", reason: "x" }), 400, `Для подтверждения введите @${target.username}`);
+    expectError(await disable(m, target.id, { confirm: target.username, reason: " " }), 400, "Укажите основание — оно попадёт в журнал");
+  });
+});
+
 describe("GET /api/admin/directory", () => {
   test("пользователи, боты, группы и каналы с поиском; неизвестный type — пользователи", async () => {
     const { baseUrl } = server();

@@ -1,4 +1,5 @@
 // «В сети» и «был(а) …» — как public/js/lib/presence.js.
+import { formatClock } from "./time-format";
 
 /** Русское множественное число: plural(5, "минуту", "минуты", "минут"). */
 export function plural(n: number, one: string, few: string, many: string) {
@@ -9,7 +10,6 @@ export function plural(n: number, one: string, few: string, many: string) {
   return many;
 }
 
-const TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const DATE = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
 const DATE_YEAR = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
@@ -17,7 +17,7 @@ const DATE_YEAR = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "lon
 export function timeAgo(iso: string, now = new Date()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const time = TIME.format(d);
+  const time = formatClock(d);
   const minutes = Math.floor((now.getTime() - d.getTime()) / 60000);
   if (minutes < 1) return "только что";
   if (minutes < 60) return minutes === 1 ? "минуту назад" : `${minutes} ${plural(minutes, "минуту", "минуты", "минут")} назад`;

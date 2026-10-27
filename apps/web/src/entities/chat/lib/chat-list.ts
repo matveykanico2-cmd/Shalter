@@ -2,6 +2,8 @@
 // public/js/components/chatListItem.js.
 import { callLogInfo, messagePreview, stripCustomEmoji } from "@/entities/message/@x/chat";
 
+import { formatClock } from "@/shared/lib/time-format";
+
 import type { ChatSummary } from "../model/types";
 
 /** Закреплённые сверху (в своём порядке), дальше — по времени последнего сообщения. */
@@ -34,13 +36,12 @@ export function chatTitle(chat: ChatSummary) {
 }
 
 // Форматтеры — один раз: время есть у каждой строки списка.
-const TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const DATE_FORMAT = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
 
 /** Сегодня — время, раньше — дата. */
 export function timeLabel(iso: string, now = new Date()) {
   const d = new Date(iso);
-  return (d.toDateString() === now.toDateString() ? TIME_FORMAT : DATE_FORMAT).format(d);
+  return d.toDateString() === now.toDateString() ? formatClock(d) : DATE_FORMAT.format(d);
 }
 
 /** Строка превью: черновик, «Вы: …», звонок, системное. */
