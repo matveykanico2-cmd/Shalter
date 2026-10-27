@@ -1963,15 +1963,6 @@ export async function ChatView(root, chatId) {
       return node;
     };
     missingSenders = new Set();
-    if (hasMoreHistory) {
-      out.push(
-        memo("history-top", String(loadingHistory), () =>
-          el("div", { class: "history-top" }, [
-            el("button", { class: "history-top-btn", onclick: loadOlder }, loadingHistory ? "Загружаем…" : "Показать более ранние"),
-          ])
-        )
-      );
-    }
     if (!messages.length) {
       out.push(memo("empty", "", () => el("p", { class: "empty-hint" }, "Сообщений пока нет — напишите первым")));
     }

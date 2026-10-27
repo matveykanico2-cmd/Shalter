@@ -36,29 +36,29 @@
     <section class="dl-web">
       <div class="dl-web-text">
         <h2>Открыть в браузере</h2>
-        <p>Ничего скачивать не нужно: Shalter — полноценное веб-приложение. Его можно добавить на главный экран телефона или на рабочий стол компьютера и пользоваться как обычной программой.</p>
+        <p>Ничего скачивать не нужно: Shalter — полноценное веб-приложение. Его можно добавить на главный экран телефона и пользоваться как обычной программой.</p>
       </div>
       <a class="dl-web-btn" href="/">Открыть Shalter</a>
     </section>
+
+    <div class="dl-install-card" id="ios-install-card" style="display:none">
+      <h3 class="dl-install-title">Установить на iPhone</h3>
+      <p class="dl-install-desc">Нажмите кнопку ниже — откроется системное «Поделиться», выберите «На экран «Домой»» → «Добавить». Shalter появится на главном экране.</p>
+      <button class="dl-install-btn dl-install-btn-share" id="ios-install-btn">📤 Установить на главный экран</button>
+      <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее.</p>
+    </div>
 
     <h2 class="dl-section-title">Установить приложение</h2>
 
     <div class="dl-install-prompt" id="install-prompt" style="display:none">
       <div class="dl-install-prompt-body">
-        <span class="dl-install-prompt-icon" aria-hidden="true">⭐</span>
+        <span class="dl-install-prompt-icon" aria-hidden="true">📤</span>
         <div class="dl-install-prompt-text">
           <strong>Установить Shalter на iPhone</strong>
           <span>Нажмите «Поделиться» в Safari → «На экран «Домой»» → «Добавить». Приложение появится на главном экране.</span>
         </div>
         <button class="dl-install-prompt-close" onclick="document.getElementById('install-prompt').style.display='none';">Закрыть</button>
       </div>
-    </div>
-
-    <div class="dl-install-card">
-      <h3 class="dl-install-title">Установить на iPhone / iPad</h3>
-      <p class="dl-install-desc">Откройте shalter.ru в Safari, нажмите «Поделиться» → «На экран «Домой»» → «Добавить». Shalter появится на главном экране, как обычное приложение.</p>
-      <button class="dl-install-btn" id="ios-install-btn">Установить Shalter</button>
-      <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее для полноценного веб-приложения.</p>
     </div>
 
     <div class="dl-grid" id="grid"></div>
@@ -207,19 +207,20 @@
       render({ artifacts: [] });
     });
 
-  // iOS "Install Shalter" — Safari на iPhone/iPad не поддерживает beforeinstallprompt,
-  // поэтому показываем banner + инструкцию «Поделиться → На экран «Домой»».
+  // iOS: автопоказ карточки установки и мгновенное открытие системной шары
+  // (Apple не позволяет программно добавить на главный экран — остаётся один тап в «Поделиться»).
   (function () {
     var ua = navigator.userAgent;
     var isIOS = /iPhone|iPad|iPod/i.test(ua);
     var isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS/i.test(ua);
+    var cardEl = document.getElementById("ios-install-card");
     var promptEl = document.getElementById("install-prompt");
     var btnEl = document.getElementById("ios-install-btn");
 
-    if (isIOS && isSafari && promptEl && btnEl) {
-      promptEl.style.display = "block";
+    if (isIOS && isSafari && cardEl && btnEl) {
+      cardEl.style.display = "block";
+      if (promptEl) promptEl.style.display = "block";
       btnEl.onclick = function () {
-        // Пытаемся вызвать системный диалог поделиться (Web Share API), если доступен.
         if (navigator.share) {
           navigator.share({
             title: "Shalter",

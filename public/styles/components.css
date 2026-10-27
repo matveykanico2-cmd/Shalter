@@ -8313,24 +8313,6 @@ button.profile-ad-banner {
   }
 }
 
-.history-top {
-  display: flex;
-  justify-content: center;
-  padding: 10px 0 4px;
-}
-.history-top-btn {
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  padding: 5px 14px;
-  font-size: 12.5px;
-  color: var(--color-muted);
-}
-.history-top-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .message-row-flash .bubble {
   animation: message-flash 1.2s ease-out;
 }
