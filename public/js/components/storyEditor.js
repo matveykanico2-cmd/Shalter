@@ -36,6 +36,7 @@ function loadImage(src) {
 }
 
 function drawCover(ctx, img, w, h) {
+  if (!img) return;
   const ir = img.naturalWidth / img.naturalHeight || 1;
   const cr = w / h;
   let sx, sy, sw, sh;
@@ -394,11 +395,15 @@ export function openStoryEditor(file) {
       }
     }
 
-    const bgObjUrl = URL.createObjectURL(file);
-    objectUrls.push(bgObjUrl);
-    loadImage(bgObjUrl).then((img) => {
-      bgImage = img;
+    if (file) {
+      const bgObjUrl = URL.createObjectURL(file);
+      objectUrls.push(bgObjUrl);
+      loadImage(bgObjUrl).then((img) => {
+        bgImage = img;
+        renderAll();
+      });
+    } else {
       renderAll();
-    });
+    }
   });
 }

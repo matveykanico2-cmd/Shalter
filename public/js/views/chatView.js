@@ -19,7 +19,6 @@ import { getState, setState } from "../state.js";
 import { playSentSound } from "../lib/ringtone.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
-import { AudioPlayerBar } from "../components/audioPlayerBar.js";
 
 // Служебные аккаунты Shalter — их не удалить даже модерацией (lib/moderationDelete.js).
 const SERVICE_ACCOUNT_IDS = ["bot_shalter", "bot_helper", "bot_support"];
@@ -1308,8 +1307,7 @@ export async function ChatView(root, chatId) {
     );
   }
   renderContactBar();
-  const audioBar = AudioPlayerBar({ chatId });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   // Рекламное сообщение как в tweb (sponsored message): только в каналах, в конце ленты.
   var chatAd = null; // var: renderList может вызваться раньше этой строки
   if (chat.type === "channel") {

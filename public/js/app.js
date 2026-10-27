@@ -7,6 +7,7 @@ import { isChatMuted } from "./lib/chatSort.js";
 import { route, notFound, startRouter, navigate } from "./router.js";
 import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
+import { AudioPlayerBar } from "./components/audioPlayerBar.js";
 import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
 import { openMiniApp } from "./components/miniApp.js";
 import { loadSafetyLabels } from "./lib/safetyLabels.js";
@@ -358,6 +359,8 @@ async function boot() {
   setTimeout(() => (navigator.connection?.saveData ? null : warmNext()), 4000);
 
   const shell = el("div", { class: "shell" });
+  const mediaBarSlot = el("div", { class: "shell-media-bar" });
+  mount(mediaBarSlot, AudioPlayerBar());
   const HOLIDAYS = [{ date: "09-25", title: "🎉 С Днём основания Shalter!" }];
   (function holidayBanner() {
     const now = new Date();
@@ -387,7 +390,7 @@ async function boot() {
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
   const callAudioSink = el("div", { class: "call-audio-sink", hidden: true });
   mount(root, shell);
-  shell.append(listCol, mainSlot, callBubbleSlot, callAudioSink);
+  shell.append(mediaBarSlot, listCol, mainSlot, callBubbleSlot, callAudioSink);
   // Как SidebarSlider в tweb: на компьютере настройки, контакты, звонки и архив выезжают
   // поверх списка чатов, а открытый справа чат остаётся на месте.
   const sidePage = el("div", { class: "shell-side-page" });

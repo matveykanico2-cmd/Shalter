@@ -105,6 +105,27 @@ export function StoriesBar() {
 
     container.append(myItem, fileInput);
 
+    const textStoryBtn = el("button", {
+      class: "story-item story-item-text",
+      title: "Текстовая история",
+      onclick: (e) => {
+        e.stopPropagation();
+        openStoryEditor(null).then((edited) => {
+          if (!edited) return;
+          progress = `Загружаем историю…`;
+          render();
+          uploadFile(edited, "image").then(({ url }) => api.postStory([{ kind: "image", url }]).then(refetch)).catch(() => {
+            progress = null;
+            render();
+          });
+        });
+      },
+    }, [
+      el("span", { class: "story-avatar-ring text" }, [el("span", { class: "story-text-icon", html: iconSvg("FileText", 18) })]),
+      el("span", { class: "story-item-label" }, "Текст"),
+    ]);
+    container.appendChild(textStoryBtn);
+
     groups.forEach((g, i) => {
       if (g.user.id === me.id) return;
       const unseen = g.stories.some((s) => !s.viewed);
