@@ -44,7 +44,26 @@
     <div class="dl-install-card" id="ios-install-card" style="display:none">
       <h3 class="dl-install-title">Установить на iPhone и iPad</h3>
       <p class="dl-install-desc">Нажмите «Поделиться» → «На экран «Домой»» → «Добавить». Shalter появится на главном экране и будет открываться как обычное приложение.</p>
-      <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее.</p>
+      <button type="button" class="dl-web-btn dl-install-btn" id="ios-install-btn">Установить на iPhone</button>
+      <p class="dl-install-note">Требуется Safari на iOS 16.4 или новее. Добавить сайт на экран «Домой» сам по себе iPhone не разрешает — нужно два нажатия.</p>
+    </div>
+
+    <div class="dl-install-card" id="pwa-install-card" style="display:none">
+      <h3 class="dl-install-title">Установить веб-приложение</h3>
+      <p class="dl-install-desc">Shalter появится среди приложений и будет открываться в своём окне, без адресной строки.</p>
+      <button type="button" class="dl-web-btn dl-install-btn" id="pwa-install-btn">Установить приложение</button>
+    </div>
+
+    <div class="dl-ios-guide" id="ios-guide" role="dialog" aria-modal="true" aria-label="Как установить на iPhone" hidden>
+      <div class="dl-ios-guide-box">
+        <ol class="dl-ios-guide-steps">
+          <li>Нажмите <strong>«Поделиться»</strong> <span class="dl-ios-share" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> внизу экрана (на iPad — вверху справа)</li>
+          <li>Прокрутите меню и выберите <strong>«На экран «Домой»»</strong></li>
+          <li>Нажмите <strong>«Добавить»</strong></li>
+        </ol>
+        <button type="button" class="dl-ios-guide-close" id="ios-guide-close">Понятно</button>
+      </div>
+      <div class="dl-ios-guide-arrow" id="ios-guide-arrow" aria-hidden="true">↓</div>
     </div>
 
     <h2 class="dl-section-title">Установить приложение</h2>
@@ -201,7 +220,44 @@
     var isIOS = /iPhone|iPad|iPod/i.test(ua);
     var isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
     var card = document.getElementById("ios-install-card");
-    if (isIOS && isSafari && card) card.style.display = "flex";
+    if (!(isIOS && isSafari && card)) return;
+    card.style.display = "flex";
+    var guide = document.getElementById("ios-guide");
+    var isIPad = /iPad/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
+    if (isIPad) guide.classList.add("dl-ios-guide-ipad");
+    document.getElementById("ios-install-btn").addEventListener("click", function () {
+      guide.hidden = false;
+    });
+    guide.addEventListener("click", function (e) {
+      if (e.target === guide || e.target.id === "ios-guide-close") guide.hidden = true;
+    });
+  })();
+
+  // Android и ПК (Chrome, Edge): настоящая установка в одно нажатие. Браузер присылает
+  // beforeinstallprompt, только когда страницей управляет service worker приложения.
+  (function () {
+    var card = document.getElementById("pwa-install-card");
+    var btn = document.getElementById("pwa-install-btn");
+    var deferred = null;
+    try {
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {});
+    } catch (e) {}
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      deferred = e;
+      card.style.display = "flex";
+    });
+    window.addEventListener("appinstalled", function () {
+      card.style.display = "none";
+    });
+    btn.addEventListener("click", function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.finally(function () {
+        deferred = null;
+        card.style.display = "none";
+      });
+    });
   })();
   // На Linux сразу раскрываем инструкцию с командой установки.
   try {
