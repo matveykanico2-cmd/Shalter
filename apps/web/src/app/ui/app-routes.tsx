@@ -33,6 +33,7 @@ const NearbyView = lazy(() => import("@/views/nearby").then((m) => ({ default: m
 const DiscoverChannelsView = lazy(() => import("@/views/discover-channels").then((m) => ({ default: m.DiscoverChannelsView })));
 const CommunityView = lazy(() => import("@/views/community").then((m) => ({ default: m.CommunityView })));
 const FolderInviteView = lazy(() => import("@/views/folder-invite").then((m) => ({ default: m.FolderInviteView })));
+const QrScanView = lazy(() => import("@/views/qr-scan").then((m) => ({ default: m.QrScanView })));
 
 const lazyView = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
 
@@ -57,6 +58,7 @@ const mainRoutes = () => [
   <Route key="discover-channels" path="discover-channels" element={lazyView(<DiscoverChannelsView />)} />,
   <Route key="community" path="community/:id" element={lazyView(<CommunityView />)} />,
   <Route key="folder" path="folder/:code" element={lazyView(<FolderInviteView />)} />,
+  <Route key="qr-scan" path="qr-scan" element={lazyView(<QrScanView />)} />,
   // Системное «Поделиться»: окно поверх и сразу к чатам.
   <Route key="share" path="share/:token" element={<ShareRoute />} />,
   ...sideRoutes(),

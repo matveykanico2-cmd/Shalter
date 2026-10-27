@@ -24,6 +24,8 @@ import { Avatar, Icon, type IconName, InfoRow, Menu } from "@/shared/ui";
 
 import { membersLine, sortMembers } from "../lib/members";
 
+import { ChatHistoryClear } from "@/widgets/message-feed/ui/chat-history-clear";
+
 import styles from "./chat-info-panel.module.css";
 
 type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; onClose: () => void };
@@ -35,6 +37,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [giftPicker, setGiftPicker] = useState(false);
+  const [clearHistoryOpen, setClearHistoryOpen] = useState(false);
   const [autoDeleteAt, setAutoDeleteAt] = useState<{ x: number; y: number } | null>(null);
   // Вместо информации — «Изменить группу/канал» или статистика канала.
   const [screen, setScreen] = useState<"info" | "edit" | "stats">("info");
@@ -188,6 +191,11 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
               Автоудаление сообщений: {autoDeleteLabel(chat.autoDeleteSeconds)}
             </Row>
           ) : null}
+          {isDm || isAdmin ? (
+            <Row icon="Trash" onClick={() => setClearHistoryOpen(true)}>
+              Очистить историю за дату
+            </Row>
+          ) : null}
         </div>
 
         {chat.type === "channel" ? <SimilarChannels chatId={chat.id} /> : null}
@@ -210,6 +218,18 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         </div>
 
         {!isDm && (chat.type !== "channel" || isAdmin) ? <Members chat={chat} members={members} meId={me.id} /> : null}
+
+        <div className={styles.card}>
+          <Row icon="Mic" onClick={() => {}}>
+            Поле прослушки дедиа
+          </Row>
+          <div className={styles.listenField}>
+            <input className={styles.listenInput} placeholder="Dedicated ключ прослушивания" />
+            <button type="button" className={styles.listenSubmit} onClick={() => {}}>
+              Подключить
+            </button>
+          </div>
+        </div>
       </div>
 
       {autoDeleteAt ? (
@@ -223,6 +243,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
       {giftPicker && other ? <AdminGiftDialog userId={other.id} onClose={() => setGiftPicker(false)} /> : null}
       {dialog?.kind === "mute" ? <MuteDialog onMute={(opts) => void actions.mute(opts)} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === "report" ? <ReportDialog target={dialog.target} targetLabel={dialog.label} onClose={() => setDialog(null)} /> : null}
+      {clearHistoryOpen ? <ChatHistoryClear chatId={chat.id} onClose={() => setClearHistoryOpen(false)} /> : null}
     </aside>
   );
 }

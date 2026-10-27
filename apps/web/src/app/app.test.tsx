@@ -61,7 +61,7 @@ describe("вход и оболочка", () => {
     fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
     window.history.replaceState(null, "", "/login");
     render(<App />);
-    expect(await screen.findByText("Выберите чат, чтобы начать общение")).toBeTruthy();
+    expect(await screen.findByText("Выберите чат")).toBeTruthy();
     expect(screen.getByRole("navigation").querySelector("[title='Аккаунты']")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Чаты" })).toBeTruthy();
     expect(window.location.pathname).toBe("/");

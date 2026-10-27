@@ -15,10 +15,12 @@ import {
   locationSchema,
   searchQuerySchema,
   chatMessageSchema,
+  reactSchema,
   type AtQueryDto,
   type DaysQueryDto,
   type HistoryQueryDto,
   type LocationDto,
+  type ReactDto,
   type SearchQueryDto,
   type ChatMessageDto,
 } from "./model/schemas/message.schema.js";
@@ -43,6 +45,18 @@ export class MessagesController {
   @HttpCode(200)
   public send(@Req() req: Request, @CurrentChat() chat: Chat, @Body(new ZodValidationPipe(chatMessageSchema)) dto: ChatMessageDto) {
     return this.sender.send(req.uid!, chat, dto);
+  }
+
+  @Post(":messageId/react")
+  @HttpCode(200)
+  public react(@Req() req: Request, @CurrentChat() chat: Chat, @Param("messageId") messageId: string, @Body(new ZodValidationPipe(reactSchema)) dto: ReactDto) {
+    return this.actions.react(req.uid!, chat.id, messageId, dto);
+  }
+
+  @Delete("by-date")
+  @HttpCode(200)
+  public clearBeforeDay(@Req() req: Request, @CurrentChat() chat: Chat, @Query(new ZodValidationPipe(atQuerySchema)) query: AtQueryDto) {
+    return this.messages.clearBeforeDay(req.uid!, chat.id, query.day!);
   }
 
   @Get("search")

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requestBody, text } from "../../../../common/lib/zod.js";
 import { sanitizers } from "../../../../legacy/legacy.js";
@@ -16,8 +17,9 @@ function sanitizeStickers(input: unknown): Record<string, unknown>[] {
   return input
     .slice(0, MAX_STICKERS)
     .map((s) => sanitizeSticker(s))
-    .filter((s) => !!s)
-    .map(({ anim: _anim, ...rest }) => rest);
+    .filter((s): s is Record<string, unknown> => !!s)
+    .map(({ anim: _anim, ...rest }) => rest)
+    .map((s) => ({ ...s, uid: s.uid ?? `st_${randomBytes(4).toString("hex")}` }));
 }
 
 /** Нет поля — undefined (PATCH меняет только переданные поля). */

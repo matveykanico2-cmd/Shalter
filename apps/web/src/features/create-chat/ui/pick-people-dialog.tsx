@@ -63,7 +63,7 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
           ))}
         </div>
       ) : null}
-      <input className={styles.search} placeholder={single ? "Поиск" : "Кого добавить?"} aria-label={single ? "Поиск" : "Кого добавить?"} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+      <input className={styles.search} placeholder={single ? "Поиск" : "Кого добавить?"} aria-label={single ? "Поиск" : "Кого добавить?"} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus disabled={!people.length} />
       <div className={styles.people}>
         {contacts.isPending ? (
           <p className={styles.hint}>Загружаем…</p>

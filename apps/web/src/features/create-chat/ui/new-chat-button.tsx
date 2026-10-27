@@ -66,7 +66,7 @@ export function NewChatButton({ me, onNewCommunity, onNewBot }: { me: SelfUser; 
           label="Новый чат"
           items={[
             { icon: "User", label: "Новый чат", onClick: () => setStep({ kind: "dm" }) },
-            { icon: "Bookmark", label: "Избранное", onClick: () => void startDm({ id: me.id, name: "Избранное", avatarColor: me.avatarColor }) },
+            { icon: "Bookmark", label: "Себе (сохранённые)", onClick: () => void startDm({ id: me.id, name: "Себе", avatarColor: me.avatarColor }) },
             // Как в tweb: у группы сначала участники, у канала — сначала название, подписчиков можно пропустить.
             { icon: "Users", label: "Новая группа", onClick: () => setStep({ kind: "members" }) },
             { icon: "Send", label: "Новый канал", onClick: () => setStep({ kind: "details", chat: "channel", people: [], adminIds: [] }) },

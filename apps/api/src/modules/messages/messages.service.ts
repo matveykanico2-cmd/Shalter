@@ -153,6 +153,13 @@ export class MessagesService {
     return { days: this.messages.listDays(chat.id, month, tz) };
   }
 
+  /** Скрыть для пользователя историю чата до конца указанного дня включительно (календарь → удалить за дату). */
+  public clearBeforeDay(uid: string, chatId: string, day: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new ApiError(400, "Нужен день в виде ГГГГ-ММ-ДД");
+    const iso = new Date(`${day}T23:59:59.999Z`).toISOString();
+    return this.userSettings.setChatCleared(uid, chatId, iso);
+  }
+
   /** Первое сообщение с этой даты. */
   public at(chat: Chat, { day, tz }: AtQueryDto) {
     return { message: this.messages.firstOfDay(chat.id, day, tz) };

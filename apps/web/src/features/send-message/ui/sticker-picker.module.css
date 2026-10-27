@@ -77,3 +77,126 @@
   font-size: 12.5px;
   cursor: pointer;
 }
+
+/* Детальный вид своего пака (.sticker-pack-detail). */
+.packDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+.detailHeader {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.detailName {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+.detailCount {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.deletePackButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.deletePackButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.detailHint {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+.detailCell {
+  position: relative;
+}
+.detailSticker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+.detailSticker:hover {
+  background: var(--color-surface-alt);
+}
+.detailRemove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+}
+.detailCell:hover .detailRemove {
+  opacity: 1;
+}
+.saveButton {
+  margin-top: 6px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

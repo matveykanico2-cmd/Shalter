@@ -205,7 +205,7 @@ export function ChatTips() {
         </div>
       </div>
       <div className={folded ? `${styles.select} ${styles.shown}` : styles.select}>
-        <span className={styles.pill}>Выберите чат, чтобы начать общение</span>
+        <span className={styles.pill}>Выберите чат</span>
       </div>
     </div>
   );

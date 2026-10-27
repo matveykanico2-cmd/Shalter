@@ -24,15 +24,16 @@ export const scene = z.strictObject({
 });
 
 /** Стикер из эмодзи: scene — только имя встроенной сцены; anim при сохранении отбрасывается. */
-const emojiSticker = z.strictObject({ emoji: z.string().min(1), name: z.string(), scene: z.string().optional() });
+const emojiSticker = z.strictObject({ emoji: z.string().min(1), name: z.string(), scene: z.string().optional(), uid: z.string().optional() });
 const imageSticker = z.strictObject({
   kind: z.literal("image"),
   url: z.string().regex(/^\/uploads\//),
   emoji: z.string(),
   name: z.string(),
   animated: z.literal(true).optional(),
+  uid: z.string().optional(),
 });
-const customSticker = z.strictObject({ kind: z.literal("custom"), scene, emoji: z.string(), name: z.string() });
+const customSticker = z.strictObject({ kind: z.literal("custom"), scene, emoji: z.string(), name: z.string(), uid: z.string().optional() });
 
 export const sticker = z.union([imageSticker, customSticker, emojiSticker]);
 

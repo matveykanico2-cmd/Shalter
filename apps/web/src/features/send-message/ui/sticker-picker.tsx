@@ -1,12 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { DRAWN_STICKERS, renderSticker, type Sticker, STICKERS } from "@/shared/lib/anim";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
-import { stickerPackQueries } from "../api/sticker-packs";
+import { stickerPackQueries, type StickerPack } from "../api/sticker-packs";
 
+import { StickerPackDetail } from "./sticker-pack-detail";
 import { StickerPackDialog } from "./sticker-pack-dialog";
 import styles from "./sticker-picker.module.css";
 
@@ -23,7 +24,9 @@ type Props = { chatId: string; onSend: (sticker: Sticker) => void };
 
 /**
  * Стикеры — как toggleStickers/renderStickerPicker в composer.js: Shalter, стандартные и
- * свои паки; пока выбор открыт, у собеседника «выбирает стикер». Внизу — «Мои стикерпаки».
+ * свои паки; пока выбор открыт, у собеседника «выбирает стикер». Клик по стикеру из своего
+ * пака открывает сам пак (счётчик, удаление стикера/пака, назад), а не отправляет сразу.
+ * Внизу — «Мои стикерпаки».
  */
 export function StickerButton({ chatId, onSend }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -69,7 +72,11 @@ export function StickerButton({ chatId, onSend }: Props) {
 }
 
 function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s: Sticker) => void; onManage: () => void }) {
+  const client = useQueryClient();
   const packs = useQuery(stickerPackQueries.list());
+  const [viewingPack, setViewingPack] = useState<StickerPack | null>(null);
+  const refresh = () => void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
+
   useEffect(() => {
     sendTyping(chatId, "choose_sticker").catch(() => {});
     const ping = setInterval(() => sendTyping(chatId, "choose_sticker").catch(() => {}), ACTION_PING_MS);
@@ -79,10 +86,28 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
     };
   }, [chatId]);
 
-  const sections: { title: string; stickers: Sticker[] }[] = [
+  const pickOwn = (s: Sticker) => {
+    onPick(outgoing(s));
+    setViewingPack(null);
+  };
+
+  if (viewingPack) {
+    return (
+      <div className={styles.panel}>
+        <StickerPackDetail
+          pack={viewingPack}
+          onClose={() => setViewingPack(null)}
+          onStickerPick={pickOwn}
+          onRefresh={refresh}
+        />
+      </div>
+    );
+  }
+
+  const sections: { title: string; stickers: Sticker[]; packId?: string }[] = [
     { title: "Shalter", stickers: DRAWN_STICKERS },
     { title: "Стандартные", stickers: STICKERS },
-    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers })),
+    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers, packId: p.id })),
   ];
   return (
     <div className={styles.panel}>
@@ -90,11 +115,28 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
         <section key={section.title} className={styles.section} aria-label={section.title}>
           <p className={styles.heading}>{section.title}</p>
           <div className={styles.items}>
-            {section.stickers.map((s, i) => (
-              <button key={`${s.id ?? s.url ?? s.emoji}:${i}`} type="button" className={styles.item} title={s.name || s.emoji || "Стикер"} aria-label={s.name || s.emoji || "Стикер"} onClick={() => onPick(s)}>
-                <DomNode create={() => renderSticker(s, { size: s.kind === "image" ? 56 : 30 })} />
-              </button>
-            ))}
+            {section.stickers.map((s, i) => {
+              const fromOwnPack = Boolean(section.packId);
+              return (
+                <button
+                  key={`${s.uid ?? s.url ?? s.emoji ?? s.id ?? ""}:${i}`}
+                  type="button"
+                  className={styles.item}
+                  title={s.name || s.emoji || "Стикер"}
+                  aria-label={s.name || s.emoji || "Стикер"}
+                  onClick={() => {
+                    if (fromOwnPack) {
+                      const pack = packs.data?.find((p) => p.id === section.packId);
+                      if (pack) setViewingPack(pack);
+                    } else {
+                      onPick(outgoing(s));
+                    }
+                  }}
+                >
+                  <DomNode create={() => renderSticker(s, { size: s.kind === "image" ? 56 : 30 })} />
+                </button>
+              );
+            })}
           </div>
         </section>
       ))}

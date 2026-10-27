@@ -4,7 +4,7 @@ import { renderCustomScene } from "./custom-scene";
 import { lottieNameFor, renderLottie } from "./lottie";
 
 /** Стикер в сообщении: встроенный (по id/эмодзи/сцене), из своего пака — картинка или сцена. */
-export type Sticker = { id?: string; emoji?: string; name?: string; scene?: unknown; anim?: string; kind?: "image" | "custom"; url?: string };
+export type Sticker = { id?: string; uid?: string; emoji?: string; name?: string; scene?: unknown; anim?: string; kind?: "image" | "custom"; url?: string };
 
 export const DRAWN_STICKERS: Sticker[] = [
   { id: "art_hello", emoji: "👋", name: "Привет", scene: "hello" },

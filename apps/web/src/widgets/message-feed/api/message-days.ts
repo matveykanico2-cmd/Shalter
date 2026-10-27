@@ -12,3 +12,7 @@ export const messageDays = (chatId: string, month: string) =>
 /** Первое сообщение дня (YYYY-MM-DD) или позже; null — после этого дня сообщений нет. */
 export const messageAt = (chatId: string, day: string) =>
   http.get<{ message: { id: string } | null }>(`/api/chats/${encodeURIComponent(chatId)}/messages/at?day=${day}&tz=${tzOffset()}`);
+
+/** Скрыть для себя историю чата до конца указанного дня включительно. */
+export const clearHistoryBeforeDay = (chatId: string, day: string) =>
+  http.delete<{ ok: boolean }>(`/api/chats/${encodeURIComponent(chatId)}/messages/by-date?day=${encodeURIComponent(day)}`);
