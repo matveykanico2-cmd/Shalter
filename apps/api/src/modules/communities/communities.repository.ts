@@ -201,6 +201,11 @@ export class CommunitiesRepository {
       .run();
   }
 
+  public setBadgeTitle(communityId: string, userId: string, badge: string | null, title: string | null): void {
+    this.ensureMemberRow(communityId, userId);
+    this.updateMember(communityId, userId, { badge, title });
+  }
+
   // ---------- удалённые участники ----------
 
   public listBans(communityId: string): CommunityBan[] {

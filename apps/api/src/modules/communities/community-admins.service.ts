@@ -6,7 +6,7 @@ import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
 import { RIGHTS } from "./lib/community-rights.js";
 import type { Community } from "./model/domain.js";
-import type { AdminRightsDto } from "./model/schemas/community.schema.js";
+import type { AdminBadgeTitleDto, AdminRightsDto } from "./model/schemas/community.schema.js";
 
 const OWNER_RIGHTS = "Права владельца не меняются";
 
@@ -89,6 +89,15 @@ export class CommunityAdminsService {
   public unban(uid: string, id: string, target: string) {
     const community = this.access.load(id, uid, "ban");
     this.communities.unban(community.id, target);
+    return { ok: true };
+  }
+
+  /** Значок и подпись рядом с именем участника (только админом с правом addAdmins). */
+  public setBadgeTitle(uid: string, id: string, target: string, dto: AdminBadgeTitleDto) {
+    const community = this.access.load(id, uid, "addAdmins");
+    const { badge, title } = dto;
+    this.communities.setBadgeTitle(community.id, target, badge, title);
+    this.access.notifyUsers([target], community.id);
     return { ok: true };
   }
 

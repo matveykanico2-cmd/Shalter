@@ -844,6 +844,8 @@ export const communityMembers = sqliteTable("community_members", {
   userId: text().notNull(),
   role: text().default("member").notNull(),
   rights: text(),
+  badge: text(),
+  title: text(),
   left: integer().default(0).notNull(),
   pinned: integer().default(0).notNull(),
   collapsed: integer().default(1).notNull(),

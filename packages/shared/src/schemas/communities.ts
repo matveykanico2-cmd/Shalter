@@ -120,7 +120,7 @@ export const membersBody = z.strictObject({ users: z.array(publicUser.extend({ r
 
 /** GET /:id/admins */
 export const adminsBody = z.strictObject({
-  admins: z.array(publicUser.extend({ role: z.enum(["owner", "admin"]), rights: communityRights })),
+  admins: z.array(publicUser.extend({ role: z.enum(["owner", "admin"]), rights: communityRights, badge: z.string().nullable(), title: z.string().nullable() })),
 });
 
 /** GET /:id/bans */

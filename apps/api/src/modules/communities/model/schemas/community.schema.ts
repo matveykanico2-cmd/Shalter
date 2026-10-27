@@ -60,3 +60,7 @@ export type DecideRequestDto = z.infer<typeof decideRequestSchema>;
 /** Нет прав (или null) — права админа по умолчанию. */
 export const adminRightsSchema = requestBody({ rights: raw().transform((v) => cleanRights(v ?? DEFAULT_ADMIN_RIGHTS)) });
 export type AdminRightsDto = z.infer<typeof adminRightsSchema>;
+
+/** Значок и подпись рядом с именем участника сообщества (ставит админ). Пустая строка — убрать. */
+export const adminBadgeTitleSchema = requestBody({ badge: raw().transform((v) => (typeof v === "string" ? v.slice(0, 20) : null)), title: raw().transform((v) => (typeof v === "string" ? v.slice(0, 40) : null)) });
+export type AdminBadgeTitleDto = z.infer<typeof adminBadgeTitleSchema>;

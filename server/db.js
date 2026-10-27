@@ -1317,6 +1317,8 @@ CREATE TABLE IF NOT EXISTS community_members (
   userId TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'member',
   rights TEXT,
+  badge TEXT,
+  title TEXT,
   left INTEGER NOT NULL DEFAULT 0,
   pinned INTEGER NOT NULL DEFAULT 0,
   collapsed INTEGER NOT NULL DEFAULT 1,

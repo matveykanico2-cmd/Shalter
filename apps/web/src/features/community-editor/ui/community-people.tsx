@@ -13,7 +13,7 @@ import styles from "./community-editor.module.css";
 import { ChatLine, Empty, Row, UserLine } from "./parts";
 
 type Base = { community: Community; onChanged: () => void; onClose: () => void };
-type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage">;
+type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage"> & { badge?: string | null; title?: string | null };
 
 const peopleKey = (id: string, what: string) => ["communities", "people", id, what] as const;
 
@@ -23,6 +23,7 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
   const admins = useQuery({ queryKey: peopleKey(community.id, "admins"), queryFn: () => communityApi.admins(community.id).then((r) => r.admins), staleTime: 0 });
   const canAdd = community.rights.addAdmins;
   const [step, setStep] = useState<{ kind: "pick" } | { kind: "rights"; user: Person; current: CommunityRights | null } | null>(null);
+  const [badgeUser, setBadgeUser] = useState<Person | null>(null);
   const done = () => {
     void client.invalidateQueries({ queryKey: peopleKey(community.id, "admins") });
     onChanged();
@@ -50,12 +51,13 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
         {admins.data ? (
           <>
             {canAdd ? <Row icon="UserPlus" title="Добавить администратора" accent onClick={() => setStep({ kind: "pick" })} /> : null}
+            <Row icon="Smile" title="Значки и подписи участников" accent onClick={() => setBadgeUser(null)} />
             {admins.data.map((a: CommunityAdmin) => (
               <UserLine
                 key={a.id}
-                user={a}
+                user={{ ...a, badge: a.badge ?? null, title: a.title ?? null }}
                 subtitle={a.role === "owner" ? "Владелец" : rightsSummary(a.rights)}
-                onClick={a.role !== "owner" && (canAdd || a.id === meId) ? () => setStep({ kind: "rights", user: a, current: a.rights }) : undefined}
+                onClick={a.role !== "owner" && (canAdd || a.id === meId) ? () => setStep({ kind: "rights", user: { ...a, badge: a.badge ?? null, title: a.title ?? null }, current: a.rights }) : undefined}
               />
             ))}
           </>
@@ -66,6 +68,7 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
         Назад
       </Button>
     </Dialog>
+    {badgeUser ? <BadgeTitleDialog community={community} user={badgeUser} onClose={() => setBadgeUser(null)} onDone={done} /> : null}
   );
 }
 
@@ -76,12 +79,15 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
     for (const r of RIGHTS) if (!mine[r.key]) base[r.key] = false;
     return base;
   });
+  const [badge, setBadge] = useState(user.badge ?? "");
+  const [title, setTitle] = useState(user.title ?? "");
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
     setBusy(true);
     try {
       await communityApi.setAdmin(community.id, user.id, rights);
+      await communityApi.setAdminBadge(community.id, user.id, badge || null, title || null);
       toast(current ? "Права сохранены" : `${user.name} теперь администратор`);
       onClose();
       onDone();
@@ -103,7 +109,16 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
 
   return (
     <Dialog title={current ? "Права администратора" : "Новый администратор"} onClose={onClose}>
-      <UserLine user={user} />
+      <UserLine
+        user={user}
+        subtitle={current ? rightsSummary(rights) : (user.role === "owner" ? "Владелец" : rightsSummary(current ?? mine))}
+        right={
+          <>
+            {user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
+            {user.title ? <span className={styles.title}>{user.title}</span> : null}
+          </>
+        }
+      />
       <p className={styles.sectionName}>Что может этот администратор</p>
       <div>
         {RIGHTS.map((r) => (
@@ -124,6 +139,15 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
           </button>
         ))}
       </div>
+      <p className={styles.sectionName}>Значок и подпись рядом с именем</p>
+      <label className={styles.field}>
+        <span>Значок (эмодзи)</span>
+        <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
+      </label>
+      <label className={styles.field}>
+        <span>Подпись</span>
+        <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />
+      </label>
       {current ? <Row icon="ShieldOff" title="Снять с должности" danger onClick={() => void dismiss()} /> : null}
       <div className={styles.buttons}>
         <Button variant="secondary" onClick={onClose}>
@@ -176,8 +200,51 @@ function MemberPicker({ community, meId, title, filter, onPick, onClose }: Picke
         )}
       </div>
       <Button variant="link" onClick={onClose}>
-        Отмена
+        Назад
       </Button>
+    </Dialog>
+  );
+}
+
+/** Выдать значок и подпись любому участнику сообщества (не только админу). */
+function BadgeTitleDialog({ community, user, onClose, onDone }: { community: Community; user: Person; onClose: () => void; onDone: () => void }) {
+  const [badge, setBadge] = useState(user.badge ?? "");
+  const [title, setTitle] = useState(user.title ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await communityApi.setAdminBadge(community.id, user.id, badge || null, title || null);
+      toast(`Значок и подпись для ${user.name} сохранены`);
+      onClose();
+      onDone();
+    } catch (err) {
+      setBusy(false);
+      toast(errorText(err, "Не удалось сохранить"), { error: true });
+    }
+  };
+
+  return (
+    <Dialog title={`Значок и подпись — ${user.name}`} onClose={onClose}>
+      <UserLine user={user} />
+      <p className={styles.sectionName}>Значок (эмодзи) и подпись рядом с именем</p>
+      <label className={styles.field}>
+        <span>Значок</span>
+        <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
+      </label>
+      <label className={styles.field}>
+        <span>Подпись</span>
+        <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />
+      </label>
+      <div className={styles.buttons}>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>
+          Отмена
+        </Button>
+        <Button disabled={busy} onClick={() => void save()}>
+          {busy ? "Сохраняем…" : "Сохранить"}
+        </Button>
+      </div>
     </Dialog>
   );
 }

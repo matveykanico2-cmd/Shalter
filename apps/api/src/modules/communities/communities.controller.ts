@@ -7,6 +7,7 @@ import { CommunityAdminsService } from "./community-admins.service.js";
 import { CommunityChatsService } from "./community-chats.service.js";
 import {
   addChatSchema,
+  adminBadgeTitleSchema,
   adminRightsSchema,
   chatVisibleSchema,
   createCommunitySchema,
@@ -16,6 +17,7 @@ import {
   patchCommunitySchema,
   prefsSchema,
   type AddChatDto,
+  type AdminBadgeTitleDto,
   type AdminRightsDto,
   type ChatVisibleDto,
   type CreateCommunityDto,
@@ -156,6 +158,17 @@ export class CommunitiesController {
   @Delete(":id/admins/:userId")
   public removeAdmin(@Req() req: Request, @Param("id") id: string, @Param("userId") userId: string) {
     return this.admins.removeAdmin(req.uid!, id, userId);
+  }
+
+  @Put(":id/admins/:userId/badge-title")
+  @HttpCode(200)
+  public setAdminBadgeTitle(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @Body(new ZodValidationPipe(adminBadgeTitleSchema)) dto: AdminBadgeTitleDto
+  ) {
+    return this.admins.setBadgeTitle(req.uid!, id, userId, dto);
   }
 
   @Get(":id/bans")

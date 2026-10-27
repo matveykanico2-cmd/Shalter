@@ -47,6 +47,8 @@ export const communityApi = {
   resolveRequest: (id: string, requestId: string, approve: boolean) => http.post<z.infer<typeof resolveBody>>(`${path(id)}/requests/${encodeURIComponent(requestId)}`, { approve }),
   admins: (id: string) => http.get<z.infer<typeof adminsBody>>(`${path(id)}/admins`),
   setAdmin: (id: string, userId: string, rights: CommunityRights) => http.put<unknown>(`${path(id)}/admins/${encodeURIComponent(userId)}`, { rights }),
+  setAdminBadge: (id: string, userId: string, badge: string | null, title: string | null) =>
+    http.put<unknown>(`${path(id)}/admins/${encodeURIComponent(userId)}/badge-title`, { badge, title }),
   removeAdmin: (id: string, userId: string) => http.delete<unknown>(`${path(id)}/admins/${encodeURIComponent(userId)}`),
   bans: (id: string) => http.get<z.infer<typeof bansBody>>(`${path(id)}/bans`),
   banPreview: (id: string, userId: string) => http.get<z.infer<typeof banPreviewBody>>(`${path(id)}/bans/${encodeURIComponent(userId)}/preview`),
