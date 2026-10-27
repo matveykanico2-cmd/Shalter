@@ -49,14 +49,26 @@ function bell(when, freq, vol = 0.12) {
   beep(when, 0.35, freq * 3.02, { type: "sine", vol: vol * 0.2 });
 }
 
+// Мягкая капля: плавный скользящий тон, как у современных мессенджеров.
+function drop(when, freq, vol = 0.14) {
+  beep(when, 0.18, freq, { type: "sine", glide: freq * 0.6, vol });
+}
+
+// Аккордная арпеггия: несколько нот подряд, приятно на слух.
+function arpeggio(when, baseFreq, vol = 0.09) {
+  [1, 1.25, 1.5, 2].forEach((ratio, i) => beep(when + i * 0.05, 0.3, baseFreq * ratio, { type: "triangle", vol }));
+}
+
 // Звуки — синтез, файлов нет. Выбор — на этом устройстве (Настройки → Уведомления).
 const SOUNDS_KEY = "shalter.sounds";
 export const MESSAGE_SOUNDS = [
   { id: "classic", label: "Классика", play: (t) => (beep(t, 0.12, 880), beep(t + 0.13, 0.16, 1175)) },
-  { id: "drop", label: "Капля", play: (t) => beep(t, 0.22, 1400, { glide: 500, vol: 0.18 }) },
+  { id: "drop", label: "Капля", play: (t) => drop(t, 1400) },
   { id: "bubble", label: "Пузырь", play: (t) => (beep(t, 0.12, 400, { glide: 900, vol: 0.18 }), beep(t + 0.1, 0.1, 700, { glide: 1300, vol: 0.12 })) },
   { id: "bell", label: "Колокольчик", play: (t) => bell(t, 1318) },
   { id: "chord", label: "Аккорд", play: (t) => [523, 659, 784, 1047].forEach((f, i) => beep(t + i * 0.06, 0.35, f, { type: "triangle", vol: 0.1 })) },
+  { id: "harp", label: "Арфа", play: (t) => arpeggio(t, 523) },
+  { id: "soft", label: "Мягкий", play: (t) => (beep(t, 0.15, 659, { type: "sine", vol: 0.1 }), beep(t + 0.14, 0.18, 880, { type: "sine", vol: 0.12 })) },
   { id: "retro", label: "Ретро", play: (t) => (beep(t, 0.07, 988, { type: "square", vol: 0.05 }), beep(t + 0.08, 0.12, 1319, { type: "square", vol: 0.05 })) },
   { id: "none", label: "Без звука", play: () => {} },
 ];
@@ -66,6 +78,7 @@ export const RINGTONES = [
   { id: "marimba", label: "Маримба", cycle: 2, play: (t) => [784, 988, 784, 1175].forEach((f, i) => bell(t + i * 0.2, f, 0.11)) },
   { id: "retro", label: "Ретро", cycle: 1.6, play: (t) => [659, 784, 1047, 784].forEach((f, i) => beep(t + i * 0.12, 0.1, f, { type: "square", vol: 0.05 })) },
   { id: "soft", label: "Нежный", cycle: 3, play: (t) => [392, 494, 587].forEach((f, i) => beep(t + i * 0.35, 1.2, f, { type: "sine", vol: 0.1 })) },
+  { id: "bell", label: "Колокольчик", cycle: 2.5, play: (t) => bell(t, 659) },
 ];
 
 function soundPrefs() {
@@ -148,7 +161,7 @@ export function playIncomingMessageSound() {
 export function playSentSound() {
   try {
     const t = getCtx().currentTime;
-    beep(t, 0.09, 660);
-    beep(t + 0.07, 0.1, 990);
+    beep(t, 0.08, 880);
+    beep(t + 0.06, 0.1, 1320);
   } catch {}
 }

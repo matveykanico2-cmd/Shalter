@@ -1562,6 +1562,7 @@ export async function ChatView(root, chatId) {
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: `chat-header-title${chat.secret ? " secret-chat-title" : ""}` }, [
                 chat.secret ? el("span", { class: "secret-chat-lock", title: "Секретный чат", html: iconSvg("Lock", 14) }) : null,
+                chat.encrypted && !chat.secret ? el("span", { class: "secret-chat-lock", title: "Зашифровано", html: iconSvg("ShieldCheck", 14) }) : null,
                 el("span", { class: "chat-header-title-text" }, chatTitle()),
                 ...(isSaved ? [] : [
                 VerifiedBadge(isDm ? other : chat, 15),

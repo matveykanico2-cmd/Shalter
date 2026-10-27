@@ -102,6 +102,14 @@ const PATHS = {
   Palette:
     '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.1-.9-1.5-.9-2.5 0-.9.7-1.6 1.6-1.6h2.1a3.9 3.9 0 0 0 3.9-3.9C20.5 7 16.7 3.5 12 3.5Z"/><circle cx="7.8" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.6" r="1.1" fill="currentColor" stroke="none"/>',
   Filter: '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
+  ShieldCheck:
+    '<path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 21l2.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/><path d="M9 13l2 2 4-4"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  Private:
+    '<path d="M12 18c-3.3 0-6-2.7-6-6V4a2 2 0 0 1 4 0v1a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v8c0 3.3-2.7 6-6 6Z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+  Bolt:
+    '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/><path d="M13 8V4l4 8M4 16l8 5"/><path d="M4 12h16"/>',
+  CrownKey:
+    '<path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8Z"/><path d="M5 21h14"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/><path d="M11 11l-3 3"/><path d="M8 14v3"/><path d="M11 14h3"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

@@ -1173,6 +1173,15 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       : null,
     message.editedAt ? el("span", {}, "изменено") : null,
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
+    message.encrypted
+      ? el("span", {
+          class: "message-encrypted",
+          title: "Зашифровано — только отправитель и получатель",
+        }, [
+          iconSvg("ShieldCheck", 10),
+          el("span", {}, "Зашифровано"),
+        ])
+      : null,
     isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
     mine
       ? el("span", {
