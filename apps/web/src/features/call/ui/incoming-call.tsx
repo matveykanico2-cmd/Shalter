@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { Avatar, Icon } from "@/shared/ui";
 
 import type { CallPeer } from "../api/call-api";
+import { callApi } from "../api/call-api";
 import { decline, joinCallById } from "../model/call-store";
 import { useCall } from "../model/use-call";
 import { useIncomingCall } from "../model/use-incoming-call";
@@ -23,6 +24,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
   const kind = group ? (video ? "Групповой видеозвонок" : "Групповой звонок") : video ? "Входящий видеозвонок" : "Входящий звонок";
   const answer = async () => {
     dismiss();
+    await callApi.answer(ringing.id).catch(() => {});
     await joinCallById(ringing.id, me).catch(() => {});
     void navigate(`/call/${ringing.id}`);
   };

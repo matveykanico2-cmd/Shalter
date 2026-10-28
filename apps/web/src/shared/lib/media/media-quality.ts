@@ -16,8 +16,11 @@ export function mediaQuality(mobile: boolean) {
     video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } satisfies MediaTrackConstraints,
     // Голос: моно с шумо- и эхоподавлением (стерео-захват на ПК ломал эхоподавление).
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } satisfies MediaTrackConstraints,
-    opusBitrate: mobile ? 48_000 : 64_000,
-    videoBitrate: mobile ? 1_200_000 : 2_500_000,
+    // Голос: Opus 80 кбит/с на телефоне, 96 кбит/с на ПК —_clearer речь, меньше артефактов.
+    opusBitrate: mobile ? 80_000 : 96_000,
+    // Видео: потолок выше, чтобы на хорошем канале не мылилось; balanced degradation
+    // плавно снижает качество при слабой сети вместо замираний.
+    videoBitrate: mobile ? 1_800_000 : 3_500_000,
     videoFramerate: 30,
   };
 }
@@ -42,6 +45,7 @@ export const SCREEN_BITRATE = 3_000_000;
 export const cameraConstraints = (extra: MediaTrackConstraints = {}): MediaTrackConstraints => ({ ...HD_VIDEO, ...extra });
 
 const OPUS_KEYS = /^(useinbandfec|usedtx|maxaveragebitrate|stereo|sprop-stereo)=/;
+const VP9_PT_RE = /a=rtpmap:(\d+) VP9\/90000/i;
 
 // Opus — это то, что мы готовы принимать: моно, защита от потерь (FEC), битрейт речи.
 // DTX выключен: с шумоподавлением он «съедает» начала слов и даёт рваный звук.
@@ -59,6 +63,23 @@ export function tuneOpusSdp(desc: RTCSessionDescriptionInit, quality: MediaQuali
     });
   } else {
     sdp = sdp.replace(new RegExp(`(a=rtpmap:${pt} opus/48000[^\r\n]*)`), `$1\r\na=fmtp:${pt} ${params}`);
+  }
+  // Предпочитаем VP9 — лучшее качество при низком битрейте, меньше артефактов на Mobile.
+  const vp9 = VP9_PT_RE.exec(sdp)?.[1];
+  if (vp9) {
+    const lines = sdp.split("\r\n");
+    const mLineIdx = lines.findIndex((l) => l.startsWith("m=video"));
+    if (mLineIdx >= 0) {
+      const mLine = lines[mLineIdx];
+      if (mLine) {
+        const parts = mLine.split(" ");
+        if (!parts.includes(vp9!)) {
+        parts.splice(3, 0, vp9!);
+        (lines[mLineIdx] as string) = parts.join(" ");
+        }
+        sdp = lines.join("\r\n");
+      }
+    }
   }
   return { type: desc.type, sdp };
 }

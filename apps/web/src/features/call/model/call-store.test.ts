@@ -77,7 +77,7 @@ describe("звонок", () => {
     const cam = peer.transceivers.find((t) => t.sender.track?.kind === "video")!.sender;
     expect((cam.track as unknown as { contentHint?: string }).contentHint).toBe("motion");
     // Дорожка камеры пришла через addTrack (не replaceTrack) — её тоже настраивают.
-    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 2_500_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
+    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 3_500_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
     // Голос: моно, FEC, без DTX.
     const offer = sentSignals().find((m) => m.kind === "offer")!.data as { sdp: string };
     expect(offer.sdp).toContain("stereo=0");
@@ -125,11 +125,11 @@ describe("звонок", () => {
     const { calls } = fakeApi({
       "GET /api/calls": { body: { calls: [{ ...incoming, direction: "incoming", otherUser: BORIS, group: null }] } },
       "GET /api/chats/c_1": chatRoute,
-      "POST /api/calls/cl_1/answer": { body: { ok: true } },
       "GET /api/calls/cl_1/signal?after=0": { body: { signals: [signal("offer", { type: "offer", sdp: "v=0" }, 1)] } },
     });
     await joinCallById("cl_1", ME);
-    expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(true);
+    // Ответ на входящий — только по кнопке «Ответить» (IncomingCall.answer), не при входе.
+    expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(false);
     // Без offer от отвечающего: offer шлёт звонящий.
     expect(sentSignals().some((m) => m.kind === "offer")).toBe(false);
 

@@ -30,11 +30,11 @@ describe("качество звонков", () => {
     const pc = mediaQuality(false);
     expect(pc.video).toEqual({ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } });
     expect(pc.audio).toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 });
-    expect(pc).toMatchObject({ videoBitrate: 2_500_000, videoFramerate: 30, opusBitrate: 64_000 });
+    expect(pc).toMatchObject({ videoBitrate: 3_500_000, videoFramerate: 30, opusBitrate: 96_000 });
     const phone = mediaQuality(true);
     expect(phone.video).toEqual(pc.video);
     expect(phone.audio.channelCount).toBe(1);
-    expect(phone).toMatchObject({ videoBitrate: 1_200_000, videoFramerate: 30, opusBitrate: 48_000 });
+    expect(phone).toMatchObject({ videoBitrate: 1_800_000, videoFramerate: 30, opusBitrate: 80_000 });
     // Экран — до 1080p/30: мелкий текст должен читаться.
     expect(HD_SCREEN.video).toMatchObject({ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } });
     // Ни 60 кадров, ни 1080p с камеры: кодер и сеть (TURN) это не вытягивают.
@@ -44,9 +44,9 @@ describe("качество звонков", () => {
   it("Opus: моно, FEC, битрейт речи, без DTX; чужие параметры fmtp сохраняются", () => {
     const sdp = "v=0\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;usedtx=1;stereo=1\r\n";
     const tuned = tuneOpusSdp({ type: "offer", sdp }, mediaQuality(false)).sdp!;
-    expect(tuned).toContain("a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=64000;stereo=0;sprop-stereo=0\r\n");
+    expect(tuned).toContain("a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=96000;stereo=0;sprop-stereo=0\r\n");
     expect(tuned).not.toContain("usedtx");
-    expect(tuneOpusSdp({ type: "answer", sdp }, mediaQuality(true)).sdp).toContain("maxaveragebitrate=48000;stereo=0");
+    expect(tuneOpusSdp({ type: "answer", sdp }, mediaQuality(true)).sdp).toContain("maxaveragebitrate=80000;stereo=0");
     // Строки fmtp нет — дописывается после rtpmap.
     expect(tuneOpusSdp({ type: "offer", sdp: "v=0\r\na=rtpmap:109 opus/48000/2\r\n" }).sdp).toMatch(/a=rtpmap:109 opus\/48000\/2\r\na=fmtp:109 useinbandfec=1;/);
     // Без Opus — как было.
@@ -73,14 +73,14 @@ describe("качество звонков", () => {
       const pc = make([{ active: true }, { active: true, rid: "h" }]);
       expect(await tuneVideoSender(pc.sender, { quality: mediaQuality(false) })).toBe(true);
       expect(pc.applied).toHaveLength(1);
-      expect(pc.applied[0]!.encodings).toEqual([{ active: true, maxBitrate: 2_500_000, maxFramerate: 30 }, { active: true, rid: "h" }]);
+      expect(pc.applied[0]!.encodings).toEqual([{ active: true, maxBitrate: 3_500_000, maxFramerate: 30 }, { active: true, rid: "h" }]);
       expect(pc.applied[0]).toMatchObject({ transactionId: "t", degradationPreference: "balanced" });
       // Разрешение кодер снижает сам — scaleResolutionDownBy не задаём.
       expect(pc.applied[0]!.encodings[0]).not.toHaveProperty("scaleResolutionDownBy");
 
       const phone = make();
       await tuneVideoSender(phone.sender, { quality: mediaQuality(true) });
-      expect(phone.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 1_200_000, maxFramerate: 30 });
+      expect(phone.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 1_800_000, maxFramerate: 30 });
     });
 
     it("экран: 3 Мбит/с, 30 кадров, держит разрешение", async () => {
@@ -100,7 +100,7 @@ describe("качество звонков", () => {
       const old = make([{ active: true }], { rejectPreference: true });
       expect(await tuneVideoSender(old.sender, { quality: mediaQuality(false) })).toBe(true);
       expect(old.applied).toHaveLength(1);
-      expect(old.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 2_500_000 });
+      expect(old.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 3_500_000 });
       expect(old.applied[0]).not.toHaveProperty("degradationPreference");
     });
 

@@ -326,7 +326,14 @@ function removePeer(userId: string) {
   notify();
   // Последний собеседник ушёл — звонок окончен. В голосовом чате группы остаются ждать
   // других: раньше клиент закрывал его у себя, а сервер продолжал считать участником.
-  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended") endLocally();
+  // Не завершаем сразу — даём времени другому участнику присоединиться (иначе звонок
+  // сбрасывается сам, не дождавшись ответа).
+  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended") {
+    clearTimeout(noAnswerTimer);
+    noAnswerTimer = setTimeout(() => {
+      if (state && state.others.length === 0 && !state.isRoom && state.phase !== "ended") endLocally();
+    }, 5_000);
+  }
 }
 
 type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean };
@@ -386,7 +393,6 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       if (state === mine && mine.phase === "ringing") void hangup();
     }, NO_ANSWER_MS);
   }
-  if (!isRoom && call.callerId !== me.id) callApi.answer(call.id).catch(() => {});
 
   const ticker = setInterval(() => {
     if (state?.phase === "connected") {
