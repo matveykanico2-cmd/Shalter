@@ -4,6 +4,7 @@
 // архив целиком не грузится.
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 const PACKS = [
   { name: "emoji", dir: "img/emoji", prefix: "/img/emoji/" },
@@ -11,18 +12,34 @@ const PACKS = [
   { name: "gift-emoji", dir: "gift-emoji", prefix: "/gift-emoji/" },
   { name: "tgs", dir: "tgs", prefix: "/tgs/" },
   // Сцены подарков (scripts/gift-scenes.js): их пересобирают генераторы — кэш на час, а не на неделю.
-  { name: "gift-scenes", dir: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600 },
+  // 56 МБ JSON — в git лежит сжатым (gift-scenes.pack.br, ~11 МБ), см. unpackPack.
+  { name: "gift-scenes", dir: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600, compressed: true },
 ];
 const PACK_DIR = path.join(__dirname, "..", "assets", "packs");
 
 const TYPES = { ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml", ".json": "application/json", ".tgs": "application/gzip", ".gif": "image/gif", ".jpg": "image/jpeg" };
+
+// Сжатый архив (<name>.pack.br) распаковывается рядом в <name>.pack, если того нет или он
+// старше: при сборке (scripts/build.js, в Docker — на этапе build) или при первом обращении.
+// Сам .pack в git не хранится (.gitignore).
+function unpackPack(pack) {
+  const file = path.join(PACK_DIR, `${pack.name}.pack`);
+  if (!pack.compressed) return file;
+  const src = `${file}.br`;
+  if (!fs.existsSync(src)) return file;
+  if (fs.existsSync(file) && fs.statSync(file).mtimeMs >= fs.statSync(src).mtimeMs) return file;
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, zlib.brotliDecompressSync(fs.readFileSync(src)));
+  fs.renameSync(tmp, file);
+  return file;
+}
 
 const opened = new Map();
 function openPack(pack) {
   if (opened.has(pack.name)) return opened.get(pack.name);
   let entry = null;
   try {
-    const file = path.join(PACK_DIR, `${pack.name}.pack`);
+    const file = unpackPack(pack);
     const fd = fs.openSync(file, "r");
     const lenBuf = Buffer.alloc(4);
     fs.readSync(fd, lenBuf, 0, 4, 0);
@@ -76,4 +93,10 @@ function* packFiles(pack) {
   }
 }
 
-module.exports = { assetPacks, packFiles, PACKS };
+// Распаковать все сжатые архивы заранее — при сборке (scripts/build.js), чтобы в образ
+// Docker уже попал готовый .pack и сервер не писал его при первом запросе.
+function unpackPacks() {
+  for (const pack of PACKS) if (pack.compressed) unpackPack(pack);
+}
+
+module.exports = { assetPacks, packFiles, unpackPacks, PACKS };

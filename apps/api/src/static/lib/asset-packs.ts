@@ -4,6 +4,7 @@
 // На боевом сервере эти адреса отдаёт nginx из public/dist/packs (распаковка при сборке).
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { REPO_ROOT } from "../../common/config/paths.js";
 
@@ -12,6 +13,8 @@ interface Pack {
   prefix: string;
   /** Cache-Control max-age, с; по умолчанию неделя. */
   maxAge?: number;
+  /** В git лежит сжатым: <name>.pack.br, распаковывается рядом в <name>.pack. */
+  compressed?: boolean;
 }
 
 interface OpenedPack {
@@ -28,7 +31,7 @@ const PACKS: Pack[] = [
   { name: "gift-emoji", prefix: "/gift-emoji/" },
   { name: "tgs", prefix: "/tgs/" },
   // Сцены подарков (scripts/gift-scenes.js): их пересобирают генераторы — кэш на час.
-  { name: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600 },
+  { name: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600, compressed: true },
 ];
 const PACK_DIR = path.join(REPO_ROOT, "server", "assets", "packs");
 
@@ -42,13 +45,27 @@ const TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
 };
 
+// Сжатый архив распаковывается рядом, если .pack нет или он старше .pack.br, — как
+// unpackPack в server/lib/assetPacks.js (обычно это уже сделала сборка, scripts/build.js).
+function unpackPack(pack: Pack): string {
+  const file = path.join(PACK_DIR, `${pack.name}.pack`);
+  if (!pack.compressed) return file;
+  const src = `${file}.br`;
+  if (!fs.existsSync(src)) return file;
+  if (fs.existsSync(file) && fs.statSync(file).mtimeMs >= fs.statSync(src).mtimeMs) return file;
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, zlib.brotliDecompressSync(fs.readFileSync(src)));
+  fs.renameSync(tmp, file);
+  return file;
+}
+
 const opened = new Map<string, OpenedPack | null>();
 
 function openPack(pack: Pack): OpenedPack | null {
   if (opened.has(pack.name)) return opened.get(pack.name)!;
   let entry: OpenedPack | null = null;
   try {
-    const fd = fs.openSync(path.join(PACK_DIR, `${pack.name}.pack`), "r");
+    const fd = fs.openSync(unpackPack(pack), "r");
     const lenBuf = Buffer.alloc(4);
     fs.readSync(fd, lenBuf, 0, 4, 0);
     const headLen = lenBuf.readUInt32LE(0);

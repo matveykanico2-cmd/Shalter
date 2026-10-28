@@ -5,9 +5,11 @@
 //   node scripts/pack-assets.js                 — после изменения картинок в этих папках
 //   node scripts/pack-assets.js gift-scenes     — только названные архивы
 //
+// Сжатые (compressed в PACKS, сейчас gift-scenes) пишутся как <name>.pack.br — brotli от того же.
 // Формат: [4 байта — длина JSON-оглавления][оглавление {путь: [смещение, длина]}][данные].
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 const ROOT = path.join(__dirname, "..");
 const { PACKS } = require("../server/lib/assetPacks");
@@ -44,7 +46,16 @@ for (const pack of PACKS.filter((p) => !only.length || only.includes(p.name))) {
   const head = Buffer.from(JSON.stringify(index));
   const len = Buffer.alloc(4);
   len.writeUInt32LE(head.length);
-  const target = path.join(OUT, `${pack.name}.pack`);
-  fs.writeFileSync(target, Buffer.concat([len, head, ...chunks]));
-  console.log(`${pack.name}.pack: ${files.length} файлов, ${(fs.statSync(target).size / 1048576).toFixed(1)} МБ`);
+  const data = Buffer.concat([len, head, ...chunks]);
+  let target = path.join(OUT, `${pack.name}.pack`);
+  if (pack.compressed) {
+    // В git — только сжатый; несжатый рядом удаляем, сервер распакует свежий (assetPacks.js).
+    fs.rmSync(target, { force: true });
+    target += ".br";
+    const params = { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_LGWIN]: 24, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: data.length };
+    fs.writeFileSync(target, zlib.brotliCompressSync(data, { params }));
+  } else {
+    fs.writeFileSync(target, data);
+  }
+  console.log(`${path.basename(target)}: ${files.length} файлов, ${(fs.statSync(target).size / 1048576).toFixed(1)} МБ`);
 }

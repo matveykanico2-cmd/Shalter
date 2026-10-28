@@ -93,6 +93,9 @@ yarn-error.log*
 /public/gift-emoji/
 /public/tgs/
 /public/gift-scenes/
+# сцены подарков в git — сжатым gift-scenes.pack.br, несжатый распаковывается при сборке/запуске
+/server/assets/packs/gift-scenes.pack
+/server/assets/packs/*.tmp
 # архивы сборок, скачанные из CI
 /shalter-*.zip
 .claude/settings.json

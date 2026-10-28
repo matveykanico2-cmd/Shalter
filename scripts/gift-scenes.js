@@ -1,6 +1,6 @@
 // Встроенные сцены подарков: по JSON-файлу на подарок в public/gift-scenes/<id>.json
 // и список имеющихся сцен в public/gift-scenes/index.json. В репозитории папки нет —
-// 25 тыс. файлов лежат одним архивом server/assets/packs/gift-scenes.pack (pack-assets.js),
+// 25 тыс. файлов лежат одним сжатым архивом server/assets/packs/gift-scenes.pack.br (pack-assets.js),
 // сервер отдаёт их по тем же адресам. Генераторы распаковывают архив в папку, дописывают
 // сцены и упаковывают обратно. Клиент (apps/web, entities/gift/lib/gift-traits.ts)
 // грузит только сцены тех подарков, что на экране, — раньше все 25 тыс. сцен лежали

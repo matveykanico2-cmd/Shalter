@@ -66,6 +66,8 @@ function precompress(file) {
 // nginx отдаёт их с диска по прежним адресам (deploy/nginx.conf.example), Node их
 // больше не читает. Без nginx (Docker) не нужны — UNPACK_ASSETS=0 их не пишет.
 function unpackAssets() {
+  // Сжатые архивы (gift-scenes.pack.br) — в .pack рядом всегда: их читает и сам Node.
+  require("../server/lib/assetPacks").unpackPacks();
   if (process.env.UNPACK_ASSETS === "0") return;
   const { PACKS, packFiles } = require("../server/lib/assetPacks");
   fs.rmSync(PACKS_DIR, { recursive: true, force: true });
