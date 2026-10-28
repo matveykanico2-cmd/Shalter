@@ -12,6 +12,9 @@ import type { CreateGameDto, GameMetaDto, ScoreDto } from "./model/schemas/game.
 
 // Игры в приложении (/api/games): каталог, свои игры, рекорды — как server/routes/games.js.
 const MAX_OWN_GAMES = 50;
+// Внешний сервер игр: код своих игр загружается с этого URL вместо локальной базы,
+// чтобы нагрузка от игр уходила на отдельный сервер. Не задан — читается из локальной БД.
+const GAME_SERVER_URL = process.env.GAME_SERVER_URL || null;
 
 @Injectable()
 export class GamesService {

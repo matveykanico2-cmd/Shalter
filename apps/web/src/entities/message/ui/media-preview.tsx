@@ -102,6 +102,14 @@ export function MediaPreview({ message: m, who, size = 20, className }: Props) {
       );
     }
     parts.push(label(text || fallback));
+  } else if (a?.kind === "game") {
+    const meta = (a.meta ?? {}) as { emoji?: string; title?: string };
+    parts.push(
+      <span key="game" className={styles.gameThumb}>
+        <span className={styles.gameEmoji}>{meta.emoji || "🎮"}</span>
+      </span>,
+      label(meta.title || "Игра"),
+    );
   } else {
     parts.push(label(messagePreview(m as Message)));
   }

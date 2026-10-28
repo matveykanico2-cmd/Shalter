@@ -67,3 +67,20 @@
   max-width: 100%;
   max-height: 100%;
 }
+
+.gameThumb {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #6a5af9, #d66efd 60%, #ff8a65);
+  flex-shrink: 0;
+}
+
+.gameEmoji {
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
