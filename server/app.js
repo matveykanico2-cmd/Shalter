@@ -20,13 +20,11 @@ dns.setDefaultResultOrder(process.env.DNS_RESULT_ORDER === "verbatim" ? "verbati
 const express = require("express");
 const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
-const { getCurrentUserId, requireUserId } = require("./middleware/auth");
-const { takeSharePayload } = require("./routes/shareTarget");
+const { getCurrentUserId } = require("./middleware/auth");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
 const { ensureShalterAiAccount } = require("./data/shalterAiBot");
 const { ensureHelperBotAccount } = require("./data/helperBot");
-const { shapeBodyForViewer } = require("./lib/chatForViewer");
 
 ensureSystemBot();
 ensureHugoAccount();
@@ -48,12 +46,8 @@ const WEB_DIST_DIR = process.env.SHALTER_WEB_DIST ? path.resolve(process.env.SHA
 const indexHtml = path.join(WEB_DIST_DIR, "index.html");
 const webClientBuilt = () => fs.existsSync(indexHtml);
 
-// Подписчиков канала в ответах видят только его админы (lib/chatForViewer.js).
-app.use("/api", (req, res, next) => {
-  const json = res.json.bind(res);
-  res.json = (body) => json(shapeBodyForViewer(body, req.uid));
-  next();
-});
+// Все /api-маршруты перенесены в NestJS (apps/api/src/modules).
+// Оставлены только спецмаршруты, не имеющие Nest-эквивалента.
 
 // Режим контрактных тестов: один проход обхода по таймеру сейчас (по таймеру они в этом
 // режиме не идут). Проход идёт там же, где на боевом сервере, — в фоновом процессе.
@@ -75,73 +69,6 @@ if (TEST_MODE) {
     }
   });
 }
-
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/users", require("./routes/users"));
-app.use("/api/chats", require("./routes/chats"));
-app.use("/api/link-check", require("./routes/linkCheck"));
-app.use("/api/channels", require("./routes/channels"));
-app.use("/api/contacts", require("./routes/contacts"));
-app.use("/api/folders", require("./routes/folders"));
-app.use("/api/calls", require("./routes/calls"));
-app.use("/api/sessions", require("./routes/sessions"));
-app.use("/api/settings", require("./routes/settings"));
-app.use("/api/bots", require("./routes/bots"));
-app.use("/api/games", require("./routes/games"));
-app.use("/api/game-api", require("./routes/gameApi"));
-app.use("/api/bot-api", require("./routes/botApi"));
-app.use("/api/posts", require("./routes/posts"));
-app.use("/api/search", require("./routes/search"));
-app.use("/api/push", require("./routes/push"));
-app.use("/api/reports", require("./routes/reports"));
-app.use("/api/admin", require("./routes/admin"));
-app.use("/api/export", require("./routes/export"));
-app.get("/api/labels", requireUserId, (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
-app.use("/api/stories", require("./routes/stories"));
-app.use("/api/premium", require("./routes/premium"));
-app.use("/api/business", require("./routes/business"));
-app.use("/api/nearby", require("./routes/nearby"));
-app.use("/api/geo", require("./routes/geo"));
-app.use("/api/gifts", require("./routes/gifts"));
-app.use("/api/ads", require("./routes/ads"));
-app.use("/api/donation-alerts", require("./routes/donationAlerts"));
-app.use("/api/translate", require("./routes/translate"));
-app.use("/api/uploads", require("./routes/uploads"));
-app.use("/api/live", require("./routes/live"));
-app.use("/app", require("./routes/miniAppHost"));
-app.use("/api/downloads", require("./routes/downloads"));
-app.use("/api/hugo", require("./routes/hugo"));
-app.use("/api/stickers", require("./routes/stickers"));
-app.use("/api/custom-emoji", require("./routes/customEmoji"));
-app.use("/api/stars", require("./routes/stars"));
-app.use("/api/support", require("./routes/support"));
-app.use("/api/ai", require("./routes/shalterAi"));
-app.use("/api/partners", require("./routes/partners"));
-app.use("/api/oauth", require("./routes/oauth"));
-app.use("/api/avatars", require("./routes/avatars"));
-app.use("/api/profile-track", require("./routes/profileTrack"));
-app.use("/api/status", require("./routes/profileStatus"));
-app.get("/api/status-catalog", requireUserId, (req, res) => res.json({ items: require("./data/profileStatuses").listCatalog() }));
-app.use("/api/usernames", require("./routes/usernames"));
-app.use("/api/communities", require("./routes/communities"));
-app.use("/api/bootstrap", require("./routes/bootstrap"));
-app.use("/api/promotions", require("./routes/promotions"));
-app.use("/s", require("./routes/shortLinks"));
-app.get("/api/short-links", (_req, res) => {
-  try {
-    res.json(require("./data/shortLinks").countLinks());
-  } catch (e) {
-    res.status(500).json({ error: "db error" });
-  }
-});
-// Системное «Поделиться»: принимаем содержимое из меню «Поделиться» и отдаём
-// его приложению по одноразовому токену.
-app.use("/share-target", require("./routes/shareTarget"));
-app.get("/api/share/:token", requireUserId, (req, res) => {
-  const payload = takeSharePayload(req.params.token);
-  if (!payload) return res.status(404).json({ error: "Ссылка устарела — поделитесь ещё раз" });
-  res.json({ share: payload });
-});
 
 // Сборка клиента: имена с хешем — вечный кэш; brotli и gzip сжаты заранее (scripts/build.js).
 app.use("/assets", expressStaticGzip(path.join(WEB_DIST_DIR, "assets"), { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
@@ -189,21 +116,6 @@ app.get(/^\/(?!(?:api|ws)(?:\/|$)).*/, (req, res) => {
   if (!webClientBuilt()) return res.status(503).type("text/plain; charset=utf-8").send("Клиент не собран: выполните npm run build (сборка apps/web).\n");
   res.sendFile(indexHtml);
 });
-
-app.get("/api/version", (req, res) => {
-  let version = "dev";
-  try {
-    if (fs.existsSync(path.join(WEB_DIST_DIR, "build.json"))) {
-      version = JSON.parse(fs.readFileSync(path.join(WEB_DIST_DIR, "build.json"), "utf-8")).version ?? "dev";
-    }
-  } catch {
-  }
-  res.set("Cache-Control", "no-store");
-  res.json({ version, startedAt: SERVER_STARTED_AT });
-});
-
-// Неизвестный /api-путь (или метод) — JSON, как и остальные ошибки API, а не HTML-страница Express.
-app.use("/api", (_req, res) => res.status(404).json({ error: "not found" }));
 
 app.use(errorHandler);
 
