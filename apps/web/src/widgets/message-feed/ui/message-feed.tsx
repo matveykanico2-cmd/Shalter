@@ -333,7 +333,13 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
       }
     );
     const index = galleryIndex(items, m.id, url);
-    if (index >= 0) setViewer({ items, index });
+    if (index < 0) {
+      // Медиа не в загруженной части ленты (глубокая история / ответ на старое сообщение) —
+      // подгружаем историю и открываем само сообщение, вместо молчаливого ничего.
+      jumpTo(m.id);
+      return;
+    }
+    setViewer({ items, index });
   };
 
   const openStory = (reply: { url?: string | null; kind?: string; authorName?: string | null }) => {

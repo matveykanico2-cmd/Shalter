@@ -122,9 +122,9 @@ export function ChatList({ meId }: { meId: string }) {
     if (unreadOnly) list = list.filter((c) => hasUnread(c) || c.id === currentId);
     const archived = chats.filter((c) => c.archived);
     const head: Row[] = activeTab === "all" && archived.length && !unreadOnly ? [{ kind: "archive", chats: sortChats(archived) }] : [];
-    // Сообщество — строка среди чатов по времени самого свежего из своих чатов; «одной
-    // строкой» (collapsed) — его чаты в общем списке не повторяются; закреплённые — первыми.
-    const shown = ["all", "groups", "channels"].includes(activeTab) && !unreadOnly ? communities : [];
+    // Сообщества — только во вкладке «Все». В «Группы» и «Каналы» не попадают;
+    // открываются только по нажатию на само сообщество (панель / страница сообщества).
+    const shown = activeTab === "all" && !unreadOnly ? communities : [];
     const folded = new Set(shown.filter((cm) => cm.collapsed).flatMap((cm) => cm.chatIds));
     if (folded.size) list = list.filter((c) => !folded.has(c.id) || c.id === currentId);
     const notArchived = chats.filter((c) => !c.archived);

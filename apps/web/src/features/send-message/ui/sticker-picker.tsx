@@ -16,9 +16,9 @@ const ACTION_PING_MS = 2500;
 
 /** Что уходит в сообщение — как sendSticker в composer.js (без служебных полей пака). */
 function outgoing(s: Sticker): Sticker {
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name };
-  return { emoji: s.emoji, name: s.name, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
+  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
+  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid };
+  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
 }
 
 type Props = { chatId: string; onSend: (sticker: Sticker) => void };
