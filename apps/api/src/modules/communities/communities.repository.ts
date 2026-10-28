@@ -178,14 +178,14 @@ export class CommunitiesRepository {
 
   // ---------- администраторы ----------
 
-  public listAdmins(communityId: string): { userId: string; rights: CommunityRights }[] {
+  public listAdmins(communityId: string): { userId: string; rights: CommunityRights; badge: string | null; title: string | null }[] {
     return this.db
-      .select({ userId: communityMembers.userId, rights: communityMembers.rights })
+      .select({ userId: communityMembers.userId, rights: communityMembers.rights, badge: communityMembers.badge, title: communityMembers.title })
       .from(communityMembers)
       .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.role, "admin"), eq(communityMembers.left, 0)))
       .orderBy(asc(communityMembers.joinedAt))
       .all()
-      .map((r) => ({ userId: r.userId, rights: parseRights(r.rights) }));
+      .map((r) => ({ userId: r.userId, rights: parseRights(r.rights), badge: r.badge, title: r.title }));
   }
 
   public setAdmin(communityId: string, userId: string, rights: CommunityRights): void {

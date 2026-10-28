@@ -13,9 +13,12 @@ import { chooseFile, confirmDialog, myStory, solidPng, storyItem } from "./helpe
 import type { Page } from "@playwright/test";
 import type { TestUser } from "../support/fixtures";
 
-/** «Моя история» → выбор фото → редактор истории → «Готово». */
+/** «Выложить историю» → «История» → выбор фото → «Опубликовать историю» → редактор истории → «Готово». */
 async function postStoryViaUi(page: Page) {
-  await chooseFile(page, () => myStory(page).click(), { name: "закат.png", mimeType: "image/png", buffer: solidPng(120, 200) });
+  await page.getByRole("button", { name: /Выложить историю$/ }).click();
+  await chooseFile(page, () => page.getByTitle("История", { exact: true }).click(), { name: "закат.png", mimeType: "image/png", buffer: solidPng(120, 200) });
+  await expect(page.getByText("Выбрано 1 файлов")).toBeVisible();
+  await page.getByRole("button", { name: "Опубликовать историю", exact: true }).click();
   const done = page.getByRole("button", { name: "Готово", exact: true });
   await expect(done).toBeVisible();
   // Это редактор, а не мгновенная загрузка: можно «Пропустить» правки или добавить текст «Aa».

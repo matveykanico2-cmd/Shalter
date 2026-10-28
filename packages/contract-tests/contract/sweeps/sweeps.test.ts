@@ -206,38 +206,21 @@ describe("праздники", () => {
   });
 });
 
-describe("уборка файлов", () => {
-  test("файл без ссылок старше суток удаляется; отправленный в чат остаётся", async () => {
+describe("файлы хранятся всегда", () => {
+  // Как в Telegram: старые медиа не удаляются — обхода «uploads» больше нет.
+  test("обхода uploads нет; и ничейный файл, и прочитанное всеми вложение остаются", async () => {
     const [a, b] = await registerUsers(server().baseUrl, 2);
     const dm = await createDm(a, b);
     const orphan = expectOk(await upload(a.api, uniquePng(), { kind: "image", name: "o.png" }), uploadResult);
-    const kept = expectOk(await upload(a.api, uniquePng(), { kind: "image", name: "k.png" }), uploadResult);
-    await sendText(a, dm.id, "", { attachments: [{ kind: "image", url: kept.url }] });
-
-    await sweep("uploads", new Date(Date.now() + 23 * HOUR));
-    expect((await download(a.api, orphan.url)).status).toBe(200);
-
-    await sweep("uploads", new Date(Date.now() + 25 * HOUR));
-    expect((await download(a.api, orphan.url)).status).toBe(404);
-    expect((await download(a.api, kept.url)).status).toBe(200);
-  });
-
-  test("вложение, прочитанное всеми, удаляется через неделю; непрочитанное — нет", async () => {
-    const [a, b] = await registerUsers(server().baseUrl, 2);
-    const readDm = await createDm(a, b);
-    const [c] = await registerUsers(server().baseUrl, 1);
-    const unreadDm = await createDm(a, c);
     const read = expectOk(await upload(a.api, uniquePng(), { kind: "image", name: "r.png" }), uploadResult);
-    const unread = expectOk(await upload(a.api, uniquePng(), { kind: "image", name: "u.png" }), uploadResult);
-    await sendText(a, readDm.id, "", { attachments: [{ kind: "image", url: read.url }] });
-    await sendText(a, unreadDm.id, "", { attachments: [{ kind: "image", url: unread.url }] });
-    expect((await b.api.post(`/api/chats/${readDm.id}/read`, {})).status).toBe(200);
+    await sendText(a, dm.id, "", { attachments: [{ kind: "image", url: read.url }] });
+    expect((await b.api.post(`/api/chats/${dm.id}/read`, {})).status).toBe(200);
 
-    await sweep("uploads", new Date(Date.now() + 6 * DAY));
+    const res = await new Api(server().baseUrl).post("/api/test/sweeps/uploads", { now: new Date(Date.now() + 30 * DAY).toISOString() });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Нет такого обхода" });
+    for (const name of ["auto-delete", "reminders", "account-deletion", "birthdays", "holidays"]) await sweep(name, new Date(Date.now() + 30 * DAY));
+    expect((await download(a.api, orphan.url)).status).toBe(200);
     expect((await download(a.api, read.url)).status).toBe(200);
-
-    await sweep("uploads", new Date(Date.now() + 8 * DAY));
-    expect((await download(a.api, read.url)).status).toBe(404);
-    expect((await download(a.api, unread.url)).status).toBe(200);
   });
 });

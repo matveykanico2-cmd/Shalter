@@ -53,13 +53,15 @@ describe("создание", () => {
       name: "П".repeat(40),
       stickers: [
         // anim при сохранении отбрасывается, scene остаётся только как имя [a-z0-9_-].
-        { emoji: "😀", name: "улыбка", scene: "party" },
-        { emoji: "🔥", name: "" },
-        { kind: "image", url: img, emoji: "🖼️", name: "", animated: true },
+        // uid — метка стикера (по ней в ленте открывается его пак); сервер выдаёт, если не прислали.
+        { emoji: "😀", name: "улыбка", scene: "party", uid: expect.stringMatching(/^st_[0-9a-f]{8}$/) },
+        { emoji: "🔥", name: "", uid: expect.any(String) },
+        { kind: "image", url: img, emoji: "🖼️", name: "", animated: true, uid: expect.any(String) },
         {
           kind: "custom",
           emoji: "🎈",
           name: "",
+          uid: expect.any(String),
           scene: {
             v: 1,
             loop: 12,
@@ -117,7 +119,7 @@ describe("создание", () => {
     const many = Array.from({ length: 65 }, (_, i) => ({ emoji: "⭐", name: `s${i}` }));
     const first = expectOk(await me.api.post("/api/stickers/packs", { name: "Много", stickers: many }), packBody).pack;
     expect(first.stickers).toHaveLength(60);
-    expect(first.stickers.at(-1)).toEqual({ emoji: "⭐", name: "s59" });
+    expect(first.stickers.at(-1)).toEqual({ emoji: "⭐", name: "s59", uid: expect.any(String) });
     const second = expectOk(await me.api.post("/api/stickers/packs", { name: "Второй", stickers: [{ emoji: "🌙" }] }), packBody).pack;
     expect((await me.api.get("/api/stickers/packs")).body.packs.map((p: any) => p.id)).toEqual([first.id, second.id]);
   });
@@ -135,7 +137,7 @@ describe("изменение и удаление", () => {
     const renamed = expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { name: "  Новое  " }), packBody).pack;
     expect(renamed).toEqual({ ...pack, name: "Новое" });
     const restickered = expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { name: "   ", stickers: [{ emoji: "🔥", anim: "spin" }, null] }), packBody).pack;
-    expect(restickered).toEqual({ ...pack, name: "Новое", stickers: [{ emoji: "🔥", name: "" }] });
+    expect(restickered).toEqual({ ...pack, name: "Новое", stickers: [{ emoji: "🔥", name: "", uid: expect.any(String) }] });
     // Пустой список стикеров при изменении — разрешён.
     expect(expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { stickers: [] }), packBody).pack.stickers).toEqual([]);
     expect(expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, {}), packBody).pack.name).toBe("Новое");

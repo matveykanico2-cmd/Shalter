@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { Composer } from "@/features/send-message";
+import { closeStickerPack, Composer, openStickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -38,10 +38,6 @@ import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
 import type { Sticker } from "@/shared/lib/anim";
-import { closeStickerPack, openStickerPack, useStickerPackView } from "@/features/send-message/lib/sticker-pack-store";
-import { StickerPackDetail } from "@/features/send-message/ui/sticker-pack-detail";
-import { sendMessage } from "@/features/send-message/api/send-message";
-import { stickerPackQueries } from "@/features/send-message/api/sticker-packs";
 
 function outgoing(s: Sticker): Sticker {
   if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
@@ -118,10 +114,11 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     const pack = packs.data?.find((p) => p.stickers.some((s) => s.uid === sticker.uid));
     if (pack) openStickerPack(pack);
   };
+  const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);
   const sendSticker = useCallback((s: Sticker) => {
-    void sendMessage({ chatId: chat.id, text: "", sticker: outgoing(s) }).catch(() => {});
+    void sendOne("", null, [], outgoing(s)).catch(() => {});
     closeStickerPack();
-  }, [chat.id]);
+  }, [sendOne]);
   const refreshPacks = useCallback(() => {
     void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
     closeStickerPack();

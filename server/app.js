@@ -20,7 +20,7 @@ dns.setDefaultResultOrder(process.env.DNS_RESULT_ORDER === "verbatim" ? "verbati
 const express = require("express");
 const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
-const { getCurrentUserId } = require("./middleware/auth");
+const { getCurrentUserId, requireUserId } = require("./middleware/auth");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
 const { ensureShalterAiAccount } = require("./data/shalterAiBot");
@@ -116,6 +116,23 @@ app.get(/^\/(?!(?:api|ws)(?:\/|$)).*/, (req, res) => {
   if (!webClientBuilt()) return res.status(503).type("text/plain; charset=utf-8").send("Клиент не собран: выполните npm run build (сборка apps/web).\n");
   res.sendFile(indexHtml);
 });
+
+// Неизвестный /api-путь (или метод) — JSON, как и остальные ошибки API, а не HTML-страница Express.
+// Внутри разделов, которые целиком требовали входа (router.use(requireUserId) в бывших
+// server/routes), без сессии по-прежнему 401, а не 404.
+const AUTH_ONLY_API = new Set([
+  "admin", "ads", "ai", "avatars", "bootstrap", "bots", "business", "calls", "channels", "chats", "communities",
+  "contacts", "custom-emoji", "donation-alerts", "export", "folders", "games", "geo", "gifts", "hugo", "link-check",
+  "live", "nearby", "oauth", "partners", "posts", "premium", "profile-track", "promotions", "push", "reports",
+  "search", "sessions", "settings", "stars", "status", "stickers", "stories", "support", "translate", "uploads",
+  "usernames", "users",
+]);
+app.use("/api", (req, res, next) => {
+  const section = req.path.split("/")[1] ?? "";
+  if (AUTH_ONLY_API.has(section)) return requireUserId(req, res, next);
+  next();
+});
+app.use("/api", (_req, res) => res.status(404).json({ error: "not found" }));
 
 app.use(errorHandler);
 

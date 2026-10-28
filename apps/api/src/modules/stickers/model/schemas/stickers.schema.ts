@@ -10,16 +10,26 @@ import { sanitizers } from "../../../../legacy/legacy.js";
 export const MAX_STICKERS = 60;
 const MAX_NAME = 40;
 
+const STICKER_UID = /^st_[0-9a-f]{8}$/;
+
+// uid — метка стикера, по которой в ленте открывается его пак. sanitizeSticker её не знает и
+// отбрасывает, поэтому присланную берём из исходного объекта: при пересохранении пака метки
+// не меняются. Нет или битая — выдаём новую.
+function stickerUid(raw: unknown): string {
+  const uid = raw && typeof raw === "object" ? (raw as { uid?: unknown }).uid : undefined;
+  return typeof uid === "string" && STICKER_UID.test(uid) ? uid : `st_${randomBytes(4).toString("hex")}`;
+}
+
 // Не больше MAX_STICKERS, некорректные отбрасываются, анимация сцены не хранится.
 function sanitizeStickers(input: unknown): Record<string, unknown>[] {
   if (!Array.isArray(input)) return [];
   const { sanitizeSticker } = sanitizers();
-  return input
-    .slice(0, MAX_STICKERS)
-    .map((s) => sanitizeSticker(s))
-    .filter((s): s is Record<string, unknown> => !!s)
-    .map(({ anim: _anim, ...rest }) => rest)
-    .map((s) => ({ ...s, uid: s.uid ?? `st_${randomBytes(4).toString("hex")}` }));
+  return input.slice(0, MAX_STICKERS).flatMap((raw) => {
+    const s = sanitizeSticker(raw);
+    if (!s) return [];
+    const { anim: _anim, ...rest } = s;
+    return [{ ...rest, uid: stickerUid(raw) }];
+  });
 }
 
 /** Нет поля — undefined (PATCH меняет только переданные поля). */

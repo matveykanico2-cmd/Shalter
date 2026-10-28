@@ -1,24 +1,13 @@
-import { test } from "vitest";
+// Разбор multipart для «Поделиться» (перенесён из contract-tests/unit/shareTarget.test.ts,
+// когда server/routes/shareTarget.js удалили).
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import fs from "node:fs";
-import path from "node:path";
+import { test } from "vitest";
+import { parseContentType, parseMultipart } from "./multipart.js";
 
-// Разбор multipart из server/routes/shareTarget.js вынесён локально: сама функция
-// не экспортируется, а поднимать сервер ради проверки не нужно.
-const src = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "..", "server", "routes", "shareTarget.js"), "utf8");
-const snippet = src.slice(src.indexOf("function parseContentType"), src.indexOf("router.post"));
-const require = createRequire(import.meta.url);
-const mod: any = {};
-new Function("exports", "require", "module", "__dirname", `${snippet}; exports.parseContentType = parseContentType; exports.parseMultipart = parseMultipart;`)(
-  mod,
-  require,
-  { exports: mod },
-  import.meta.dirname
-);
+type Part = { name: string; value: string | Buffer; filename?: string; type?: string };
 
-function multipart(boundary: any, parts: any) {
-  const chunks = [];
+function multipart(boundary: string, parts: Part[]): Buffer {
+  const chunks: Buffer[] = [];
   for (const part of parts) {
     let head = `--${boundary}\r\nContent-Disposition: form-data; name="${part.name}"`;
     if (part.filename) head += `; filename="${part.filename}"`;
@@ -37,16 +26,16 @@ test("multipart: текстовые поля и файл", () => {
     { name: "url", value: "https://www.tiktok.com/@user/video/123" },
     { name: "files", filename: "clip.mp4", type: "video/mp4", value: Buffer.from([0x00, 0xff, 0x10, 0x0d, 0x0a, 0x2d, 0x2d]) },
   ]);
-  const { boundary: b } = mod.parseContentType(`multipart/form-data; boundary=${boundary}`);
+  const { boundary: b } = parseContentType(`multipart/form-data; boundary=${boundary}`);
   assert.equal(b, boundary);
-  const { fields, files } = mod.parseMultipart(body, b);
+  const { fields, files } = parseMultipart(body, b);
   assert.equal(fields.text, "Привет из TikTok");
   assert.equal(fields.url, "https://www.tiktok.com/@user/video/123");
   assert.equal(files.length, 1);
-  assert.equal(files[0].filename, "clip.mp4");
-  assert.equal(files[0].type, "video/mp4");
+  assert.equal(files[0]!.filename, "clip.mp4");
+  assert.equal(files[0]!.type, "video/mp4");
   // Двоичные данные не должны потерять байты и получить лишний CRLF от границы.
-  assert.deepEqual([...files[0].data], [0x00, 0xff, 0x10, 0x0d, 0x0a, 0x2d, 0x2d]);
+  assert.deepEqual([...files[0]!.data], [0x00, 0xff, 0x10, 0x0d, 0x0a, 0x2d, 0x2d]);
 });
 
 test("multipart: без файла и несколько полей с одинаковым именем", () => {
@@ -56,7 +45,7 @@ test("multipart: без файла и несколько полей с один�
     { name: "text", value: "один" },
     { name: "text", value: "два" },
   ]);
-  const { fields, files } = mod.parseMultipart(body, boundary);
+  const { fields, files } = parseMultipart(body, boundary);
   assert.equal(files.length, 0);
   assert.equal(fields.title, "Заголовок");
   // Последнее значение побеждает — как в обычном разборе форм.
@@ -69,7 +58,7 @@ test("multipart: filename* в UTF-8", () => {
     `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename*=UTF-8''%D0%BA%D0%B0%D1%80%D1%82%D0%B8%D0%BD%D0%BA%D0%B0.png\r\n` +
       `Content-Type: image/png\r\n\r\nDATA\r\n--${boundary}--\r\n`
   );
-  const { files } = mod.parseMultipart(body, boundary);
-  assert.equal(files[0].filename, "картинка.png");
-  assert.equal(files[0].data.toString(), "DATA");
+  const { files } = parseMultipart(body, boundary);
+  assert.equal(files[0]!.filename, "картинка.png");
+  assert.equal(files[0]!.data.toString(), "DATA");
 });

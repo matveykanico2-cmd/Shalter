@@ -21,8 +21,13 @@ export class CommunityAdminsService {
 
   public listAdmins(uid: string, id: string) {
     const community = this.access.load(id, uid, "member");
-    const admins = [this.access.userCard(community.ownerId, { role: "owner", rights: this.access.rightsOf(community, community.ownerId) })];
-    for (const a of this.communities.listAdmins(community.id)) admins.push(this.access.userCard(a.userId, { role: "admin", rights: a.rights }));
+    const owner = this.communities.memberRow(community.id, community.ownerId);
+    const admins = [
+      this.access.userCard(community.ownerId, { role: "owner", rights: this.access.rightsOf(community, community.ownerId), badge: owner?.badge ?? null, title: owner?.title ?? null }),
+    ];
+    for (const a of this.communities.listAdmins(community.id)) {
+      admins.push(this.access.userCard(a.userId, { role: "admin", rights: a.rights, badge: a.badge, title: a.title }));
+    }
     return { admins: admins.filter(Boolean) };
   }
 

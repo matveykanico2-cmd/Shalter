@@ -157,7 +157,11 @@ export function StoriesBar({ me }: { me: SelfUser }) {
               const url = URL.createObjectURL(file);
               return (
                 <div key={i} className={styles.mediaSelectionItem}>
-                  <img src={url} alt="" className={styles.mediaSelectionThumb} onLoad={() => URL.revokeObjectURL(url)} />
+                  {file.type.startsWith("video/") ? (
+                    <video src={url} className={styles.mediaSelectionThumb} muted playsInline preload="metadata" onLoadedData={() => URL.revokeObjectURL(url)} />
+                  ) : (
+                    <img src={url} alt="" className={styles.mediaSelectionThumb} onLoad={() => URL.revokeObjectURL(url)} onError={() => URL.revokeObjectURL(url)} />
+                  )}
                   <button type="button" className={styles.mediaSelectionRemove} title="Удалить" onClick={() => void removeFile(i)}>
                     <Icon name="X" size={12} />
                   </button>
