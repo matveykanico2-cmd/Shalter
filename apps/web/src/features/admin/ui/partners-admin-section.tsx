@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, Icon, SettingsPage, SettingsSection, SettingsRow, TextField, toast } from "@/shared/ui";
+import { Button, Icon, SettingsPage, SettingsRow, SettingsSection, TextField, toast } from "@/shared/ui";
 
 import { createPartner, deletePartner, listPartners, updatePartner } from "../../partners/api/partners";
 

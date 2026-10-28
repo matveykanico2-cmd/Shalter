@@ -109,8 +109,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
 
   return (
     <div className={styles.bar}>
-      {ownItem}
       {postItem}
+      {ownItem}
       {creating ? (
         <div className={styles.createChoice}>
           <button type="button" className={styles.item} title="Текстовый пост" onClick={() => { setCreating("text"); void textStory(); }}>
