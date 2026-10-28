@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { sanitizers, serviceLine, uploadAccess } from "../../legacy/legacy.js";
+import { push, sanitizers, serviceLine, uploadAccess } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
@@ -135,6 +135,27 @@ export class MessageActionsService {
     const clean = edits.cleanReaction(emoji);
     const message = clean ? this.messages.mutate(messageId, (m) => edits.toggleReaction(m, clean, uid, maxPerUser)) : this.messages.findById(messageId);
     this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
+    // Пуш отправителю сообщения — кто-то отреагировал (как в Telegram: «Иван поставил ❤️»).
+    if (clean && message && uid !== found.message.senderId) {
+      const nowHasReaction = message.reactions.some((r) => r.emoji === clean && r.userIds.includes(uid));
+      if (nowHasReaction) {
+        const reactor = this.users.findById(uid);
+        const notify = push();
+        void notify.sendPushToUser(
+          found.message.senderId,
+          {
+            title: reactor?.name ?? "Кто-то",
+            body: `поставил(а) ${clean}`,
+            url: `/chat/${chatId}`,
+            kind: "reaction",
+            tag: `reaction-${messageId}`,
+            chatId,
+            messageId,
+          },
+          notify.MESSAGE_PUSH
+        );
+      }
+    }
     return { message };
   }
 
