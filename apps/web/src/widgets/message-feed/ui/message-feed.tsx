@@ -36,6 +36,7 @@ import {
 } from "@/entities/message";
 import { type ReportInfo, ReportMessage } from "@/entities/report";
 import { isServerModerator, type SelfUser } from "@/entities/session";
+import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
 import type { Sticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
@@ -335,6 +336,39 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     if (index >= 0) setViewer({ items, index });
   };
 
+  const openStory = (reply: { url?: string | null; kind?: string; authorName?: string | null }) => {
+    if (!reply.url) return;
+    const now = Date.now();
+    const storyId = `st_${now}_${Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")}`;
+    const story = {
+      id: storyId,
+      userId: "st_reply",
+      kind: reply.kind as "image" | "video",
+      url: reply.url,
+      items: [{ kind: reply.kind as "image" | "video", url: reply.url }],
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 86400000).toISOString(),
+      viewedByIds: [],
+      likedByIds: [],
+      viewed: false,
+      liked: false,
+      likeCount: 0,
+      viewCount: 0,
+    };
+    const author = {
+      id: "st_reply",
+      name: reply.authorName ?? "История",
+      username: null,
+      avatarColor: null,
+      avatarImage: null,
+      isVerified: false,
+      isPremium: false,
+      isBot: false,
+      isChannel: false,
+    };
+    openStoryViewer([{ user: author, stories: [story] } as unknown as StoryGroup], 0);
+  };
+
   return (
     <div className={styles.feed}>
       {selection.active ? <SelectionBar messages={selected} chat={chat} me={me} actions={actions} senderName={senderName} onClear={selection.clear} /> : null}
@@ -412,6 +446,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         onOpenComments={withComments(chat, row.message) ? (m) => setThread({ kind: "comments", post: m }) : undefined}
                         onCallBack={selection.active ? undefined : callBack}
                         onStickerClick={openPackBySticker}
+                        onOpenStory={openStory}
                       />
                     </div>
                   )}
@@ -517,10 +552,12 @@ type RowProps = {
   onCallBack?: (kind: CallKind) => void;
   /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
   onStickerClick?: (sticker: Sticker) => void;
+  /** Ответ на историю — открыть просмотр историй (как в Telegram). */
+  onOpenStory?: (reply: { url?: string | null; kind?: string; authorName?: string | null }) => void;
 };
 
 function MessageRow(props: RowProps) {
-  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick } = props;
+  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick, onOpenStory } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   const comments = props.onOpenThread && message.type !== "system" && !message.threadRootId ? (message.commentCount ?? 0) : 0;
@@ -567,6 +604,7 @@ function MessageRow(props: RowProps) {
       summary={props.summaries.of(message.id)}
       onCallBack={props.onCallBack}
       onStickerClick={onStickerClick}
+      onOpenStory={onOpenStory}
       footer={
         props.onOpenComments ? (
           <button

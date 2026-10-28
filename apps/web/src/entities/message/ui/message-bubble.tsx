@@ -68,6 +68,8 @@ type Props = {
   onOpenMedia?: (m: Message, url: string) => void;
   /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
   onStickerClick?: (sticker: Sticker) => void;
+  /** Ответ на историю — открыть просмотр историй (как в Telegram). */
+  onOpenStory?: (reply: StoryReply) => void;
   /** Чат с запретом сохранения: без кнопок «скачать». */
   protectedContent?: boolean;
   /** Опросы, чек-листы, платные посты. */
@@ -260,7 +262,7 @@ export function MessageBubble(props: Props) {
     );
   }
   if (m.replyToId) body.push(<ReplyQuote key="reply" target={props.replyTo} name={props.replyToName} onJumpTo={props.onJumpTo} />);
-  if (m.storyReply) body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} />);
+  if (m.storyReply) body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} onOpenStory={props.onOpenStory} />);
   if (giftLine) body.push(<p key="gift" className={styles.attachment}>{giftLine}</p>);
   if (gift) body.push(<GiftMessage key="gift" messageId={m.id} gift={gift} mine={mine} meta={meta} />);
   if (m.attachments?.length && !isCall && !article) {
@@ -632,10 +634,25 @@ function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDet
 
 type StoryReply = { url?: string | null; kind?: string; authorName?: string | null };
 
-/** Ответ на историю — миниатюра и подпись над текстом (story-reply-banner в messageBubble.js). */
-function StoryReplyBanner({ reply }: { reply: StoryReply }) {
+/** Ответ на историю — миниатюра и подпись над текстом (story-reply-banner в messageBubble.js). Клик открывает просмотр истории. */
+function StoryReplyBanner({ reply, onOpenStory }: { reply: StoryReply; onOpenStory?: (reply: StoryReply) => void }) {
   return (
-    <div className={styles.storyReply}>
+    <div
+      className={styles.storyReply}
+      role="button"
+      tabIndex={0}
+      aria-label={reply.authorName ? `История от ${reply.authorName}` : "История"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenStory?.(reply);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.stopPropagation();
+          onOpenStory?.(reply);
+        }
+      }}
+    >
       {reply.url ? (
         reply.kind === "video" ? (
           <video className={styles.storyReplyThumb} src={reply.url} muted playsInline preload="metadata" />

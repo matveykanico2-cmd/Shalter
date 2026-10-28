@@ -23,7 +23,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [addMode, setAddMode] = useState<AddMode>("all");
-  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatId, setChatId] = useState<string | undefined>(undefined);
   const [chatVisible, setChatVisible] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +81,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
       <p className={styles.sectionName}>Первый чат сообщества (группа или канал)</p>
       {selectableChats.length ? (
         <div className={styles.field}>
-          <RadioRows label="Чат" options={selectableChats.map((c) => ({ value: c.id, title: c.title || "Без названия", sub: c.type === "channel" ? "Канал" : "Группа" }))} value={chatId ?? ""} onChange={(v) => setChatId(v || null)} />
+          <RadioRows label="Чат" options={selectableChats.map((c) => ({ value: c.id, title: c.title || "Без названия", sub: c.type === "channel" ? "Канал" : "Группа" }))} value={chatId ?? ""} onChange={(v) => setChatId(v || undefined)} />
           <label className={styles.caption}>
             <input type="checkbox" checked={chatVisible} onChange={(e) => setChatVisible(e.target.checked)} /> Виден всем участникам
           </label>
