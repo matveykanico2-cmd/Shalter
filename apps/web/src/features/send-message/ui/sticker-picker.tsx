@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback,useEffect, useState } from "react";
 
 import { DRAWN_STICKERS, renderSticker, type Sticker, STICKERS } from "@/shared/lib/anim";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
-import { stickerPackQueries, type StickerPack } from "../api/sticker-packs";
+import { stickerPackQueries } from "../api/sticker-packs";
+import { closeStickerPack, openStickerPack, useStickerPackView } from "../lib/sticker-pack-store";
 
 import { StickerPackDetail } from "./sticker-pack-detail";
 import { StickerPackDialog } from "./sticker-pack-dialog";
@@ -74,8 +75,11 @@ export function StickerButton({ chatId, onSend }: Props) {
 function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s: Sticker) => void; onManage: () => void }) {
   const client = useQueryClient();
   const packs = useQuery(stickerPackQueries.list());
-  const [viewingPack, setViewingPack] = useState<StickerPack | null>(null);
-  const refresh = () => void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
+  const viewingPack = useStickerPackView();
+  const refresh = useCallback(() => {
+    void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
+    closeStickerPack();
+  }, [client]);
 
   useEffect(() => {
     sendTyping(chatId, "choose_sticker").catch(() => {});
@@ -88,7 +92,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
 
   const pickOwn = (s: Sticker) => {
     onPick(outgoing(s));
-    setViewingPack(null);
+    closeStickerPack();
   };
 
   if (viewingPack) {
@@ -96,7 +100,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
       <div className={styles.panel}>
         <StickerPackDetail
           pack={viewingPack}
-          onClose={() => setViewingPack(null)}
+          onClose={closeStickerPack}
           onStickerPick={pickOwn}
           onRefresh={refresh}
         />
@@ -127,7 +131,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
                   onClick={() => {
                     if (fromOwnPack) {
                       const pack = packs.data?.find((p) => p.id === section.packId);
-                      if (pack) setViewingPack(pack);
+                      if (pack) openStickerPack(pack);
                     } else {
                       onPick(outgoing(s));
                     }

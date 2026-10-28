@@ -66,6 +66,8 @@ type Props = {
   onReact?: (m: Message, emoji: string) => void;
   /** Открыть фото или видео этого сообщения в просмотрщике. */
   onOpenMedia?: (m: Message, url: string) => void;
+  /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
+  onStickerClick?: (sticker: Sticker) => void;
   /** Чат с запретом сохранения: без кнопок «скачать». */
   protectedContent?: boolean;
   /** Опросы, чек-листы, платные посты. */
@@ -289,7 +291,7 @@ export function MessageBubble(props: Props) {
     );
   }
   else if (sticker) {
-    body.push(<StickerBody key="sticker" messageId={m.id} sticker={sticker} />);
+    body.push(<StickerBody key="sticker" messageId={m.id} sticker={sticker} onStickerClick={props.onStickerClick} />);
   }
   const reactions = reactionsOf(m);
   // 1–3 эмодзи или только свои эмодзи — крупно, как в Telegram.

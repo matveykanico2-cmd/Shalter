@@ -16,13 +16,20 @@ function firstShow(key: string) {
   return fresh;
 }
 
-export function StickerBody({ messageId, sticker }: { messageId: string; sticker: Sticker }) {
+export function StickerBody({ messageId, sticker, onStickerClick }: { messageId: string; sticker: Sticker; onStickerClick?: (sticker: Sticker) => void }) {
   const fresh = firstShow(`sticker:${messageId}`);
   const image = sticker.kind === "image";
   return (
-    <div className={["sticker-message", image ? "is-image" : "", fresh ? "" : "no-entrance"].filter(Boolean).join(" ")}>
+    <button
+      type="button"
+      className={["sticker-message", image ? "is-image" : "", fresh ? "" : "no-entrance"].filter(Boolean).join(" ")}
+      onClick={(e) => {
+        e.stopPropagation();
+        onStickerClick?.(sticker);
+      }}
+    >
       <DomNode create={() => renderSticker(sticker, { size: image ? 160 : 84, replay: fresh })} label={sticker.emoji || "Стикер"} />
-    </div>
+    </button>
   );
 }
 

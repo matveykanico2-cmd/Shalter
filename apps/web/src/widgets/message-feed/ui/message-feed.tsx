@@ -16,6 +16,7 @@ import {
   useSummaries,
 } from "@/features/message-actions";
 import { Composer } from "@/features/send-message";
+import { openStickerPack, stickerPackQueries } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -36,6 +37,7 @@ import {
 import { type ReportInfo, ReportMessage } from "@/entities/report";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 
+import type { Sticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -98,6 +100,12 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
+  // Свои стикерпаки — чтобы при клике на стикер в сообщении открыть его пак (как в Telegram).
+  const packs = useQuery(stickerPackQueries.list());
+  const openPackBySticker = (sticker: Sticker) => {
+    const pack = packs.data?.find((p) => p.stickers.some((s) => s.uid === sticker.uid));
+    if (pack) openStickerPack(pack);
+  };
   // Ветка ответов в группе или комментарии к посту канала.
   const [thread, setThread] = useState<ThreadSource | null>(null);
   const openThread = (m: Message) => setThread({ kind: "thread", chatId: chat.id, root: m });
@@ -403,6 +411,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         onOpenThread={isGroup ? openThread : undefined}
                         onOpenComments={withComments(chat, row.message) ? (m) => setThread({ kind: "comments", post: m }) : undefined}
                         onCallBack={selection.active ? undefined : callBack}
+                        onStickerClick={openPackBySticker}
                       />
                     </div>
                   )}
@@ -506,10 +515,12 @@ type RowProps = {
   onOpenComments?: (m: Message) => void;
   /** Запись о звонке — перезвонить. */
   onCallBack?: (kind: CallKind) => void;
+  /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
+  onStickerClick?: (sticker: Sticker) => void;
 };
 
 function MessageRow(props: RowProps) {
-  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact } = props;
+  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   const comments = props.onOpenThread && message.type !== "system" && !message.threadRootId ? (message.commentCount ?? 0) : 0;
@@ -555,6 +566,7 @@ function MessageRow(props: RowProps) {
       onToggleSelect={props.onToggleSelect}
       summary={props.summaries.of(message.id)}
       onCallBack={props.onCallBack}
+      onStickerClick={onStickerClick}
       footer={
         props.onOpenComments ? (
           <button
