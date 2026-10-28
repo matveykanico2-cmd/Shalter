@@ -125,6 +125,8 @@ export function ChatList({ meId }: { meId: string }) {
     // Сообщества — только во вкладке «Все». В «Группы» и «Каналы» не попадают;
     // открываются только по нажатию на само сообщество (панель / страница сообщества).
     const shown = activeTab === "all" && !unreadOnly ? communities : [];
+    const communityChatIds = new Set(communities.flatMap((cm) => cm.chatIds));
+    list = list.filter((c) => !communityChatIds.has(c.id) || c.id === currentId);
     const folded = new Set(shown.filter((cm) => cm.collapsed).flatMap((cm) => cm.chatIds));
     if (folded.size) list = list.filter((c) => !folded.has(c.id) || c.id === currentId);
     const notArchived = chats.filter((c) => !c.archived);

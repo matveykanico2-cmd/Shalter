@@ -217,18 +217,6 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         </div>
 
         {!isDm && (chat.type !== "channel" || isAdmin) ? <Members chat={chat} members={members} meId={me.id} /> : null}
-
-        <div className={styles.card}>
-          <Row icon="Mic" onClick={() => {}}>
-            Поле прослушки дедиа
-          </Row>
-          <div className={styles.listenField}>
-            <input className={styles.listenInput} placeholder="Dedicated ключ прослушивания" />
-            <button type="button" className={styles.listenSubmit} onClick={() => {}}>
-              Подключить
-            </button>
-          </div>
-        </div>
       </div>
 
       {autoDeleteAt ? (

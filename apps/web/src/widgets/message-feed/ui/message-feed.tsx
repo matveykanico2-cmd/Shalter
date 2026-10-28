@@ -16,7 +16,6 @@ import {
   useSummaries,
 } from "@/features/message-actions";
 import { Composer } from "@/features/send-message";
-import { openStickerPack, stickerPackQueries } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -39,6 +38,17 @@ import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
 import type { Sticker } from "@/shared/lib/anim";
+import { closeStickerPack, openStickerPack, useStickerPackView } from "@/features/send-message/lib/sticker-pack-store";
+import { StickerPackDetail } from "@/features/send-message/ui/sticker-pack-detail";
+import { sendMessage } from "@/features/send-message/api/send-message";
+import { stickerPackQueries } from "@/features/send-message/api/sticker-packs";
+
+function outgoing(s: Sticker): Sticker {
+  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
+  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid };
+  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
+}
+
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -103,10 +113,19 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const history = useQuery(messageQueries.history(chat.id, topic));
   // Свои стикерпаки — чтобы при клике на стикер в сообщении открыть его пак (как в Telegram).
   const packs = useQuery(stickerPackQueries.list());
+  const viewingPack = useStickerPackView();
   const openPackBySticker = (sticker: Sticker) => {
     const pack = packs.data?.find((p) => p.stickers.some((s) => s.uid === sticker.uid));
     if (pack) openStickerPack(pack);
   };
+  const sendSticker = useCallback((s: Sticker) => {
+    void sendMessage({ chatId: chat.id, text: "", sticker: outgoing(s) }).catch(() => {});
+    closeStickerPack();
+  }, [chat.id]);
+  const refreshPacks = useCallback(() => {
+    void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
+    closeStickerPack();
+  }, [client]);
   // Ветка ответов в группе или комментарии к посту канала.
   const [thread, setThread] = useState<ThreadSource | null>(null);
   const openThread = (m: Message) => setThread({ kind: "thread", chatId: chat.id, root: m });
@@ -520,6 +539,14 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         />
       ) : null}
       {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
+      {viewingPack ? (
+        <StickerPackDetail
+          pack={viewingPack}
+          onClose={closeStickerPack}
+          onStickerPick={sendSticker}
+          onRefresh={refreshPacks}
+        />
+      ) : null}
     </div>
   );
 }
