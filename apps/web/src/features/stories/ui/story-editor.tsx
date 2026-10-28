@@ -29,7 +29,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
   const stageRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState<HTMLImageElement | null>(null);
-  const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: TEXT_COLORS[1]!, bg: false }));
+  const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: "#ffffff", bg: false }));
   const [layers, setLayers] = useState<Layer[]>(() => (initialText ? [initialText] : []));
   const [selectedId, setSelectedId] = useState<number | null>(initialText?.id ?? null);
   const [editingId, setEditingId] = useState<number | null>(initialText?.id ?? null);
@@ -85,7 +85,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
 
   const addLayer = (partial: Omit<Layer, "id" | "color" | "bg">) => {
     // На белом холсте белый текст не виден — там по умолчанию тёмный.
-    const layer: Layer = { id: ++uid, color: file ? "#ffffff" : TEXT_COLORS[1]!, bg: false, ...partial };
+    const layer: Layer = { id: ++uid, color: file ? "#ffffff" : "#ffffff", bg: false, ...partial };
     setLayers((list) => [...list, layer]);
     setSelectedId(layer.id);
     return layer;

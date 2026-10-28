@@ -46,10 +46,18 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, w: number, h: number) {
-  // Текстовая история — белый холст без фото.
+  // Текстовая historia — оформление «как статья»: тёмный градиентный фон вместо пустого белого.
   if (!img) {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
+    try {
+      const gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, "#0f172a");
+      gradient.addColorStop(1, "#1e293b");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+    } catch {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
     return;
   }
   const ir = img.naturalWidth / img.naturalHeight || 1;

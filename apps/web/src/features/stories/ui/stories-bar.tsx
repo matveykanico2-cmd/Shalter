@@ -23,6 +23,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ file: File | null; resolve: (f: File | null) => void } | null>(null);
   const [creating, setCreating] = useState<"text" | "media" | null>(null);
+  /** Выбранные файлы для одной истории — можно добавить ещё фото/видео перед публикацией. */
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const refetch = () => void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
   useWsEvent("story:new", refetch);
@@ -32,8 +34,17 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   useWsEvent("ws:reconnected", refetch);
 
   const pick = async (files: File[]) => {
+    setSelectedFiles((prev) => [...prev, ...files]);
+    setProgress(null);
+    setCreating(null);
+  };
+
+  /** Опубликовать все выбранные файлы одной историей. */
+  const publish = async () => {
+    if (!selectedFiles.length) return;
     try {
-      const posted = await postStory(files, {
+      setProgress("Загружаем историю…");
+      const posted = await postStory(selectedFiles, {
         edit: (file) => new Promise((resolve) => setEditing({ file, resolve })),
         progress: setProgress,
       });
@@ -42,8 +53,17 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
-      setCreating(null);
+      setSelectedFiles([]);
     }
+  };
+
+  const addMore = () => {
+    setCreating(null);
+    fileRef.current?.click();
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
   };
 
   // «Текст» — пустой белый холст в редакторе; готовая картинка уходит как фото-история.
@@ -58,7 +78,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
-      setCreating(null);
     }
   };
 
@@ -130,6 +149,36 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           </button>
         </div>
       ) : null}
+      {selectedFiles.length > 0 ? (
+        <div className={styles.mediaSelection}>
+          <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} файлов</div>
+          <div className={styles.mediaSelectionGrid}>
+            {selectedFiles.map((file, i) => {
+              const url = URL.createObjectURL(file);
+              return (
+                <div key={i} className={styles.mediaSelectionItem}>
+                  <img src={url} alt="" className={styles.mediaSelectionThumb} onLoad={() => URL.revokeObjectURL(url)} />
+                  <button type="button" className={styles.mediaSelectionRemove} title="Удалить" onClick={() => void removeFile(i)}>
+                    <Icon name="X" size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            <button type="button" className={styles.mediaSelectionAdd} onClick={addMore}>
+              <Icon name="Plus" size={14} />
+              Ещё фото/видео
+            </button>
+          </div>
+          <div className={styles.mediaSelectionActions}>
+            <button type="button" className={styles.mediaSelectionCancel} onClick={() => { setSelectedFiles([]); setCreating(null); }}>
+              Отмена
+            </button>
+            <button type="button" className={styles.mediaSelectionPublish} onClick={publish}>
+              Опубликовать историю
+            </button>
+          </div>
+        </div>
+      ) : null}
       <input
         ref={fileRef}
         type="file"
@@ -139,7 +188,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         onChange={(e) => {
           const files = [...(e.target.files ?? [])];
           e.target.value = "";
-          if (files.length && creating === "media") void pick(files);
+          if (files.length) void pick(files);
         }}
       />
       {groups.map((g, i) =>
