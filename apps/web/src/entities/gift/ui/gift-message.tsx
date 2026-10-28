@@ -4,9 +4,10 @@ import { type ReactNode, useState } from "react";
 import { useSession } from "@/entities/session/@x/gift";
 import { openUserProfile, userQueries } from "@/entities/user/@x/gift";
 
-import { Avatar } from "@/shared/ui";
+import { Avatar, Icon } from "@/shared/ui";
 
 import { giftStars } from "../lib/gift-stars";
+import { isReadByOthers } from "../lib/message-meta";
 import { convertGift } from "../model/convert-gift";
 import { openGiftShop } from "../model/shop-store";
 import type { MessageGift } from "../model/types";
@@ -26,13 +27,15 @@ type Props = {
   mine: boolean;
   /** Время и галочки — строкой под карточкой. */
   meta: ReactNode;
+  /** Идентификаторы прочитавших — для галочек отправителю. */
+  readByIds?: readonly string[];
 };
 
 /**
  * Подарок в чате, как в tweb (bubbles/starGift.tsx) — GiftMessage в messageBubble.js: служебная
  * строка «… подарок за N ⭐», под ней карточка — анимация, «Подарок от …», пояснение и кнопки.
  */
-export function GiftMessage({ messageId, gift, mine, meta }: Props) {
+export function GiftMessage({ messageId, gift, mine, meta, readByIds }: Props) {
   const [isNew] = useState(() => {
     const fresh = !seen.has(messageId);
     seen.add(messageId);
@@ -50,6 +53,7 @@ export function GiftMessage({ messageId, gift, mine, meta }: Props) {
   const priceText = gift.custom ? "" : ` за ${fmt(stars)} ⭐`;
   const serviceText = mine ? `Вы отправили подарок${priceText}` : anon ? `Вам анонимно подарили подарок${priceText}` : `${fromName} отправил(а) вам подарок${priceText}`;
   const isExclusive = !!gift.exclusive && gift.serial != null;
+  const read = mine && readByIds ? isReadByOthers({ readByIds, senderId: gift.fromId ?? me?.id ?? "" }) : false;
 
   // Имена в подарке открывают профиль (как в Telegram).
   const link = (userId: string, name: string, avatar: ReactNode = null) => (
@@ -92,6 +96,11 @@ export function GiftMessage({ messageId, gift, mine, meta }: Props) {
   return (
     <div className={isNew ? styles.gift : `${styles.gift} ${styles.noEntrance}`}>
       <div className={styles.service}>{serviceText}</div>
+      {mine && readByIds && (
+        <span className={styles.tick} role="img" aria-label={read ? "Прочитано" : "Доставлено"}>
+          <Icon name={read ? "CheckCheck" : "Check"} size={14} />
+        </span>
+      )}
       <div className={styles.box}>
         {isExclusive ? (
           <span className={styles.ribbon}>

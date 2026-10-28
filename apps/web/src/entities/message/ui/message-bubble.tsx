@@ -198,7 +198,7 @@ export function MessageBubble(props: Props) {
       {m.editedAt ? <span>изменено</span> : null}
       <span>{timeLabel(m.createdAt)}</span>
       {isChannel && typeof m.views === "number" ? <span>{m.views} 👁</span> : null}
-      {mine ? (
+      {mine && !gift ? (
         <span className={m.pending ? styles.pending : styles.tick} role="img" aria-label={m.pending ? "Отправляется" : isReadByOthers(m) ? "Прочитано" : "Доставлено"}>
           <Icon name={m.pending ? "Clock" : isReadByOthers(m) ? "CheckCheck" : "Check"} size={14} />
         </span>
