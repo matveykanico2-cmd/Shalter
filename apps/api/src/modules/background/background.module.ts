@@ -15,8 +15,6 @@ import { AutoDeleteSweep } from "./sweeps/auto-delete.sweep.js";
 import { BirthdaysSweep } from "./sweeps/birthdays.sweep.js";
 import { HolidaysSweep } from "./sweeps/holidays.sweep.js";
 import { RemindersSweep } from "./sweeps/reminders.sweep.js";
-import { UploadsSweep } from "./sweeps/uploads.sweep.js";
-import { UploadRefsRepository } from "./upload-refs.repository.js";
 
 // Фоновая работа: очередь задач (background_jobs) и обходы по таймеру. Модуль подключают и
 // фоновый процесс (worker.module.ts), и основной — для BACKGROUND_WORKER=0. MessagesModule
@@ -34,11 +32,9 @@ import { UploadRefsRepository } from "./upload-refs.repository.js";
     AccountDeletionSweep,
     BirthdaysSweep,
     HolidaysSweep,
-    UploadsSweep,
     BackgroundJobsRepository,
     RemindersRepository,
     GreetingsRepository,
-    UploadRefsRepository,
     MessagesRepository,
   ],
   exports: [BackgroundService, SweepsService],

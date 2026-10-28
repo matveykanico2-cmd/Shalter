@@ -75,8 +75,8 @@ describe("истории", () => {
       "POST /api/chats/c_dm/messages": { body: { message: {} } },
     });
     renderBar();
-    // «Моя история» есть всегда; у других — имя без фамилии.
-    expect(screen.getByRole("button", { name: /Моя история$/ })).toBeTruthy();
+    // Своей истории нет — есть только «Выложить историю»; у других — имя без фамилии.
+    expect(screen.getByRole("button", { name: /Выложить историю$/ })).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: /Алиса$/ }));
 
     const viewer = await screen.findByRole("dialog", { name: "История" });
@@ -170,8 +170,8 @@ describe("истории", () => {
       "POST /api/stories": { body: { story: story(MY_STORY, ME.id) } },
     });
     renderBar();
-    // Своей истории нет — клик по «Моя история» открывает выбор создания.
-    fireEvent.click(screen.getByRole("button", { name: /Моя история$/ }));
+    // Своей истории нет — клик по «Выложить историю» открывает выбор создания.
+    fireEvent.click(screen.getByRole("button", { name: /Выложить историю$/ }));
     fireEvent.click(screen.getByRole("button", { name: "Текстовый пост" }));
     const editor = await screen.findByRole("dialog", { name: "Редактор истории" });
     // Фото нет — пропускать нечего; поле текста уже на холсте.

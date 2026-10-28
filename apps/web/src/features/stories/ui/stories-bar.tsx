@@ -68,11 +68,12 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const openCreate = () => setCreating("media");
   const ring = (g: StoryGroup | null) => (g ? (hasUnseen(g) ? `${styles.ring} ${styles.unseen}` : `${styles.ring} ${styles.seen}`) : styles.ring);
 
-  const ownItem = (
+  /** Кружок своей истории: открывает просмотр, если она есть. */
+  const ownItem = myGroup ? (
     <button
       type="button"
       className={styles.item}
-      onClick={() => (myGroup ? openStoryViewer(groups, myIndex) : setCreating("media"))}
+      onClick={() => openStoryViewer(groups, myIndex)}
       onContextMenu={(e) => {
         e.preventDefault();
         openCreate();
@@ -81,39 +82,54 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       <span className={ring(myGroup)}>
         <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
       </span>
-      {myGroup && (
-        <span className={styles.addBadge} title="Добавить историю" onClick={(e) => { e.stopPropagation(); setCreating("media"); }}>
-          <Icon name="Plus" size={12} />
-        </span>
-      )}
       <span className={styles.label}>{progress ?? "Моя история"}</span>
     </button>
-  );
-
-  const createChoice = creating ? (
-    <div className={styles.createChoice}>
-      <button type="button" className={styles.item} title="Текстовый пост" onClick={() => { setCreating("text"); void textStory(); }}>
-        <span className={styles.textRing}>
-          <Icon name="FileText" size={22} />
-        </span>
-        <span className={styles.label}>Текстовый пост</span>
-      </button>
-      <button type="button" className={styles.item} title="История" onClick={addStory}>
-        <span className={styles.ring}>
-          <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={44} />
-        </span>
-        <span className={styles.label}>История</span>
-      </button>
-      <button type="button" className={styles.item} onClick={() => setCreating(null)}>
-        <Icon name="X" size={16} />
-      </button>
-    </div>
   ) : null;
+
+  /** Кружок «Выложить историю» — создать новую (фото/видео или текстовый пост). Всегда виден. */
+  const postItem = (
+    <button
+      type="button"
+      className={styles.item}
+      onClick={openCreate}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openCreate();
+      }}
+    >
+      <span className={ring(null)}>
+        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
+        <span className={styles.addBadge} title="Выложить историю" onClick={(e) => { e.stopPropagation(); openCreate(); }}>
+          <Icon name="Plus" size={12} />
+        </span>
+      </span>
+      <span className={styles.label}>Выложить историю</span>
+    </button>
+  );
 
   return (
     <div className={styles.bar}>
       {ownItem}
-      {createChoice}
+      {postItem}
+      {creating ? (
+        <div className={styles.createChoice}>
+          <button type="button" className={styles.item} title="Текстовый пост" onClick={() => { setCreating("text"); void textStory(); }}>
+            <span className={styles.textRing}>
+              <Icon name="FileText" size={22} />
+            </span>
+            <span className={styles.label}>Текстовый пост</span>
+          </button>
+          <button type="button" className={styles.item} title="История" onClick={addStory}>
+            <span className={styles.ring}>
+              <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={44} />
+            </span>
+            <span className={styles.label}>История</span>
+          </button>
+          <button type="button" className={styles.item} onClick={() => setCreating(null)}>
+            <Icon name="X" size={16} />
+          </button>
+        </div>
+      ) : null}
       <input
         ref={fileRef}
         type="file"

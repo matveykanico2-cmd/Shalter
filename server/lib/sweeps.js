@@ -18,7 +18,6 @@ function startSweeps({ testMode, skip = [] }) {
     holidays: () => require("./holidaySweep").startHolidaySweep(),
     reminders: () => require("./reminderSweep").startReminderSweep(),
     "account-deletion": () => require("./accountDeletionSweep").startAccountDeletionSweep(),
-    uploads: () => require("./orphanSweep").startOrphanSweep(),
     "uploads-migration": () => require("./uploadsMigration").startAutoMigration(),
   };
   for (const [name, start] of Object.entries(starters)) if (!skip.includes(name)) start();
@@ -33,7 +32,6 @@ const SWEEPS = {
   "account-deletion": (now) => require("./accountDeletionSweep").sweepOnce(now),
   birthdays: (now) => require("./birthdaySweep").sweepOnce(now),
   holidays: (now) => require("./holidaySweep").sweepOnce(now),
-  uploads: (now) => require("./orphanSweep").sweepOnce(now),
 };
 
 async function runSweep(name, now) {

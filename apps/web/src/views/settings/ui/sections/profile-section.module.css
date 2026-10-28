@@ -18,21 +18,23 @@
   border-radius: 50%;
   background: none;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .avatarEdit {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  right: 2px;
+  bottom: 2px;
   display: flex;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border: 2px solid var(--color-surface);
   border-radius: 50%;
   background: var(--color-accent);
   color: #fff;
+  z-index: 2;
 }
 
 .avatarCount {
