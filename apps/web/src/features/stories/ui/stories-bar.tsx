@@ -81,6 +81,11 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       <span className={ring(myGroup)}>
         <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
       </span>
+      {myGroup && (
+        <span className={styles.addBadge} title="Добавить историю" onClick={(e) => { e.stopPropagation(); setCreating("media"); }}>
+          <Icon name="Plus" size={12} />
+        </span>
+      )}
       <span className={styles.label}>{progress ?? "Моя история"}</span>
     </button>
   );
