@@ -798,12 +798,6 @@
 .profileFab:hover {
   background: color-mix(in srgb, var(--color-accent) 85%, transparent);
 }
-  width: 100%;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border);
-  text-align: left;
-}
 
 .adminTitle {
   display: flex;
