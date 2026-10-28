@@ -244,7 +244,16 @@ export function UserProfilePanel({ userId, me }: Props) {
   const showTabs = () => tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
-    <Shell onClose={close}>
+    <Shell
+      onClose={close}
+      fab={
+        u && !isSelf && !u.isBot ? (
+          <button type="button" className={styles.profileFab} title="Написать" aria-label="Написать" onClick={() => void startChat()}>
+            <Icon name="Edit" size={20} />
+          </button>
+        ) : null
+      }
+    >
       <div className={banner ? `${styles.avatarRow} ${styles.withBanner}` : styles.avatarRow} style={banner ? ({ "--profile-banner": banner } as CSSProperties) : undefined}>
         <button
           type="button"
@@ -555,7 +564,7 @@ export function UserProfilePanel({ userId, me }: Props) {
   );
 }
 
-function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+function Shell({ onClose, children, fab }: { onClose: () => void; children: ReactNode; fab?: ReactNode }) {
   return (
     <div
       className={styles.overlay}
@@ -572,10 +581,10 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
         </div>
         <div className={styles.body}>{children}</div>
       </aside>
+      {fab}
     </div>
   );
 }
-
 function QuickAction({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
     <button type="button" className={styles.quickAction} onClick={onClick}>

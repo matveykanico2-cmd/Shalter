@@ -71,6 +71,7 @@
 .selectMarkOn {
   border-color: var(--color-accent);
   background: var(--color-accent);
+  color: #fff;
 }
 
 .rowOut .selectMark {
@@ -144,7 +145,7 @@
   box-shadow: none;
 }
 
-/* Стикер в сообщении — кнопка: клик открывает его пак (как в Telegram). */
+/* Стикер в сообщении — кликабельная область, открывает пак (как в Telegram). */
 .sticker-message {
   display: inline-flex;
   align-items: center;
@@ -156,6 +157,10 @@
   cursor: pointer;
   font-size: 0;
   line-height: 0;
+  border-radius: 8px;
+}
+.sticker-message:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
 }
 .sticker-message:focus-visible {
   outline: 2px solid var(--color-accent);

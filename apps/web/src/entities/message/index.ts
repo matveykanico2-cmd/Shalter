@@ -4,6 +4,7 @@ export { ARTICLE_MAX_CHARS, ARTICLE_TITLE_RE, buildArticleText, isArticle, split
 export { attachmentsOf, isVisualMedia, mediaItem } from "./lib/attachments";
 export { parseText } from "./lib/format-text";
 export { canApplyLive, emptyHistory } from "./lib/history";
+export { graphemes, jumboEmojiCount } from "./lib/jumbo";
 export type { KeyboardButton } from "./lib/keyboard";
 export { hasMediaPreview } from "./lib/media-preview";
 export { isCallLogMessage, isReadByOthers, timeLabel } from "./lib/message-meta";

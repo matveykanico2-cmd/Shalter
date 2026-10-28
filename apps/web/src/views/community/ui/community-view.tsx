@@ -7,12 +7,13 @@ import { AddChatFlow, CommunitySettingsDialog, useCommunityActions } from "@/fea
 import { chatQueries } from "@/entities/chat";
 import { chatMembersLabel, chatsCountLabel, type Community, communityApi, CommunityAvatar, type CommunityChat, communityMembersLabel, communityQueries, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
+import { openUserProfile } from "@/entities/user";
 
 import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
-import { Avatar, Button, Icon, toast } from "@/shared/ui";
+import { Avatar, Button, Dialog, Icon, toast } from "@/shared/ui";
 
 import styles from "./community-view.module.css";
 
@@ -53,7 +54,7 @@ function CommunityPage({ community }: { community: Community }) {
   const actions = useCommunityActions();
   const openCommunity = useOpenCommunity();
   const [busy, setBusy] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"add" | "settings" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "settings" | "members" | null>(null);
   const rights = community.rights;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
 
@@ -122,6 +123,11 @@ function CommunityPage({ community }: { community: Community }) {
             Вступить в сообщество
           </Button>
         )}
+        {community.isMember ? (
+          <Button variant="secondary" onClick={() => setDialog("members")}>
+            <Icon name="Users" size={15} /> Участники
+          </Button>
+        ) : null}
         <Button variant="secondary" onClick={() => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована")}>
           <Icon name="Link" size={15} /> Ссылка
         </Button>
@@ -170,6 +176,55 @@ function CommunityPage({ community }: { community: Community }) {
       </Button>
       {dialog === "add" && me ? <AddChatFlow community={community} meId={me.id} onDone={reload} onClose={() => setDialog(null)} /> : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
+      {dialog === "members" && me ? <CommunityMembersDialog community={community} onClose={() => setDialog(null)} /> : null}
     </div>
+  );
+}
+
+const roleIcon = (role: string) => (role === "owner" ? "Crown" : role === "admin" ? "Shield" : null);
+
+/** Список всех участников сообщества — открывается со страницы сообщества. */
+function CommunityMembersDialog({ community, onClose }: { community: Community; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const members = useQuery({
+    queryKey: ["communities", "members", community.id, query],
+    queryFn: () => communityApi.members(community.id, query).then((r) => r.users),
+    staleTime: 0,
+  });
+  const list = members.data ?? [];
+  return (
+    <Dialog title="Участники сообщества" onClose={onClose} className={styles.wide}>
+      <input
+        className={styles.search}
+        placeholder="Поиск участников"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <div className={styles.list}>
+        {members.isError ? <p className={styles.caption}>{errorText(members.error, "Не удалось загрузить участников")}</p> : null}
+        {members.isPending ? <p className={styles.caption}>Загрузка…</p> : null}
+        {members.data && list.length ? (
+          list.map((m) => (
+            <button key={m.id} type="button" className={styles.memberRow} onClick={() => void openUserProfile(m.id)}>
+              <Avatar size={40} name={m.name} color={m.avatarColor} image={m.avatarImage} online={m.online} />
+              <span className={styles.memberBody}>
+                <span className={styles.memberName}>{m.name}</span>
+                {m.username ? <span className={styles.memberUsername}>@{m.username}</span> : null}
+                {m.role && m.role !== "member" ? (
+                  <span className={`${styles.memberRole} ${styles[roleIcon(m.role) === "Crown" ? "roleOwner" : "roleAdmin"]}`} title={m.role === "owner" ? "Владелец" : "Администратор"}>
+                    <Icon name={roleIcon(m.role) ?? "User"} size={13} /> {m.role === "owner" ? "Владелец" : "Администратор"}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          ))
+        ) : (
+          <p className={styles.caption}>{query ? "Никого не нашлось" : "Участников нет"}</p>
+        )}
+      </div>
+      <Button variant="link" onClick={onClose}>
+        Назад
+      </Button>
+    </Dialog>
   );
 }

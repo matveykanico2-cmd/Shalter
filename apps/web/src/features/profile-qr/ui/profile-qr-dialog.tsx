@@ -130,9 +130,26 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
       URL.revokeObjectURL(href);
       setNote("Картинка сохранена ✓");
     } catch (err) {
-      // Отмена системного меню — не ошибка (в браузере AbortError, в приложении «canceled»).
       const e = err as { name?: string; message?: string } | null;
       setNote(e?.name === "AbortError" || /cancel/i.test(e?.message ?? "") ? "" : "Не удалось поделиться картинкой");
+    }
+  };
+
+  const downloadCard = async () => {
+    setNote("Готовим картинку…");
+    try {
+      const file = await preparedCard();
+      const href = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      setNote("Картинка скачана ✓");
+    } catch {
+      setNote("Не удалось скачать картинку");
     }
   };
 
@@ -172,13 +189,17 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
             <Icon name="Copy" size={16} />
             Скопировать ссылку
           </Button>
-          <Button variant="secondary" onClick={() => setPicking(true)}>
-            <Icon name="Send" size={16} />
-            Отправить в чат
-          </Button>
           <Button variant="secondary" onClick={() => void shareImage()}>
             <Icon name="Share" size={16} />
             Поделиться
+          </Button>
+          <Button variant="secondary" onClick={() => void downloadCard()}>
+            <Icon name="Download" size={16} />
+            Скачать картинку
+          </Button>
+          <Button variant="secondary" onClick={() => setPicking(true)}>
+            <Icon name="Send" size={16} />
+            Отправить в чат
           </Button>
         </div>
         <p className={styles.note} role="status">

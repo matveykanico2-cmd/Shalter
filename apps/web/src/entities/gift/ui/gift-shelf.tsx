@@ -39,11 +39,9 @@ export function GiftShelf({ user, isSelf, onChanged }: Props) {
   const client = useQueryClient();
   const [open, setOpen] = useState<ReceivedGift | null>(null);
   const gifts = (user.giftsReceived ?? []) as ReceivedGift[];
-  if (!gifts.length) return <p className={styles.empty}>Подарков пока нет</p>;
-  const ordered = gifts
-    .slice()
-    .reverse()
-    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  // Только подарки из Телеграма — свои (некачественные) убираем с полки.
+  const ordered = gifts.filter((g) => !g.custom).slice().reverse().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  if (!ordered.length) return <p className={styles.empty}>Подарков пока нет</p>;
 
   const changed = (next: { giftsReceived: ReceivedGift[] }) => {
     onChanged?.(next);

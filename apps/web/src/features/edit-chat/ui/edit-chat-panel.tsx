@@ -2,7 +2,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { chatQueries, type ChatSummary } from "@/entities/chat";
+import { graphemes } from "@/entities/message";
 
+import { hasAnimatedEmoji } from "@/shared/lib/anim";
+import { ALL_EMOJI } from "@/shared/lib/emoji-list";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { useEscape } from "@/shared/lib/use-escape";
@@ -31,14 +34,8 @@ const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   log: "Недавние действия",
 };
 
-/** Набор смайлов для быстрой заставки группы. */
-const EMOJIS = [
-  "😀", "😂", "😍", "🤩", "😎", "😡", "😭", "🎉", "💯", "🔥",
-  "❤️", "👍", "🚀", "🌟", "⭐", "✨", "💎", "🎁", "🎂", "🥳",
-  "🤔", "😴", "😈", "👻", "🎃", "🎄", "☀️", "🌙", "☁️", "❄️",
-  "🍀", "🍎", "🍕", "🍔", "☕", "🍺", "🎸", "🎮", "🏀", "⚽",
-  "🏈", "🎯", "🎲", "🎨", "🎧", "📚", "✍️", "🔑", "💡",
-];
+/** Все существующие эмодзи для заставки — анимированные где есть (как в Telegram). */
+const EMOJIS = ALL_EMOJI.filter(hasAnimatedEmoji);
 
 /** «Добавить историю канала» — выбор файлов и редактор у ленты историй, здесь только строка. */
 type ChannelStory = { open: () => void; progress: string | null };
@@ -130,9 +127,11 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   };
 
   const pickEmoji = (e: string) => {
+    const g = graphemes(e.trim());
+    if (g.length !== 1) return toast("Один смайл", { error: true });
     setAvatarMode(null);
     setAvatarImage(null);
-    setAvatarEmoji(e);
+    setAvatarEmoji(g[0]!);
   };
 
   const pickLetter = (l: string) => {
@@ -218,7 +217,7 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
               <div className={styles.emojiInputWrap}>
                 <input
                   className={styles.emojiInput}
-                  maxLength={2}
+                  maxLength={10}
                   placeholder="свой смайл"
                   value={customEmoji}
                   onChange={(e) => setCustomEmoji(e.target.value)}

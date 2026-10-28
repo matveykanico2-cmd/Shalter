@@ -1,6 +1,9 @@
 import { useState } from "react";
 
+import { hasAnimatedEmoji,renderAnimatedEmoji } from "../lib/anim";
+
 import styles from "./avatar.module.css";
+import { DomNode } from "./dom-node";
 
 type Props = {
   name: string;
@@ -20,7 +23,7 @@ const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
-/** Аватар: фото, а без него (или если не загрузилось) — инициалы на цвете профиля. */
+/** Аватар: фото, анимация эмодзи (как в Telegram), или инициалы на цвете профиля. */
 export function Avatar({ name, color, image, emoji, size = 44, online = false }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
   const showImage = !!image && broken !== image;
@@ -28,6 +31,8 @@ export function Avatar({ name, color, image, emoji, size = 44, online = false }:
     <span className={styles.avatar} style={{ width: size, height: size }}>
       {showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
+      ) : emoji && hasAnimatedEmoji(emoji) ? (
+        <DomNode key="animated" create={() => renderAnimatedEmoji(emoji, { size, replay: true })} />
       ) : (
         <span className={styles.fallback} translate="no" style={{ background: color ?? undefined, fontSize: size * 0.5 }}>
           {emoji ? emoji : initials(name) || "?"}
