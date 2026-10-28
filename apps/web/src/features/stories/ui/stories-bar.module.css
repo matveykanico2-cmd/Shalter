@@ -96,3 +96,12 @@
   font-size: 11px;
   color: var(--color-muted);
 }
+/* Выбор при создании истории: текстовый пост или фото/видео. */
+.createChoice {
+  display: flex;
+  gap: 4px;
+}
+.createChoice .item {
+  width: auto;
+  min-width: 56px;
+}

@@ -22,6 +22,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ file: File | null; resolve: (f: File | null) => void } | null>(null);
+  const [creating, setCreating] = useState<"text" | "media" | null>(null);
 
   const refetch = () => void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
   useWsEvent("story:new", refetch);
@@ -41,6 +42,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
+      setCreating(null);
     }
   };
 
@@ -56,40 +58,57 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
+      setCreating(null);
     }
   };
 
   const myIndex = groups.findIndex((g) => g.user.id === me.id);
   const myGroup = groups[myIndex] ?? null;
   const addStory = () => fileRef.current?.click();
+  const openCreate = () => setCreating("media");
   const ring = (g: StoryGroup | null) => (g ? (hasUnseen(g) ? `${styles.ring} ${styles.unseen}` : `${styles.ring} ${styles.seen}`) : styles.ring);
+
+  const ownItem = (
+    <button
+      type="button"
+      className={styles.item}
+      onClick={() => (myGroup ? openStoryViewer(groups, myIndex) : setCreating("media"))}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openCreate();
+      }}
+    >
+      <span className={ring(myGroup)}>
+        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
+      </span>
+      <span className={styles.label}>{progress ?? "Моя история"}</span>
+    </button>
+  );
+
+  const createChoice = creating ? (
+    <div className={styles.createChoice}>
+      <button type="button" className={styles.item} title="Текстовый пост" onClick={() => { setCreating("text"); void textStory(); }}>
+        <span className={styles.textRing}>
+          <Icon name="FileText" size={22} />
+        </span>
+        <span className={styles.label}>Текстовый пост</span>
+      </button>
+      <button type="button" className={styles.item} title="История" onClick={addStory}>
+        <span className={styles.ring}>
+          <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={44} />
+        </span>
+        <span className={styles.label}>История</span>
+      </button>
+      <button type="button" className={styles.item} onClick={() => setCreating(null)}>
+        <Icon name="X" size={16} />
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className={styles.bar}>
-      <button
-        type="button"
-        className={styles.item}
-        onClick={() => (myGroup ? openStoryViewer(groups, myIndex) : addStory())}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          addStory();
-        }}
-      >
-        <span className={ring(myGroup)}>
-          <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
-        </span>
-        <span
-          className={styles.addBadge}
-          title="Добавить историю"
-          onClick={(e) => {
-            e.stopPropagation();
-            addStory();
-          }}
-        >
-          <Icon name="Plus" size={12} />
-        </span>
-        <span className={styles.label}>{progress ?? "Моя история"}</span>
-      </button>
+      {ownItem}
+      {createChoice}
       <input
         ref={fileRef}
         type="file"
@@ -99,15 +118,9 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         onChange={(e) => {
           const files = [...(e.target.files ?? [])];
           e.target.value = "";
-          if (files.length) void pick(files);
+          if (files.length && creating === "media") void pick(files);
         }}
       />
-      <button type="button" className={styles.item} title="Текстовая история" onClick={() => void textStory()}>
-        <span className={styles.textRing}>
-          <Icon name="FileText" size={22} />
-        </span>
-        <span className={styles.label}>Текст</span>
-      </button>
       {groups.map((g, i) =>
         g.user.id === me.id ? null : (
           <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>

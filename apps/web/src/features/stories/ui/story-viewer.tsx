@@ -3,6 +3,7 @@ import { type CSSProperties, type PointerEvent, useEffect, useReducer, useRef, u
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 
+import { parseText } from "@/entities/message";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 import { closeStoryViewer, framesOf, storyApi, type StoryAuthor, type StoryComment, storyQueries, type StoryViewerRequest } from "@/entities/story";
 import { openUserProfile } from "@/entities/user";
@@ -37,7 +38,7 @@ function Thumb() {
 }
 
 /** Просмотр историй поверх приложения — как openStoryViewer в public/js/components/storyViewer.js. */
-export function StoryViewer({ request, me }: { request: StoryViewerRequest; me: SelfUser }) {
+export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRequest; me: SelfUser; onHashtag?: (tag: string) => void }) {
   const [s, dispatch] = useReducer(viewerReducer, request, initViewer);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -473,6 +474,7 @@ export function StoryViewer({ request, me }: { request: StoryViewerRequest; me: 
                     commentInputRef.current?.focus();
                   }}
                   onDelete={() => void removeComment(c)}
+                  onHashtag={onHashtag}
                 />
               ))}
             </div>
@@ -582,6 +584,40 @@ function Particles() {
   ));
 }
 
+/** #тег в комментарии к истории — кликабельный. */
+function StoryHashtagLink({ tag, onHashtag }: { tag: string; onHashtag?: (tag: string) => void }) {
+  if (!onHashtag) return <span className={`${styles.commentText} ${styles.hashtag}`}>{tag}</span>;
+  return (
+    <button
+      type="button"
+      className={`${styles.commentText} ${styles.hashtag} ${styles.hashtagButton}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onHashtag(tag);
+      }}
+    >
+      {tag}
+    </button>
+  );
+}
+
+/** Текст комментария с разбором хештегов (как MessageText). */
+function StoryCommentText({ text, onHashtag }: { text: string; onHashtag?: (tag: string) => void }) {
+  const blocks = parseText(text);
+  return (
+    <span className={styles.block}>
+      {blocks.map((block) => {
+        if (block.kind !== "line") return null;
+        return block.inline.map((item, i) => {
+          if (item.kind === "hashtag") return <StoryHashtagLink key={i} tag={item.text} onHashtag={onHashtag} />;
+          if (item.kind === "text") return <span key={i}>{item.text}</span>;
+          return null;
+        });
+      })}
+    </span>
+  );
+}
+
 type CommentRowProps = {
   comment: StoryComment;
   isReply: boolean;
@@ -593,9 +629,22 @@ type CommentRowProps = {
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onHashtag?: (tag: string) => void;
 };
 
-function CommentRow({ comment: c, isReply, meId, editing, canDelete, onAuthor, onLike, onReply, onEdit, onDelete }: CommentRowProps) {
+function CommentRow({
+  comment: c,
+  isReply,
+  meId,
+  editing,
+  canDelete,
+  onAuthor,
+  onLike,
+  onReply,
+  onEdit,
+  onDelete,
+  onHashtag,
+}: CommentRowProps) {
   const liked = (c.likedByIds ?? []).includes(meId);
   return (
     <div className={[styles.commentRow, editing ? styles.commentEditing : "", isReply ? styles.commentReply : ""].filter(Boolean).join(" ")}>
@@ -607,7 +656,7 @@ function CommentRow({ comment: c, isReply, meId, editing, canDelete, onAuthor, o
           {c.author?.name ?? "Пользователь"}
         </span>
         <span className={styles.commentText}>
-          {c.text}
+          <StoryCommentText text={c.text} onHashtag={onHashtag} />
           {c.editedAt ? <span className={styles.edited}> · изм.</span> : null}
         </span>
         <div className={styles.commentMeta}>

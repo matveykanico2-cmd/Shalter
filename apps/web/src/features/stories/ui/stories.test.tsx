@@ -170,7 +170,9 @@ describe("истории", () => {
       "POST /api/stories": { body: { story: story(MY_STORY, ME.id) } },
     });
     renderBar();
-    fireEvent.click(screen.getByRole("button", { name: "Текст" }));
+    // Своей истории нет — клик по «Моя история» открывает выбор создания.
+    fireEvent.click(screen.getByRole("button", { name: /Моя история$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Текстовый пост" }));
     const editor = await screen.findByRole("dialog", { name: "Редактор истории" });
     // Фото нет — пропускать нечего; поле текста уже на холсте.
     expect(within(editor).queryByRole("button", { name: "Пропустить" })).toBeNull();
