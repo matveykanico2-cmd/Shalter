@@ -57,6 +57,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "donations", label: "Донаты", icon: "Zap", color: "pink", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.DonationsSection })) },
   { id: "pricing", label: "Цены и тарифы", icon: "Star", color: "green", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.PricingSection })) },
   { id: "promotions", label: "Промокоды", icon: "Gift", color: "orange", group: "admin", adminOnly: true, adminSection: "pricing", load: () => import("@/features/admin").then((m) => ({ default: m.PromotionsSection })) },
+  { id: "partners-admin", label: "Партнёры", icon: "Users", color: "purple", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.PartnersAdminSection })) },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "grey", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.LegalSection })) },
 ];
 

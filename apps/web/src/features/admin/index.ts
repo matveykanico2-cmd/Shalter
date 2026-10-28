@@ -4,6 +4,7 @@ export { EmojiCatalogSection } from "./ui/emoji-catalog-section";
 export { GiftShopSection } from "./ui/gift-shop-section";
 export { LegalSection } from "./ui/legal-section";
 export { ModerationSection } from "./ui/moderation-section";
+export { PartnersAdminSection } from "./ui/partners-admin-section";
 export { PricingSection } from "./ui/pricing-section";
 export { PromotionsSection } from "./ui/promotions-section";
 export { ServerSection } from "./ui/server-section";

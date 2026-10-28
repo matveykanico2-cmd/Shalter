@@ -243,14 +243,17 @@ function Profile({ me }: { me: SelfUser }) {
 function BannerPicker({ me, onSave }: { me: SelfUser; onSave: (banner: { id: string; url?: string } | null) => void }) {
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const banner = (me.profileBanner ?? null) as { id?: string } | null;
-  const current = bannerBackground(banner);
+  // Локальное состояние выбранного баннера — применяется сразу при клике, не ждём ответа сервера.
+  const [selected, setSelected] = useState<{ id?: string; url?: string } | null>(me.profileBanner ?? null);
+  const current = bannerBackground(selected);
 
   const upload = async (file: File) => {
     setUploading(true);
     try {
       const { url } = await uploadFile(await fileToImageUpload(file, 1600), "image");
-      onSave({ id: "custom", url });
+      const next = { id: "custom", url };
+      setSelected(next);
+      onSave(next);
     } catch (err) {
       toast(errorText(err, "Не удалось загрузить фото"), { error: true });
     } finally {
@@ -268,7 +271,10 @@ function BannerPicker({ me, onSave }: { me: SelfUser; onSave: (banner: { id: str
           <Icon name="Image" size={16} />
           {uploading ? "Загрузка…" : "Своё фото"}
         </button>
-        <button type="button" className={`${profileStyles.bannerTile} ${profileStyles.bannerAdd}${banner?.id ? "" : ` ${profileStyles.bannerSelected}`}`} onClick={() => onSave(null)}>
+        <button type="button" className={`${profileStyles.bannerTile} ${profileStyles.bannerAdd}${selected?.id ? "" : ` ${profileStyles.bannerSelected}`}`} onClick={() => {
+          setSelected(null);
+          void onSave(null);
+        }}>
           <Icon name="X" size={14} />
           Без баннера
         </button>
@@ -276,11 +282,14 @@ function BannerPicker({ me, onSave }: { me: SelfUser; onSave: (banner: { id: str
           <button
             key={b.id}
             type="button"
-            className={banner?.id === b.id ? `${profileStyles.bannerTile} ${profileStyles.bannerSelected}` : profileStyles.bannerTile}
+            className={selected?.id === b.id ? `${profileStyles.bannerTile} ${profileStyles.bannerSelected}` : profileStyles.bannerTile}
             title={b.label}
-            aria-pressed={banner?.id === b.id}
+            aria-pressed={selected?.id === b.id}
             style={{ "--tile-bg": b.css } as CSSProperties}
-            onClick={() => onSave({ id: b.id })}
+            onClick={() => {
+              setSelected({ id: b.id });
+              void onSave({ id: b.id });
+            }}
           >
             <span className={profileStyles.bannerLabel}>{b.label}</span>
           </button>

@@ -1431,6 +1431,23 @@ CREATE TABLE IF NOT EXISTS promo_code_redemptions (
   PRIMARY KEY (codeId, userId)
 );
 CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_code_redemptions(userId);
+
+-- Партнёры: админ добавляет партнёров, у каждого своя публичная страница.
+CREATE TABLE IF NOT EXISTS partner_profiles (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  bio TEXT DEFAULT '',
+  avatarUrl TEXT,
+  bannerUrl TEXT,
+  linkUrl TEXT,
+  createdBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_partner_profiles_user ON partner_profiles(userId);
+CREATE INDEX IF NOT EXISTS idx_partner_profiles_username ON partner_profiles(username);
 `);
 
 module.exports = db;

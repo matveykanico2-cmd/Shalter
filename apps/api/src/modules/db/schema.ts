@@ -898,3 +898,21 @@ export const promoCodeRedemptions = sqliteTable("promo_code_redemptions", {
 (table) => [
   primaryKey({ columns: [table.codeId, table.userId], name: "promo_code_redemptions_codeId_userId_pk" }),
 ]);
+
+// Партнёры: админ добавляет партнёров, у каждого своя публичная страница.
+export const partnerProfiles = sqliteTable("partner_profiles", {
+  id: text().primaryKey(),
+  userId: text().notNull(),
+  username: text().notNull(),
+  name: text().notNull(),
+  bio: text().default("").notNull(),
+  avatarUrl: text(),
+  bannerUrl: text(),
+  linkUrl: text(),
+  createdBy: text().notNull(),
+  createdAt: text().notNull(),
+  updatedAt: text().notNull(),
+},
+(table) => [
+  primaryKey({ columns: [table.id], name: "partner_profiles_id_pk" }),
+]);
