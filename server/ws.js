@@ -1,263 +1,38 @@
-const { WebSocketServer } = require("ws");
-const { getCurrentUserIdFromCookieHeader, deviceIdFromCookieHeader } = require("./middleware/auth");
-const { isSessionActive } = require("./data/sessions");
-const { getCall } = require("./data/calls");
-const liveStreams = require("./data/liveStreams");
-const { addSignal } = require("./data/signals");
-const { getUser, updateUser, resetStalePresence } = require("./data/users");
-const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
+// События старого кода для клиентов. Сокеты держит шлюз Nest (apps/api, modules/realtime):
+// в основном процессе события уходят в него (useRealtime из runtime.js), в фоновом —
+// основному процессу через lib/workerBridge.js, а тот отдаёт их шлюзу.
 const { publicJsonReplacer } = require("./lib/publicJson");
-const { onAccessRevoked } = require("./lib/sessionEvents");
 const bridge = require("./lib/workerBridge");
 const { chatForViewer, hidesMembers } = require("./lib/chatForViewer");
 
-// Под Nest (apps/api) сокеты держит его шлюз (modules/realtime): события старого кода
-// и фонового процесса уходят туда, а attachWebSocketServer не вызывается (runtime.js).
 let realtime = null;
 function useRealtime(hub) {
   realtime = hub;
 }
 
-bridge.on("ws", ({ userIds, payload, chatId }) =>
-  realtime ? realtime.sendPayload(userIds, payload, chatId) : sendPayload(userIds, payload, chatId)
-);
-
-const socketsByUser = new Map();
-
-function addSocket(uid, ws) {
-  if (!socketsByUser.has(uid)) socketsByUser.set(uid, new Set());
-  socketsByUser.get(uid).add(ws);
-}
-
-function removeSocket(uid, ws) {
-  const set = socketsByUser.get(uid);
-  if (!set) return;
-  set.delete(ws);
-  if (set.size === 0) socketsByUser.delete(uid);
-}
+bridge.on("ws", ({ userIds, payload, chatId }) => realtime?.sendPayload(userIds, payload, chatId));
 
 function broadcastToUsers(userIds, message) {
   if (realtime) return realtime.broadcastToUsers(userIds, message);
+  if (!bridge.isWorker) return;
   const chatId = message?.chatId ?? message?.chat?.id;
   // Событие с каналом: админы получают его целиком, подписчики — без списка
   // подписчиков (lib/chatForViewer.js), и у каждого в memberIds только он сам.
   if (message?.chat && message.chat.type === "channel" && Array.isArray(message.chat.memberIds)) {
     const full = JSON.stringify(message, publicJsonReplacer);
     for (const uid of userIds) {
-      // Офлайн-подписчиков пропускаем сразу: у канала их десятки тысяч.
-      if (!bridge.isWorker && !socketsByUser.has(uid)) continue;
       const payload = hidesMembers(message.chat, uid)
         ? JSON.stringify({ ...message, chat: chatForViewer(message.chat, uid) }, publicJsonReplacer)
         : full;
-      if (bridge.isWorker) bridge.toMain("ws", { userIds: [uid], payload, chatId });
-      else sendPayload([uid], payload, chatId);
+      bridge.toMain("ws", { userIds: [uid], payload, chatId });
     }
     return;
   }
-  const payload = JSON.stringify(message, publicJsonReplacer);
-  // В фоновом процессе сокетов нет — событие разошлёт основной (lib/workerBridge.js).
-  if (bridge.isWorker) return bridge.toMain("ws", { userIds: [...userIds], payload, chatId });
-  sendPayload(userIds, payload, chatId);
-}
-
-function sendPayload(userIds, payload, chatId) {
-  // Событие секретного чата — только на устройство, к которому он привязан.
-  const secret = typeof chatId === "string" && isSecretChat(chatId);
-  for (const uid of userIds) {
-    const set = socketsByUser.get(uid);
-    if (!set) continue;
-    const device = secret ? secretDeviceOf(chatId, uid) : null;
-    for (const ws of set) {
-      if (device && deviceHash(ws.deviceId) !== device) continue;
-      if (ws.readyState === ws.OPEN) ws.send(payload);
-    }
-  }
-}
-
-function broadcastToAll(message) {
-  const payload = JSON.stringify(message, publicJsonReplacer);
-  for (const set of socketsByUser.values()) {
-    for (const ws of set) {
-      if (ws.readyState === ws.OPEN) ws.send(payload);
-    }
-  }
-}
-
-// Онлайн и «был(а) в сети» видят только те, кому это разрешено настройками
-// приватности, — как в профиле (routes/users.js). Заблокированные — никогда.
-async function broadcastPresence(user, message) {
-  const { getSettings } = require("./data/settings");
-  const { listContactsFor } = require("./data/contacts");
-  const { privacyAllows } = require("./lib/privacyRules");
-  const { privacy } = await getSettings(user.id);
-  const contactIds = new Set((await listContactsFor(user.id)).map((c) => c.userId));
-  const blocked = new Set(user.blockedUserIds ?? []);
-  const viewers = [...socketsByUser.keys()].filter(
-    (viewerId) => viewerId === user.id || (!blocked.has(viewerId) && privacyAllows(privacy, "lastSeen", viewerId, contactIds.has(viewerId)))
-  );
-  broadcastToUsers(viewers, message);
-}
-
-async function markOnline(uid) {
-  const user = await updateUser(uid, { online: true });
-  if (user) await broadcastPresence(user, { type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
-  require("./lib/scheduledMessagesSweep").sendWhenOnline().catch((err) => console.error("when-online send failed:", err));
-}
-
-async function markOffline(uid) {
-  const lastSeen = new Date().toISOString();
-  const user = await updateUser(uid, { online: false, lastSeen });
-  if (user) await broadcastPresence(user, { type: "presence:update", userId: uid, online: false, lastSeen });
-}
-
-const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
-
-// Телефон, закрывший приложение или потерявший сеть, не закрывает сокет —
-// событие close не приходит, и человек висел «в сети» часами. Пингуем:
-// кто не ответил за интервал, того отключаем (а с ним снимается и «в сети»).
-const HEARTBEAT_MS = 30_000;
-
-function attachWebSocketServer(httpServer) {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
-  try {
-    resetStalePresence();
-  } catch (err) {
-    console.error("presence reset failed:", err);
-  }
-
-  setInterval(() => {
-    for (const set of socketsByUser.values()) {
-      for (const ws of set) {
-        if (ws.isAlive === false) {
-          ws.terminate();
-          continue;
-        }
-        ws.isAlive = false;
-        try {
-          ws.ping();
-        } catch {}
-      }
-    }
-  }, HEARTBEAT_MS).unref();
-
-  httpServer.on("upgrade", (req, socket, head) => {
-    // Другого upgrade-обработчика на сервере нет: чужой путь — сразу 404, а не висящее соединение.
-    if (req.url !== "/ws") {
-      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    const uid = getCurrentUserIdFromCookieHeader(req.headers.cookie);
-    if (!uid) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, async (ws) => {
-      // Забаненный не получает ни одного события: сокет сразу закрывается тем же
-      // кодом, что и при бане на лету, — клиент реагирует на него одинаково.
-      let banned = false;
-      try {
-        banned = !!(await getUser(uid))?.isBanned;
-      } catch (err) {
-        console.error("ws ban check failed:", err);
-      }
-      if (banned) {
-        ws.on("error", () => {});
-        ws.close(4001, "session_revoked");
-        return;
-      }
-      ws.uid = uid;
-      ws.deviceId = deviceIdFromCookieHeader(req.headers.cookie);
-      ws.isAlive = true;
-      ws.on("pong", () => {
-        ws.isAlive = true;
-      });
-      const wasOffline = !socketsByUser.has(uid);
-      addSocket(uid, ws);
-      if (wasOffline) markOnline(uid).catch((err) => console.error("presence online failed:", err));
-      ws.on("message", (raw) => handleMessage(ws, raw));
-      // Без обработчика ошибка сокета (например, кадр больше maxPayload) становится
-      // необработанной и роняет весь процесс. ws сам закрывает сокет (1009 и т. п.).
-      ws.on("error", (err) => console.warn("ws error:", err.message));
-      ws.on("close", () => {
-        removeSocket(uid, ws);
-        if (!socketsByUser.has(uid)) markOffline(uid).catch((err) => console.error("presence offline failed:", err));
-      });
-    });
-  });
-
-  // Сессию могли завершить с другого устройства, сменить пароль, удалить или забанить
-  // аккаунт — открытый сокет при этом продолжал бы получать все сообщения. Слой
-  // данных (data/sessions.js, setBanned) сообщает о каждом таком изменении, и сокеты
-  // этого пользователя сверяются сразу, а не периодическим перебором всех подключений.
-  onAccessRevoked((uid) => {
-    closeRevokedSockets(uid).catch((err) => console.error("ws session check failed:", err));
-  });
-
-  return wss;
-}
-
-// Закрывает (4001 session_revoked) сокеты пользователя, чья сессия на этом
-// устройстве больше не активна, или все его сокеты, если аккаунт забанен.
-async function closeRevokedSockets(uid) {
-  const set = socketsByUser.get(uid);
-  if (!set) return;
-  let banned = false;
-  try {
-    banned = !!(await getUser(uid))?.isBanned;
-  } catch (err) {
-    console.error("ws session check failed:", err);
-    return;
-  }
-  for (const ws of [...set]) {
-    if (banned || !isSessionActive(uid, ws.deviceId)) ws.close(4001, "session_revoked");
-  }
-}
-
-async function handleMessage(ws, raw) {
-  let msg;
-  try {
-    msg = JSON.parse(raw.toString());
-  } catch {
-    return;
-  }
-  ws.isAlive = true;
-  // null, число, строка: обращение к msg.type бросило бы в промисе, который никто не ждёт, —
-  // необработанный отказ роняет процесс.
-  if (!msg || typeof msg !== "object") return;
-
-  // Проверка живости от клиента (wsClient.js): браузер не умеет слать ping-кадры
-  // протокола, а «зомби»-сокет после сна телефона иначе выглядел бы открытым минутами.
-  if (msg.type === "ping") {
-    if (ws.readyState === ws.OPEN) ws.send('{"type":"pong"}');
-    return;
-  }
-
-  if (msg.type === "live:signal:send") {
-    const { streamId, toUserId, kind, data } = msg;
-    const stream = liveStreams.getStream(streamId);
-    if (!stream || stream.status !== "live") return;
-    if (!liveStreams.getParticipant(streamId, ws.uid) || !liveStreams.getParticipant(streamId, toUserId)) return;
-    broadcastToUsers([toUserId], { type: "live:signal", streamId, fromUserId: ws.uid, kind, data });
-    return;
-  }
-
-  if (msg.type === "call:signal:send") {
-    const { callId, toUserId, kind, data } = msg;
-    const call = await getCall(callId);
-    if (!call || !call.participantIds.includes(ws.uid) || !call.participantIds.includes(toUserId)) return;
-    if (typeof kind !== "string" || !kind || kind.length > 32) return;
-    const signal = await addSignal({ callId, fromUserId: ws.uid, toUserId, kind, data });
-    broadcastToUsers([toUserId], { type: "call:signal", signal });
-  }
+  bridge.toMain("ws", { userIds: [...userIds], payload: JSON.stringify(message, publicJsonReplacer), chatId });
 }
 
 function wsStats() {
-  if (realtime) return realtime.stats();
-  let sockets = 0;
-  for (const set of socketsByUser.values()) sockets += set.size;
-  return { onlineUsers: socketsByUser.size, sockets };
+  return realtime ? realtime.stats() : { onlineUsers: 0, sockets: 0 };
 }
 
-module.exports = { attachWebSocketServer, broadcastToUsers, wsStats, useRealtime };
+module.exports = { broadcastToUsers, wsStats, useRealtime };

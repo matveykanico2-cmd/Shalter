@@ -10,7 +10,7 @@ import { RealtimeService } from "../realtime/realtime.service.js";
 import type { Story } from "../stories/model/domain.js";
 import { StoriesRepository } from "../stories/stories.repository.js";
 import { StoryAudienceService } from "../stories/story-audience.service.js";
-import { isTimed, needsPreview, uploadFilename } from "./lib/media-attachments.js";
+import { isTimed, needsPlayback, needsPreview, uploadFilename } from "./lib/media-attachments.js";
 import type { JobHandler } from "./model/domain.js";
 
 const unlink = (file: string) => fs.promises.unlink(file).catch(() => {});
@@ -36,6 +36,9 @@ export class MediaJobsService {
         if (!chat) return;
         await this.attachPreviews(chat, message);
         await this.attachDurations(chat, message);
+        // Сообщение заново: длительность уже могла записаться.
+        const fresh = this.messages.findById(message.id);
+        if (fresh) await this.attachPlayback(chat, fresh);
       },
       "story-videos": async ({ storyId }) => {
         const story = this.stories.findById(storyId as string);
@@ -91,6 +94,49 @@ export class MediaJobsService {
       } finally {
         if (local) void unlink(local);
       }
+    }
+  }
+
+  // Голосовые и кружки из браузера (WebM) — копия, которую можно перематывать (needsPlayback).
+  // Не вышло — остаётся оригинал, как было.
+  private async attachPlayback(chat: Chat, message: Message): Promise<void> {
+    for (const [index, a] of (message.attachments ?? []).entries()) {
+      if (!needsPlayback(a)) continue;
+      const filename = uploadFilename(a.url)!;
+      let source: string | null = null;
+      try {
+        source = await uploadTransfer().fetchUploadToTemp(filename);
+        const patch = await this.buildPlayback(a, source);
+        uploadAccess().registerAttachments(chat.id, [{ url: patch.previewUrl }]);
+        const updated = this.messages.mutate(message.id, setAttachmentPreview(index, patch));
+        if (updated) this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+      } catch (err) {
+        console.warn(`playback copy failed for ${message.id}#${index}:`, (err as Error).message);
+      } finally {
+        if (source) void unlink(source);
+      }
+    }
+  }
+
+  private async buildPlayback(a: Attachment, source: string): Promise<Record<string, unknown>> {
+    const keepDuration = (a.durationSec as number) > 0;
+    if (a.kind === "voice") {
+      const out = await mediaPreview().generateAudioPreview(source);
+      try {
+        const previewUrl = await uploadTransfer().storeGeneratedFile(out.previewPath);
+        return { previewUrl, ...(!keepDuration && out.durationSec > 0 ? { durationSec: out.durationSec } : {}) };
+      } finally {
+        await unlink(out.previewPath);
+      }
+    }
+    // Кружок: квадрат до 480 px, звук как у видео.
+    const out = await mediaPreview().generateVideoPreview(source, { height: 480 });
+    try {
+      const previewUrl = await uploadTransfer().storeGeneratedFile(out.previewPath);
+      return { previewUrl, ...(!keepDuration && out.durationSec > 0 ? { durationSec: out.durationSec } : {}) };
+    } finally {
+      await unlink(out.previewPath);
+      await unlink(out.posterPath);
     }
   }
 

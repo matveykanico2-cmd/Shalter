@@ -1,5 +1,5 @@
 // Мелкие картинки из архивов server/assets/packs (scripts/pack-assets.js) по прежним
-// адресам: /img/emoji/…, /gift-symbols/…, /gift-emoji/…, /tgs/… — то же, что
+// адресам: /img/emoji/…, /gift-symbols/…, /gift-emoji/…, /tgs/…, /gift-scenes/… — то же, что
 // server/lib/assetPacks.js. Кусок файла читается по смещению, архив в память не грузится.
 // На боевом сервере эти адреса отдаёт nginx из public/dist/packs (распаковка при сборке).
 import fs from "node:fs";
@@ -10,6 +10,8 @@ import { REPO_ROOT } from "../../common/config/paths.js";
 interface Pack {
   name: string;
   prefix: string;
+  /** Cache-Control max-age, с; по умолчанию неделя. */
+  maxAge?: number;
 }
 
 interface OpenedPack {
@@ -25,6 +27,8 @@ const PACKS: Pack[] = [
   { name: "gift-symbols", prefix: "/gift-symbols/" },
   { name: "gift-emoji", prefix: "/gift-emoji/" },
   { name: "tgs", prefix: "/tgs/" },
+  // Сцены подарков (scripts/gift-scenes.js): их пересобирают генераторы — кэш на час.
+  { name: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600 },
 ];
 const PACK_DIR = path.join(REPO_ROOT, "server", "assets", "packs");
 
@@ -75,7 +79,7 @@ export function assetPacks(): RequestHandler {
     if (!hit) return next();
     const etag = `${entry!.etag}-${hit[0].toString(36)}"`;
     res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", "public, max-age=604800");
+    res.setHeader("Cache-Control", `public, max-age=${pack.maxAge ?? 604800}`);
     res.setHeader("Content-Type", TYPES[path.extname(rel).toLowerCase()] ?? "application/octet-stream");
     if (req.headers["if-none-match"] === etag) return void res.status(304).end();
     res.setHeader("Content-Length", hit[1]);

@@ -88,4 +88,23 @@ describe("ответ на историю", () => {
     expect(await send({ kind: "video" })).not.toHaveProperty("storyReply");
     expect(await send("строка")).not.toHaveProperty("storyReply");
   });
+
+  test("storyReply хранит автора и время публикации истории; мусор в них отбрасывается", async () => {
+    const { baseUrl } = server();
+    const [a, b] = await registerUsers(baseUrl, 2);
+    const dm = await createDm(a, b);
+    const send = async (storyReply: unknown) => expectOk(await a.api.post(msgs(dm.id), { text: "ответ", storyReply }), sendResult).message;
+    const createdAt = new Date(Date.now() - 30 * 3600_000).toISOString();
+
+    expect((await send({ url: "/uploads/st_0123456789abcdef.jpg", kind: "image", authorName: "Б", authorId: b.id, createdAt })).storyReply).toEqual({
+      url: "/uploads/st_0123456789abcdef.jpg",
+      kind: "image",
+      authorName: "Б",
+      authorId: b.id,
+      createdAt,
+    });
+    const future = new Date(Date.now() + 3600_000).toISOString();
+    expect((await send({ url: "/uploads/st_0123456789abcdef.jpg", authorId: "<script>", createdAt: future })).storyReply).toEqual({ url: "/uploads/st_0123456789abcdef.jpg", kind: "image" });
+    expect((await send({ url: "/uploads/st_0123456789abcdef.jpg", authorId: 5, createdAt: "вчера" })).storyReply).toEqual({ url: "/uploads/st_0123456789abcdef.jpg", kind: "image" });
+  });
 });

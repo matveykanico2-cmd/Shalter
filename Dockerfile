@@ -140,7 +140,6 @@ ENV NODE_OPTIONS="--max-old-space-size=384"
 # (в образ не попадает, но может быть примонтирован), затем настоящие
 # переменные окружения — каждый следующий перекрывает предыдущий.
 #
-# Запускается бэкенд на NestJS. Откат на старый сервер — та же команда с
-# server/index.js вместо apps/api/dist/main.js (в Dokploy — своя команда запуска).
+# Запускается бэкенд на NestJS (старого server/index.js больше нет).
 CMD ["node", "--env-file-if-exists=config.env", "--env-file-if-exists=.env", "apps/api/dist/main.js"]
 

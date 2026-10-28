@@ -103,7 +103,7 @@ describe("истории", () => {
     expect(await within(viewer).findByPlaceholderText("Отправлено ✓")).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/chats/c_dm/messages")?.body).toEqual({
       text: "Хочу туда же",
-      storyReply: { url: `/uploads/${ALICE_STORY}.jpg`, kind: "image", authorName: "Алиса Петрова" },
+      storyReply: { url: `/uploads/${ALICE_STORY}.jpg`, kind: "image", authorName: "Алиса Петрова", authorId: "u_alice0000", createdAt: "2026-10-26T10:00:00.000Z" },
     });
 
     fireEvent.click(within(viewer).getByRole("button", { name: "Закрыть" }));

@@ -13,8 +13,23 @@ function collect(stream) {
   });
 }
 
+// Без типа файл уходит как application/octet-stream + attachment — браузер его не
+// проигрывает, а скачивает. Поэтому здесь все форматы, которые браузеры умеют показать.
 const MIME = {
   ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".3gp": "video/3gpp",
+  ".ogv": "video/ogg",
+  ".mpeg": "video/mpeg",
+  ".mpg": "video/mpeg",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".aac": "audio/aac",
+  ".flac": "audio/flac",
+  ".weba": "audio/webm",
+  ".m4b": "audio/mp4",
+  ".amr": "audio/amr",
+  ".caf": "audio/x-caf",
   ".webm": "video/webm",
   ".mov": "video/quicktime",
   ".mkv": "video/x-matroska",

@@ -14,7 +14,12 @@ import { useMediaProgress } from "./use-media-progress";
  */
 export function usePlayer(message: FeedMessage, a: Attachment, kind: "voice" | "audio", senderName: string | null) {
   const key = `${message.id}:${a.url}`;
-  const media = useMemo(() => audioFor(key, a.url ?? "", kind === "audio" ? "none" : "metadata"), [key, a.url, kind]);
+  // Голосовое из браузера (WebM) сервер перекодирует в M4A, который перематывается (previewUrl).
+  const src = (kind === "voice" ? a.previewUrl : undefined) ?? a.url ?? "";
+  // Длительность известна — файл до нажатия не трогаем: лента с голосовыми не открывает
+  // десятки соединений ради метаданных.
+  const preload = kind === "audio" || (a.durationSec ?? 0) > 0 ? "none" : "metadata";
+  const media = useMemo(() => audioFor(key, src, preload), [key, src, preload]);
   const ref = useMemo(() => ({ current: media }), [media]);
   const progress = useMediaProgress(ref, a.durationSec ?? 0);
   const title = kind === "voice" ? (senderName ?? "Голосовое сообщение") : (a.name || "Аудио").replace(AUDIO_EXT_RE, "");

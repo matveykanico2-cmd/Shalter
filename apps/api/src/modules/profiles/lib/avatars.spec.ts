@@ -1,5 +1,6 @@
-// Проверки аватарки и статуса обязаны совпадать с server/lib/avatars.js и profileStatus.js:
-// одни и те же списки пишут оба бэкенда. Старые модули — в отдельном процессе.
+// Проверки аватарки обязаны совпадать с server/lib/avatars.js: одни и те же списки пишут оба
+// бэкенда (старый модуль — в отдельном процессе). Ожидания для статуса сняты со старого
+// server/lib/profileStatus.js перед его удалением.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -24,12 +25,9 @@ const USERS = [undefined, { isPremium: false }, { isPremium: true }];
 
 const SCRIPT = `
 const a = require(${JSON.stringify(path.join(REPO_ROOT, "server", "lib", "avatars.js"))});
-const s = require(${JSON.stringify(path.join(REPO_ROOT, "server", "lib", "profileStatus.js"))});
 process.stdout.write(JSON.stringify({
   max: a.MAX_AVATARS,
   entries: ${JSON.stringify(ENTRIES)}.map(a.validateEntry),
-  images: ${JSON.stringify(IMAGES)}.map((i) => s.validateImage(i)),
-  slots: ${JSON.stringify(USERS)}.map((u) => s.slotsFor(u)),
 }));
 `;
 
@@ -45,7 +43,14 @@ describe("аватарки и статусы совпадают с server/lib", 
   });
 
   it("validateImage и slotsFor", () => {
-    expect(JSON.parse(JSON.stringify(IMAGES.map(validateImage)))).toEqual(legacy.images);
-    expect(USERS.map(slotsFor)).toEqual(legacy.slots);
+    expect(JSON.parse(JSON.stringify(IMAGES.map(validateImage)))).toEqual([
+      { image: PNG },
+      { image: "data:image/gif;base64,R0lG" },
+      { error: "Некорректное изображение" },
+      { error: "Картинка слишком большая" },
+      { error: "Некорректное изображение" },
+      { error: "Некорректное изображение" },
+    ]);
+    expect(USERS.map(slotsFor)).toEqual([1, 1, 5]);
   });
 });

@@ -69,7 +69,7 @@ type Props = {
   /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
   onStickerClick?: (sticker: Sticker) => void;
   /** Ответ на историю — открыть просмотр историй (как в Telegram). */
-  onOpenStory?: (reply: StoryReply) => void;
+  onOpenStory?: (reply: StoryReply, message: FeedMessage) => void;
   /** Чат с запретом сохранения: без кнопок «скачать». */
   protectedContent?: boolean;
   /** Опросы, чек-листы, платные посты. */
@@ -262,7 +262,10 @@ export function MessageBubble(props: Props) {
     );
   }
   if (m.replyToId) body.push(<ReplyQuote key="reply" target={props.replyTo} name={props.replyToName} onJumpTo={props.onJumpTo} />);
-  if (m.storyReply) body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} onOpenStory={props.onOpenStory} />);
+  if (m.storyReply) {
+    const open = props.onOpenStory;
+    body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} onOpenStory={open ? (r) => open(r, m) : undefined} />);
+  }
   if (giftLine) body.push(<p key="gift" className={styles.attachment}>{giftLine}</p>);
   if (gift) body.push(<GiftMessage key="gift" messageId={m.id} gift={gift} mine={mine} meta={meta} />);
   if (m.attachments?.length && !isCall && !article) {
@@ -632,7 +635,7 @@ function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDet
   );
 }
 
-type StoryReply = { url?: string | null; kind?: string; authorName?: string | null };
+type StoryReply = { url?: string | null; kind?: string; authorName?: string | null; authorId?: string; createdAt?: string };
 
 /** Ответ на историю — миниатюра и подпись над текстом (story-reply-banner в messageBubble.js). Клик открывает просмотр истории. */
 function StoryReplyBanner({ reply, onOpenStory }: { reply: StoryReply; onOpenStory?: (reply: StoryReply) => void }) {

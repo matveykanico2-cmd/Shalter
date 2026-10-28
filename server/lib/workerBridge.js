@@ -1,10 +1,10 @@
-// Связь основного процесса с фоновым (server/worker.js). Основной отвечает на запросы и
+// Связь основного процесса с фоновым (apps/api/dist/worker.js). Основной отвечает на запросы и
 // держит сокеты; фоновый делает обходы по таймеру и обработку вложений. Сокеты есть
 // только в основном, поэтому события для клиентов и отзыв доступа фоновый процесс
 // передаёт сюда по IPC, а основной будит фоновый, когда в очереди появилась задача.
 //
-// BACKGROUND_WORKER=0 — всё по-старому, в одном процессе (на случай проблем с фоновым).
-const path = require("path");
+// BACKGROUND_WORKER=0 — всё в одном процессе (на случай проблем с фоновым): очередь и
+// обходы запускает main.ts.
 const { fork } = require("child_process");
 
 const isWorker = process.env.SHALTER_ROLE === "worker" && typeof process.send === "function";
@@ -14,7 +14,7 @@ const enabled = process.env.BACKGROUND_WORKER !== "0";
 const HEAP_MB = Number(process.env.WORKER_MAX_OLD_SPACE_MB) || 256;
 
 let child = null;
-let entry = path.join(__dirname, "..", "worker.js");
+let entry = null;
 let stopping = false;
 let restartDelay = 1000;
 const handlers = new Map();
@@ -45,11 +45,11 @@ function on(type, fn) {
   handlers.set(type, fn);
 }
 
-// file — точка входа фонового процесса: server/worker.js или фоновый процесс Nest
-// (apps/api/dist/worker.js); при перезапуске берётся та же.
+// file — точка входа фонового процесса Nest (apps/api/dist/worker.js); при перезапуске
+// берётся та же.
 function startWorker(file) {
   if (file) entry = file;
-  if (child || stopping) return;
+  if (child || stopping || !entry) return;
   const execArgv = process.execArgv.filter((a) => !a.startsWith("--max-old-space-size") && !a.startsWith("--inspect"));
   const started = Date.now();
   child = fork(entry, [], {

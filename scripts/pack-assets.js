@@ -2,7 +2,8 @@
 // один файл на папку: в репозитории и при выкладке — 4 файла вместо ~4700.
 // Сервер отдаёт картинки из архивов по прежним адресам (server/lib/assetPacks.js).
 //
-//   node scripts/pack-assets.js        — после изменения картинок в этих папках
+//   node scripts/pack-assets.js                 — после изменения картинок в этих папках
+//   node scripts/pack-assets.js gift-scenes     — только названные архивы
 //
 // Формат: [4 байта — длина JSON-оглавления][оглавление {путь: [смещение, длина]}][данные].
 const fs = require("fs");
@@ -22,8 +23,9 @@ function walk(dir, base = dir) {
   return out.sort();
 }
 
+const only = process.argv.slice(2);
 fs.mkdirSync(OUT, { recursive: true });
-for (const pack of PACKS) {
+for (const pack of PACKS.filter((p) => !only.length || only.includes(p.name))) {
   const dir = path.join(ROOT, "public", pack.dir);
   if (!fs.existsSync(dir)) {
     console.log(`пропуск: нет папки public/${pack.dir}`);

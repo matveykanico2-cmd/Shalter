@@ -146,13 +146,7 @@ async function exists(filename) {
     }
   }
   if (localCopy(filename)) return true;
-  const { HeadObjectCommand } = require("@aws-sdk/client-s3");
-  try {
-    await client().send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename) }));
-    return true;
-  } catch {
-    return false;
-  }
+  return (await headObject(filename)) !== null;
 }
 
 async function sizeOf(filename) {
@@ -205,13 +199,20 @@ function isChangedError(err) {
   return err?.name === "PreconditionFailed" || err?.$metadata?.httpStatusCode === 412;
 }
 
+// null — объекта нет. Сбой S3 (таймаут, 5xx, лимит запросов) — исключение: раньше и он
+// превращался в «нет файла», и клиент видел 404 на живом вложении.
 async function headObject(filename) {
   const { HeadObjectCommand } = require("@aws-sdk/client-s3");
   try {
     return await client().send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename) }));
-  } catch {
-    return null;
+  } catch (err) {
+    if (isNotFound(err)) return null;
+    throw err;
   }
+}
+
+function isNotFound(err) {
+  return err?.name === "NotFound" || err?.name === "NoSuchKey" || err?.$metadata?.httpStatusCode === 404;
 }
 
 async function finalizeDedup(tempName, dedupName) {

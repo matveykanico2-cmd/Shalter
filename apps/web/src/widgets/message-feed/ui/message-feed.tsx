@@ -358,31 +358,37 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     setViewer({ items, index });
   };
 
-  const openStory = (reply: { url?: string | null; kind?: string; authorName?: string | null }) => {
+  // Ответ на историю: открываем её снимок из сообщения. Автор — из ответа (authorId), а у
+  // старых ответов — участник лички, который не отправлял сообщение (ответ уходит автору).
+  // Время — публикации истории, у старых ответов — самого ответа: история была живой, когда
+  // на неё ответили. Срок — сутки от публикации, как у историй.
+  const openStory = (reply: { url?: string | null; kind?: string; authorName?: string | null; authorId?: string; createdAt?: string }, m: Message) => {
     if (!reply.url) return;
-    const now = Date.now();
-    const storyId = `st_${now}_${Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")}`;
+    const kind = reply.kind === "video" ? "video" : "image";
+    const createdAt = reply.createdAt ?? m.createdAt;
+    const authorId = reply.authorId ?? (chat.type === "dm" ? (members.find((u) => u.id !== m.senderId)?.id ?? null) : null);
+    const member = authorId ? members.find((u) => u.id === authorId) : undefined;
     const story = {
-      id: storyId,
-      userId: "st_reply",
-      kind: reply.kind as "image" | "video",
+      id: `reply_${m.id}`,
+      userId: authorId ?? `reply_${m.id}`,
+      kind,
       url: reply.url,
-      items: [{ kind: reply.kind as "image" | "video", url: reply.url }],
-      createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + 86400000).toISOString(),
+      items: [{ kind, url: reply.url }],
+      createdAt,
+      expiresAt: new Date(Date.parse(createdAt) + 86_400_000).toISOString(),
       viewedByIds: [],
       likedByIds: [],
-      viewed: false,
+      viewed: true,
       liked: false,
       likeCount: 0,
       viewCount: 0,
     };
     const author = {
-      id: "st_reply",
-      name: reply.authorName ?? "История",
-      username: null,
-      avatarColor: null,
-      avatarImage: null,
+      id: authorId ?? `reply_${m.id}`,
+      name: member?.name ?? reply.authorName ?? "История",
+      username: member?.username ?? null,
+      avatarColor: member?.avatarColor ?? null,
+      avatarImage: member?.avatarImage ?? null,
       isVerified: false,
       isPremium: false,
       isBot: false,
@@ -583,7 +589,7 @@ type RowProps = {
   /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
   onStickerClick?: (sticker: Sticker) => void;
   /** Ответ на историю — открыть просмотр историй (как в Telegram). */
-  onOpenStory?: (reply: { url?: string | null; kind?: string; authorName?: string | null }) => void;
+  onOpenStory?: (reply: { url?: string | null; kind?: string; authorName?: string | null; authorId?: string; createdAt?: string }, message: Message) => void;
 };
 
 function MessageRow(props: RowProps) {

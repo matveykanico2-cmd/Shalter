@@ -42,7 +42,9 @@ export class UploadsService {
     const digest = crypto.createHash("sha256");
     // Открытый файл в S3 не сжимаем: бакет отдаёт его байты как есть.
     const compression = fileCompression();
-    const compressor = !plain && kind === "file" && !ALREADY_COMPRESSED_RE.test(safeExtension(name)) ? compression.compressStream(declared) : null;
+    // Аудио и видео (по расширению или по типу от клиента) не сжимаем: сжатое отдаётся без Range.
+    const media = /^(audio|video)\//.test(String(mimeType ?? ""));
+    const compressor = !plain && kind === "file" && !media && !ALREADY_COMPRESSED_RE.test(safeExtension(name)) ? compression.compressStream(declared) : null;
 
     const discard = () => store.deleteObject(filename).catch(() => {});
 

@@ -3,8 +3,7 @@ name: Tests
 # Тесты фиксируют поведение при миграции на NestJS + React
 # (см. packages/contract-tests/README.md). Контрактные тесты и тесты совместимости данных — на
 # каждый PR; браузерные сценарии (Playwright) — на PR в main и пуш в main.
-# Матрица TARGET: legacy — server/index.js, nest — каркас NestJS (apps/api), который
-# отдаёт ещё не перенесённое старому приложению. Обе цели обязаны быть зелёными.
+# Сервер — apps/api (NestJS); старый server/index.js удалён.
 
 on:
   pull_request:
@@ -31,12 +30,8 @@ jobs:
       - run: npm run build:web
 
   contract:
-    name: Контрактные, совместимость, unit (${{ matrix.target }})
+    name: Контрактные, совместимость, unit
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [legacy, nest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -47,21 +42,13 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run test:types
       - run: npm run build:api
-        if: matrix.target == 'nest'
       - run: npm run test:api
-        if: matrix.target == 'nest'
       - run: npm run test:contract
-        env:
-          TARGET: ${{ matrix.target }}
 
   e2e:
-    name: Сценарии в браузере (${{ matrix.target }})
+    name: Сценарии в браузере
     if: github.event_name == 'push' || github.base_ref == 'main'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [legacy, nest]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -71,17 +58,13 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      # Клиент — сборка apps/web: её отдают обе цели.
       - run: npm run build:web
       - run: npm run build:api
-        if: matrix.target == 'nest'
       - run: npm run test:e2e
-        env:
-          TARGET: ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-${{ matrix.target }}
+          name: playwright-report
           path: |
             packages/contract-tests/e2e/.report/
             packages/contract-tests/e2e/.results/

@@ -24,6 +24,11 @@ async function bootstrap() {
   // Раньше маршрутов Nest — тех же заголовков, cookie, тела и лимитов, что у старого приложения.
   app.use(frontMiddleware());
   await app.init();
+  // Node по умолчанию обрывает запрос через 5 минут (requestTimeout) — большой файл по
+  // медленной сети не успевал загрузиться. Тело загрузки идёт потоком; заголовки ждём
+  // по-прежнему недолго (headersTimeout), долгие медленные запросы режет nginx.
+  const httpServer = app.getHttpServer() as import("node:http").Server;
+  httpServer.requestTimeout = 3 * 60 * 60 * 1000;
   // Очередь задач и обходы — в фоновом процессе (worker.ts), при BACKGROUND_WORKER=0 — здесь.
   if (!workerBridge().enabled) app.get(BackgroundService).startInline();
 

@@ -92,6 +92,7 @@ yarn-error.log*
 /public/gift-symbols/
 /public/gift-emoji/
 /public/tgs/
+/public/gift-scenes/
 # архивы сборок, скачанные из CI
 /shalter-*.zip
 .claude/settings.json

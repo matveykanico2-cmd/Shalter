@@ -14,9 +14,9 @@ npm run test:types        # проверка типов TypeScript в packages/c
 - `contract/` — чёрный ящик по HTTP/WS, папка на модуль.
 - `compat/` — фикстура `data/` (база + зашифрованные файлы с ротацией ключей),
   созданная текущим сервером; новая реализация обязана читать её байт в байт.
-  Пересборка — только на текущем legacy-сервере, см. `compat/README.md`.
-- `unit/` — unit-тесты чистой логики; им, в отличие от контрактных, можно
-  импортировать `server/`.
+  Пересборка — см. `compat/README.md`.
+- `unit/` — unit-тесты чистой логики модулей `server/`, которые ещё работают за мостом
+  `apps/api/src/legacy`; им, в отличие от контрактных, можно импортировать `server/`.
 - `e2e/` — Playwright.
 
 Отдельный файл или папка: `npx vitest run --config packages/contract-tests/vitest.config.ts contract/auth`.
@@ -31,7 +31,7 @@ npm run test:types        # проверка типов TypeScript в packages/c
   Обход по таймеру тест прогоняет сам: `POST /api/test/sweeps/:name` (есть только в
   этом режиме) выполняет один проход в фоновом процессе, `now` в теле переводит часы
   обхода (`contract/sweeps`).
-- `TARGET=legacy` (по умолчанию) — `server/index.js`; `TARGET=nest` — каркас NestJS `apps/api` (сначала `npm run build:api`); ещё не перенесённое он отдаёт старому приложению.
+- Сервер — `apps/api` (сначала `npm run build:api`); старый `server/index.js` удалён, `TARGET` больше не нужен.
   Клиент — сборка `apps/web`: контрактные тесты отдают заглушку `fixtures/web-dist` (раздачу
   сборки она проверяет не хуже настоящей), сценарии e2e — настоящую `apps/web/dist`
   (сначала `npm run build:web`) или `WEB_DIST=<папка>` (`vite build --outDir …`).

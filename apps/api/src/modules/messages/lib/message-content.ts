@@ -25,14 +25,20 @@ export function sanitizeMessageEmoji(input: unknown): unknown[] | undefined {
 }
 
 /** Ответ на историю: ссылка — только безопасная, имя автора — до 100 символов. */
-export function sanitizeStoryReply(raw: unknown): { url?: string; kind: "image" | "video"; authorName?: string } | undefined {
+export function sanitizeStoryReply(
+  raw: unknown
+): { url?: string; kind: "image" | "video"; authorName?: string; authorId?: string; createdAt?: string } | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const story = raw as Record<string, unknown>;
   const url = typeof story.url === "string" && isSafeUrl(story.url) ? story.url : undefined;
   const kind = story.kind === "video" ? "video" : "image";
   const authorName = typeof story.authorName === "string" ? story.authorName.slice(0, 100) : undefined;
   if (!url && !authorName) return undefined;
-  return { url, kind, authorName };
+  // Автор и время публикации истории — для открытия из ответа (аватарка, «N ч назад»).
+  const authorId = typeof story.authorId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(story.authorId) ? story.authorId : undefined;
+  const at = typeof story.createdAt === "string" ? Date.parse(story.createdAt) : NaN;
+  const createdAt = Number.isFinite(at) && at <= Date.now() + 60_000 ? new Date(at).toISOString() : undefined;
+  return { url, kind, authorName, ...(authorId ? { authorId } : {}), ...(createdAt ? { createdAt } : {}) };
 }
 
 const ATTACHMENT_LABEL: Record<string, string> = {

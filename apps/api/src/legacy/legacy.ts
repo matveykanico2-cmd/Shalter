@@ -409,6 +409,7 @@ interface MediaPreview {
     inputPath: string,
     opts?: { height?: number; crf?: number; audioBitrate?: string; maxrate?: string }
   ) => Promise<VideoPreview>;
+  generateAudioPreview: (inputPath: string) => Promise<{ previewPath: string; durationSec: number }>;
   probeDuration: (inputPath: string) => Promise<number | null>;
 }
 export const mediaPreview = (): MediaPreview => legacyModule<MediaPreview>("lib/mediaPreview.js");

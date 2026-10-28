@@ -1,6 +1,6 @@
 // Express-приложение целиком: маршруты, статика, обработчик ошибок. Без сервера и
-// фоновых задач — их запускает runtime.js. Подключают его server/index.js и каркас
-// NestJS (apps/api), который отдаёт сюда всё, что ещё не перенесено в Nest.
+// фоновых задач — их запускает runtime.js. Подключает его каркас NestJS (apps/api):
+// сюда приходит то, на что у Nest нет маршрута.
 require("./lib/loadConfig");
 
 // Если сервер остался от уже закрытого терминала, его stdout/stderr указывают на
@@ -48,27 +48,6 @@ const webClientBuilt = () => fs.existsSync(indexHtml);
 
 // Все /api-маршруты перенесены в NestJS (apps/api/src/modules).
 // Оставлены только спецмаршруты, не имеющие Nest-эквивалента.
-
-// Режим контрактных тестов: один проход обхода по таймеру сейчас (по таймеру они в этом
-// режиме не идут). Проход идёт там же, где на боевом сервере, — в фоновом процессе.
-// now — момент, от которого обход считает сроки («старше суток», «сегодня день рождения»).
-const { SWEEPS, runSweep, TEST_MODE } = require("./lib/sweeps");
-if (TEST_MODE) {
-  const workerBridge = require("./lib/workerBridge");
-  app.post("/api/test/sweeps/:name", async (req, res) => {
-    const { name } = req.params;
-    if (!Object.hasOwn(SWEEPS, name)) return res.status(404).json({ error: "Нет такого обхода" });
-    const now = req.body?.now === undefined ? new Date() : new Date(req.body.now);
-    if (Number.isNaN(now.getTime())) return res.status(400).json({ error: "Некорректное время" });
-    try {
-      if (workerBridge.enabled) await workerBridge.askWorker("sweep", { name, now: now.toISOString() });
-      else await runSweep(name, now);
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-}
 
 // Сборка клиента: имена с хешем — вечный кэш; brotli и gzip сжаты заранее (scripts/build.js).
 app.use("/assets", expressStaticGzip(path.join(WEB_DIST_DIR, "assets"), { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));

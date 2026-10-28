@@ -1,6 +1,6 @@
 // Отдача мелких картинок из архивов (scripts/pack-assets.js) по прежним адресам:
-// /img/emoji/…, /gift-symbols/…, /gift-emoji/…, /tgs/…. Тысячи файлов в репозитории
-// замедляли выкладку; теперь это 4 файла. Читаем кусок файла по смещению — в память
+// /img/emoji/…, /gift-symbols/…, /gift-emoji/…, /tgs/…, /gift-scenes/…. Тысячи файлов в
+// репозитории замедляли выкладку; теперь это 5 файлов. Читаем кусок файла по смещению — в память
 // архив целиком не грузится.
 const fs = require("fs");
 const path = require("path");
@@ -10,6 +10,8 @@ const PACKS = [
   { name: "gift-symbols", dir: "gift-symbols", prefix: "/gift-symbols/" },
   { name: "gift-emoji", dir: "gift-emoji", prefix: "/gift-emoji/" },
   { name: "tgs", dir: "tgs", prefix: "/tgs/" },
+  // Сцены подарков (scripts/gift-scenes.js): их пересобирают генераторы — кэш на час, а не на неделю.
+  { name: "gift-scenes", dir: "gift-scenes", prefix: "/gift-scenes/", maxAge: 3600 },
 ];
 const PACK_DIR = path.join(__dirname, "..", "assets", "packs");
 
@@ -52,7 +54,7 @@ function assetPacks() {
     if (!hit) return next();
     const etag = `${entry.etag}-${hit[0].toString(36)}"`;
     res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", "public, max-age=604800");
+    res.setHeader("Cache-Control", `public, max-age=${pack.maxAge ?? 604800}`);
     res.setHeader("Content-Type", TYPES[path.extname(rel).toLowerCase()] ?? "application/octet-stream");
     if (req.headers["if-none-match"] === etag) return res.status(304).end();
     res.setHeader("Content-Length", hit[1]);

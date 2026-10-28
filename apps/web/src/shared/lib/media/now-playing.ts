@@ -45,6 +45,8 @@ const emit = () => {
  */
 export function audioFor(key: string, url: string, preload: "metadata" | "none" = "metadata") {
   let el = pool.get(key);
+  // Пришла копия для проигрывания (previewUrl) — меняем источник, пока запись не начата.
+  if (el && el.getAttribute("src") !== url && el.paused && el.currentTime === 0) el.src = url;
   if (!el) {
     el = new Audio();
     el.preload = preload;

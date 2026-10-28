@@ -142,6 +142,24 @@ async function generateImagePreview(inputPath) {
   });
 }
 
+// Копия голосового для проигрывания: AAC в M4A с индексом в начале (+faststart). Запись из
+// браузера (WebM) не знает своей длительности и не имеет индекса — плеер не перематывал её
+// и ждал загрузки целиком; M4A перематывается сразу и играет везде, включая Safari.
+async function generateAudioPreview(inputPath) {
+  return videoQueue(async () => {
+    const previewPath = tempPath(".m4a");
+    try {
+      const codecData = await runFfmpeg((cmd) =>
+        cmd.input(inputPath).noVideo().audioCodec("aac").audioBitrate("64k").outputOptions(["-movflags +faststart"]).output(previewPath)
+      );
+      return { previewPath, durationSec: parseDuration(codecData?.duration) };
+    } catch (err) {
+      await fs.promises.unlink(previewPath).catch(() => {});
+      throw err;
+    }
+  });
+}
+
 // Несколько кадров ролика (равномерно по длительности) — чтобы нейросеть,
 // понимающая только картинки, могла «посмотреть» видео. Возвращает JPEG-буферы.
 async function extractVideoFrames(inputPath, { count = 6, durationSec = 0, width = 640 } = {}) {
@@ -200,4 +218,4 @@ function probeDuration(inputPath) {
   });
 }
 
-module.exports = { generateVideoPreview, generateImagePreview, extractVideoFrames, probeDuration, PREVIEW_HEIGHT };
+module.exports = { generateVideoPreview, generateImagePreview, generateAudioPreview, extractVideoFrames, probeDuration, PREVIEW_HEIGHT };

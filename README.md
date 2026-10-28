@@ -6,7 +6,7 @@ A Telegram-style messenger: chats, groups, channels with posts/comments, real We
 
 ```bash
 npm install
-npm run dev       # backend (server/index.js under nodemon) on :3000
+npm run dev       # backend (apps/api/dist/main.js under nodemon) on :3000
 npm run dev:web   # client (Vite) on :5173, proxies /api and /ws to :3000
 ```
 сам проэкт находитсмя на shalter.ru

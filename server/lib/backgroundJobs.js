@@ -1,5 +1,5 @@
 // Очередь фоновой работы: маршрут ставит задачу (queueJob) и отвечает сразу, а
-// выполняет её фоновый процесс (startJobRunner в server/worker.js). Задачи — в
+// выполняет её фоновый процесс (apps/api/dist/worker.js). Задачи — в
 // таблице background_jobs, поэтому перезапуск их не теряет.
 const jobs = require("../data/backgroundJobs");
 const bridge = require("./workerBridge");

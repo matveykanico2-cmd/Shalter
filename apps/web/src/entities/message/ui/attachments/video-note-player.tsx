@@ -44,7 +44,17 @@ export function VideoNotePlayer({ attachment: a, message, senderName }: { attach
     >
       {/* #t=0.001 — первый кадр виден ещё до нажатия, а не пустой круг. Не загрузился — прячем:
           иначе Safari рисует на месте ролика свой значок «видео не открывается». */}
-      <video ref={video} className={styles.videoNoteVideo} src={`${a.url}#t=0.001`} poster={a.thumbUrl} playsInline preload="metadata" hidden={failed} />
+      {/* previewUrl — MP4 с индексом в начале, который сервер делает из WebM: открывается сразу
+          и играет в Safari. Есть обложка — до нажатия файл не качаем. */}
+      <video
+        ref={video}
+        className={styles.videoNoteVideo}
+        src={`${a.previewUrl ?? a.url}#t=0.001`}
+        poster={a.thumbUrl}
+        playsInline
+        preload={a.thumbUrl ? "none" : "metadata"}
+        hidden={failed}
+      />
       <svg className={styles.ring} viewBox="0 0 100 100" aria-hidden="true">
         <circle cx="50" cy="50" r={RADIUS} className={styles.ringTrack} />
         <circle cx="50" cy="50" r={RADIUS} className={styles.ringFill} strokeDasharray={CIRCUMFERENCE} strokeDashoffset={CIRCUMFERENCE * (1 - done)} />

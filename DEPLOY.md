@@ -308,6 +308,70 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Обновление 2026-10-28: сцены подарков в архиве, файлы и голосовые
+
+Для сервера, который **уже работает на `apps/api`** (PM2 + nginx, путь `/opt/shalter`).
+
+Что поменялось:
+- 25 тысяч сцен подарков теперь лежат в репозитории одним архивом
+  `server/assets/packs/gift-scenes.pack`; `npm run build` распаковывает его в
+  `public/dist/packs/gift-scenes`, откуда их отдаёт nginx. Папки
+  `public/gift-scenes` больше нет — в конфиге nginx у `/gift-scenes/` новый `root`;
+- старого бэкенда больше нет: `server/index.js` удалён, откат через
+  `SHALTER_BACKEND=legacy` не работает. Запуск — только `apps/api/dist/main.js`
+  (так уже и было);
+- загрузка больших файлов больше не обрывается через 5 минут; голосовые и
+  кружки, записанные в браузере, фоновый процесс перекодирует в формат с
+  перемоткой (нужен ffmpeg — он уже стоит для превью видео). Схема базы не менялась.
+
+### Шаги
+
+1. **Резервная копия** конфига nginx (данные не меняются, но копия не помешает):
+   ```bash
+   cd /opt/shalter
+   sudo cp /etc/nginx/sites-available/shalter ~/nginx-shalter-$(date +%F).bak
+   tar czf ~/shalter-data-$(date +%F).tgz data
+   ```
+2. **Код и сборка:**
+   ```bash
+   git pull
+   npm install
+   npm run build          # в конце «Картинки из архивов: … файлов в public/dist/packs» — теперь ~29 тысяч
+   npm run build:api
+   npm prune --omit=dev
+   ls public/dist/packs/gift-scenes/index.json   # файл должен быть
+   ```
+3. **nginx: новый `root` у сцен подарков.** Одна строка в блоке
+   `location ^~ /gift-scenes/` — проверьте, что `sed` нашёл блок (первая команда
+   печатает `1`):
+   ```bash
+   sudo grep -c 'location ^~ /gift-scenes/' /etc/nginx/sites-available/shalter
+   sudo sed -i '/location ^~ \/gift-scenes\/ {/a\    root /opt/shalter/public/dist/packs;' /etc/nginx/sites-available/shalter
+   sudo grep -A2 'location ^~ /gift-scenes/' /etc/nginx/sites-available/shalter   # вторая строка — root …/dist/packs;
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   Если `/opt/shalter` у вас другой — поправьте путь в команде.
+4. **Перезапуск и проверка:**
+   ```bash
+   pm2 restart ecosystem.config.js --update-env
+   pm2 logs shalter --lines 30          # «shalter server (nest) listening …», без ошибок
+   D=https://ВАШ-ДОМЕН
+   curl -s -o /dev/null -w '%{http_code}\n' $D/gift-scenes/index.json   # 200
+   curl -s -o /dev/null -w '%{http_code}\n' $D/gift-scenes/nope.json    # 404
+   curl -sI $D/gift-scenes/index.json | grep -i x-powered-by            # пусто: отдал nginx
+   ```
+   Затем в приложении: магазин подарков (анимации на месте), отправить голосовое
+   из браузера на компьютере — через несколько секунд его можно перематывать.
+5. **Старую папку сцен можно удалить** (после того как шаг 4 прошёл):
+   `rm -rf /opt/shalter/public/gift-scenes`.
+
+**Откат:** `git checkout` предыдущей версии, `npm install && npm run build && npm run build:api`,
+вернуть конфиг nginx из `~/nginx-shalter-*.bak` (`sudo cp … /etc/nginx/sites-available/shalter && sudo systemctl reload nginx`),
+`pm2 restart ecosystem.config.js --update-env`. Если папку `public/gift-scenes` уже удалили, предыдущая
+версия восстановит её сама при `git checkout`.
+
+**Docker / Dokploy.** Пересобрать образ и перезапустить контейнер — сцены Node отдаёт из архива сам.
+
 ## Выкладка бэкенда на NestJS и нового клиента одним разом
 
 Этот раздел — для выкладки версии, где разом меняются бэкенд (`apps/api` на
@@ -978,13 +1042,15 @@ without it the app's pages answer `503` («Клиент не собран»). Fo
 there's no build at all: `npm run dev` (backend) plus `npm run dev:web` (Vite
 on :5173, proxies `/api` and `/ws` to it).
 
-Built-in gift scenes are not part of the bundle: they live as one small JSON file
-per gift in `public/gift-scenes/<id>.json` plus a list in
-`public/gift-scenes/index.json`, and the client fetches only the scenes of the
-gifts on screen. They are plain static files — nginx serves `/gift-scenes/`
-straight from disk (see "nginx in front"). To regenerate them, use the
-`scripts/generate-scenes*.js` generators; `node scripts/gift-scenes.js` rebuilds
-the index after manual edits.
+Built-in gift scenes are not part of the bundle: they are one small JSON file
+per gift at `/gift-scenes/<id>.json` plus a list at `/gift-scenes/index.json`,
+and the client fetches only the scenes of the gifts on screen. In the repo all
+25 thousand of them are one archive, `server/assets/packs/gift-scenes.pack`
+(like the emoji); `npm run build` unpacks it to `public/dist/packs/gift-scenes`,
+where nginx serves it from (see "nginx in front"); without nginx Node reads the
+archive itself. To regenerate them, use the `scripts/generate-scenes*.js`
+generators — they unpack, add scenes and repack; `node scripts/gift-scenes.js`
+rebuilds the index and the archive after manual edits.
 
 `ecosystem.config.js` is already sized for this box:
 - `instances: 1`, `exec_mode: "fork"` — see above.
@@ -1009,7 +1075,7 @@ What nginx serves itself (paths assume the app lives in `/opt/shalter`):
 | Path | From disk | Cache |
 | --- | --- | --- |
 | `/assets/…` | `apps/web/dist/assets` — the client build, with the `.gz` built next to each file | 1 year, immutable |
-| `/gift-scenes/…` | `public/gift-scenes` | 1 hour |
+| `/gift-scenes/…` | `public/dist/packs/gift-scenes` — unpacked by `npm run build` from `server/assets/packs` | 1 hour |
 | `/img/emoji/…`, `/gift-symbols/…`, `/gift-emoji/…`, `/tgs/…` | `public/dist/packs` — unpacked by `npm run build` from `server/assets/packs` | 7 days |
 | any other file in `public/` | `public/` | 1 hour; `/sw.js` — always re-checked |
 

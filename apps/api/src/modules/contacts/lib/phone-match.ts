@@ -1,6 +1,6 @@
 import type { User } from "../../users/model/domain.js";
 
-// Сравнение номеров из записной книжки (server/lib/phoneMatch.js): только цифры, 8… = 7….
+// Сравнение номеров из записной книжки: только цифры, 8… = 7….
 
 export function phoneKey(raw: unknown): string | null {
   const digits = String(raw ?? "").replace(/\D/g, "");

@@ -262,7 +262,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
     if (!text) return;
     setReply("");
     try {
-      await sendStoryReply(author, text, { url: frame.item.url ?? story.url, kind: frame.item.kind === "video" ? "video" : "image" });
+      await sendStoryReply(author, text, { url: frame.item.url ?? story.url, kind: frame.item.kind === "video" ? "video" : "image", createdAt: story.createdAt });
       setReplyNote("Отправлено ✓");
       setTimeout(() => setReplyNote(null), 2000);
     } catch (err) {

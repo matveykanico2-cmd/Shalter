@@ -11,7 +11,7 @@
 # Static files are read straight from the app directory — the paths below
 # assume /opt/shalter (DEPLOY.md, step 2); change every /opt/shalter if yours
 # differs. They exist after `npm run build`: apps/web/dist (the client),
-# public/dist/packs (unpacked emoji/gift images) and public/gift-scenes. A
+# public/dist/packs (unpacked emoji/gift images and gift scenes). A
 # packed image that isn't on disk falls through to Node, so a missing unpack
 # costs speed, not correctness.
 
@@ -94,7 +94,10 @@ server {
 
   # Built-in gift scenes, one JSON per gift (DEPLOY.md, "Gift scenes"). No such
   # scene is a plain 404, same as Node.
+  # Packed in the repo (server/assets/packs/gift-scenes.pack); `npm run build`
+  # unpacks them to public/dist/packs/gift-scenes.
   location ^~ /gift-scenes/ {
+    root /opt/shalter/public/dist/packs;
     try_files $uri =404;
     add_header Cache-Control "public, max-age=3600";
     add_header X-Content-Type-Options nosniff;

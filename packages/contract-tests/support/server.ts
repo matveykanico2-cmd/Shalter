@@ -2,7 +2,7 @@
 // временном каталоге: все модули берут путь к данным из process.cwd()/data,
 // поэтому cwd = временная папка — это и есть изолированная база, uploads и outbox.
 //
-// TARGET=legacy (по умолчанию) — server/index.js; TARGET=nest — apps/api/dist/main.js (собрать: npm run build:api).
+// Сервер — apps/api/dist/main.js (собрать: npm run build:api); старого server/index.js больше нет.
 // TEST_BASE_URL=http://… — не запускать ничего, гнать тесты против уже поднятого сервера
 // (тогда тесты, которым нужен доступ к каталогу данных, пропускаются).
 import { spawn, type ChildProcess } from "node:child_process";
@@ -61,13 +61,10 @@ function freePort(): Promise<number> {
 }
 
 function entryFor(target: string): string {
-  if (target === "legacy") return path.join(REPO_ROOT, "server", "index.js");
-  if (target === "nest") {
-    const entry = path.join(REPO_ROOT, "apps", "api", "dist", "main.js");
-    if (!fs.existsSync(entry)) throw new Error(`TARGET=nest: нет ${entry} — сначала npm run build:api`);
-    return entry;
-  }
-  throw new Error(`Неизвестный TARGET=${target} (ожидается legacy или nest)`);
+  if (target !== "nest") throw new Error(`Неизвестный TARGET=${target}: старый сервер (server/index.js) удалён, остался только nest`);
+  const entry = path.join(REPO_ROOT, "apps", "api", "dist", "main.js");
+  if (!fs.existsSync(entry)) throw new Error(`нет ${entry} — сначала npm run build:api`);
+  return entry;
 }
 
 async function waitReady(baseUrl: string, child: ChildProcess, log: () => string, timeoutMs = 20_000) {
@@ -145,7 +142,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     ...opts.env,
   };
 
-  const child = spawn(process.execPath, [entryFor(process.env.TARGET ?? "legacy")], {
+  const child = spawn(process.execPath, [entryFor(process.env.TARGET ?? "nest")], {
     cwd: root,
     env,
     stdio: ["ignore", out, out],

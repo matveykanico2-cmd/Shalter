@@ -1,35 +1,24 @@
-// Всё, что живёт рядом с HTTP-сервером: WebSocket, фоновый процесс, RTMP, push,
-// проверка бакета, остановка по сигналу. Сервер может быть свой (server/index.js)
-// или от NestJS (apps/api) — поэтому он приходит параметром, а слушать порт
-// начинает переданная функция listen, когда всё готово. opts.realtime — шлюз WebSocket
-// от Nest: тогда свой не поднимается, а события старого кода уходят в него.
-// opts.ownScheduledSweep — отложенные отправляет Nest (modules/messages), свой проход не нужен.
-// opts.workerEntry — фоновый процесс Nest (apps/api/dist/worker.js) вместо server/worker.js;
-// opts.ownBackground — при BACKGROUND_WORKER=0 очередь и обходы запускает Nest, не этот код.
-const { attachWebSocketServer, useRealtime } = require("./ws");
+// Всё, что живёт рядом с HTTP-сервером Nest (apps/api, main.ts): события старого кода
+// для шлюза WebSocket, фоновый процесс, RTMP, push, проверка бакета, остановка по сигналу.
+// Слушать порт начинает переданная функция listen, когда всё готово.
+// opts.realtime — шлюз WebSocket Nest: события старого кода уходят в него (ws.js).
+// opts.workerEntry — фоновый процесс Nest (apps/api/dist/worker.js); при BACKGROUND_WORKER=0
+// очередь и обходы запускает сам main.ts. Отложенные сообщения отправляет Nest (modules/messages).
+const { useRealtime } = require("./ws");
 const { initPush } = require("./push");
-const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
-const { startSweeps, TEST_MODE } = require("./lib/sweeps");
+const { TEST_MODE } = require("./lib/sweeps");
 const workerBridge = require("./lib/workerBridge");
 
 function startRuntime(server, listen, opts = {}) {
-  if (opts.realtime) useRealtime(opts.realtime);
-  else attachWebSocketServer(server);
+  useRealtime(opts.realtime);
 
-  // Обходы по таймеру и обработка вложений — в фоновом процессе (server/worker.js), он
-  // же в режиме тестов (SHALTER_TEST_MODE) обходы не запускает. BACKGROUND_WORKER=0 —
-  // всё здесь, как раньше. RTMP и отложенные сообщения — всегда здесь; в режиме тестов
-  // их нет: тесты должны быть воспроизводимыми, а параллельные серверы не делить порт RTMP.
-  if (workerBridge.enabled) {
-    workerBridge.startWorker(opts.workerEntry);
-  } else if (!opts.ownBackground) {
-    require("./lib/backgroundJobs").startJobRunner(require("./lib/mediaJobs").handlers);
-    startSweeps({ testMode: TEST_MODE });
-  }
+  // Обходы по таймеру и обработка вложений — в фоновом процессе; в режиме тестов
+  // (SHALTER_TEST_MODE) он обходы не запускает. RTMP — всегда здесь; в режиме тестов
+  // его нет: параллельные серверы не должны делить порт RTMP.
+  if (workerBridge.enabled) workerBridge.startWorker(opts.workerEntry);
   if (TEST_MODE) {
     console.log("[test] SHALTER_TEST_MODE: фоновые обходы и RTMP выключены");
   } else {
-    if (!opts.ownScheduledSweep) startScheduledMessagesSweep();
     startRtmp();
   }
 

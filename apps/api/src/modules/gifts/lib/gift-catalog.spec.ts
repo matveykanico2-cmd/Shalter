@@ -1,5 +1,4 @@
-// Каталог подарков обязан совпадать с server/data/gifts.js, а фон подарка — с
-// server/lib/giftBackground.js: подарки продают и вручают оба бэкенда (оплаченные донатом —
+// Каталог подарков обязан совпадать с server/data/gifts.js: подарки продают и вручают оба бэкенда (оплаченные донатом —
 // server/lib/fulfillOrder.js). Старый сервер в отдельном процессе (server/db.js открывает
 // cwd/data) правит каталог и отдаёт строки gift_catalog вместе со своим результатом — здесь
 // те же строки проходят через перенесённый код.
@@ -11,25 +10,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GiftCatalogService } from "../gift-catalog.service.js";
 import type { GiftsRepository } from "../gifts.repository.js";
 import type { GiftCatalogRow } from "../model/domain.js";
-import { sanitizeGiftBackground } from "./gift-background.js";
 import { BUILTIN_GIFTS, conversionValue, ON_SALE_IDS, STARS_PER_RUB, SUPPLY_MAX, SUPPLY_MIN } from "./gift-catalog.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..", "..");
-const BACKGROUNDS = [
-  { from: "#FFF", to: " #00ff00 ", pattern: "#123456", symbol: "star1" },
-  { from: "#fff", to: "#000", pattern: "red", symbol: "Star" },
-  { from: "#fff" },
-  "#fff",
-  null,
-  { from: "#ffff", to: "#000" },
-];
 const LOOKUPS = ["rose", "cake", "tw_monkey", "nope", "custom_admin", "custom_hidden", "ug_user", 5, null];
 
 const SEED_SCRIPT = `
 const server = ${JSON.stringify(path.join(REPO_ROOT, "server"))};
 const db = require(server + "/db.js");
 const g = require(server + "/data/gifts.js");
-const { sanitizeGiftBackground } = require(server + "/lib/giftBackground.js");
 const offSale = require(server + "/data/catalog/gifts.json").find((x) => !require(server + "/data/catalog/gifts-on-sale.json").includes(x.id));
 g.setSupply("rose", 5000);
 g.setGiftScene("cake", { layers: [{ type: "emoji", emoji: "🎂" }] });
@@ -51,7 +40,6 @@ const out = {
   userGifts: g.listUserGifts("u1"),
   constants: [g.SUPPLY_MIN, g.SUPPLY_MAX, g.STARS_PER_RUB],
   conversion: [g.conversionValue({ priceRub: 3 }), g.conversionValue({ priceRub: 3, priceStars: 0 }), g.conversionValue({ priceRub: 1, priceStars: 12.6 })],
-  backgrounds: ${JSON.stringify(BACKGROUNDS)}.map(sanitizeGiftBackground),
 };
 db.close();
 require("fs").writeFileSync(process.env.SEED_OUT, JSON.stringify(out));
@@ -102,9 +90,5 @@ describe("каталог подарков совпадает с server/data/gift
     expect([conversionValue({ priceRub: 3 }), conversionValue({ priceRub: 3, priceStars: 0 }), conversionValue({ priceRub: 1, priceStars: 12.6 })]).toEqual(
       legacy.conversion,
     );
-  });
-
-  it("фон подарка = server/lib/giftBackground.js", () => {
-    expect(asJson(BACKGROUNDS.map(sanitizeGiftBackground))).toEqual(legacy.backgrounds);
   });
 });

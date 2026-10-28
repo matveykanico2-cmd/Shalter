@@ -1126,7 +1126,7 @@ CREATE TABLE IF NOT EXISTS upload_deletions (
 CREATE INDEX IF NOT EXISTS idx_upload_deletions_at ON upload_deletions(deletedAt);
 
 -- Очередь фоновой работы (server/data/backgroundJobs.js): её разбирает фоновый
--- процесс (server/worker.js). В базе, а не в памяти — задача переживает перезапуск.
+-- процесс (apps/api/dist/worker.js). В базе, а не в памяти — задача переживает перезапуск.
 CREATE TABLE IF NOT EXISTS background_jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

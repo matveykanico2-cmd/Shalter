@@ -1,5 +1,5 @@
-// MessagesRepository и TopicsRepository обязаны читать и писать то же, что
-// server/data/messages.js и server/data/topics.js: пока боты, посты, отложенные и фоновый
+// MessagesRepository обязан читать и писать то же, что server/data/messages.js
+// (TopicsRepository проверяется по ожиданиям, снятым со старого server/data/topics.js): пока боты, посты, отложенные и фоновый
 // процесс в server/, одни и те же сообщения читают и меняют оба бэкенда. Текст в базе
 // зашифрован — шифротекст должен открываться обоими.
 //
@@ -28,7 +28,6 @@ type Legacy = Record<string, (...args: any[]) => any>;
 let dir: string;
 let conn: BetterSqlite3.Database;
 let legacy: Legacy;
-let legacyTopics: Legacy;
 let repo: MessagesRepository;
 let topicsRepo: TopicsRepository;
 
@@ -42,7 +41,6 @@ beforeAll(async () => {
   const require = createRequire(path.join(SERVER, "db.js"));
   conn = require(path.join(SERVER, "db.js"));
   legacy = require(path.join(SERVER, "data", "messages.js"));
-  legacyTopics = require(path.join(SERVER, "data", "topics.js"));
   const chats = require(path.join(SERVER, "data", "chats.js"));
   const db = drizzle({ client: conn, schema }) as Db;
   repo = new MessagesRepository(db);
@@ -279,29 +277,34 @@ describe("сообщение совпадает с server/data/messages.js", () 
   });
 });
 
-describe("тема совпадает с server/data/topics.js", () => {
+describe("тема (ожидания сняты со старого server/data/topics.js)", () => {
   it("создание, правка, список, удаление с сообщениями", async () => {
     const created = topicsRepo.create("c_r", { title: "Новости", icon: "📰", color: "#cb86db" }, "u_a");
-    const theirs = legacyTopics.createTopic("c_l", { title: "Новости", icon: "📰", color: "#cb86db" }, "u_a");
     const strip = ({ id: _id, chatId: _c, createdAt: _t, ...rest }: Record<string, unknown>) => rest;
-    expect(strip(asJson(created) as Record<string, unknown>)).toEqual(strip(asJson(theirs) as Record<string, unknown>));
+    expect(strip(asJson(created) as Record<string, unknown>)).toEqual({ title: "Новости", icon: "📰", color: "#cb86db", closed: false, createdBy: "u_a" });
     // Цвет не из палитры — следующий по кругу.
     const auto = topicsRepo.create("c_r", { title: "Второй", icon: null, color: "red" }, "u_b");
-    const autoTheirs = legacyTopics.createTopic("c_l", { title: "Второй", icon: null, color: "red" }, "u_b");
-    expect(auto.color).toBe(autoTheirs.color);
-    expect(topicsRepo.count("c_r")).toBe(legacyTopics.countTopics("c_r"));
+    expect(auto.color).toBe("#ffd67e");
+    expect(topicsRepo.count("c_r")).toBe(2);
 
-    for (const patch of [{ title: "Переименована" }, { icon: "" }, { icon: "🔥", color: "#8eee98" }, { color: "nope", closed: true }, { closed: false }]) {
+    const after = [
+      { title: "Переименована", icon: "📰", color: "#cb86db", closed: false },
+      { title: "Переименована", color: "#cb86db", closed: false },
+      { title: "Переименована", icon: "🔥", color: "#8eee98", closed: false },
+      { title: "Переименована", icon: "🔥", color: "#8eee98", closed: true },
+      { title: "Переименована", icon: "🔥", color: "#8eee98", closed: false },
+    ];
+    const patches = [{ title: "Переименована" }, { icon: "" }, { icon: "🔥", color: "#8eee98" }, { color: "nope", closed: true }, { closed: false }];
+    patches.forEach((patch, i) => {
       const a = topicsRepo.update(created.id, patch);
-      const b = legacyTopics.updateTopic(theirs.id, patch);
-      expect(strip(asJson(a) as Record<string, unknown>), JSON.stringify(patch)).toEqual(strip(asJson(b) as Record<string, unknown>));
-    }
+      expect(strip(asJson(a) as Record<string, unknown>), JSON.stringify(patch)).toEqual({ ...after[i], createdBy: "u_a" });
+    });
     expect(topicsRepo.update("topic_nope", { title: "x" })).toBeUndefined();
 
     repo.create(sample("c_r", { topicId: created.id }));
     repo.create(sample("c_r", { topicId: created.id, threadRootId: "m_root" }));
-    expect(asJson(topicsRepo.list("c_r"))).toEqual(asJson(legacyTopics.listTopics("c_r")));
-    expect(asJson(topicsRepo.findById(created.id))).toEqual(asJson(legacyTopics.getTopic(created.id)));
+    expect(topicsRepo.list("c_r").map((t) => t.id).sort()).toEqual([created.id, auto.id].sort());
+    expect(strip(asJson(topicsRepo.findById(created.id)) as Record<string, unknown>)).toEqual({ ...after[4], createdBy: "u_a" });
 
     const ids = conn.prepare("SELECT id FROM messages WHERE topicId = ?").all(created.id).map((r) => (r as { id: string }).id);
     expect(topicsRepo.delete(created.id).sort()).toEqual(ids.sort());

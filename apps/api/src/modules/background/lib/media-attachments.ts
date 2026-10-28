@@ -18,6 +18,17 @@ export function needsPreview(attachment: Attachment | null | undefined): boolean
   return attachment!.kind === "video" ? !attachment!.previewUrl : !attachment!.thumbUrl;
 }
 
+/**
+ * Голосовое или кружок, записанные браузером в WebM: без индекса и длительности они не
+ * перематываются. Им делается копия для проигрывания (previewUrl: голосовое — M4A, кружок —
+ * MP4 H.264). Пометки previewPending нет — оригинал играет, пока копия не готова.
+ */
+export function needsPlayback(a: Attachment | null | undefined): boolean {
+  if ((a?.kind !== "voice" && a?.kind !== "video-note") || a.previewUrl) return false;
+  const filename = uploadFilename(a.url);
+  return !!filename && /\.(webm|weba|mkv)$/i.test(filename);
+}
+
 /** Голосовое, кружок или аудиофайл — у них считается длительность. */
 export function isTimed(a: Attachment | null | undefined): boolean {
   return a?.kind === "voice" || a?.kind === "video-note" || (a?.kind === "file" && /^audio\//.test((a.mimeType as string | undefined) ?? ""));
@@ -31,7 +42,7 @@ export function markPendingPreviews(attachments: Attachment[] | undefined): Atta
 /** Есть ли у сообщения работа для фона — чтобы не ставить задачу на каждое сообщение. */
 export function messageNeedsMedia(message: { attachments?: Attachment[] }): boolean {
   return (message.attachments ?? []).some(
-    (a) => needsPreview(a) || (isTimed(a) && !((a.durationSec as number) > 0) && uploadFilename(a.url))
+    (a) => needsPreview(a) || needsPlayback(a) || (isTimed(a) && !((a.durationSec as number) > 0) && uploadFilename(a.url))
   );
 }
 
