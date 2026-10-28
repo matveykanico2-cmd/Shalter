@@ -74,7 +74,7 @@ export const editChatQueries = {
     }),
 };
 
-export type ChatProfilePatch = { title?: string; description?: string; avatarImage?: string | null; avatarColor?: string | null };
+export type ChatProfilePatch = { title?: string; description?: string; avatarImage?: string | null; avatarColor?: string | null; avatarEmoji?: string | null };
 
 export const patchChatProfile = (chatId: string, patch: ChatProfilePatch) => http.patch<z.infer<typeof chatBody>>(chatPath(chatId), patch);
 

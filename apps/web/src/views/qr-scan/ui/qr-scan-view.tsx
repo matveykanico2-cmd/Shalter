@@ -2,6 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { pollQrLogin,startQrLogin } from "@/features/sign-in";
+
 import { useSession } from "@/entities/session";
 
 import { http } from "@/shared/api";
@@ -9,8 +11,6 @@ import { errorText } from "@/shared/lib/error-text";
 import { prettyQrSvg } from "@/shared/lib/qr/pretty-qr";
 import { qrCardPng } from "@/shared/lib/qr/qr-card";
 import { Avatar, Button, Dialog, Icon, toast } from "@/shared/ui";
-
-import { startQrLogin, pollQrLogin } from "@/features/sign-in/api/sign-in";
 
 import styles from "./qr-scan.module.css";
 

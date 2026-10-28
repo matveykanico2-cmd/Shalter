@@ -36,7 +36,7 @@ import type {
 } from "./model/schemas/chat.schema.js";
 
 const PERSONAL_FLAGS = ["pinned", "archived", "muted", "unread"] as const;
-const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "autoDeleteSeconds"] as const;
+const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "avatarEmoji", "autoDeleteSeconds"] as const;
 type PersonalFlag = (typeof PERSONAL_FLAGS)[number];
 
 // Чаты пользователя: список, создание, правка, удаление, выход, «печатает…».
@@ -239,6 +239,7 @@ export class ChatsService {
       patch.avatarImage = (body.avatarImage as string) || null;
     }
     if (body.avatarColor !== undefined) patch.avatarColor = body.avatarColor;
+    if (body.avatarEmoji !== undefined) patch.avatarEmoji = body.avatarEmoji;
     if (body.autoDeleteSeconds !== undefined) {
       const sec = body.autoDeleteSeconds;
       if (!Number.isInteger(sec) || sec < 0 || sec > 366 * 86400) throw new ApiError(400, "Некорректный срок автоудаления");
@@ -265,7 +266,7 @@ export class ChatsService {
     const updated = this.chats.update(chat.id, patch)!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type !== "dm") {
-      for (const k of ["title", "description", "avatarImage", "autoDeleteSeconds"] as const) {
+      for (const k of ["title", "description", "avatarImage", "avatarColor", "avatarEmoji", "autoDeleteSeconds"] as const) {
         if (k in patch && patch[k] !== chat[k]) {
           this.adminLog.record(chat.id, uid, `chat_${k}`, { details: k === "avatarImage" ? null : { value: patch[k] } });
         }

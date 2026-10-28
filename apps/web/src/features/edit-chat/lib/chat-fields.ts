@@ -12,6 +12,7 @@ const FIELDS = [
   "description",
   "avatarImage",
   "avatarColor",
+  "avatarEmoji",
   "isPublic",
   "username",
   "inviteCode",

@@ -30,6 +30,7 @@ function rowToChat(row, members) {
     permissions: safeParse(row.permissions, null),
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
+    avatarEmoji: row.avatarEmoji ?? undefined,
     ownerId: row.ownerId ?? undefined,
     adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
     moderatorIds: members.filter((m) => m.isModerator).map((m) => m.userId),
@@ -211,8 +212,8 @@ const setMembers = db.transaction((chatId, memberIds, adminIds, moderatorIds, ow
 
 async function createChat(chat) {
   db.prepare(
-    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId, restrictions, points, votes)
-     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId, @restrictions, @points, @votes)`
+    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, avatarEmoji, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId, restrictions, points, votes)
+     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @avatarEmoji, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId, @restrictions, @points, @votes)`
   ).run({
     id: chat.id,
     type: chat.type,
@@ -222,6 +223,7 @@ async function createChat(chat) {
     isPublic: chat.isPublic ? 1 : 0,
     avatarColor: chat.avatarColor ?? null,
     avatarImage: chat.avatarImage ?? null,
+    avatarEmoji: chat.avatarEmoji ?? null,
     ownerId: chat.ownerId ?? null,
     pinned: chat.pinned ? 1 : 0,
     muted: chat.muted ? 1 : 0,
@@ -281,7 +283,7 @@ const claimSecretDevice = db.transaction((chatId, userId, deviceId) => {
 });
 
 const PATCHABLE_FIELDS = [
-  "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
+  "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage", "avatarEmoji",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
   "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds", "commentPriceStars",
   "approveJoins", "signMessages", "commentsOff", "rules", "anonymousAdmins", "topicsEnabled", "welcomeText",

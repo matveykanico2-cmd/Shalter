@@ -139,7 +139,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     UPLOADS_KEY: TEST_KEYS.uploads,
     // Сторож сети (net-guard.cjs): соединения и DNS-запросы не на loopback
     // отклоняются и записываются; stop() падает, если такие были.
-    NODE_OPTIONS: `--require ${NET_GUARD}`,
+    NODE_OPTIONS: `--require "${NET_GUARD}"`,
     SHALTER_NET_GUARD_LOG: netLogFile,
     SHALTER_WEB_DIST: opts.webDist ?? FIXTURE_WEB_DIST,
     ...opts.env,

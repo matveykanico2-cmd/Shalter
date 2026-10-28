@@ -40,14 +40,17 @@ afterEach(() => {
 describe("сообщества", () => {
   it("«Новое сообщество»: название, описание, кто добавляет чаты", async () => {
     const { calls } = fakeApi({
+      "GET /api/chats": { body: { chats: [] } },
       "POST /api/communities": { body: { community } },
       "GET /api/communities/joined": { body: { communities: [] } },
     });
     const onCreated = vi.fn();
     setup(<CreateCommunityDialog onCreated={onCreated} onClose={() => {}} />);
     const dialog = screen.getByRole("dialog", { name: "Новое сообщество" });
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.key).toEqual("GET /api/chats");
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
-    expect(calls).toHaveLength(0);
+    expect(calls).toHaveLength(1);
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Название сообщества" }), { target: { value: "Дачники" } });
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Описание (необязательно)" }), { target: { value: "Всё о даче" } });
     expect(within(dialog).getByRole("radio", { name: /^Все участники/ }).getAttribute("aria-checked")).toBe("true");
@@ -55,7 +58,9 @@ describe("сообщества", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
     expect(await screen.findByText("Сообщество создано")).toBeTruthy();
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
-    expect(calls[0]?.body).toEqual({ title: "Дачники", description: "Всё о даче", avatarImage: null, addMode: "admins" });
+    const createCall = calls.find((c) => c.key.startsWith("POST /api/communities"));
+    expect(createCall).toBeDefined();
+    expect(createCall?.body).toEqual({ title: "Дачники", description: "Всё о даче", avatarImage: null, addMode: "admins", chatId: null, chatVisible: true });
   });
 
   it("«Добавить чат»: только свои группы, затем видимость", async () => {

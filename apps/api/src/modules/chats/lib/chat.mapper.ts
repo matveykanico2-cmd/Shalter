@@ -38,6 +38,7 @@ export function toChat(row: ChatRow, members: ChatMember[]) {
     permissions: safeParse<Record<string, boolean> | null>(row.permissions, null),
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
+    avatarEmoji: row.avatarEmoji ?? undefined,
     ownerId: row.ownerId ?? undefined,
     adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
     moderatorIds: members.filter((m) => m.isModerator).map((m) => m.userId),

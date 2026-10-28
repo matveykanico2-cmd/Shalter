@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS chats (
   isPublic INTEGER NOT NULL DEFAULT 0,
   avatarColor TEXT,
   avatarImage TEXT,
+  avatarEmoji TEXT,
   ownerId TEXT,
   pinned INTEGER NOT NULL DEFAULT 0,
   muted INTEGER NOT NULL DEFAULT 0,
@@ -768,7 +769,9 @@ if (!existingMessageColumns.has("threadRootId")) db.exec("ALTER TABLE messages A
 if (!existingMessageColumns.has("storyReply")) db.exec("ALTER TABLE messages ADD COLUMN storyReply TEXT");
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_threadRoot ON messages(threadRootId)");
 
+// Колонка avatarEmoji добавилась позже — мигрируем старые базы.
 const existingChatColumns = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+if (!existingChatColumns.has("avatarEmoji")) db.exec("ALTER TABLE chats ADD COLUMN avatarEmoji TEXT");
 if (!existingChatColumns.has("restrictions")) db.exec("ALTER TABLE chats ADD COLUMN restrictions TEXT");
 if (!existingChatColumns.has("points")) db.exec("ALTER TABLE chats ADD COLUMN points INTEGER NOT NULL DEFAULT 0");
 if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN votes TEXT");
@@ -1344,6 +1347,11 @@ CREATE TABLE IF NOT EXISTS community_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_community_requests_community ON community_requests(communityId);
 `);
+
+// Колонки badge/title добавились в community_members позднее — мигрируем старые базы.
+const existingCommunityMemberColumns = new Set(db.prepare("PRAGMA table_info(community_members)").all().map((c) => c.name));
+if (!existingCommunityMemberColumns.has("badge")) db.exec("ALTER TABLE community_members ADD COLUMN badge TEXT");
+if (!existingCommunityMemberColumns.has("title")) db.exec("ALTER TABLE community_members ADD COLUMN title TEXT");
 
 // Разовые переносы данных. Отметка пишется в той же транзакции, что и сам перенос, —
 // второй запуск (и фоновый процесс, который открывает базу следом) его пропускает.

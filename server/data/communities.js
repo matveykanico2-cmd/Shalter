@@ -219,9 +219,9 @@ function listMemberIds(communityId) {
 
 function listAdmins(communityId) {
   return db
-    .prepare("SELECT userId, rights FROM community_members WHERE communityId = ? AND role = 'admin' AND left = 0 ORDER BY joinedAt ASC")
+    .prepare("SELECT userId, rights, badge, title FROM community_members WHERE communityId = ? AND role = 'admin' AND left = 0 ORDER BY joinedAt ASC")
     .all(communityId)
-    .map((r) => ({ userId: r.userId, rights: parseRights(r.rights) }));
+    .map((r) => ({ userId: r.userId, rights: parseRights(r.rights), badge: r.badge, title: r.title }));
 }
 
 function setAdmin(communityId, userId, rights) {
@@ -303,6 +303,7 @@ module.exports = {
   setPrefs,
   joinCommunity,
   hasMemberRow,
+  memberRow,
   leaveCommunity,
   listCommunitiesForUser,
   listMemberIds,

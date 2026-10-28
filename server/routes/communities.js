@@ -549,8 +549,9 @@ router.get(
   asyncRoute(async (req, res) => {
     const community = load(req, res, "member");
     if (!community) return;
-    const admins = [await userCard(community.ownerId, { role: "owner", rights: communities.rightsOf(community, community.ownerId) })];
-    for (const a of communities.listAdmins(community.id)) admins.push(await userCard(a.userId, { role: "admin", rights: a.rights }));
+    const ownerRow = communities.memberRow(community.id, community.ownerId);
+    const admins = [await userCard(community.ownerId, { role: "owner", rights: communities.rightsOf(community, community.ownerId), badge: ownerRow?.badge, title: ownerRow?.title })];
+    for (const a of communities.listAdmins(community.id)) admins.push(await userCard(a.userId, { role: "admin", rights: a.rights, badge: a.badge, title: a.title }));
     res.json({ admins: admins.filter(Boolean) });
   })
 );

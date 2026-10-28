@@ -42,6 +42,7 @@ export interface ChatPatch {
   isPublic?: boolean;
   avatarColor?: string;
   avatarImage?: string | null;
+  avatarEmoji?: string | null;
   ownerId?: string;
   linkedDiscussionChatId?: string | null;
   points?: number;

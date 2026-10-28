@@ -17,7 +17,7 @@ const MEMBER_COLUMNS = {
 
 // Простые поля, которые меняет update (PATCHABLE_FIELDS в server/data/chats.js).
 const SCALAR_FIELDS = [
-  "title", "description", "username", "isPublic", "avatarColor", "avatarImage", "ownerId",
+  "title", "description", "username", "isPublic", "avatarColor", "avatarImage", "avatarEmoji", "ownerId",
   "linkedDiscussionChatId", "points", "autoDeleteSeconds", "inviteCode", "slowModeSeconds",
   "commentPriceStars", "approveJoins", "signMessages", "commentsOff", "anonymousAdmins", "topicsEnabled", "welcomeText", "isVerified",
 ] as const satisfies readonly (keyof ChatPatch & keyof NewChatRow)[];

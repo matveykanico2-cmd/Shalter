@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { chatQueries } from "@/entities/chat";
 import { type AddMode, type Community, communityApi } from "@/entities/community";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -21,15 +23,27 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [addMode, setAddMode] = useState<AddMode>("all");
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatVisible, setChatVisible] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const chats = useQuery(chatQueries.list());
+  const selectableChats = (chats.data ?? []).filter((c) => c.type === "group" || c.type === "channel");
 
   const create = async () => {
     const t = title.trim();
     if (!t) return setInvalid(true);
     setBusy(true);
     try {
-      const { community } = await communityApi.create({ title: t, description: description.trim(), avatarImage, addMode });
+      const { community } = await communityApi.create({
+        title: t,
+        description: description.trim(),
+        avatarImage,
+        addMode,
+        chatId,
+        chatVisible,
+      });
       toast("Сообщество создано");
       await actions.refresh();
       onClose();
@@ -64,8 +78,17 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
       <p className={styles.caption}>Сообщество объединяет несколько групп и каналов под одной вывеской.</p>
       <p className={styles.sectionName}>Кто может добавлять чаты</p>
       <RadioRows label="Кто может добавлять чаты" options={ADD_MODES} value={addMode} onChange={setAddMode} />
-      <p className={styles.sectionName}>Чатов пока нет</p>
-      <p className={styles.caption}>После создания можно добавить свои группы и каналы.</p>
+      <p className={styles.sectionName}>Первый чат сообщества (группа или канал)</p>
+      {selectableChats.length ? (
+        <div className={styles.field}>
+          <RadioRows label="Чат" options={selectableChats.map((c) => ({ value: c.id, title: c.title || "Без названия", sub: c.type === "channel" ? "Канал" : "Группа" }))} value={chatId ?? ""} onChange={(v) => setChatId(v || null)} />
+          <label className={styles.caption}>
+            <input type="checkbox" checked={chatVisible} onChange={(e) => setChatVisible(e.target.checked)} /> Виден всем участникам
+          </label>
+        </div>
+      ) : (
+        <p className={styles.caption}>У вас нет своих групп и каналов — добавьте их позже.</p>
+      )}
       <div className={styles.buttons}>
         <Button variant="secondary" onClick={onClose}>
           Отмена

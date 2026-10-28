@@ -1,6 +1,8 @@
 // Проверки аватарки и статуса обязаны совпадать с server/lib/avatars.js и profileStatus.js:
 // одни и те же списки пишут оба бэкенда. Старые модули — в отдельном процессе.
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { MAX_AVATARS, validateEntry } from "./avatars.js";
@@ -32,7 +34,10 @@ process.stdout.write(JSON.stringify({
 `;
 
 describe("аватарки и статусы совпадают с server/lib", () => {
-  const legacy = JSON.parse(execFileSync(process.execPath, ["-e", SCRIPT], { encoding: "utf8" }));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "shalter-avatars-"));
+  const scriptPath = path.join(tmp, "legacy.cjs");
+  fs.writeFileSync(scriptPath, SCRIPT, "utf8");
+  const legacy = JSON.parse(execFileSync(process.execPath, [scriptPath], { encoding: "utf8" }));
 
   it("validateEntry и MAX_AVATARS", () => {
     expect(MAX_AVATARS).toBe(legacy.max);

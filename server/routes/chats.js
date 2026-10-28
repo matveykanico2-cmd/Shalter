@@ -385,6 +385,11 @@ router.patch(
       patch.avatarImage = body.avatarImage || null;
     }
     if (typeof body.avatarColor === "string") patch.avatarColor = body.avatarColor.slice(0, 32);
+    if ("avatarEmoji" in body) {
+      const e = String(body.avatarEmoji || "").slice(0, 2);
+      if (e && !/^[\p{Emoji}\p{L}\p{N}]+$/u.test(e)) return res.status(400).json({ error: "Заставкой может быть смайл, буква или цифра" });
+      patch.avatarEmoji = e || null;
+    }
     if ("autoDeleteSeconds" in body) {
       const sec = Number(body.autoDeleteSeconds) || 0;
       if (!Number.isInteger(sec) || sec < 0 || sec > 366 * 86400) return res.status(400).json({ error: "Некорректный срок автоудаления" });
@@ -395,7 +400,7 @@ router.patch(
     if ("avatarColor" in patch && !colorUnlocked(chat, patch.avatarColor)) {
       return res.status(403).json({ error: lockedColorError(patch.avatarColor) });
     }
-    const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "autoDeleteSeconds"];
+    const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "avatarEmoji", "autoDeleteSeconds"];
     if (chat.type !== "dm" && EDITABLE_BY_STAFF.some((k) => k in patch) && !isOwnerOrAdminOf(chat, req.uid)) {
       return res.status(403).json({ error: "Менять настройки чата могут владельцы и админы" });
     }

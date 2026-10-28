@@ -21,6 +21,7 @@ const chatShape = {
   permissions: anyJson.nullable(),
   avatarColor: z.string().optional(),
   avatarImage: z.string().optional(),
+  avatarEmoji: z.string().optional(),
   ownerId: z.string().optional(),
   adminIds: z.array(z.string()),
   moderatorIds: z.array(z.string()),

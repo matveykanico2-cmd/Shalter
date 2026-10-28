@@ -31,6 +31,15 @@ const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   log: "Недавние действия",
 };
 
+/** Набор смайлов для быстрой заставки группы. */
+const EMOJIS = [
+  "😀", "😂", "😍", "🤩", "😎", "😡", "😭", "🎉", "💯", "🔥",
+  "❤️", "👍", "🚀", "🌟", "⭐", "✨", "💎", "🎁", "🎂", "🥳",
+  "🤔", "😴", "😈", "👻", "🎃", "🎄", "☀️", "🌙", "☁️", "❄️",
+  "🍀", "🍎", "🍕", "🍔", "☕", "🍺", "🎸", "🎮", "🏀", "⚽",
+  "🏈", "🎯", "🎲", "🎨", "🎧", "📚", "✍️", "🔑", "💡",
+];
+
 /** «Добавить историю канала» — выбор файлов и редактор у ленты историй, здесь только строка. */
 type ChannelStory = { open: () => void; progress: string | null };
 type Props = { chat: ChatSummary; onClose: () => void; channelStory?: ChannelStory };
@@ -80,6 +89,11 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   const [description, setDescription] = useState(chat.description ?? "");
   const [avatarImage, setAvatarImage] = useState<string | null>(chat.avatarImage ?? null);
   const [avatarColor, setAvatarColor] = useState<string | null>(chat.avatarColor ?? null);
+  const [avatarEmoji, setAvatarEmoji] = useState<string | null>(chat.avatarEmoji ?? null);
+  const [avatarMode, setAvatarMode] = useState<"image" | "emoji" | "letter" | null>(null);
+  const [customEmoji, setCustomEmoji] = useState("");
+  const [letter, setLetter] = useState("");
+  const initialLetter = (chat.title ?? "").trim().slice(0, 1).toUpperCase();
   const [titleError, setTitleError] = useState(false);
   const [busy, setBusy] = useState(false);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -106,11 +120,31 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
 
   const pickAvatar = async (file: File | undefined) => {
     if (!file) return;
+    setAvatarMode(null);
+    setAvatarEmoji(null);
     try {
       setAvatarImage(await fileToImageDataUrl(file, 512));
     } catch (err) {
       toast(errorText(err, "Не удалось прочитать изображение"), { error: true });
     }
+  };
+
+  const pickEmoji = (e: string) => {
+    setAvatarMode(null);
+    setAvatarImage(null);
+    setAvatarEmoji(e);
+  };
+
+  const pickLetter = (l: string) => {
+    setAvatarMode(null);
+    setAvatarImage(null);
+    setAvatarEmoji(l.toUpperCase());
+  };
+
+  const clearAvatar = () => {
+    setAvatarMode(null);
+    setAvatarImage(null);
+    setAvatarEmoji(null);
   };
 
   const save = async () => {
@@ -120,11 +154,11 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
       titleInput.current?.focus();
       return;
     }
-    // Отправляем только изменённое — иначе сервер пишет в чат «удалил фото», которого не было.
     const patch: ChatProfilePatch = {};
     if (t !== (chat.title ?? "")) patch.title = t;
     if (description.trim() !== (chat.description ?? "")) patch.description = description.trim();
     if (avatarImage !== (chat.avatarImage ?? null)) patch.avatarImage = avatarImage;
+    if (avatarEmoji !== (chat.avatarEmoji ?? null)) patch.avatarEmoji = avatarEmoji;
     if (avatarColor !== (chat.avatarColor ?? null)) patch.avatarColor = avatarColor;
     if (!Object.keys(patch).length) return onDone();
     setBusy(true);
@@ -141,12 +175,25 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   return (
     <>
       <div className={styles.head}>
-        <button type="button" className={styles.avatarEdit} title="Сменить фото" onClick={() => fileInput.current?.click()}>
-          <Avatar size={120} name={title || chat.title || ""} color={avatarColor} image={avatarImage} />
-          <span className={styles.avatarIcon}>
-            <Icon name="Image" size={40} />
-          </span>
-        </button>
+        <div className={styles.avatarPick}>
+          <button type="button" className={styles.avatarEdit} title="Сменить заставку" onClick={() => setAvatarMode("image")}>
+            <Avatar size={120} name={title || chat.title || ""} color={avatarColor} image={avatarImage} emoji={avatarEmoji} />
+            <span className={styles.avatarIcon}>
+              <Icon name="Image" size={40} />
+            </span>
+          </button>
+          {(avatarImage || avatarEmoji) && (
+            <button type="button" className={styles.avatarClear} title="Убрать заставку" onClick={clearAvatar}>
+              <Icon name="X" size={20} />
+            </button>
+          )}
+          <button type="button" className={styles.avatarMode} title="Смайл или буква" onClick={() => setAvatarMode("emoji")}>
+            <Icon name="Smile" size={20} />
+          </button>
+          <button type="button" className={styles.avatarMode} title="Одна буква" onClick={() => setAvatarMode("letter")}>
+            <Icon name="Keyboard" size={20} />
+          </button>
+        </div>
         <input
           ref={fileInput}
           type="file"
@@ -158,6 +205,48 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
             e.target.value = "";
           }}
         />
+        {avatarMode === "image" ? null : null}
+        {avatarMode === "emoji" && (
+          <div className={styles.emojiPicker}>
+            <p className={styles.emojiLabel}>Смайл на заставке</p>
+            <div className={styles.emojiRow}>
+              {EMOJIS.map((e) => (
+                <button key={e} type="button" className={styles.emoji} title={e} onClick={() => pickEmoji(e)}>
+                  {e}
+                </button>
+              ))}
+              <div className={styles.emojiInputWrap}>
+                <input
+                  className={styles.emojiInput}
+                  maxLength={2}
+                  placeholder="свой смайл"
+                  value={customEmoji}
+                  onChange={(e) => setCustomEmoji(e.target.value)}
+                />
+                <button type="button" className={styles.emojiApply} onClick={() => pickEmoji(customEmoji.trim())}>
+                  Установить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {avatarMode === "letter" && (
+          <div className={styles.emojiPicker}>
+            <p className={styles.emojiLabel}>Буква на заставке</p>
+            <div className={styles.emojiRow}>
+              <input
+                className={styles.emojiInput}
+                maxLength={1}
+                placeholder="А"
+                value={letter}
+                onChange={(e) => setLetter(e.target.value.toUpperCase())}
+              />
+              <button type="button" className={styles.emojiApply} onClick={() => pickLetter(letter || initialLetter)}>
+                Установить
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       <Section>
         <div className={styles.fields}>

@@ -22,9 +22,8 @@ import { publicUrl } from "@/shared/lib/public-link";
 import { useEscape } from "@/shared/lib/use-escape";
 import { Avatar, Icon, type IconName, InfoRow, Menu } from "@/shared/ui";
 
+import { ChatHistoryClear } from "../../message-feed/ui/chat-history-clear";
 import { membersLine, sortMembers } from "../lib/members";
-
-import { ChatHistoryClear } from "@/widgets/message-feed/ui/chat-history-clear";
 
 import styles from "./chat-info-panel.module.css";
 

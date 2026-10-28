@@ -68,6 +68,130 @@
   color: #fff;
 }
 
+.avatarEdit {
+  position: relative;
+  display: flex;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarPick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatarClear {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-surface);
+  background: var(--color-danger);
+  color: #fff;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.avatarMode {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.avatarMode:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.emojiPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  margin-top: 8px;
+}
+
+.emojiLabel {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.emojiRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.emoji {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.emoji:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.emojiInputWrap {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.emojiInput {
+  flex: 1;
+  min-width: 90px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 20px;
+  text-align: center;
+}
+
+.emojiApply {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.emojiApply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .group {
   margin-bottom: 16px;
 }

@@ -49,6 +49,11 @@ export const patchChatSchema = requestBody({
   // проверяется после изображения — обе проверки в сервисе.
   avatarImage: raw(),
   avatarColor: stringOr((v) => v.slice(0, 32)),
+  avatarEmoji: stringOr((v) => {
+    const e = v.slice(0, 2);
+    if (e && !/^[\p{Emoji}\p{L}\p{N}]+$/u.test(e)) throw new Error("Заставкой может быть смайл, буква или цифра");
+    return e || null;
+  }),
   autoDeleteSeconds: ifPresent((v) => Number(v) || 0),
   pinned: ifPresent((v) => !!v),
   archived: ifPresent((v) => !!v),

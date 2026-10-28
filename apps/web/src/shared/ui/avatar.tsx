@@ -6,6 +6,7 @@ type Props = {
   name: string;
   color?: string | null;
   image?: string | null;
+  emoji?: string | null;
   size?: number;
   online?: boolean;
 };
@@ -20,7 +21,7 @@ const initials = (name: string) =>
     .toUpperCase();
 
 /** Аватар: фото, а без него (или если не загрузилось) — инициалы на цвете профиля. */
-export function Avatar({ name, color, image, size = 44, online = false }: Props) {
+export function Avatar({ name, color, image, emoji, size = 44, online = false }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
   const showImage = !!image && broken !== image;
   return (
@@ -28,8 +29,8 @@ export function Avatar({ name, color, image, size = 44, online = false }: Props)
       {showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
       ) : (
-        <span className={styles.fallback} translate="no" style={{ background: color ?? undefined, fontSize: size * 0.4 }}>
-          {initials(name) || "?"}
+        <span className={styles.fallback} translate="no" style={{ background: color ?? undefined, fontSize: size * 0.5 }}>
+          {emoji ? emoji : initials(name) || "?"}
         </span>
       )}
       {online ? <span className={styles.online} style={{ width: size * 0.28, height: size * 0.28 }} /> : null}
