@@ -387,6 +387,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     () => STUN_FALLBACK
   );
   if (state !== mine) return;
+  const outgoing = !isRoom && call.callerId === me.id;
   if (outgoing) {
     startRingback();
     clearTimeout(noAnswerTimer);
