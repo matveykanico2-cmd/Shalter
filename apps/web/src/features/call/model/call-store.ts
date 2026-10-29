@@ -326,13 +326,15 @@ function removePeer(userId: string) {
   notify();
   // Последний собеседник ушёл — звонок окончен. В голосовом чате группы остаются ждать
   // других: раньше клиент закрывал его у себя, а сервер продолжал считать участником.
-  // Не завершаем сразу — даём времени другому участнику присоединиться (иначе звонок
-  // сбрасывается сам, не дождавшись ответа).
-  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended") {
+  // Не завершаем сразу — даём времени другому участнику присоединиться.
+  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended" && state.phase === "connected") {
     clearTimeout(noAnswerTimer);
     noAnswerTimer = setTimeout(() => {
       if (state && state.others.length === 0 && !state.isRoom && state.phase !== "ended") endLocally();
-    }, 5_000);
+    }, 15000);
+  } else if (state.others.length === 0 && !state.isRoom && state.phase === "ringing") {
+    // Don't auto-end while ringing, wait for server to update
+    clearTimeout(noAnswerTimer);
   }
 }
 
@@ -385,13 +387,14 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     () => STUN_FALLBACK
   );
   if (state !== mine) return;
-  const outgoing = !isRoom && call.callerId === me.id;
   if (outgoing) {
     startRingback();
     clearTimeout(noAnswerTimer);
     noAnswerTimer = setTimeout(() => {
       if (state === mine && mine.phase === "ringing") void hangup();
     }, NO_ANSWER_MS);
+  } else {
+    clearTimeout(noAnswerTimer);
   }
 
   const ticker = setInterval(() => {

@@ -30,10 +30,9 @@
     </div>
   </main>
   <script>
-    const RETRY_MS = 5000;
-    const TIMEOUT_MS = 8000;
     let target = null;
     let timer = null;
+    let attempts = 0;
 
     // Связь проверяем двумя путями сразу: из Rust (прямое TCP-соединение) и запросом
     // отсюда. Хватает любого — у части систем WebKit отклонял запрос со страницы
@@ -55,10 +54,15 @@
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
       try {
-        await fetch(new URL("/manifest.webmanifest", url), { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+        await fetch(new URL("/api/version", url), { mode: "cors", cache: "no-store", signal: ctrl.signal });
         return true;
       } catch {
-        return false;
+        try {
+          await fetch(new URL("/manifest.webmanifest", url), { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+          return true;
+        } catch {
+          return false;
+        }
       } finally {
         clearTimeout(t);
       }
@@ -66,12 +70,17 @@
 
     async function attempt() {
       clearTimeout(timer);
+      attempts++;
       if (await reachable(target)) {
         location.replace(target);
         return;
       }
       document.getElementById("offline").hidden = false;
-      timer = setTimeout(attempt, RETRY_MS);
+      if (attempts < 3) {
+        timer = setTimeout(attempt, 1000);
+      } else {
+        timer = setTimeout(attempt, RETRY_MS);
+      }
     }
 
     document.getElementById("retry").addEventListener("click", attempt);
@@ -81,6 +90,17 @@
       .invoke("startup_target")
       .then((url) => {
         target = url;
+        attempts = 0;
+        setTimeout(() => {
+          if (document.getElementById("offline").hidden && attempts === 0) {
+            attempt();
+          }
+        }, 500);
+        attempt();
+      })
+      .catch(() => {
+        target = "https://shalter.ru";
+        attempts = 0;
         attempt();
       });
   </script>
