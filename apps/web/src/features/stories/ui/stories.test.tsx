@@ -159,7 +159,7 @@ describe("истории", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /Алиса$/ })).toBeNull());
   });
 
-  it("текстовая история: белый холст с текстом, картинка уходит как фото-история", async () => {
+  it("статья: белый холст с текстом, картинка уходит как фото-история", async () => {
     fakeXhr();
     // В jsdom нет canvas — подменяем рисование и toBlob.
     const ctx = new Proxy({}, { get: (_t, key) => (key === "measureText" ? () => ({ width: 10 }) : () => {}), set: () => true });
@@ -172,7 +172,7 @@ describe("истории", () => {
     renderBar();
     // Своей истории нет — клик по «Выложить историю» открывает выбор создания.
     fireEvent.click(screen.getByRole("button", { name: /Выложить историю$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Текстовый пост" }));
+    fireEvent.click(screen.getByRole("button", { name: "Статья" }));
     const editor = await screen.findByRole("dialog", { name: "Редактор истории" });
     // Фото нет — пропускать нечего; поле текста уже на холсте.
     expect(within(editor).queryByRole("button", { name: "Пропустить" })).toBeNull();
