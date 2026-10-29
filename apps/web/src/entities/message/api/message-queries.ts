@@ -49,6 +49,8 @@ export const messageQueries = {
         const page = await http.get<HistoryPage>(historyPath(chatId, topic), signal);
         return mergeLatest(client.getQueryData<History>(historyKey(chatId, topic)), page);
       },
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     }),
 };
 
