@@ -337,6 +337,7 @@ export function Composer(props: Props) {
 
   const clearDraft = () => {
     clearTimeout(draftTimer.current);
+    pendingDraft.current = null;
     if (thread) return;
     chatCache.setDraft(client, chatId, "");
     saveDraft(chatId, "").catch(() => {});
