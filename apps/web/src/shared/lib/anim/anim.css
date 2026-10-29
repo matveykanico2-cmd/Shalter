@@ -857,7 +857,7 @@ ch-eye-dot {
   display: block;
   object-fit: contain;
   background: none;
-  border-radius: 8px;
+  border-radius: 0;
   -webkit-user-drag: none;
   user-select: none;
 }
