@@ -19,8 +19,6 @@
   </style>
 </head>
 <body>
-  <!-- Стартовая страница оболочки: проверяет, что сервер отвечает, и переходит на
-       него. Без связи — экран ожидания с автоповтором (как offline.html в Electron). -->
   <main>
     <div class="spinner" role="status" aria-label="Подключение"></div>
     <div id="offline" hidden>
@@ -30,15 +28,14 @@
     </div>
   </main>
   <script>
+    const RETRY_MS = 5000;
+    const TIMEOUT_MS = 8000;
     let target = null;
     let timer = null;
-    let attempts = 0;
 
-    // Связь проверяем двумя путями сразу: из Rust (прямое TCP-соединение) и запросом
-    // отсюда. Хватает любого — у части систем WebKit отклонял запрос со страницы
-    // tauri://, и при работающем интернете висело «Ожидание сети…».
     function reachable(url) {
-      const native = window.__TAURI_INTERNALS__.invoke("server_reachable").then((ok) => ok === true, () => false);
+      if (!url) return Promise.resolve(false);
+      const native = (window.__TAURI_INTERNALS__?.invoke?.("server_reachable") ?? Promise.resolve(false)).then((ok) => ok === true, () => false);
       return new Promise((resolve) => {
         let pending = 2;
         const done = (ok) => {
@@ -70,39 +67,46 @@
 
     async function attempt() {
       clearTimeout(timer);
-      attempts++;
+      if (!target) {
+        timer = setTimeout(attempt, 500);
+        return;
+      }
       if (await reachable(target)) {
         location.replace(target);
         return;
       }
       document.getElementById("offline").hidden = false;
-      if (attempts < 3) {
-        timer = setTimeout(attempt, 1000);
-      } else {
-        timer = setTimeout(attempt, RETRY_MS);
-      }
+      timer = setTimeout(attempt, RETRY_MS);
     }
 
     document.getElementById("retry").addEventListener("click", attempt);
     window.addEventListener("online", attempt);
 
-    window.__TAURI_INTERNALS__
-      .invoke("startup_target")
-      .then((url) => {
-        target = url;
-        attempts = 0;
-        setTimeout(() => {
-          if (document.getElementById("offline").hidden && attempts === 0) {
+    function init() {
+      const ipc = window.__TAURI_INTERNALS__;
+      if (ipc && typeof ipc.invoke === "function") {
+        ipc.invoke("startup_target")
+          .then((url) => {
+            target = url || "https://shalter.ru";
             attempt();
-          }
-        }, 500);
-        attempt();
-      })
-      .catch(() => {
+          })
+          .catch(() => {
+            target = "https://shalter.ru";
+            attempt();
+          });
+      } else {
         target = "https://shalter.ru";
-        attempts = 0;
         attempt();
-      });
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>
+EOF
+echo done
