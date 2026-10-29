@@ -132,11 +132,11 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       {ownItem}
       {creating ? (
         <div className={styles.createChoice}>
-          <button type="button" className={styles.item} title="Текстовый пост" onClick={() => { setCreating("text"); void textStory(); }}>
+          <button type="button" className={styles.item} title="Статья" onClick={() => { setCreating("text"); void textStory(); }}>
             <span className={styles.textRing}>
               <Icon name="FileText" size={22} />
             </span>
-            <span className={styles.label}>Текстовый пост</span>
+            <span className={styles.label}>Статья</span>
           </button>
           <button type="button" className={styles.item} title="История" onClick={addStory}>
             <span className={styles.ring}>
