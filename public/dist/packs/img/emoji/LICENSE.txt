@@ -1,0 +1,6 @@
+Emoji images in this folder: Noto Color Emoji by Google.
+https://github.com/googlefonts/noto-emoji
+Images are licensed under the Apache License, Version 2.0 —
+https://www.apache.org/licenses/LICENSE-2.0
+Source: SVGs from fonts.gstatic.com/s/e/notoemoji, rasterized to 64×64 PNG,
+named by codepoints joined with "-" (without FE0F).

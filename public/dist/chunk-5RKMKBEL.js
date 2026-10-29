@@ -1,0 +1,1 @@
+var n={user:null,accounts:[],chats:[],chatsLoaded:!1,contactIds:[],folders:[],settings:null},o=new Set;function u(){return n}function r(t){Object.assign(n,t);for(let e of o)e(n)}function a(t){let e={...n.user,...t},c=(n.accounts??[]).map(s=>s.id===e.id?{...s,...t}:s);return r({user:e,accounts:c}),e}function d(t){return o.add(t),()=>o.delete(t)}export{u as a,r as b,a as c,d};

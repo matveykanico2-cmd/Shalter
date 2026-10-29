@@ -1,0 +1,1 @@
+var n="https://shalter.ru";function i(){let{protocol:t,hostname:r,origin:o}=window.location;return t!=="https:"&&t!=="http:"||/^(localhost|127\.|10\.|192\.168\.|tauri\.)/.test(r)||r.endsWith(".localhost")?n:o}function e(t){return`${i()}${t.startsWith("/")?t:`/${t}`}`}function u(t){return e(`/u/${String(t).replace(/^@/,"")}`)}export{e as a,u as b};

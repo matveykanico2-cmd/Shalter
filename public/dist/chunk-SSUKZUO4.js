@@ -1,0 +1,1 @@
+import{a,b,c,d}from"./chunk-GVXQLDIN.js";import"./chunk-2NBRLKIY.js";import"./chunk-P7NRSR2X.js";import"./chunk-5RKMKBEL.js";export{d as autoSyncPhoneBook,a as canReadPhoneBook,c as matchAndAddAll,b as readPhoneBook};
