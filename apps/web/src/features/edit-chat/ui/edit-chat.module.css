@@ -81,7 +81,9 @@
 .avatarPick {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .avatarClear {
@@ -121,11 +123,11 @@
 .emojiPicker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: var(--color-surface-alt);
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .emojiLabel {
@@ -137,17 +139,17 @@
 .emojiRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .emoji {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   border: 1px solid transparent;
-  background: none;
+  background: var(--color-surface);
   color: inherit;
-  font-size: 20px;
+  font-size: 24px;
   cursor: pointer;
   line-height: 1;
   display: flex;

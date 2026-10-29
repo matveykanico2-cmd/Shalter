@@ -129,11 +129,15 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
                   className={styles.item}
                   title={s.name || s.emoji || "Стикер"}
                   aria-label={s.name || s.emoji || "Стикер"}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (fromOwnPack) {
                       const pack = packs.data?.find((p) => p.id === section.packId);
-                      if (pack) openStickerPack(pack);
-                      return;
+                      if (pack) {
+                        openStickerPack(pack);
+                        return;
+                      }
                     }
                     onPick(outgoing(s));
                   }}

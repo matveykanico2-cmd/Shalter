@@ -45,27 +45,28 @@
 
 .items {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
 }
 
 .item {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
+  padding: 4px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   font-size: 28px;
   cursor: pointer;
-  min-height: 48px;
+  min-height: 52px;
 }
 
 .item:hover,
 .item:focus-visible {
-  background: var(--color-surface-alt);
+  background: transparent;
   outline: none;
+  transform: scale(1.05);
 }
 
 /* «Мои стикерпаки» под паками (.sticker-manage-btn). */
