@@ -50,6 +50,7 @@ export function StickerButton({ chatId, onSend }: Props) {
         <Menu
           at={at}
           wide
+          sheet={false}
           label="Стикеры"
           onClose={() => setAt(null)}
           header={
@@ -109,9 +110,9 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
   }
 
   const sections: { title: string; stickers: Sticker[]; packId?: string }[] = [
+    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers, packId: p.id })),
     { title: "Shalter", stickers: DRAWN_STICKERS },
     { title: "Стандартные", stickers: STICKERS },
-    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers, packId: p.id })),
   ];
   return (
     <div className={styles.panel}>
@@ -132,9 +133,9 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
                     if (fromOwnPack) {
                       const pack = packs.data?.find((p) => p.id === section.packId);
                       if (pack) openStickerPack(pack);
-                    } else {
-                      onPick(outgoing(s));
+                      return;
                     }
+                    onPick(outgoing(s));
                   }}
                 >
                   <DomNode create={() => renderSticker(s, { size: s.kind === "image" ? 56 : 30 })} />
