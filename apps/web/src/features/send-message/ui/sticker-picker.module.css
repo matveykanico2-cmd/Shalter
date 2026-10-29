@@ -60,6 +60,9 @@
   font-size: 28px;
   cursor: pointer;
   min-height: 52px;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .item:hover,
@@ -161,13 +164,14 @@
   width: 56px;
   height: 56px;
   border: none;
-  border-radius: 8px;
-  background: none;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
   padding: 0;
 }
 .detailSticker:hover {
-  background: var(--color-surface-alt);
+  background: transparent;
+  transform: scale(1.08);
 }
 .detailRemove {
   position: absolute;
