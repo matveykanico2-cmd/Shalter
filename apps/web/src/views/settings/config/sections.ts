@@ -48,6 +48,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "ads", label: "Реклама", icon: "BarChart", color: "pink", group: "extra", load: () => import("@/features/ad-cabinet").then((m) => ({ default: m.AdsSection })) },
   { id: "bots", label: "Боты", icon: "Code", color: "green", group: "extra", load: () => import("@/features/my-bots").then((m) => ({ default: m.BotsSection })) },
   { id: "games", label: "Игры", icon: "Smile", color: "pink", group: "extra", load: () => import("../ui/sections/games-section").then((m) => ({ default: m.GamesSection })) },
+  { id: "proxy", label: "Прокси", icon: "Globe", color: "blue", group: "extra", load: () => import("@/features/proxy-settings").then((m) => ({ default: m.default })) },
   { id: "about", label: "О приложении", icon: "Info", color: "grey", group: "extra", load: () => import("../ui/sections/about-section").then((m) => ({ default: m.AboutSection })) },
   // Администрирование — агент admin.
   { id: "moderation", label: "Модерация", icon: "Shield", color: "red", group: "admin", adminOnly: true, load: () => import("@/features/admin").then((m) => ({ default: m.ModerationSection })) },
