@@ -40,10 +40,8 @@
   opacity: 0.85;
 }
 
-.active .unread,
-.active .mention {
+.active .unreadMark {
   background: var(--color-accent-contrast);
-  color: var(--color-accent);
 }
 
 .saved {
@@ -174,10 +172,11 @@
 }
 
 .unreadMark {
-  width: 12px;
-  min-width: 12px;
-  height: 12px;
+  width: 10px;
+  min-width: 10px;
+  height: 10px;
   padding: 0;
+  border-radius: 50%;
 }
 
 .mention {
