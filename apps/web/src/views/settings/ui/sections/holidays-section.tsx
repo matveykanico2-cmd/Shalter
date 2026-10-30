@@ -72,7 +72,7 @@ export function HolidaysSection() {
     <SettingsPage subtitle="Напоминания в личном чате с Shalter в день праздника">
       <SettingsSection title="Встроенные">
         {catalog
-          .filter((h) => !disabled.has(h.id))
+          .filter((h) => h && !disabled.has(h.id))
           .map((h) => (
             <div key={h.id} className={styles.inline}>
               <span className={styles.grow}>{h.title}</span>
@@ -91,7 +91,7 @@ export function HolidaysSection() {
         ) : null}
       </SettingsSection>
       <SettingsSection title="Свои праздники">
-        {holidays.custom.map((h) =>
+        {holidays.custom.filter((h) => h).map((h) =>
           editing?.id === h.id ? (
             <div key={h.id}>
               <div className={styles.inline}>
