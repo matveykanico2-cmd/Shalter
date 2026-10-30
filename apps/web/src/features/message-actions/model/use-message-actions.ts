@@ -173,13 +173,21 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
           reactions: toggleReaction(reactionsOf(x), emoji, me.id, maxReactionsPerUser(isPremium)),
         }));
         try {
-          const { message } = await reactToMessage(chatId, m.id, emoji);
+          const starCost = emoji === "⭐" ? await starsInfo().then((info) => info.costs.boost, () => null) : null;
+          const requestId = emoji === "⭐" ? crypto.randomUUID() : undefined;
+          const { message } = await reactToMessage(chatId, m.id, emoji, requestId);
           op.pending -= 1;
           // Сервер мог поправить (лимит реакций) — его версию берём только от последнего нажатия.
           if (op.seq === mySeq && op.pending === 0) historyCache.replace(client, chatId, message);
         } catch (err) {
           op.pending -= 1;
           if (op.seq === mySeq && before) historyCache.patch(client, chatId, m.id, (x) => ({ ...x, reactions: before.reactions }));
+          // Handle insufficient stars error
+          if (err instanceof ApiError && /не хватает/i.test(err.message)) {
+            if (await askConfirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog();
+            return;
+          }
+          // Handle other errors
           fail(err, "Не удалось поставить реакцию");
         } finally {
           if (op.pending === 0) reactOps.delete(m.id);

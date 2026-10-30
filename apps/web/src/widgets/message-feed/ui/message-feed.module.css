@@ -15,7 +15,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px 0 78px;
+  padding: 12px 0 90px;
 }
 
 .rows {
@@ -32,7 +32,7 @@
   top: 0;
   left: 0;
   width: 100%;
-  padding: 0 16px;
+  padding: 0 14px;
 }
 
 .message {
@@ -182,18 +182,18 @@
 
 .down {
   position: absolute;
-  right: 16px;
-  bottom: 12px;
+  right: 14px;
+  bottom: 86px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: var(--down-btn-size, 44px);
+  height: var(--down-btn-size, 44px);
   border: none;
   border-radius: 999px;
-  background: var(--color-surface);
-  box-shadow: var(--bubble-shadow);
-  color: var(--color-muted);
+  background: var(--down-btn-bg);
+  box-shadow: var(--down-btn-shadow);
+  color: var(--color-text);
   cursor: pointer;
 }
 

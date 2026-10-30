@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, openStickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
+import { closeStickerPack, Composer, openStickerPack, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -111,7 +111,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const packs = useQuery(stickerPackQueries.list());
   const viewingPack = useStickerPackView();
   const openPackBySticker = (sticker: Sticker) => {
-    const pack = packs.data?.find((p) => p.stickers.some((s) => s.uid === sticker.uid));
+    const pack = sticker.packId ? packs.data?.find((p: StickerPack) => p.id === sticker.packId) : undefined;
     if (pack) openStickerPack(pack);
   };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);

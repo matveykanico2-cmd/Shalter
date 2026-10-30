@@ -84,7 +84,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
           </span>
         ) : (
           <Avatar
-            size={42}
+            size={40}
             name={other?.name ?? title}
             color={other?.avatarColor ?? chat.avatarColor}
             image={other?.avatarImage ?? chat.avatarImage}

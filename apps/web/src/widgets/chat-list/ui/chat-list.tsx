@@ -16,7 +16,7 @@ import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortC
 import { communityActivity, communityQueries, type JoinedCommunity, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
-import { useWsEvent } from "@/shared/api";
+import { http, useWsEvent } from "@/shared/api";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
@@ -58,6 +58,25 @@ export function ChatList({ meId }: { meId: string }) {
   const listActions = useChatListActions();
   const [rowMenu, setRowMenu] = useState<{ chat: ChatSummary; at: { x: number; y: number } } | null>(null);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; at: { x: number; y: number } } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
+  useEffect(() => {
+    if (!me) return;
+    let cancelled = false;
+    void http
+      .get<{ version?: string; currentVersion?: string; latestVersion?: string; latest?: string }>("/api/version")
+      .then((res) => {
+        if (cancelled) return;
+        const current = res.currentVersion ?? res.version ?? "";
+        const latest = res.latestVersion ?? res.latest ?? "";
+        if (current && latest && current !== latest) {
+          setUpdateInfo({ current, latest });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [me]);
   // Закреплённые перетаскиваются мышью (makePinnedDraggable): кого тянем и куда встанет.
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
@@ -186,35 +205,41 @@ export function ChatList({ meId }: { meId: string }) {
       setDropAt(null);
     },
   });
-
   return (
     <div className={styles.pane}>
-      <div className={connection ? `${styles.titleBar} ${styles.connecting}` : styles.titleBar} role="status" aria-live="polite">
-        {connection ? <span className={styles.spinner} /> : null}
-        <span>{connection ?? "Shalter"}</span>
-      </div>
+      <div className={styles.panel}>
+        <div className={connection ? `${styles.titleBar} ${styles.connecting}` : styles.titleBar} role="status" aria-live="polite">
+          {connection ? <span className={styles.spinner} /> : null}
+          <span>{connection ?? "Shalter"}</span>
+        </div>
 
-      <div className={styles.searchRow}>
-        {/* Меню ☰ как в tweb (SidebarHeader в chatList.js): аккаунты, разделы, тема. */}
-        <button
-          type="button"
-          className={styles.menuButton}
-          title="Меню"
-          aria-label="Меню"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            openMainMenu({ x: r.left, y: r.bottom + 6 });
-          }}
-        >
-          <Icon name="Menu" size={20} />
-        </button>
-        <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
-        {/* Загрузки — отдельной кнопкой на главном экране, как в chatList.js. */}
-        <button type="button" className={styles.menuButton} title="Загрузки" aria-label="Загрузки" onClick={() => setDownloadsOpen(true)}>
-          <Icon name="Download" size={20} />
-        </button>
-      </div>
-      {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+        <div className={styles.searchRow}>
+          {/* Меню ☰ как в tweb (SidebarHeader в chatList.js): аккаунты, разделы, тема. */}
+
+          <button
+            type="button"
+            className={styles.menuButton}
+            title="Меню"
+            aria-label="Меню"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openMainMenu({ x: r.left, y: r.bottom + 6 });
+            }}
+          >
+            <Icon name="Menu" size={20} />
+          </button>
+          <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
+          {/* Загрузки — отдельной кнопкой на главном экране, как в chatList.js. */}
+          <button type="button" className={styles.menuButton} title="Загрузки" aria-label="Загрузки" onClick={() => setDownloadsOpen(true)}>
+            <Icon name="Download" size={20} />
+          </button>
+        </div>
+        {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+        {updateInfo ? (
+          <a className={styles.updatePill} href="https://github.com/Kilo-Org/kilocode/releases" target="_blank" rel="noreferrer" title={`Обновление: ${updateInfo.current} → ${updateInfo.latest}`}>
+            UPDATE
+          </a>
+        ) : null}
 
       {/* Полоса историй — между поиском и вкладками, как StoriesBar в chatList.js; пока ищут — скрыта. */}
       {me && !searching ? <StoriesBar me={me} /> : null}
@@ -329,6 +354,7 @@ export function ChatList({ meId }: { meId: string }) {
       {creatingCommunity ? <CreateCommunityDialog onCreated={(c) => void openCommunity(c.id)} onClose={() => setCreatingCommunity(false)} /> : null}
       {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
       {tabMenu && chats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, chats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
+      </div>
     </div>
   );
 }

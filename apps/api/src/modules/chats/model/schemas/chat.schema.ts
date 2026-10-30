@@ -54,6 +54,9 @@ export const patchChatSchema = requestBody({
     if (e && !/^[\p{Emoji}\p{L}\p{N}]+$/u.test(e)) throw new Error("Заставкой может быть смайл, буква или цифра");
     return e || null;
   }),
+  avatarType: z.enum(["image", "emoji", "sticker"]).optional(),
+  stickerId: z.string().optional(),
+  packId: z.string().optional(),
   autoDeleteSeconds: ifPresent((v) => Number(v) || 0),
   pinned: ifPresent((v) => !!v),
   archived: ifPresent((v) => !!v),

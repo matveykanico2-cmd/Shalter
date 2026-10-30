@@ -1,18 +1,37 @@
-import type { customEmoji, stickerPacks } from "../../db/schema.js";
+import type { customEmoji, stickerPacks, stickers, userStickerPacks } from "../../db/schema.js";
 
 export type StickerPackRow = typeof stickerPacks.$inferSelect;
+export type StickerRow = typeof stickers.$inferSelect;
+export type UserStickerPackRow = typeof userStickerPacks.$inferSelect;
 export type CustomEmojiRow = typeof customEmoji.$inferSelect;
 
-/** Стикерпак как его отдаёт server/data/stickerPacks.js (rowToPack). */
+/** Стикер внутри пака (строка таблицы stickers). */
+export interface Sticker {
+  id: string;
+  packId: string;
+  /** URL загруженного файла (/uploads/…); в БД колонка `file`. */
+  url: string;
+  emoji: string;
+  position: number;
+  createdAt: string;
+}
+
+/** Стикерпак как его отдаёт API. */
 export interface StickerPack {
   id: string;
   ownerId: string;
   name: string;
-  stickers: unknown[];
+  description: string | null;
+  stickers: Sticker[];
+  stickerCount: number;
+  /** Пак уже в коллекции пользователя. */
+  isAdded: boolean;
+  /** Запрос от владельца пака. */
+  isOwner: boolean;
   createdAt: string;
 }
 
-/** Эмодзи каталога как его отдаёт server/data/customEmoji.js (rowToEmoji). */
+/** Кастомный эмодзи каталога (отдельная функция /api/custom-emoji). */
 export interface CustomEmoji {
   id: string;
   name: string;

@@ -137,14 +137,17 @@
 }
 
 .emojiRow {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .emoji {
-  width: 42px;
-  height: 42px;
+  width: 100%;
+  height: 44px;
   border-radius: 12px;
   border: 1px solid transparent;
   background: var(--color-surface);
@@ -155,7 +158,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .emoji:hover {
@@ -165,13 +168,27 @@
 
 .emojiInputWrap {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.emojiCustom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .emojiInput {
   flex: 1;
-  min-width: 110px;
+  min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
@@ -180,9 +197,12 @@
   font: inherit;
   font-size: 20px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .emojiApply {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 6px 12px;
   border: none;
   border-radius: var(--radius-control);
@@ -477,4 +497,119 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Аватар группы — выбор в модальном окне с фиксированной высотой и своей прокруткой. */
+.avatarSheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 74vh;
+  box-sizing: border-box;
+}
+
+.avatarSheetTabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.sheetTab {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sheetTab:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.sheetTabOn {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.avatarSheetBody {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+.avatarSheetFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.emojiTab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stickersTab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.packRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.packLabel {
+  font-size: 14px;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.pill {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pill:hover {
+  border-color: var(--color-accent);
+}
+.pillOn {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.emojiOn {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }

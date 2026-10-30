@@ -5,7 +5,7 @@ import { DRAWN_STICKERS, renderSticker, type Sticker, STICKERS } from "@/shared/
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
-import { stickerPackQueries } from "../api/sticker-packs";
+import { type StickerPack,stickerPackQueries } from "../api/sticker-packs";
 import { closeStickerPack, openStickerPack, useStickerPackView } from "../lib/sticker-pack-store";
 
 import { StickerPackDetail } from "./sticker-pack-detail";
@@ -110,7 +110,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
   }
 
   const sections: { title: string; stickers: Sticker[]; packId?: string }[] = [
-    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers, packId: p.id })),
+    ...(packs.data ?? []).filter((p: StickerPack) => p.stickers.length).map((p: StickerPack) => ({ title: p.name, stickers: p.stickers as Sticker[], packId: p.id })),
     { title: "Shalter", stickers: DRAWN_STICKERS },
     { title: "Стандартные", stickers: STICKERS },
   ];

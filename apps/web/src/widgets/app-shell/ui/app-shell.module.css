@@ -1,7 +1,7 @@
 /* Оболочка: сверху «список | экран», снизу панель навигации на всю ширину (как .shell в public/styles). */
 .shell {
   display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
   height: 100dvh;

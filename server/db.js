@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS chats (
   avatarColor TEXT,
   avatarImage TEXT,
   avatarEmoji TEXT,
+  avatarType TEXT,
+  stickerId TEXT,
+  packId TEXT,
   ownerId TEXT,
   pinned INTEGER NOT NULL DEFAULT 0,
   muted INTEGER NOT NULL DEFAULT 0,
@@ -437,10 +440,31 @@ CREATE TABLE IF NOT EXISTS sticker_packs (
   id TEXT PRIMARY KEY,
   ownerId TEXT NOT NULL,
   name TEXT NOT NULL,
+  description TEXT,
   stickers TEXT NOT NULL DEFAULT '[]',
   createdAt TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sticker_packs_owner ON sticker_packs(ownerId);
+
+-- Стикер внутри пака: файл изображения, эмодзи и порядок в паке.
+CREATE TABLE IF NOT EXISTS stickers (
+  id TEXT PRIMARY KEY,
+  pack_id TEXT NOT NULL REFERENCES sticker_packs(id) ON DELETE CASCADE,
+  file TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stickers_pack ON stickers(pack_id);
+
+-- Коллекция пользователя: какие стикерпаки он добавил себе.
+CREATE TABLE IF NOT EXISTS user_sticker_packs (
+  user_id TEXT NOT NULL,
+  pack_id TEXT NOT NULL REFERENCES sticker_packs(id) ON DELETE CASCADE,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, pack_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_sticker_packs_user ON user_sticker_packs(user_id);
 
 -- Кастомные эмодзи, нарисованные пользователем в аниматоре (public/js/lib/
 -- customScene.js). Как и стикеры в паке, эмодзи-сцена уходит в чужие чаты, но
@@ -772,6 +796,9 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_messages_threadRoot ON messages(threadRo
 // Колонка avatarEmoji добавилась позже — мигрируем старые базы.
 const existingChatColumns = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
 if (!existingChatColumns.has("avatarEmoji")) db.exec("ALTER TABLE chats ADD COLUMN avatarEmoji TEXT");
+if (!existingChatColumns.has("avatarType")) db.exec("ALTER TABLE chats ADD COLUMN avatarType TEXT");
+if (!existingChatColumns.has("stickerId")) db.exec("ALTER TABLE chats ADD COLUMN stickerId TEXT");
+if (!existingChatColumns.has("packId")) db.exec("ALTER TABLE chats ADD COLUMN packId TEXT");
 if (!existingChatColumns.has("restrictions")) db.exec("ALTER TABLE chats ADD COLUMN restrictions TEXT");
 if (!existingChatColumns.has("points")) db.exec("ALTER TABLE chats ADD COLUMN points INTEGER NOT NULL DEFAULT 0");
 if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN votes TEXT");
@@ -1456,6 +1483,30 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_partner_profiles_user ON partner_profiles(userId);
 CREATE INDEX IF NOT EXISTS idx_partner_profiles_username ON partner_profiles(username);
+`);
+
+// Стикерпаки: колонка description добавилась позднее — мигрируем старые базы.
+const existingStickerPackColumns = new Set(db.prepare("PRAGMA table_info(sticker_packs)").all().map((c) => c.name));
+if (!existingStickerPackColumns.has("description")) db.exec("ALTER TABLE sticker_packs ADD COLUMN description TEXT");
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS star_reactions (
+  messageId TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (messageId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_star_reactions_message ON star_reactions(messageId);
+CREATE INDEX IF NOT EXISTS idx_star_reactions_user ON star_reactions(userId);
+
+CREATE TABLE IF NOT EXISTS star_reaction_requests (
+  requestId TEXT PRIMARY KEY,
+  messageId TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL
+);
 `);
 
 module.exports = db;

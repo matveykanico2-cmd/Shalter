@@ -18,7 +18,10 @@ export const deleteMessage = (chatId: string, id: string, forEveryone: boolean) 
   http.delete<z.infer<typeof deleteResult>>(messagePath(chatId, id), { forEveryone });
 
 /** Поставить или снять реакцию (повтор той же снимает). */
-export const reactToMessage = (chatId: string, id: string, emoji: string) => http.post<Envelope>(`${messagePath(chatId, id)}/react`, { emoji });
+export const reactToMessage = (chatId: string, id: string, emoji: string, requestId?: string) => http.post<Envelope>(`${messagePath(chatId, id)}/react`, {
+  emoji,
+  requestId,
+});
 
 export const pinMessage = (chatId: string, id: string, pinned: boolean) => http.post<Envelope>(`${messagePath(chatId, id)}/pin`, { pinned });
 

@@ -145,8 +145,8 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: 999px;
   background: none;
@@ -154,6 +154,22 @@
   cursor: pointer;
 }
 
+/* Кнопка поиска по чату — видна справа как в Telegram Web K. */
+.searchButton {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.searchButton:hover,
 .infoToggle:hover,
 .infoToggle[aria-pressed="true"] {
   background: var(--color-surface-alt);

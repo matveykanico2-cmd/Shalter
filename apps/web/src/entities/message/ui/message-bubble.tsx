@@ -600,10 +600,11 @@ function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDet
         .filter((u): u is MessageSender => !!u)
     : [];
   const sticker = !!reactionSticker(r.emoji);
+  const isStar = r.emoji === "⭐";
   return (
     <button
       type="button"
-      className={[styles.reaction, own ? styles.reactionMine : "", sticker ? styles.reactionSticker : ""].filter(Boolean).join(" ")}
+      className={[styles.reaction, own ? styles.reactionMine : "", sticker ? styles.reactionSticker : "", isStar ? styles.reactionStar : ""].filter(Boolean).join(" ")}
       aria-pressed={own}
       aria-label={`${r.emoji} ${r.userIds.length}`}
       disabled={disabled}
