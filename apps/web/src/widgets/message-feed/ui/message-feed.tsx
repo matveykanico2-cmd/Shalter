@@ -65,7 +65,7 @@ const ROW_ESTIMATE = 56;
 /** Ближе этого к низу — лента «прилипла» и держит низ при новых сообщениях. */
 const STICK_PX = 80;
 /** Ближе этого к верху — подгружаем историю раньше. */
-const LOAD_OLDER_PX = 600;
+const LOAD_OLDER_PX = 200;
 const HIGHLIGHT_MS = 1600;
 /** Сколько страниц старее листать в поисках сообщения — как jumpTo в chatView.js. */
 const JUMP_MAX_PAGES = 20;
@@ -243,7 +243,8 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     } catch {
       // Не вышло — попробуем при следующей прокрутке.
     } finally {
-      setLoadingOlder(false);
+      // После подгрузки даём скроллу осесть, чтобы не было каскадной загрузки всей истории.
+      setTimeout(() => setLoadingOlder(false), 300);
     }
   }, [client, chat.id, topic, data?.hasMore, loadingOlder]);
 
