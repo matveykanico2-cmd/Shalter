@@ -303,6 +303,34 @@ fn apply_app_icon(app: &AppHandle, id: &str) -> bool {
 }
 
 #[tauri::command]
+fn set_proxy(app: AppHandle, url: Option<String>) -> Result<(), String> {
+    let path = proxy_file(&app)?;
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    match url {
+        Some(u) if !u.trim().is_empty() => std::fs::write(&path, u.trim()).map_err(|e| e.to_string()),
+        _ => {
+            let _ = std::fs::remove_file(&path);
+            Ok(())
+        }
+    }
+}
+
+fn proxy_file(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("proxy.txt"))
+}
+
+fn read_proxy(app: &AppHandle) -> Option<Url> {
+    let path = proxy_file(app).ok()?;
+    let s = std::fs::read_to_string(path).ok()?;
+    let s = s.trim();
+    if s.is_empty() { return None; }
+    Url::parse(s).ok()
+}
+
+#[tauri::command]
 fn set_app_icon(app: AppHandle, id: String) -> Result<(), String> {
     if !apply_app_icon(&app, &id) {
         return Err(format!("неизвестная иконка: {id}"));
@@ -438,7 +466,7 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let shell = app.state::<Shell>();
     let nav_app = app.clone();
     let perm_origin = shell.origin.clone();
-    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+    let mut window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
         .title("Shalter")
         .inner_size(1280.0, 840.0)
         .min_inner_size(380.0, 480.0)
@@ -496,7 +524,11 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             }
             false
         })
-        .build()?;
+        ;
+    if let Some(proxy) = read_proxy(app) {
+        window = window.proxy_url(proxy);
+    }
+    let window = window.build()?;
     enable_media(&window);
     Ok(window)
 }
@@ -655,7 +687,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon, set_proxy])
         .setup(move |app| {
             let handle = app.handle().clone();
 

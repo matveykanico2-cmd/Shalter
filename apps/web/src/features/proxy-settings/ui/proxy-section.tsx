@@ -43,6 +43,14 @@ export function ProxySection() {
     } catch {
       // ignore
     }
+    // Применить в нативной оболочке (Tauri) — прокси начнёт действовать после перезапуска.
+    try {
+      const ipc = (window as { __TAURI_INTERNALS__?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+      const url = cfg.server ? `${cfg.type === "socks5" ? "socks5" : "http"}://${cfg.username && cfg.password ? `${cfg.username}:${cfg.password}@` : ""}${cfg.server}${cfg.port ? `:${cfg.port}` : ""}` : null;
+      if (ipc?.invoke) void ipc.invoke("set_proxy", { url });
+    } catch {
+      // ignore
+    }
     setSaved(true);
   };
 
