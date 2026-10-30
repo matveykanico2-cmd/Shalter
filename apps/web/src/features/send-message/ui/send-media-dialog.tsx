@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { plural } from "@/shared/lib/presence";
 import { askText, Icon, Menu, type MenuItem } from "@/shared/ui";
@@ -96,15 +95,10 @@ export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onC
     ...(allowPaid && !asFiles ? [{ icon: "Star" as const, label: paidStars ? "Изменить цену" : "Размыть за звёзды ⭐", onClick: () => void askPaidPrice() }] : []),
   ];
 
-  return createPortal(
-    <div
-      className={styles.overlay}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={title(files, isMedia)}>
-        <div className={styles.header}>
+  return (
+    <>
+      <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
+      <div className={styles.header}>
           <button type="button" className={styles.iconButton} title="Закрыть" onClick={onClose}>
             <Icon name="X" size={22} />
           </button>
@@ -165,14 +159,13 @@ export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onC
           </div>
         ) : null}
         <div className={styles.footer}>
-          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" autoFocus onClick={send}>
+          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" onClick={send}>
             <Icon name="Send" size={22} />
           </button>
         </div>
       </div>
       {menuAt ? <Menu at={menuAt} items={moreItems} onClose={() => setMenuAt(null)} /> : null}
-    </div>,
-    document.body
+    </>
   );
 }
 
