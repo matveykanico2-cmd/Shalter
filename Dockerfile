@@ -35,7 +35,9 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/contract-tests/package.json ./packages/contract-tests/
-RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-timeout 120000 \
+    && npm ci --ignore-scripts --no-audit --no-fund --maxsockets 8 \
   && node node_modules/esbuild/install.js
 COPY . .
 # npm run build собирает клиент в apps/web/dist (scripts/build.js: Vite, сжатые
@@ -90,7 +92,9 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 # Повторные попытки — на случай обычного сетевого сбоя при скачивании пакетов.
 ENV npm_config_fetch_retries=5
 ENV npm_config_fetch_retry_maxtimeout=30000
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund --maxsockets 3
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-timeout 120000 \
+    && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --maxsockets 8
 # /app/data isn't in the repo or the build stage — it's a runtime mount point
 # (see DEPLOY.md: mount a persistent volume here for data/app.db). Just make
 # sure the directory exists so better-sqlite3 has somewhere to create the
