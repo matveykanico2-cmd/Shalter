@@ -215,8 +215,20 @@ button.row:hover:not(:disabled) {
   margin-right: 8px;
 }
 
-.title {
-  font-size: 12px;
-  color: var(--color-muted);
-  margin-left: 6px;
+.iconRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.iconPick {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
 }

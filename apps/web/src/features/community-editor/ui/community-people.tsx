@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { chatsCountLabel, type Community, type CommunityAdmin, communityApi, type CommunityMember, type CommunityRights } from "@/entities/community";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, Button, Dialog, TextField, toast,Toggle } from "@/shared/ui";
+import { askConfirm, Button, Dialog, Icon, type IconName, TextField, toast, Toggle } from "@/shared/ui";
 
 import { RIGHTS, rightsSummary } from "../lib/options";
 import { useCommunityActions } from "../model/use-community-actions";
@@ -146,6 +146,13 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
         <span>Значок (эмодзи)</span>
         <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
       </label>
+      <div className={styles.iconRow}>
+        {["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"].map((name) => (
+          <button key={name} type="button" className={styles.iconPick} onClick={() => setBadge(`icon:${name}`)} title={name}>
+            <Icon name={name as IconName} size={16} />
+          </button>
+        ))}
+      </div>
       <label className={styles.field}>
         <span>Подпись</span>
         <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />
@@ -235,6 +242,13 @@ function BadgeTitleDialog({ community, user, onClose, onDone }: { community: Com
         <span>Значок</span>
         <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
       </label>
+      <div className={styles.iconRow}>
+        {["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"].map((name) => (
+          <button key={name} type="button" className={styles.iconPick} onClick={() => setBadge(`icon:${name}`)} title={name}>
+            <Icon name={name as IconName} size={16} />
+          </button>
+        ))}
+      </div>
       <label className={styles.field}>
         <span>Подпись</span>
         <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />

@@ -97,7 +97,13 @@ export function UserLine({ user, subtitle, right, onClick }: { user: Person; sub
       <Avatar size={42} name={user.name ?? "Пользователь"} color={user.avatarColor} image={user.avatarImage} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{user.name ?? "Пользователь"}</span>
-        {user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
+        {user.badge?.startsWith("icon:") ? (
+          <span className={styles.badge}>
+            <Icon name={user.badge.slice(5) as IconName} size={14} />
+          </span>
+        ) : user.badge ? (
+          <span className={styles.badge}>{user.badge}</span>
+        ) : null}
         {user.title ? <span className={styles.title}>{user.title}</span> : null}
         {subtitle ? <span className={styles.rowSub}>{subtitle}</span> : null}
       </span>
