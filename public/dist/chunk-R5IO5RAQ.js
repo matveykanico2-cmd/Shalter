@@ -1,1 +1,0 @@
-import{h as i}from"./chunk-2NBRLKIY.js";import{c as e}from"./chunk-7SB2NWBZ.js";async function f(r){if(!r)return;await i.clickAd(r.id).catch(()=>{});let t=r.url;t&&(t.startsWith("/")?e(t):/^https?:\/\//i.test(t)&&window.open(t,"_blank","noreferrer"))}export{f as a};
