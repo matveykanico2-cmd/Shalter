@@ -72,7 +72,7 @@ export function ProxySection() {
         });
       } catch {
         // попробуем как socks/http URL
-        const m = String(reader.result ?? "").match(/^(socks5|http|https):\/\/(?:([^:]+):([^@]+)@)?([^:\/]+):?(\d+)?/);
+        const m = String(reader.result ?? "").match(/^(socks5|http|https):\/\/(?:([^:]+):([^@]+)@)?([^:/]+):?(\d+)?/);
         if (m) {
           update({ type: m[1] === "socks5" ? "socks5" : "http", username: m[2] ?? "", password: m[3] ?? "", server: m[4], port: m[5] ?? "" });
         }
