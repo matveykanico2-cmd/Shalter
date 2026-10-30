@@ -8,6 +8,7 @@ import { useSession } from "@/entities/session";
 import { useSettings } from "@/entities/settings";
 import { ContactPicker, type PickedContact } from "@/entities/user";
 
+import type { Sticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { blurThumb } from "@/shared/lib/image";
@@ -141,6 +142,8 @@ export function Composer(props: Props) {
     return message;
   };
   const [text, setText] = useState(initialDraft);
+  // Инлайн-стикеры, вставленные в текст поля (маленькие картинки в строке сообщения).
+  const [inlineStickers, setInlineStickers] = useState<Sticker[]>([]);
   // Начали править — в поле текст сообщения, а набранное раньше ждёт конца правки.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [heldDraft, setHeldDraft] = useState("");
@@ -279,6 +282,16 @@ export function Composer(props: Props) {
     if (!window.matchMedia?.("(pointer: coarse)").matches) el?.focus({ preventScroll: true });
   };
 
+  const insertSticker = (sticker: Sticker) => {
+    const el = textarea.current;
+    const pos = el?.selectionStart ?? text.length;
+    // \uFFFC — symbol for object replacement character: место для встроенного объекта в тексте.
+    caret.current = { start: pos + 1, end: pos + 1 };
+    onChange(text.slice(0, pos) + "\uFFFC" + text.slice(pos));
+    setInlineStickers((prev) => [...prev, sticker]);
+    if (!window.matchMedia?.("(pointer: coarse)").matches) el?.focus({ preventScroll: true });
+  };
+
   const submit = (options: SendOptions = {}, typed = text) => {
     let value = typed.trim();
     if (editing) {
@@ -315,7 +328,8 @@ export function Composer(props: Props) {
       const parts = splitLongText(value);
       for (const [i, part] of parts.entries()) {
         try {
-          await send(part, i === 0 ? reply : null, [], undefined, i === 0 ? options : options.silent ? { silent: true } : {});
+          const inlineAtts: OutgoingAttachment[] = i === 0 && inlineStickers.length ? inlineStickers.map((s) => ({ kind: "sticker", url: s.url ?? "", emoji: s.emoji ?? "", packId: s.packId ?? "", inline: true })) : [];
+          await send(part, i === 0 ? reply : null, inlineAtts, undefined, i === 0 ? options : options.silent ? { silent: true } : {});
         } catch (err) {
           // Не ушло — текст возвращаем, если человек ещё не начал новое сообщение.
           const left = parts.slice(i).join("\n");
@@ -330,6 +344,7 @@ export function Composer(props: Props) {
   // Поле очищено отправкой или отложенной отправкой: ответ, черновик, Hugo — тоже.
   const clearInput = () => {
     setText("");
+    setInlineStickers([]);
     setHugo(null);
     onCancelReply();
     clearDraft();
@@ -807,10 +822,16 @@ export function Composer(props: Props) {
               <StickerButton
                 chatId={chatId}
                 onSend={(sticker) => {
+                  const el = textarea.current;
+                  // Фокус на поле и есть текст — вставляем стикер маленькой картинкой в строку сообщения.
+                  if (document.activeElement === el && text.trim()) {
+                    insertSticker(sticker);
+                    return;
+                  }
                   const reply = replyTo;
                   onCancelReply();
                   onSent?.();
-                  send("", reply, [], sticker).catch((err: unknown) => setError(errorText(err, "Не удалось отправить стикер")));
+                  void send("", reply, [], sticker).catch((err: unknown) => setError(errorText(err, "Не удалось отправить стикер")));
                 }}
               />
             ) : null}

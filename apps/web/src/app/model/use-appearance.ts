@@ -30,7 +30,16 @@ export function useAppearance(ready: boolean) {
     if (theme === undefined) return;
     const root = document.documentElement;
     if (theme && theme !== "system") root.setAttribute("data-theme", theme);
-    else root.removeAttribute("data-theme");
+    else {
+      root.removeAttribute("data-theme");
+      try {
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          root.setAttribute("data-theme", "dark");
+        }
+      } catch {
+        // ignore
+      }
+    }
     try {
       if (theme === "dark" || theme === "light") localStorage.setItem("shalter.theme", theme);
       else localStorage.removeItem("shalter.theme");

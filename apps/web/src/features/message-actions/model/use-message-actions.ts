@@ -173,7 +173,6 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
           reactions: toggleReaction(reactionsOf(x), emoji, me.id, maxReactionsPerUser(isPremium)),
         }));
         try {
-          const starCost = emoji === "⭐" ? await starsInfo().then((info) => info.costs.boost, () => null) : null;
           const requestId = emoji === "⭐" ? crypto.randomUUID() : undefined;
           const { message } = await reactToMessage(chatId, m.id, emoji, requestId);
           op.pending -= 1;

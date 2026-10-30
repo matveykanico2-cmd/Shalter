@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 interface StarReactionConfirmationProps {
   open: boolean;
   cost: number;
@@ -10,7 +8,7 @@ interface StarReactionConfirmationProps {
   onInsufficientStars?: () => void;
 }
 
-export function StarReactionConfirmation({ open, cost, onConfirm, onCancel, onInsufficientStars }: StarReactionConfirmationProps) {
+export function StarReactionConfirmation({ open, cost, onConfirm, onCancel }: StarReactionConfirmationProps) {
   if (!open) return null;
 
   return (

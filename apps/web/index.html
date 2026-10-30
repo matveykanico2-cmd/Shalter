@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Shalter</title>
-  <meta name="theme-color" content="#2e56d9" />
+  <meta name="theme-color" content="#2e56d9" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
@@ -19,6 +20,18 @@
     (function () {
       var root = document.documentElement;
       try {
+        var savedTheme = localStorage.getItem("shalter.theme");
+        if (savedTheme === "dark") root.setAttribute("data-theme", "dark");
+        else if (savedTheme === "light") root.setAttribute("data-theme", "light");
+        else {
+          try {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+              root.setAttribute("data-theme", "dark");
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+      try {
         var savedAccent = localStorage.getItem("shalter.accent");
         if (savedAccent) root.style.setProperty("--color-accent", savedAccent);
       } catch (e) {}
@@ -27,6 +40,20 @@
         if (savedFont) {
           var n = parseInt(savedFont, 10);
           if (n && n !== 16) root.style.setProperty("--messages-text", n + "px");
+        }
+      } catch (e) {}
+      try {
+        var iconSvg = localStorage.getItem("shalter.appIcon.splash");
+        var splashEl = document.getElementById("boot-splash");
+        if (iconSvg && splashEl) {
+          var holder = document.createElement("div");
+          holder.innerHTML = iconSvg;
+          var svgEl = holder.querySelector("svg");
+          var oldSvg = splashEl.querySelector("svg.bs-logo-svg");
+          if (svgEl && oldSvg) {
+            svgEl.classList.add("bs-logo-svg");
+            oldSvg.replaceWith(svgEl);
+          }
         }
       } catch (e) {}
       new MutationObserver(function () {
@@ -191,7 +218,7 @@
   <div id="boot-splash">
     <div class="bs-logo">
       <svg class="bs-logo-svg" viewBox="0 0 512 512" aria-hidden="true">
-        <circle cx="256" cy="256" r="256" fill="#3d6df0"/>
+        <circle cx="256" cy="256" r="256" fill="var(--color-accent, #3d6df0)"/>
         <circle class="bs-spinner" cx="256" cy="256" r="235" fill="none" stroke="#fff" stroke-width="6" opacity="0.9"/>
         <path fill="#ffffff" d="M65 186L397 131L357 333L77 336Z"/>
         <path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/>
@@ -252,8 +279,11 @@
         if (svgEl && oldSvg) {
           svgEl.setAttribute("aria-hidden", "true");
           svgEl.classList.add("bs-logo-svg");
-          if (spinner) svgEl.appendChild(spinner.cloneNode(true));
-          oldSvg.parentNode.replaceChild(svgEl, oldSvg);
+          if (spinner) {
+            var sp = spinner.cloneNode(true);
+            if (!svgEl.querySelector("circle.bs-spinner")) svgEl.appendChild(sp);
+          }
+          if (oldSvg.parentNode) oldSvg.parentNode.replaceChild(svgEl, oldSvg);
         }
       }
     } catch (e) {}

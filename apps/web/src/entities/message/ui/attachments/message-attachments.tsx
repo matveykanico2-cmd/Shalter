@@ -69,6 +69,8 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
   };
 
   atts.forEach((a, i) => {
+    // Инлайн-стикеры — маленькая картинка в строке текста, рисуются в MessageBubble, а не здесь.
+    if (a.kind === "sticker" && (a as { inline?: boolean }).inline === true) return;
     if (isVisualMedia(a)) {
       if (!album) {
         out.push(tile(a, i, false));

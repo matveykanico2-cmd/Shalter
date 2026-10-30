@@ -97,6 +97,29 @@ type Props = {
 
 type Point = { x: number; y: number };
 
+/** Маленькие картинки стикеров в строке текстового сообщения (24 px по боку). */
+function InlineStickers({ stickers, onStickerClick }: { stickers: Sticker[]; onStickerClick?: (s: Sticker) => void }) {
+  return (
+    <span className={styles.inlineStickers}>
+      {stickers.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          className={styles.inlineSticker}
+          aria-label={s.emoji || "Стикер"}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onStickerClick?.(s);
+          }}
+        >
+          <img className={styles.inlineStickerImage} src={s.url} alt={s.emoji || "стикер"} loading="lazy" draggable={false} />
+        </button>
+      ))}
+    </span>
+  );
+}
+
 /** Кнопки над пузырём и реакции не открывают меню долгим нажатием. */
 const NO_HOLD = "button, a, input, textarea";
 // Двойное нажатие — как в messageBubble.js: два касания за 200 мс в пределах 24 px.
@@ -169,6 +192,8 @@ export function MessageBubble(props: Props) {
   const out = mine && !isChannel;
   const isCall = isCallLogMessage(m);
   const sticker = m.type === "sticker" ? (m.sticker as Sticker | undefined) : undefined;
+  // Инлайн-стикеры — маленькие картинки в строке текстового сообщения.
+  const inlineStickers = m.attachments?.filter((a) => (a as { kind?: string; inline?: boolean }).kind === "sticker" && (a as { inline?: boolean }).inline === true) as Sticker[];
   // Подарок — своей карточкой (GiftMessage); без данных о подарке — строкой превью.
   const gift = m.type === "gift" && m.gift ? (m.gift as MessageGift) : null;
   const giftLine = m.type === "gift" && !gift ? messagePreview(m) : null;
@@ -311,7 +336,21 @@ export function MessageBubble(props: Props) {
       </span>
     );
   } else if (text && jumbo) body.push(<JumboEmoji key="text" messageId={m.id} text={text} count={jumbo} />);
-  else if (text) body.push(<MessageText key="text" text={text} customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined} meta={reactions.length || below ? null : meta} />);
+  else if (text) {
+    body.push(
+      <MessageText
+        key="text"
+        text={text}
+        customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined}
+        meta={reactions.length || below ? null : meta}
+      />
+    );
+    if (inlineStickers?.length) body.push(<InlineStickers key="inline-stickers" stickers={inlineStickers} onStickerClick={props.onStickerClick} />);
+  }
+  // Нет текста, но есть инлайн-стикеры — только картинки в строке.
+  else if (!text && inlineStickers?.length) {
+    body.push(<InlineStickers key="inline-stickers" stickers={inlineStickers} onStickerClick={props.onStickerClick} />);
+  }
   if (preview) body.push(<LinkPreviewCard key="preview" preview={preview} />);
   if (summary !== undefined) {
     body.push(

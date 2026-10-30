@@ -148,8 +148,8 @@ export class MessageSendService {
     const needs: Permission[] = [
       "sendMessages",
       ...(kinds.has("poll") || kinds.has("checklist") ? (["sendPolls"] as const) : []),
-      ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice" && k !== "game") ? (["sendMedia"] as const) : []),
-      ...(body.sticker || kinds.has("dice") || kinds.has("game") ? (["sendStickers"] as const) : []),
+      ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice" && k !== "game" && k !== "sticker") ? (["sendMedia"] as const) : []),
+      ...(body.sticker || kinds.has("dice") || kinds.has("game") || kinds.has("sticker") ? (["sendStickers"] as const) : []),
     ];
     for (const need of needs) {
       if (!can(chat, uid, need)) throw new ApiError(403, DENIED[need]);
@@ -317,9 +317,9 @@ export class MessageSendService {
 
     const { registerAttachments } = uploadAccess();
     registerAttachments(chat.id, message.attachments, { by: senderId });
-    // Настоящие файлы платного поста к чату не привязываются: их отдают только автору,
-    // админам канала и купившим (server/lib/uploadAccess.js).
-    if (paid) this.paidMedia.save(message.id, chat.id, paid.stars, paid.real);
+    // Инлайн-стикеры в тексте — свои вложения, их тоже нужно зарегистрировать.
+    const inlineStickers = (message.attachments ?? []).filter((a) => (a as { kind?: string }).kind === "sticker" && (a as { inline?: boolean }).inline === true);
+    if (inlineStickers.length) registerAttachments(chat.id, inlineStickers.map((s) => ({ url: (s as { url?: string }).url })), { by: senderId });
     if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }], { by: senderId });
 
     if (message.threadRootId) {
