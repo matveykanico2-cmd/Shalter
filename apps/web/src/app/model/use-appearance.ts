@@ -43,6 +43,12 @@ export function useAppearance(ready: boolean) {
     const root = document.documentElement;
     if (!accent || accent.toUpperCase() === OLD_DEFAULT_ACCENT) root.style.removeProperty("--color-accent");
     else root.style.setProperty("--color-accent", accent);
+   try {
+      if (accent) localStorage.setItem("shalter.accent", accent);
+      else localStorage.removeItem("shalter.accent");
+    } catch {
+      // Хранилище недоступно.
+    }
   }, [accent]);
 
   useEffect(() => {
@@ -50,6 +56,12 @@ export function useAppearance(ready: boolean) {
     const n = !fontSize || fontSize === OLD_DEFAULT_FONT ? DEFAULT_FONT_SIZE : fontSize;
     if (n === DEFAULT_FONT_SIZE) root.style.removeProperty("--messages-text");
     else root.style.setProperty("--messages-text", `${n}px`);
+    try {
+      if (fontSize) localStorage.setItem("shalter.fontSize", String(fontSize));
+      else localStorage.removeItem("shalter.fontSize");
+    } catch {
+      // Хранилище недоступно.
+    }
   }, [fontSize]);
 
   useEffect(() => {

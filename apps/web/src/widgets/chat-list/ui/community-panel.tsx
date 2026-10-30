@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 
 import { MuteDialog } from "@/features/chat-actions";
 import { AddChatFlow, CommunitySettingsDialog, RequestsDialog, useCommunityActions } from "@/features/community-editor";
+import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
 
 import { chatPreview, chatQueries, type ChatSummary, hasUnread, isChatMuted, sortChats, timeLabel } from "@/entities/chat";
 import {
@@ -179,6 +180,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
   const [adding, setAdding] = useState(false);
   const [requests, setRequests] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const menu = useCommunityMenu(community, chats, { inPanel: true });
   const mine = sortChats(memberChatsOf(base, chats));
   const others = (info?.chats ?? []).filter((c) => !c.isMember);
@@ -287,6 +289,22 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
             <span>{info.addPolicy === "suggest" ? "Предложить свой чат" : "Добавить чат в сообщество"}</span>
           </button>
         ) : null}
+        {info && (info.rights?.editChats || community.isOwner) ? (
+          <>
+            <button type="button" className={styles.addChat} onClick={() => setCreating("group")}>
+              <span className={styles.addChatIcon}>
+                <Icon name="Users" size={22} />
+              </span>
+              <span>Создать группу</span>
+            </button>
+            <button type="button" className={styles.addChat} onClick={() => setCreating("channel")}>
+              <span className={styles.addChatIcon}>
+                <Icon name="Send" size={22} />
+              </span>
+              <span>Создать канал</span>
+            </button>
+          </>
+        ) : null}
         {section(
           "Ваши чаты",
           mine.map((c) => <div key={c.id}>{renderChat(c)}</div>)
@@ -302,6 +320,24 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
       {menuAt ? <Menu at={menuAt} label="Сообщество" items={menu.items} onClose={() => setMenuAt(null)} /> : null}
       {menu.dialogs(meId)}
       {adding && info ? <AddChatFlow community={info} meId={meId} onClose={() => setAdding(false)} onDone={reload} /> : null}
+      {creating && info ? (
+        <CreateChatDialog
+          kind={creating}
+          members={[]}
+          onClose={() => setCreating(null)}
+          onSubmit={async (fields) => {
+            const created =
+              creating === "channel"
+                ? await createChannel({ ...fields, memberIds: [], adminIds: [] })
+                : await createGroup({ ...fields, memberIds: [], adminIds: [] });
+            await communityApi.addChat(info.id, created.chat.id, true);
+            await client.refetchQueries({ queryKey: chatQueries.list().queryKey }).catch(() => {});
+            reload();
+            setCreating(null);
+            void navigate(`/chat/${created.chat.id}`);
+          }}
+        />
+      ) : null}
       {requests && info ? <RequestsDialog community={info} onChanged={reload} onClose={() => setRequests(false)} /> : null}
       {settings ? <CommunitySettingsDialog communityId={base.id} meId={meId} onSaved={reload} onClose={() => setSettings(false)} /> : null}
     </div>

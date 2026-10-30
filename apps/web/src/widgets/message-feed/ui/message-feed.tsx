@@ -412,7 +412,10 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <p className={styles.empty}>Сообщений пока нет — напишите первым</p>
+          <div className={styles.empty}>
+            <p>Сообщений пока нет — напишите первым</p>
+            <p className={styles.emptyHint}>Поздоровайтесь с кем-нибудь и предложите стикер</p>
+          </div>
         ) : (
           <div className={styles.rows} style={{ height: totalSize }}>
             {virtualizer.getVirtualItems().map((item) => {

@@ -19,8 +19,15 @@
     (function () {
       var root = document.documentElement;
       try {
-        var saved = localStorage.getItem("shalter.theme");
-        if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+        var savedAccent = localStorage.getItem("shalter.accent");
+        if (savedAccent) root.style.setProperty("--color-accent", savedAccent);
+      } catch (e) {}
+      try {
+        var savedFont = localStorage.getItem("shalter.fontSize");
+        if (savedFont) {
+          var n = parseInt(savedFont, 10);
+          if (n && n !== 16) root.style.setProperty("--messages-text", n + "px");
+        }
       } catch (e) {}
       new MutationObserver(function () {
         try {
