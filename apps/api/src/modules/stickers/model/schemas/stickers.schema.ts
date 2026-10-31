@@ -15,7 +15,7 @@ export const MAX_PACK_DESCRIPTION = 200;
 export const MAX_EMOJI = 8;
 
 const STICKER_ID_RE = /^st_[0-9a-f]{8}$/;
-const PACK_ID_RE = /^sp_[a-z0-9]+_[a-z0-9]{1,6}$/;
+const PACK_ID_RE = /^sp_[a-z0-9]+_[a-z0-9]{1,8}$/;
 
 const ifPresent = <T>(fn: (v: unknown) => T) => z.unknown().optional().transform((v) => (v === undefined ? undefined : fn(v)));
 

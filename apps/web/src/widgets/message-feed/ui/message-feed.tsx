@@ -108,22 +108,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
-  // Свои стикерпаки — чтобы при клике на стикер в сообщении открыть его пак (как в Telegram).
-  const packs = useQuery(stickerPackQueries.list());
   const viewingPack = useStickerPackView();
   const openPackBySticker = (sticker: Sticker) => {
-    const pack = sticker.packId ? packs.data?.find((p: StickerPack) => p.id === sticker.packId) : undefined;
-    if (pack) { openStickerPack(pack); return; }
-    if (!sticker.packId) return;
+    const pid = sticker.packId || `sp_unknown`;
     void (async () => {
-      try {
-        const { http } = await import("@/shared/api");
-        const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId as string)}`);
-        if (res?.pack) openStickerPack(res.pack);
-        else openStickerPack({ id: sticker.packId as string, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
-      } catch {
-        openStickerPack({ id: sticker.packId as string, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
+      if (sticker.packId) {
+        try {
+          const { http } = await import("@/shared/api");
+          const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId)}`);
+          if (res?.pack) { openStickerPack(res.pack); return; }
+        } catch {}
       }
+      openStickerPack({ id: pid, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
     })();
   };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);

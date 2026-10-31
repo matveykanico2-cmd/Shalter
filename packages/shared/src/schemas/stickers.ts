@@ -22,7 +22,7 @@ export const scene = z.strictObject({
   layers: z.array(sceneLayer).min(1),
 });
 
-const PACK_ID_RE = /^sp_[a-z0-9]+_[a-z0-9]{1,6}$/;
+const PACK_ID_RE = /^sp_[a-z0-9]+_[a-z0-9]{1,8}$/;
 const STICKER_ID_RE = /^st_[0-9a-f]{8}$/;
 
 /** Стикер внутри пака (строка таблицы stickers): файл PNG/WebP, эмодзи, порядок. */
@@ -87,7 +87,7 @@ export type UpdateStickerBody = z.infer<typeof updateStickerBody>;
 // --- кастомные эмодзи (отдельная функция /api/custom-emoji) ------------------
 
 export const customEmoji = z.strictObject({
-  id: z.string().regex(/^ce_[a-z0-9]+_[a-z0-9]{1,6}$/),
+  id: z.string().regex(/^ce_[a-z0-9]+_[a-z0-9]{1,8}$/),
   name: z.string(),
   scene,
   createdAt: isoDate,

@@ -28,7 +28,7 @@ function Mini({ a, round, size }: { a: Attachment; round?: boolean; size: number
   const src = thumbOf(a);
   const cls = round ? `${styles.thumb} ${styles.round}` : styles.thumb;
   const style = { width: size, height: size };
-  if (src) return <img className={cls} style={style} src={src} alt="" loading="lazy" decoding="async" />;
+  if (src) return <img className={cls} style={style} src={src} alt="" loading="lazy" decoding="async" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />;
   // У кружка или видео без обложки — первый кадр самого ролика.
   if (isVideo(a) && a.url && a.kind !== "video-note") return <video className={cls} style={style} src={`${a.url}#t=0.1`} muted playsInline preload="metadata" />;
   if (a.kind === "video-note") {

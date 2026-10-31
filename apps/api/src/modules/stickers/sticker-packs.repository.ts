@@ -117,7 +117,7 @@ export class StickerPacksRepository {
 
   /** Добавить пак в коллекцию пользователя. */
   public addToCollection(userId: string, packId: string): void {
-    this.db.insert(userStickerPacks).values({ userId, packId, addedAt: new Date().toISOString() }).run();
+    this.db.insert(userStickerPacks).values({ userId, packId, addedAt: new Date().toISOString() }).onConflictDoNothing().run();
   }
 
   /** Убрать пак из коллекции пользователя. */

@@ -34,6 +34,7 @@ function sanitizeSticker(sticker) {
   return {
     emoji,
     name,
+    ...(sticker.packId ? { packId: String(sticker.packId) } : {}),
     ...(typeof sticker.anim === "string" && NAME_RE.test(sticker.anim) ? { anim: sticker.anim } : {}),
     ...(typeof sticker.scene === "string" && NAME_RE.test(sticker.scene) ? { scene: sticker.scene } : {}),
   };

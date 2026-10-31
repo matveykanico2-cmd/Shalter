@@ -162,7 +162,7 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
           <div className={styles.detailGrid}>
             {current.stickers.map((s, i) => (
               <div key={s.id} className={styles.detailCell}>
-                <DomNode create={() => renderSticker({ ...s, kind: "image" } as AnimSticker, { size: 44 })} />
+                <DomNode create={() => renderSticker({ ...s, kind: s.url ? "image" : undefined } as AnimSticker, { size: 44 })} />
                 <div className={styles.detailCellControls}>
                   <button type="button" className={styles.iconButton} title="Наверх" aria-label="Наверх" disabled={i === 0} onClick={() => void moveSticker(s.id, -1)}>
                     ↑
@@ -219,7 +219,7 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
                     onStickerPick(s);
                   }}
                 >
-                  <DomNode create={() => renderSticker({ ...s, kind: "image" } as AnimSticker, { size: 56 })} />
+                  <DomNode create={() => renderSticker({ ...s, kind: s.url ? "image" : undefined } as AnimSticker, { size: 56 })} />
                 </button>
                 {isOwner ? (
                   <button
