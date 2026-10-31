@@ -1,7 +1,5 @@
 #!/bin/sh
-# Установка Shalter на Linux без sudo: скачивает deb-пакет, распаковывает его в
-# ~/.local/share/shalter и добавляет ярлык в меню приложений. Повторный запуск — обновление.
-#   curl -fsSL https://shalter.ru/install-linux.sh | sh
+# Установка Shalter на Linux без sudo
 set -eu
 BASE="${SHALTER_URL:-https://shalter.ru}"
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -18,10 +16,8 @@ fetch() {
 echo "Скачиваем Shalter…"
 mkdir -p "$DIR" "$DATA/applications" "$DATA/icons/hicolor/192x192/apps"
 
-# Пробуем AppImage, при его отсутствии — deb.
 APPIMAGE_OK=0
 if fetch "$BASE/downloads/Shalter.AppImage" "$DIR/Shalter.AppImage.new" 2>/dev/null; then
-  # Проверяем, что это действительно AppImage (ELF), а не HTML-заглушка сервера.
   if head -c 4 "$DIR/Shalter.AppImage.new" 2>/dev/null | grep -q "ELF"; then
     chmod +x "$DIR/Shalter.AppImage.new"
     mv -f "$DIR/Shalter.AppImage.new" "$DIR/Shalter.AppImage"
@@ -31,20 +27,33 @@ if fetch "$BASE/downloads/Shalter.AppImage" "$DIR/Shalter.AppImage.new" 2>/dev/n
     rm -f "$DIR/Shalter.AppImage.new"
   fi
 fi
+
 if [ "$APPIMAGE_OK" = "0" ]; then
-  if ! fetch "$BASE/downloads/Shalter.deb" "$DIR/Shalter.deb" 2>/dev/null; then
-    echo "Не удалось скачать Shalter. Попробуйте позже." >&2
-    exit 1
+  if fetch "$BASE/downloads/Shalter.deb" "$DIR/Shalter.deb" 2>/dev/null; then
+    if head -c 8 "$DIR/Shalter.deb" 2>/dev/null | grep -q "!<arch>"; then
+      rm -rf "$DIR/usr"
+      (cd "$DIR" && (dpkg-deb -x "$DIR/Shalter.deb" "$DIR" 2>/dev/null || (ar x "$DIR/Shalter.deb" && tar xf data.tar.* 2>/dev/null)))
+      APP="$BIN"
+      APPIMAGE_OK=1
+    else
+      rm -f "$DIR/Shalter.deb"
+    fi
   fi
-  # Проверяем, что это действительно deb (ar-архив), а не HTML-заглушка.
-  if ! head -c 8 "$DIR/Shalter.deb" 2>/dev/null | grep -q "!<arch>"; then
-    echo "Файл Shalter.deb на сервере недоступен. Обратитесь к администратору." >&2
-    rm -f "$DIR/Shalter.deb"
-    exit 1
+fi
+
+if [ "$APPIMAGE_OK" = "0" ]; then
+  if fetch "$BASE/downloads/Shalter.rpm" "$DIR/Shalter.rpm" 2>/dev/null; then
+    if command -v rpm2cpio >/dev/null 2>&1; then
+      (cd "$DIR" && rpm2cpio "$DIR/Shalter.rpm" | cpio -idm 2>/dev/null)
+      APP="$BIN"
+      APPIMAGE_OK=1
+    fi
   fi
-  rm -rf "$DIR/usr"
-  (cd "$DIR" && (dpkg-deb -x "$DIR/Shalter.deb" "$DIR" 2>/dev/null || (ar x "$DIR/Shalter.deb" && tar xf data.tar.* 2>/dev/null)))
-  APP="$BIN"
+fi
+
+if [ "$APPIMAGE_OK" = "0" ]; then
+  echo "Не удалось скачать Shalter. Попробуйте позже." >&2
+  exit 1
 fi
 
 fetch "$BASE/icons/icon-192.png" "$DATA/icons/hicolor/192x192/apps/shalter.png" 2>/dev/null || true
@@ -65,6 +74,6 @@ DESKTOP
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
 
 echo
-echo "✅ Shalter установлен — ищите его в меню приложений."
+echo "Shalter установлен — ищите его в меню приложений."
 echo "   Запуск: $APP"
 echo "   Удалить: rm -rf \"$DIR\" \"$DATA/applications/shalter.desktop\""

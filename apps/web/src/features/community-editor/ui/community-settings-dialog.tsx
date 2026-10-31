@@ -172,6 +172,7 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
       {community.isOwner ? (
         <Button
           variant="danger"
+          style={{ width: "100%", height: 56, fontSize: 16 }}
           onClick={() =>
             void actions.remove(community).then((ok) => {
               if (!ok) return;

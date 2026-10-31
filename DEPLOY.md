@@ -1342,3 +1342,9 @@ the Dockerfile does); `SKIP_WEB_BUILD=1` reuses an existing `apps/web/dist`.
 - `package.json`: `--max-old-space-size=768` on the `start` script.
 - `ecosystem.config.js`, `deploy/nginx.conf.example`: this document's
   recommendations, as actual config rather than just prose.
+
+## Desktop installers (Linux)
+
+Built via `npm run desktop:build` (Tauri). Artifacts land in `public/downloads/`:
+- `Shalter.AppImage`, `Shalter.deb`, `Shalter.rpm`
+Upload these to `https://shalter.ru/downloads/` so `install-linux.sh` can fetch them.

@@ -40,9 +40,10 @@ import { openStoryViewer, type StoryGroup } from "@/entities/story";
 import type { Sticker } from "@/shared/lib/anim";
 
 function outgoing(s: Sticker): Sticker {
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid };
-  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
+  const packId = s.packId;
+  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
+  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}) };
+  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
 }
 
 import { errorText } from "@/shared/lib/error-text";
@@ -112,7 +113,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const viewingPack = useStickerPackView();
   const openPackBySticker = (sticker: Sticker) => {
     const pack = sticker.packId ? packs.data?.find((p: StickerPack) => p.id === sticker.packId) : undefined;
-    if (pack) openStickerPack(pack);
+    if (pack) { openStickerPack(pack); return; }
+    if (!sticker.packId) return;
+    void (async () => {
+      try {
+        const { http } = await import("@/shared/api");
+        const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId as string)}`);
+        if (res?.pack) openStickerPack(res.pack);
+        else openStickerPack({ id: sticker.packId as string, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
+      } catch {
+        openStickerPack({ id: sticker.packId as string, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
+      }
+    })();
   };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);
   const sendSticker = useCallback((s: Sticker) => {

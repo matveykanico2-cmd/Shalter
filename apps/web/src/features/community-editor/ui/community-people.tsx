@@ -116,7 +116,7 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
         subtitle={current ? rightsSummary(rights) : (user.role === "owner" ? "Владелец" : rightsSummary(current ?? mine))}
         right={
           <>
-            {user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
+            {user.badge?.startsWith("icon:") ? <span className={styles.badge}><Icon name={user.badge.slice(5) as IconName} size={14} /></span> : user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
             {user.title ? <span className={styles.title}>{user.title}</span> : null}
           </>
         }
