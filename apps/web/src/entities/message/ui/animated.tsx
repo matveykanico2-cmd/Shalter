@@ -22,7 +22,7 @@ export function StickerBody({ messageId, sticker, onStickerClick }: { messageId:
   return (
     <button
       type="button"
-      className={["sticker-message", image ? "is-image" : "", fresh ? "" : "no-entrance"].filter(Boolean).join(" ")}
+      className={["sticker-message", image ? "is-image" : "", fresh ? "" : "no-entrance", "no-frame"].filter(Boolean).join(" ")}
       onClick={(e) => {
         e.stopPropagation();
         onStickerClick?.(sticker);

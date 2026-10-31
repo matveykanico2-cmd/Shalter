@@ -102,7 +102,7 @@ function Profile({ me }: { me: SelfUser }) {
     <SettingsPage>
       <div className={profileStyles.header}>
         <button type="button" className={profileStyles.avatarButton} aria-label="Фото профиля" onClick={() => setAvatarOpen(true)}>
-          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={me.avatarImage} size={120} />
+          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={(me as any).avatarImage} emoji={(me as any).avatarEmoji} size={120} />
           <span className={profileStyles.avatarEdit}>
             <Icon name="Edit" size={12} />
           </span>

@@ -30,7 +30,28 @@ function Mini({ a, round, size }: { a: Attachment; round?: boolean; size: number
   const style = { width: size, height: size };
   if (src) return <img className={cls} style={style} src={src} alt="" loading="lazy" decoding="async" />;
   // У кружка или видео без обложки — первый кадр самого ролика.
-  if (isVideo(a) && a.url) return <video className={cls} style={style} src={`${a.url}#t=0.1`} muted playsInline preload="metadata" />;
+  if (isVideo(a) && a.url && a.kind !== "video-note") return <video className={cls} style={style} src={`${a.url}#t=0.1`} muted playsInline preload="metadata" />;
+  if (a.kind === "video-note") {
+    return (
+      <span className={`${cls} ${styles.round} ${styles.videoNotePlaceholder}`} style={style}>
+        <Icon name="PlayFill" size={Math.max(8, Math.round(size * 0.42))} />
+      </span>
+    );
+  }
+  if (a.kind === "voice") {
+    return (
+      <span className={`${styles.iconWrap} ${styles.round}`} style={style}>
+        <Icon name="Mic" size={Math.max(9, Math.round(size * 0.48))} />
+      </span>
+    );
+  }
+  if (a.kind === "file") {
+    return (
+      <span className={`${styles.fileWrap}`} style={style}>
+        <Icon name="File" size={Math.max(10, Math.round(size * 0.52))} />
+      </span>
+    );
+  }
   return null;
 }
 
@@ -74,8 +95,8 @@ export function MediaPreview({ message: m, who, size = 20, className }: Props) {
   } else if (a.kind === "video-note" || a.kind === "voice") {
     parts.push(
       a.kind === "voice" ? (
-        <span key="icon" className={styles.icon}>
-          <Icon name="Mic" size={13} />
+        <span key="thumb" className={styles.iconWrap} style={{ width: size, height: size }}>
+          <Icon name="Mic" size={Math.max(9, Math.round(size * 0.48))} />
         </span>
       ) : (
         <Mini key="thumb" a={a} round size={size} />

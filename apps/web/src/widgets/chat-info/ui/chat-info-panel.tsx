@@ -90,7 +90,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
       <div className={styles.body}>
         {/* В личке аватар с именем открывает полный профиль (как info-panel-avatar-row в infoPanel.js). */}
         <HeroBox className={styles.hero} onClick={other ? () => openUserProfile(other.id) : undefined}>
-          <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} sticker={!other && chat.avatarType === "sticker"} />
+          <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={(!other && (chat as any).avatarType === "emoji") ? (chat as any).avatarEmoji : undefined} sticker={!other && chat.avatarType === "sticker"} />
           <p className={styles.title}>
             {other?.name ?? title}
             {(other ? other.isVerified : chat.isVerified) ? (

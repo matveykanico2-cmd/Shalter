@@ -1,17 +1,16 @@
-import type { Sticker } from "@shalter/shared/schemas/stickers";
 import { useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import type { Sticker as AnimSticker } from "@/shared/lib/anim";
+import type { Sticker } from "@shalter/shared/schemas/stickers";
 import { renderSticker } from "@/shared/lib/anim";
+import { prettyQrSvg } from "@/shared/lib/qr/pretty-qr";
 import { Button, Dialog, DomNode, Icon } from "@/shared/ui";
 
 import {
   addSticker,
-  addStickerPackToCollection,
   deleteStickerPack,
   removeSticker,
-  removeStickerPackFromCollection,
   type StickerPack,
   updateStickerPack,
 } from "../api/sticker-packs";
@@ -27,6 +26,8 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareDataUrl, setShareDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const current = view.kind === "detail" || view.kind === "edit" ? view.pack : null;
@@ -34,22 +35,6 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
   const stickerWord = (n: number) => {
     const ru = n % 100 >= 11 && n % 100 <= 14 ? "стикеров" : n % 10 === 1 ? "стикер" : n % 10 >= 2 && n % 10 <= 4 ? "стикера" : "стикеров";
     return n === 1 ? "1 стикер" : `${n} ${ru}`;
-  };
-
-  const toggleCollection = async () => {
-    if (!current || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      if (current.isAdded) await removeStickerPackFromCollection(current.id);
-      else await addStickerPackToCollection(current.id);
-      setView((v) => (v.kind === "detail" ? { kind: "detail", pack: { ...v.pack, isAdded: !v.pack.isAdded } } : v));
-      onRefresh();
-    } catch {
-      setError("Не удалось обновить коллекцию");
-    } finally {
-      setBusy(false);
-    }
   };
 
   const removePackConfirmed = async () => {
@@ -63,8 +48,23 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
       onClose();
     } catch {
       setBusy(false);
+      setError("Не удалось удалить пак");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const openShare = async () => {
+    if (!current || busy) return;
+    try {
+      const text = `shalter://stickers/pack/${encodeURIComponent(current.id)}?name=${encodeURIComponent(current.name)}`;
+      const svg = prettyQrSvg(text, { logo: true });
+      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      setShareDataUrl(url);
+      setShareOpen(true);
+    } catch {
+      setError("Не удалось создать QR");
     }
   };
 
@@ -198,8 +198,11 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
             <div>
               <span className={styles.detailName}>{packName}</span>
               {current.description ? <p className={styles.detailDesc}>{current.description}</p> : null}
-              <span className={styles.detailMeta}>Автор: {isOwner ? "Вы" : current.ownerId.slice(0, 8)} · {count} стикер{count === 1 ? "" : "ов"}</span>
+              <span className={styles.detailMeta}>Автор: {isOwner ? "Вы" : current.ownerId.slice(0, 8)} · {count} стикер{count === 1 ? "" : count >= 2 && count <= 4 ? "а" : "ов"}</span>
             </div>
+            <button type="button" className={styles.iconButton} title="Поделиться QR" aria-label="Поделиться QR" onClick={() => void openShare()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            </button>
           </div>
           <p className={styles.detailHint}>Нажмите на стикер, чтобы отправить его в чат.</p>
           <div className={styles.detailGrid}>
@@ -236,6 +239,15 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
               </div>
             ))}
           </div>
+          {shareOpen ? (
+            <Dialog title="Поделиться стикерпаком" onClose={() => setShareOpen(false)}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                {shareDataUrl ? <img src={shareDataUrl} alt="QR" style={{ width: 220, height: 220, borderRadius: 12 }} /> : null}
+                <p style={{ color: "var(--color-muted)", fontSize: 13 }}>Сканируй QR для открытия пака</p>
+                <Button variant="secondary" onClick={() => setShareOpen(false)}>Закрыть</Button>
+              </div>
+            </Dialog>
+          ) : null}
           {error ? <p className={styles.error} role="alert">{error}</p> : null}
           <div className={styles.detailActions}>
             {isOwner ? (
@@ -259,7 +271,26 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: {
                 ) : null}
               </>
             ) : (
-              <Button variant={isAdded ? "danger" : "primary"} disabled={busy} onClick={toggleCollection}>
+              <Button variant={isAdded ? "danger" : "primary"} disabled={busy} onClick={() => void (async () => {
+                if (!current || busy) return;
+                setBusy(true);
+                setError(null);
+                try {
+                  if (current.isAdded) {
+                    const mod = await import("../api/sticker-packs");
+                    await mod.removeStickerPackFromCollection(current.id);
+                  } else {
+                    const mod = await import("../api/sticker-packs");
+                    await mod.addStickerPackToCollection(current.id);
+                  }
+                  setView((v) => (v.kind === "detail" ? { kind: "detail", pack: { ...v.pack, isAdded: !v.pack.isAdded } } : v));
+                  onRefresh();
+                } catch {
+                  setError("Не удалось обновить коллекцию");
+                } finally {
+                  setBusy(false);
+                }
+              })()}>
                 {busy ? (isAdded ? "Удаляем…" : "Добавляем…") : isAdded ? `Удалить ${stickerWord(count)}` : `Добавить ${stickerWord(count)}`}
               </Button>
             )}
