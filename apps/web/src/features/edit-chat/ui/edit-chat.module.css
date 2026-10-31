@@ -125,7 +125,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface-alt);
   margin-top: 10px;
 }
@@ -148,7 +148,7 @@
 .emoji {
   width: 100%;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid transparent;
   background: var(--color-surface);
   color: inherit;
@@ -280,7 +280,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: 12px;
   color: #fff;
 }
 
@@ -456,7 +456,7 @@
 .reaction {
   padding: 5px;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   font-size: 17px;
   line-height: 1.2;
@@ -481,7 +481,7 @@
 
 .pickList .person {
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   background: none;
   color: var(--color-text);
   font: inherit;
@@ -518,7 +518,7 @@
 .sheetTab {
   padding: 6px 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-surface-alt);
   color: var(--color-text);
   font: inherit;

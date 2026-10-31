@@ -25,7 +25,7 @@
 
 .thumb {
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   object-fit: contain;
   background: color-mix(in srgb, var(--color-muted) 25%, transparent);
 }
@@ -59,7 +59,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--color-muted) 20%, transparent);
   color: var(--color-muted);
 }

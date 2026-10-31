@@ -62,7 +62,7 @@
   gap: 12px;
   padding: 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   color: var(--color-text);
   font: inherit;
@@ -183,7 +183,7 @@
   gap: 12px;
   padding: 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   color: var(--color-text);
   font: inherit;

@@ -118,7 +118,7 @@
   height: 20px;
   margin-left: 5px;
   padding: 0 6px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--tw-secondary);
   color: #fff;
   font-family: var(--font-sans);
@@ -224,7 +224,7 @@
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   font: inherit;

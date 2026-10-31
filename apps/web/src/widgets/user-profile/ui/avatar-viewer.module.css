@@ -59,7 +59,7 @@
 .media {
   max-width: 100%;
   max-height: min(70vh, 560px);
-  border-radius: 14px;
+  border-radius: 16px;
   background: #000;
   object-fit: contain;
 }
@@ -148,7 +148,7 @@
 .barButton {
   padding: 8px 16px;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   color: #fff;
   font: inherit;

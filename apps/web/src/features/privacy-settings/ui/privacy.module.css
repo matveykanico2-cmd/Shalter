@@ -194,7 +194,7 @@
 
 .recoveryGrid span {
   padding: 6px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-surface-alt);
   text-align: center;
 }

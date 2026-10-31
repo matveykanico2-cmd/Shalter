@@ -36,7 +36,7 @@
 }
 
 .message {
-  border-radius: 8px;
+  border-radius: 12px;
   transition: background-color 0.4s;
 }
 
@@ -96,7 +96,7 @@
 .day span,
 .day button {
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-date-pill);
   color: #fff;
   font-size: 13px;
@@ -191,8 +191,8 @@
   height: var(--down-btn-size, 44px);
   border: none;
   border-radius: 999px;
-  background: var(--down-btn-bg);
-  box-shadow: var(--down-btn-shadow);
+  background: var(--down-btn-bg, var(--color-surface));
+  box-shadow: var(--down-btn-shadow, 0 2px 8px rgba(0,0,0,0.25));
   color: var(--color-text);
   cursor: pointer;
 }

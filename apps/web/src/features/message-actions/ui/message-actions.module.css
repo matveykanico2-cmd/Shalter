@@ -185,7 +185,7 @@
   gap: 12px;
   padding: 6px 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: var(--color-text);
   font: inherit;
@@ -349,7 +349,7 @@
   gap: 2px;
   padding: 2px 6px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   color: var(--color-accent);
   font: inherit;
@@ -387,7 +387,7 @@
 
 .skeleton {
   height: 40px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: linear-gradient(90deg, var(--color-surface-alt) 25%, color-mix(in srgb, var(--color-surface-alt) 50%, var(--color-surface)) 50%, var(--color-surface-alt) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.2s linear infinite;

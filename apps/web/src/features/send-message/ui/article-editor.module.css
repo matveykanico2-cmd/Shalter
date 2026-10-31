@@ -13,7 +13,7 @@
   justify-content: center;
   gap: 6px;
   border: 2px dashed var(--color-border);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--color-surface-alt);
   color: var(--color-muted);
   font: inherit;
@@ -30,7 +30,7 @@
   position: relative;
   flex: none;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .coverPreview img {
@@ -82,7 +82,7 @@
   justify-content: center;
   padding: 0 8px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   color: var(--color-text);
   font: inherit;

@@ -66,7 +66,7 @@
   gap: 12px;
   padding: 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: inherit;
   font: inherit;
@@ -114,7 +114,7 @@ button.profile:hover {
   margin: 12px 16px 0;
   padding: 12px;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--color-surface);
   color: inherit;
   font: inherit;

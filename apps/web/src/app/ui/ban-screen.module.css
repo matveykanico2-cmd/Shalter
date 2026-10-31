@@ -66,7 +66,7 @@
 .term {
   width: 100%;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface-alt);
   text-align: left;
 }

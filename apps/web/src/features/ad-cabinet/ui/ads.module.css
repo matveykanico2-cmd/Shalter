@@ -34,7 +34,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface);
 }
 
@@ -54,7 +54,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 24px;
   background: var(--color-surface);
 }
 
@@ -88,7 +88,7 @@
 .status {
   flex-shrink: 0;
   padding: 2px 8px;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
 }
@@ -140,7 +140,7 @@ span.danger {
 .budgetBar {
   height: 6px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--color-surface-alt);
 }
 
@@ -236,7 +236,7 @@ span.danger {
   flex-direction: column;
   gap: 6px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 24px;
   background: var(--color-surface);
 }
 
@@ -258,7 +258,7 @@ span.danger {
   gap: 12px;
   margin-bottom: 12px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 24px;
   background: var(--color-surface);
 }
 
@@ -287,7 +287,7 @@ span.danger {
   width: 80px;
   height: 80px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-surface-alt);
 }
 

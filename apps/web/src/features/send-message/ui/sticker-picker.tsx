@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback,useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { DRAWN_STICKERS, renderSticker, type Sticker, STICKERS } from "@/shared/lib/anim";
+import { renderSticker, type Sticker } from "@/shared/lib/anim";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
-import { type StickerPack,stickerPackQueries } from "../api/sticker-packs";
-import { closeStickerPack, openStickerPack, useStickerPackView } from "../lib/sticker-pack-store";
+import { type StickerPack, stickerPackQueries } from "../api/sticker-packs";
+import { closeStickerPack, useStickerPackView } from "../lib/sticker-pack-store";
 
 import { StickerPackDetail } from "./sticker-pack-detail";
 import { StickerPackDialog } from "./sticker-pack-dialog";
@@ -24,10 +24,10 @@ function outgoing(s: Sticker): Sticker {
 type Props = { chatId: string; onSend: (sticker: Sticker) => void };
 
 /**
- * Стикеры — как toggleStickers/renderStickerPicker в composer.js: Shalter, стандартные и
- * свои паки; пока выбор открыт, у собеседника «выбирает стикер». Клик по стикеру из своего
- * пака открывает сам пак (счётчик, удаление стикера/пака, назад), а не отправляет сразу.
- * Внизу — «Мои стикерпаки».
+ * Стикеры — только свои стикерпаки пользователя (без встроенных наборов).
+ * Каждый пак показывает название, описание и сетку стикеров.
+ * Клик по стикеру отправляет его в чат.
+ * Внизу — «Мои стикерпаки» (создать/редактировать/удалить пак).
  */
 export function StickerButton({ chatId, onSend }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -91,7 +91,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
     };
   }, [chatId]);
 
-  const pickOwn = (s: Sticker) => {
+  const pick = (s: Sticker) => {
     onPick(outgoing(s));
     closeStickerPack();
   };
@@ -102,53 +102,48 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
         <StickerPackDetail
           pack={viewingPack}
           onClose={closeStickerPack}
-          onStickerPick={pickOwn}
+          onStickerPick={pick}
           onRefresh={refresh}
         />
       </div>
     );
   }
 
-  const sections: { title: string; stickers: Sticker[]; packId?: string }[] = [
-    ...(packs.data ?? []).filter((p: StickerPack) => p.stickers.length).map((p: StickerPack) => ({ title: p.name, stickers: p.stickers as Sticker[], packId: p.id })),
-    { title: "Shalter", stickers: DRAWN_STICKERS },
-    { title: "Стандартные", stickers: STICKERS },
-  ];
+  const list = (packs.data ?? []).filter((p: StickerPack) => p.stickers.length);
   return (
     <div className={styles.panel}>
-      {sections.map((section) => (
-        <section key={section.title} className={styles.section} aria-label={section.title}>
-          <p className={styles.heading}>{section.title}</p>
-          <div className={styles.items}>
-            {section.stickers.map((s, i) => {
-              const fromOwnPack = Boolean(section.packId);
-              return (
-                <button
-                  key={`${s.uid ?? s.url ?? s.emoji ?? s.id ?? ""}:${i}`}
-                  type="button"
-                  className={styles.item}
-                  title={s.name || s.emoji || "Стикер"}
-                  aria-label={s.name || s.emoji || "Стикер"}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (fromOwnPack) {
-                      const pack = packs.data?.find((p) => p.id === section.packId);
-                      if (pack) {
-                        openStickerPack(pack);
-                        return;
-                      }
-                    }
-                    onPick(outgoing(s));
-                  }}
-                >
-                  <DomNode create={() => renderSticker(s, { size: s.kind === "image" ? 56 : 30 })} />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+      {list.length === 0 ? (
+        <p className={styles.empty}>У вас пока нет стикерпаков</p>
+      ) : (
+        <>
+          {list.map((pack: StickerPack) => (
+            <section key={pack.id} className={styles.packSection} aria-label={pack.name}>
+              <div className={styles.packHeader}>
+                <span className={styles.packName}>{pack.name}</span>
+                {pack.description && <span className={styles.packDesc}>{pack.description}</span>}
+              </div>
+              <div className={styles.items}>
+                {pack.stickers.map((s) => (
+                  <button
+                    key={s.id || s.url || s.emoji}
+                    type="button"
+                    className={styles.item}
+                    title={s.emoji || "Стикер"}
+                    aria-label={s.emoji || "Стикер"}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      pick(s);
+                    }}
+                  >
+                    <DomNode create={() => renderSticker(s, { size: 56 })} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </>
+      )}
       <button type="button" className={styles.manage} onClick={onManage}>
         Мои стикерпаки
       </button>

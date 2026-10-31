@@ -69,7 +69,7 @@
   width: min(88vw, 320px);
   aspect-ratio: 9 / 16;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #111;
   touch-action: none;
 }
@@ -166,7 +166,7 @@
   width: min(88vw, 320px);
   max-height: 140px;
   overflow-y: auto;
-  border-radius: 12px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.08);
   padding: 8px;
 }

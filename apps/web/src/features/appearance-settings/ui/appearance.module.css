@@ -90,7 +90,7 @@
   width: 44px;
   height: 34px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
 }
 
@@ -127,7 +127,7 @@
   width: 56px;
   height: 56px;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   transition: transform 0.15s ease;
 }
@@ -200,7 +200,7 @@
   aspect-ratio: 1;
   padding: 3px;
   border: 2px solid transparent;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface-alt);
   cursor: pointer;
 }

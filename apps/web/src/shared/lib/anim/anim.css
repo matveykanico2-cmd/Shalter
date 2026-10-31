@@ -120,7 +120,7 @@
 .sticker-picker-item {
   font-size: 26px;
   padding: 4px;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 .sticker-picker-item:hover {
   background: var(--color-surface-alt);
@@ -283,7 +283,7 @@
   bottom: 6px;
   margin: 0;
   padding: 4px 6px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
   font-size: 11px;

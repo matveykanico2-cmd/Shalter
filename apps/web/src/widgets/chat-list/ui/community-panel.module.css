@@ -1,7 +1,7 @@
 /* Строка сообщества и его панель — .community-row, .community-panel-* в public/styles. */
 .wrap {
   position: relative;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .row {
@@ -11,7 +11,7 @@
   width: 100%;
   padding: 7px 38px 7px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: inherit;
   font: inherit;
@@ -195,7 +195,7 @@
   gap: 10px;
   padding: 4px 6px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: inherit;
   font: inherit;
@@ -240,7 +240,7 @@
   gap: 12px;
   padding: 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: var(--color-accent);
   font: inherit;

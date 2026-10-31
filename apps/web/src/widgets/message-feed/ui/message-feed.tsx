@@ -110,16 +110,20 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const history = useQuery(messageQueries.history(chat.id, topic));
   const viewingPack = useStickerPackView();
   const openPackBySticker = (sticker: Sticker) => {
-    const pid = sticker.packId || `sp_unknown`;
     void (async () => {
+      // 1) По packId из стикера — открываем настоящий пак.
       if (sticker.packId) {
         try {
           const { http } = await import("@/shared/api");
           const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId)}`);
           if (res?.pack) { openStickerPack(res.pack); return; }
-        } catch {}
+          return;
+        } catch {
+          return;
+        }
       }
-      openStickerPack({ id: pid, ownerId: "", name: "Стикерпак", description: null, stickers: [sticker], stickerCount: 1, isAdded: false, isOwner: false, createdAt: new Date().toISOString() } as StickerPack);
+      // packId нет — стикер не относится ни к какому паку (старые сообщения).
+      return;
     })();
   };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);

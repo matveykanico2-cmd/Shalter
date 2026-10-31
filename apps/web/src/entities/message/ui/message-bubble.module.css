@@ -36,7 +36,7 @@
 /* Режим выбора (.message-row.selecting в public/styles/components.css). */
 .selecting {
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .selecting .bubble:active {
@@ -239,7 +239,7 @@
 .stickerBubble .meta,
 .out.stickerBubble .meta {
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
   color: var(--color-muted);
   backdrop-filter: blur(3px);
@@ -255,7 +255,7 @@
   margin-bottom: 2px;
   padding: 0 6px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: color-mix(in srgb, currentColor 12%, transparent);
   color: var(--name-light, var(--color-accent));
   font: inherit;
@@ -286,7 +286,7 @@
   overflow: hidden;
   border: none;
   border-left: 3px solid var(--accent-line, var(--color-accent));
-  border-radius: 4px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--accent-line, var(--color-accent)) 10%, transparent);
   color: inherit;
   font: inherit;
@@ -489,7 +489,7 @@
   display: inline-block;
   max-width: min(420px, 100%);
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(0, 0, 0, 0.22);
   color: #fff;
   font-size: 14px;
@@ -500,7 +500,7 @@
 .secretCard {
   max-width: 300px;
   padding: 10px 16px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(0, 0, 0, 0.22);
   color: #fff;
   font-size: 14px;
@@ -801,7 +801,7 @@
   min-width: 0;
   padding: 6px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-accent);
   font: inherit;
@@ -909,7 +909,7 @@
   margin-bottom: 4px;
   padding: 4px 8px 4px 6px;
   border-left: 3px solid var(--color-accent);
-  border-radius: 8px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 

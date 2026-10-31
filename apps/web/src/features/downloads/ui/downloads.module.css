@@ -102,7 +102,7 @@
   min-width: 0;
   padding: 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: var(--color-text);
   font: inherit;
@@ -121,7 +121,7 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-accent-soft) center / cover no-repeat;
   color: var(--color-accent);
 }

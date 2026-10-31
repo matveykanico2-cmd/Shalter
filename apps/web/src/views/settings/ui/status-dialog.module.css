@@ -17,7 +17,7 @@
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
   gap: 6px;
   padding: 8px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-surface-alt);
 }
 
@@ -33,7 +33,7 @@
   justify-content: center;
   padding: 6px;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-surface);
   cursor: pointer;
 }
@@ -50,7 +50,7 @@
 .image {
   width: 28px;
   height: 28px;
-  border-radius: 5px;
+  border-radius: 6px;
   object-fit: cover;
 }
 
