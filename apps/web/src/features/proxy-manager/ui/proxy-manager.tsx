@@ -31,7 +31,7 @@ interface PingResult {
 }
 type SheetState = null | { kind: "add" } | { kind: "scan" } | { kind: "share"; proxy: Proxy };
 
-const PING_EVERY_MS = 60_000;
+const PING_EVERY_MS = 60000; void PING_EVERY_MS;
 const TOKEN_KEY = "proxy-hub:token";
 const DEVICE_KEY = "proxy-hub:device";
 
@@ -204,16 +204,32 @@ export default function ProxyManager() {
     }
     const listRef: string[] = listRefArr.filter((x): x is string => typeof x === "string" && x.length > 0);
     if (listRef.length === 0) {
-      const onVisible = () => {};
-      document.addEventListener("visibilitychange", onVisible);
-      return () => { document.removeEventListener("visibilitychange", onVisible); };
+      const onVisibleEmpty = () => {};
+      document.addEventListener("visibilitychange", onVisibleEmpty);
+      return () => { document.removeEventListener("visibilitychange", onVisibleEmpty); };
     }
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        for (let i = 0; i < listRef.length; i++) {
+          const id = listRef[i];
+          if (typeof id === "string") void pingOne(id);
+        }
+      }
+    }, 60000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        for (let i = 0; i < listRef.length; i++) {
+          const id = listRef[i];
+          if (typeof id === "string") void pingOne(id);
+        }
+      }
+    };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [idsKey, pingOne]);
+  }, [pingOne]);
 
   /* ── Действия ── */
   const addProxy = useCallback(async (data: ProxyData): Promise<boolean> => {
@@ -248,7 +264,9 @@ export default function ProxyManager() {
     if (proxies.length === 0) return setSheet({ kind: "add" });
     setDevice((d) => {
       const valid = proxies.some((p) => p.id === d.activeId);
-      return { enabled: !(d.enabled && valid), activeId: valid ? d.activeId : proxies[0].id };
+      const first = proxies[0];
+      if (!first) return { enabled: false, activeId: null };
+      return { enabled: !(d.enabled && valid), activeId: valid ? d.activeId : first.id };
     });
   };
 
