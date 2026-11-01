@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { chatQueries } from "@/entities/chat";
 
 import { errorText } from "@/shared/lib/error-text";
+import { plural } from "@/shared/lib/presence";
 import { Avatar, Button, EmojiText, Icon } from "@/shared/ui";
 
 import { joinByInvite, openProfileQueries } from "../api/open-profile";
@@ -64,7 +65,7 @@ export function JoinInviteScreen({ code }: { code: string }) {
         ) : null}
       </h1>
       <p className={styles.muted}>
-        {chat.memberCount} {isChannel ? "подписчиков" : "участников"}
+        {chat.memberCount} {isChannel ? plural(chat.memberCount, "подписчик", "подписчика", "подписчиков") : plural(chat.memberCount, "участник", "участника", "участников")}
       </p>
       {chat.description ? <p className={styles.description}>{chat.description}</p> : null}
       {chat.alreadyMember ? (

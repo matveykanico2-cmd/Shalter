@@ -17,9 +17,11 @@ describe("подпись в шапке чата (renderHeader в chatView.js)", 
     expect(chatSubtitle(chat({ type: "dm", otherUser: { id: "u_b", name: "Бот", online: false, isBot: true } as never }), [], "u_me", null, NOW).text).toBe("бот");
   });
 
-  it("группа: участники и кто в сети (кроме себя); канал: подписчики", () => {
+  it("группа: участники и кто в сети (вместе с собой, как в панели «Информация»); канал: подписчики", () => {
     const members = [member("u_me", "Я", true), member("u_l", "Лена", true), member("u_k", "Костя")];
-    expect(chatSubtitle(chat({}), members, "u_me", null, NOW).text).toBe("3 участника, 1 в сети");
+    expect(chatSubtitle(chat({}), members, "u_me", null, NOW).text).toBe("3 участника, 2 в сети");
+    // В сети только я — без «в сети».
+    expect(chatSubtitle(chat({}), [member("u_me", "Я", true), member("u_k", "Костя")], "u_me", null, NOW).text).toBe("2 участника");
     expect(chatSubtitle(chat({ type: "channel", membersCount: 21 }), [], "u_me", null, NOW).text).toBe("21 подписчик");
   });
 

@@ -407,6 +407,31 @@ describe("DELETE /api/communities/:id", () => {
 });
 
 describe("участие: join / leave", () => {
+  test("вступивший сразу во всех видимых группах и каналах сообщества; вышел — ушёл из них", async () => {
+    const { baseUrl } = server();
+    const a = await registerUser(baseUrl);
+    const joiner = await registerUser(baseUrl);
+    const group = await createGroup(a, []);
+    const channel = await createChannel(a, [], { isPublic: true, username: `club${Date.now().toString(36)}` });
+    const hiddenGroup = await createGroup(a, []);
+    const c = await createCommunity(a, { chatId: group.id });
+    expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: channel.id }), communityBody);
+    expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: hiddenGroup.id, visible: false }), communityBody);
+    const joinerWs = await ws(joiner);
+
+    const joined = expectOk(await joiner.api.post(`/api/communities/${c.id}/join`), communityBody).community;
+    expect(joined.chats.map((x) => [x.id, x.isMember])).toEqual([[group.id, true], [channel.id, true]]);
+    await joinerWs.waitFor("chat:added", (e) => e.chat?.id === group.id);
+    expectOk(await joiner.api.get(`/api/chats/${group.id}`), chatCard);
+    expectOk(await joiner.api.get(`/api/chats/${channel.id}`), chatCard);
+    expect((await joiner.api.get(`/api/chats/${hiddenGroup.id}`)).status).toBe(404);
+
+    expectOk(await joiner.api.post(`/api/communities/${c.id}/leave`), okBody);
+    await joinerWs.waitFor("chat:deleted", (e) => e.chatId === group.id);
+    expect((await joiner.api.get(`/api/chats/${group.id}`)).status).toBe(404);
+    expect((await joiner.api.get(`/api/chats/${channel.id}`)).status).toBe(404);
+  });
+
   test("закрытое — посторонний не вступает; открытое — вступает, участник выходит, владелец выйти не может", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
@@ -432,14 +457,15 @@ describe("участие: join / leave", () => {
 
     expectError(await a.api.post(`/api/communities/${c.id}/leave`), 400, "Владелец не может покинуть сообщество — его можно только удалить");
 
-    // Выход — только из сообщества: чат остаётся.
+    // Выход из сообщества — и из его чатов (кроме своих).
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/leave`), okBody)).toEqual({ ok: true });
     const asB = expectOk(await b.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(asB).toMatchObject({ role: null, isMember: false, isBanned: false, addPolicy: null });
     expect(asB.chats.map((x) => x.id)).toEqual([group.id]);
     expect(expectOk(await b.api.get("/api/communities/joined"), joinedBody).communities).toEqual([]);
-    expect(expectOk(await b.api.get(`/api/communities/by-chat/${group.id}`), byChatBody).community?.isMember).toBe(false);
-    expectOk(await b.api.get(`/api/chats/${group.id}`), chatCard);
+    // В чате его больше нет — карточка сообщества по чату ему не положена.
+    expect((await b.api.get(`/api/communities/by-chat/${group.id}`)).status).toBe(404);
+    expect((await b.api.get(`/api/chats/${group.id}`)).status).toBe(404);
     expectError(await b.api.post(`/api/communities/${c.id}/leave`), 403, NOT_MEMBER);
     expect(expectOk(await a.api.get(`/api/communities/${c.id}`), communityBody).community.membersCount).toBe(2);
 
@@ -503,14 +529,14 @@ describe("личные настройки: prefs / mute / read", () => {
 
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { hours: 2 }), okBody)).toEqual({ ok: true });
     const timed = await mutedOf();
-    // Только чаты, где B состоит: g2 он не видит.
-    expect(Object.keys(timed)).toEqual([g1.id]);
+    // Все его чаты сообщества: в g2, добавленный позже, он попал сам, как участник сообщества.
+    expect(Object.keys(timed).sort()).toEqual([g1.id, g2.id].sort());
     const until = Date.parse(timed[g1.id]);
     expect(until).toBeGreaterThan(Date.now() + 3600_000);
     expect(until).toBeLessThan(Date.now() + 3 * 3600_000);
 
     expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { forever: true }), okBody);
-    expect(await mutedOf()).toEqual({ [g1.id]: true });
+    expect(await mutedOf()).toEqual({ [g1.id]: true, [g2.id]: true });
 
     expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { off: true }), okBody);
     expect(await mutedOf()).toEqual({});

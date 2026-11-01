@@ -110,6 +110,48 @@ export class CommunityAccessService {
     };
   }
 
+  /**
+   * Участник сообщества сразу состоит во всех его видимых группах и каналах — без отдельного
+   * вступления в каждый (кроме секретных, скрытых админом и тех, где его заблокировали).
+   */
+  public addToChats(community: Community, uid: string): void {
+    for (const id of community.chatIds) {
+      if (community.hiddenChatIds.includes(id)) continue;
+      const chat = this.chats.findById(id);
+      if (!chat || chat.secret || chat.memberIds.includes(uid) || chat.bannedIds.includes(uid)) continue;
+      const updated = this.chats.update(chat.id, { memberIds: [...chat.memberIds, uid] })!;
+      this.realtime.broadcastToUsers([uid], { type: "chat:added", chat: updated });
+      this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    }
+  }
+
+  /** Новый (или снова видимый) чат сообщества — сразу у всех его участников; скрытый — нет. */
+  public addMembersToChat(community: Community, chat: Chat): void {
+    if (community.hiddenChatIds.includes(chat.id)) return;
+    const add = this.communities.listMemberIds(community.id).filter((m) => !chat.memberIds.includes(m) && !chat.bannedIds.includes(m));
+    if (!add.length || chat.secret) return;
+    const updated = this.chats.update(chat.id, { memberIds: [...chat.memberIds, ...add] })!;
+    this.realtime.broadcastToUsers(add, { type: "chat:added", chat: updated });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+  }
+
+  /** Вышел или удалён из сообщества — уходит и из его чатов (кроме тех, где он владелец). */
+  public removeFromChats(community: Community, uid: string): void {
+    for (const id of community.chatIds) {
+      const chat = this.chats.findById(id);
+      if (!chat || !chat.memberIds.includes(uid)) continue;
+      if (chat.ownerId === uid || chat.ownerIds.includes(uid)) continue;
+      const memberIds = chat.memberIds.filter((m) => m !== uid);
+      const updated = this.chats.update(chat.id, {
+        memberIds,
+        adminIds: chat.adminIds.filter((m) => m !== uid),
+        moderatorIds: chat.moderatorIds.filter((m) => m !== uid),
+      })!;
+      this.realtime.broadcastToUsers([uid], { type: "chat:deleted", chatId: chat.id });
+      this.realtime.broadcastToUsers(memberIds, { type: "chat:updated", chat: updated });
+    }
+  }
+
   /** Сообщество для клиента. Закрытое (без видимого публичного чата) постороннему — только название и аватар. */
   public view(community: Community, uid: string) {
     const role = this.roleOf(community, uid);
@@ -155,6 +197,7 @@ export class CommunityAccessService {
   /** Чат в сообщество со служебной строкой в самом чате; false — он уже в другом. */
   public async linkChat(community: Community, chat: Chat, opts: { visible: boolean; addedBy: string }): Promise<boolean> {
     if (!this.communities.addChat(community.id, chat.id, opts)) return false;
+    if (opts.visible) this.addMembersToChat(this.reload(community.id), chat);
     await this.announce(chat, `${kindOf(chat)} добавлен${chat.type === "channel" ? "" : "а"} в сообщество «${community.title}»`);
     this.notify(community.id);
     return true;

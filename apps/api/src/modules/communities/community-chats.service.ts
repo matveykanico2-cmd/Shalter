@@ -46,8 +46,12 @@ export class CommunityChatsService {
     const { visible } = dto;
     if (visible === undefined) throw new ApiError(400, "Нужно visible: true или false");
     this.communities.setChatVisible(community.id, chatId, visible);
+    const fresh = this.access.reload(community.id);
+    // Чат снова видимый — в нём сразу все участники сообщества.
+    const chat = visible ? this.chats.findById(chatId) : undefined;
+    if (chat) this.access.addMembersToChat(fresh, chat);
     this.access.notify(community.id);
-    return { community: this.access.view(this.access.reload(community.id), uid) };
+    return { community: this.access.view(fresh, uid) };
   }
 
   /** Убрать чат может тот, кто управляет чатами сообщества, или админ самого чата. */

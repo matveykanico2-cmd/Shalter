@@ -82,6 +82,7 @@ export class CommunityAdminsService {
     }
     const before = this.communities.listMemberIds(community.id);
     const owned = this.chatsOwnedIn(community, target);
+    this.access.removeFromChats(community, target);
     this.communities.ban(community.id, target, uid);
     for (const chat of owned) {
       this.communities.removeChat(community.id, chat.id);

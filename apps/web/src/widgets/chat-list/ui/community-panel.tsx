@@ -184,10 +184,6 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
   const menu = useCommunityMenu(community, chats, { inPanel: true });
   const mine = sortChats(memberChatsOf(base, chats));
   const others = (info?.chats ?? []).filter((c) => !c.isMember);
-  const open = others.filter((c) => c.isPublic && !c.approveJoins && c.visible !== false);
-  const requestable = others.filter((c) => c.isPublic && c.approveJoins && c.visible !== false);
-  const hidden = others.filter((c) => c.visible === false);
-  const inviteOnly = others.filter((c) => !c.isPublic && c.visible !== false);
   const count = info?.chats.length ?? base.chatIds.length;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(base.id).queryKey });
 
@@ -227,14 +223,6 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
       )}
     </div>
   );
-  const section = (label: string, nodes: ReactNode[]) =>
-    nodes.length ? (
-      <div key={label}>
-        <p className={styles.sectionLabel}>{label}</p>
-        {nodes}
-      </div>
-    ) : null;
-
   return (
     <div className={styles.panel}>
       <div className={styles.head}>
@@ -305,14 +293,9 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
             </button>
           </>
         ) : null}
-        {section(
-          "Ваши чаты",
-          mine.map((c) => <div key={c.id}>{renderChat(c)}</div>)
-        )}
-        {section("Можно вступить", open.map(otherRow))}
-        {section("Вступление по заявке", requestable.map(otherRow))}
-        {section("По приглашению", inviteOnly.map(otherRow))}
-        {section("Скрытые чаты", hidden.map(otherRow))}
+        {/* Один общий список, как в Telegram: участник сообщества сразу состоит во всех его чатах. */}
+        {mine.map((c) => <div key={c.id}>{renderChat(c)}</div>)}
+        {others.map(otherRow)}
         {!mine.length && !others.length ? (
           <p className={styles.empty}>{!info ? "Загрузка…" : info.addPolicy ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов"}</p>
         ) : null}

@@ -171,7 +171,7 @@ export class CommunitiesService {
   /**
    * Вступить. Сообщество открытое, если в нём есть видимый публичный чат; иначе — только по
    * приглашению в один из его чатов (участник чата — уже участник сообщества) или вернуться,
-   * если вы в нём уже были.
+   * если вы в нём уже были. Вступивший сразу состоит во всех группах и каналах сообщества.
    */
   public join(uid: string, id: string) {
     const community = this.access.load(id, uid);
@@ -181,6 +181,8 @@ export class CommunitiesService {
       if (!open) throw new ApiError(403, "Сообщество закрытое — вступить можно только по приглашению в один из его чатов");
     }
     this.communities.join(community.id, uid);
+    // Вступил в сообщество — сразу во всех его чатах.
+    this.access.addToChats(this.access.reload(community.id), uid);
     // Открытые страницы сообщества у остальных обновляют число участников сразу.
     this.access.notify(community.id);
     return { community: this.access.view(community, uid) };
@@ -189,8 +191,9 @@ export class CommunitiesService {
   public leave(uid: string, id: string) {
     const community = this.access.load(id, uid, "member");
     if (community.ownerId === uid) throw new ApiError(400, "Владелец не может покинуть сообщество — его можно только удалить");
+    this.access.removeFromChats(community, uid);
     this.communities.leave(community.id, uid);
-    this.access.notify(community.id);
+    this.access.notify(community.id, [uid]);
     return { ok: true };
   }
 

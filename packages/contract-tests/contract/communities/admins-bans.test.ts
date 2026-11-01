@@ -173,12 +173,12 @@ describe("удалённые участники", () => {
     const ownerView = expectOk(await owner.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(ownerView.chats.map((x) => x.id)).toEqual([shared.id]);
     expect(ownerView.bannedCount).toBe(1);
-    // Удалённый остаётся в общем чате, но в сообщество не попадает.
+    // Удалённый из сообщества уходит и из его чатов, где он не владелец.
     expectError(await victim.api.get(`/api/communities/${c.id}`), 403, BANNED);
     expectError(await victim.api.post(`/api/communities/${c.id}/join`), 403, BANNED);
     expectError(await victim.api.post(`/api/communities/${c.id}/chats`, { chatId: vGroup.id }), 403, "Добавлять чаты могут только участники сообщества");
     expect(expectOk(await victim.api.get("/api/communities/joined"), joinedBody).communities).toEqual([]);
-    expectOk(await victim.api.get(`/api/chats/${shared.id}`), chatCard);
+    expect((await victim.api.get(`/api/chats/${shared.id}`)).status).toBe(404);
     expect(ownerView.membersCount).toBe(2);
 
     expectError(await plain.api.get(`/api/communities/${c.id}/bans`), 403, NO_RIGHTS);
@@ -188,9 +188,9 @@ describe("удалённые участники", () => {
     expectError(await plain.api.delete(`/api/communities/${c.id}/bans/${victim.id}`), 403, NO_RIGHTS);
     expect(expectOk(await owner.api.delete(`/api/communities/${c.id}/bans/${victim.id}`), okBody)).toEqual({ ok: true });
     expect(expectOk(await owner.api.get(`/api/communities/${c.id}/bans`), bansBody).users).toEqual([]);
-    // Снова участник — через общий чат сообщества; чаты обратно не возвращаются.
+    // Бан убрал его и из общего чата, так что после разбана он не участник, пока не вступит снова.
     const back = expectOk(await victim.api.get(`/api/communities/${c.id}`), communityBody).community;
-    expect(back).toMatchObject({ role: "member", isBanned: false });
+    expect(back).toMatchObject({ role: null, isBanned: false });
     expect(back.chats.map((x) => x.id)).toEqual([shared.id]);
     // Повторный разбан — тоже ok.
     expectOk(await owner.api.delete(`/api/communities/${c.id}/bans/${victim.id}`), okBody);

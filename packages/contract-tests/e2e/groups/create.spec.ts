@@ -113,7 +113,7 @@ test("новый канал без подписчиков, ссылка-приг
   const b = (await openAs(boris.api, `/join/${code}`)).page;
   await expect(b.getByRole("heading", { name: title })).toBeVisible();
   await expect(b.getByText("Новости клуба")).toBeVisible();
-  await expect(b.getByText("1 подписчиков")).toBeVisible();
+  await expect(b.getByText("1 подписчик", { exact: true })).toBeVisible();
   await b.getByRole("button", { name: "Присоединиться к каналу" }).click();
 
   // Внутри канала: пост виден, писать подписчик не может — вместо поля «ОТПИСАТЬСЯ».

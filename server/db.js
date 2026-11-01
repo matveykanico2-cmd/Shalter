@@ -1469,6 +1469,25 @@ runOnce("settings-ui-language-auto", () => {
   ).run();
 });
 
+// Участник сообщества сразу состоит во всех его группах и каналах (apps/api modules/communities):
+// тем, кто вступил раньше, недостающие чаты добавляются один раз. Только явные участники —
+// владелец и вступившие (не вышедшие и не удалённые); скрытые и секретные чаты и бан в самом чате — нет.
+runOnce("community-members-in-all-chats", () => {
+  db.prepare(
+    `INSERT OR IGNORE INTO chat_members (chatId, userId)
+     SELECT cc.chatId, m.userId
+       FROM community_chats cc
+       JOIN (SELECT communityId, userId FROM community_members WHERE left = 0
+             UNION SELECT id AS communityId, ownerId AS userId FROM communities) m ON m.communityId = cc.communityId
+       JOIN chats c ON c.id = cc.chatId
+      WHERE cc.visible = 1
+        AND COALESCE(c.secret, 0) = 0
+        AND c.type IN ('group', 'channel')
+        AND instr(COALESCE(c.bannedIds, '[]'), '"' || m.userId || '"') = 0
+        AND NOT EXISTS (SELECT 1 FROM community_bans b WHERE b.communityId = cc.communityId AND b.userId = m.userId)`
+  ).run();
+});
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS promo_codes (
   id TEXT PRIMARY KEY,

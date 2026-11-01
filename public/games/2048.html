@@ -7,8 +7,8 @@
 .top h1{margin:0;flex:1;font-size:34px;color:#776e65}
 .box{background:#bbada0;color:#fff;border-radius:6px;padding:4px 12px;text-align:center;font-size:12px;min-width:64px}.box b{display:block;font-size:18px}
 button{border:0;border-radius:6px;background:#8f7a66;color:#fff;font-weight:700;padding:8px 14px;font-size:14px}
-.grid{position:relative;width:min(92vw,420px);aspect-ratio:1;background:#bbada0;border-radius:8px;padding:2.4%;display:grid;grid-template-columns:repeat(4,1fr);gap:2.4%}
-.c{background:rgba(238,228,218,.35);border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(18px,7vw,40px);transition:background .1s}
+.grid{position:relative;width:min(92vw,420px);aspect-ratio:1;background:#bbada0;border-radius:8px;padding:2.4%;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:2.4%}
+.c{min-height:0;min-width:0;background:rgba(238,228,218,.35);border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(18px,7vw,40px);transition:background .1s}
 .over{position:absolute;inset:0;background:rgba(238,228,218,.75);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-radius:8px;font-size:30px;font-weight:800}
 </style></head><body><div class="wrap">
 <div class="top"><h1>2048</h1><div class="box">СЧЁТ<b id="s">0</b></div><div class="box">ЛУЧШИЙ<b id="b">0</b></div></div>

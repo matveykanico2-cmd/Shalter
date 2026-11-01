@@ -40,8 +40,9 @@ export function chatSubtitle(chat: ChatSummary, members: readonly ChatMember[], 
   if (chat.type === "group") {
     const n = members.length || chat.memberIds.length;
     const base = `${n} ${plural(n, "участник", "участника", "участников")}`;
-    const online = members.filter((u) => u.id !== meId && u.online).length;
-    return { text: online > 0 ? `${base}, ${online} в сети` : base, tone: "muted" };
+    // Как в панели «Информация»: себя тоже считаем, и «в сети» — только когда вас больше одного.
+    const online = members.filter((u) => u.id === meId || u.online).length;
+    return { text: online > 1 ? `${base}, ${online} в сети` : base, tone: "muted" };
   }
   if (chat.type === "channel") {
     const n = chat.membersCount ?? members.length;
