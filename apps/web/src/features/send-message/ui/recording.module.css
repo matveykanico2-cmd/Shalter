@@ -9,7 +9,7 @@
   align-items: center;
   gap: 12px;
   padding: 4px 6px 4px 4px;
-  border-radius: 22px;
+  border-radius: 24px;
   background: var(--color-surface);
   box-shadow: var(--bubble-shadow);
 }

@@ -19,8 +19,6 @@
   </style>
 </head>
 <body>
-  <!-- Стартовая страница оболочки: проверяет, что сервер отвечает, и переходит на
-       него. Без связи — экран ожидания с автоповтором (как offline.html в Electron). -->
   <main>
     <div class="spinner" role="status" aria-label="Подключение"></div>
     <div id="offline" hidden>
@@ -35,11 +33,9 @@
     let target = null;
     let timer = null;
 
-    // Связь проверяем двумя путями сразу: из Rust (прямое TCP-соединение) и запросом
-    // отсюда. Хватает любого — у части систем WebKit отклонял запрос со страницы
-    // tauri://, и при работающем интернете висело «Ожидание сети…».
     function reachable(url) {
-      const native = window.__TAURI_INTERNALS__.invoke("server_reachable").then((ok) => ok === true, () => false);
+      if (!url) return Promise.resolve(false);
+      const native = (window.__TAURI_INTERNALS__?.invoke?.("server_reachable") ?? Promise.resolve(false)).then((ok) => ok === true, () => false);
       return new Promise((resolve) => {
         let pending = 2;
         const done = (ok) => {
@@ -55,10 +51,15 @@
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
       try {
-        await fetch(new URL("/manifest.webmanifest", url), { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+        await fetch(new URL("/api/version", url), { mode: "cors", cache: "no-store", signal: ctrl.signal });
         return true;
       } catch {
-        return false;
+        try {
+          await fetch(new URL("/manifest.webmanifest", url), { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+          return true;
+        } catch {
+          return false;
+        }
       } finally {
         clearTimeout(t);
       }
@@ -66,6 +67,10 @@
 
     async function attempt() {
       clearTimeout(timer);
+      if (!target) {
+        timer = setTimeout(attempt, 500);
+        return;
+      }
       if (await reachable(target)) {
         location.replace(target);
         return;
@@ -77,12 +82,31 @@
     document.getElementById("retry").addEventListener("click", attempt);
     window.addEventListener("online", attempt);
 
-    window.__TAURI_INTERNALS__
-      .invoke("startup_target")
-      .then((url) => {
-        target = url;
+    function init() {
+      const ipc = window.__TAURI_INTERNALS__;
+      if (ipc && typeof ipc.invoke === "function") {
+        ipc.invoke("startup_target")
+          .then((url) => {
+            target = url || "https://shalter.ru";
+            attempt();
+          })
+          .catch(() => {
+            target = "https://shalter.ru";
+            attempt();
+          });
+      } else {
+        target = "https://shalter.ru";
         attempt();
-      });
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>
+EOF
+echo done

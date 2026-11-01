@@ -45,7 +45,7 @@
 }
 .score {
   padding: 2px 10px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(127, 127, 127, 0.12);
   font-family: var(--font-mono);
   font-weight: 700;
@@ -155,7 +155,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(127, 127, 127, 0.08);
 }
 .tileEmoji {
@@ -232,7 +232,7 @@
 .token {
   display: block;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(127, 127, 127, 0.1);
   font-family: var(--font-mono);
   font-size: 13px;

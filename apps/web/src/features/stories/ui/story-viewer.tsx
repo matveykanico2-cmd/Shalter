@@ -549,31 +549,31 @@ function threaded(all: StoryComment[]) {
 
 /** Удержание — пауза, короткое нажатие — кадр вперёд/назад, свайп в сторону — другой автор. */
 function holdable(onTap: () => void, setHeld: (held: boolean) => void, onSwipe: (dir: number) => void) {
-  let held = false;
-  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  let downTime = 0;
   let downX = 0;
   let downY = 0;
   return {
     onPointerDown: (e: PointerEvent) => {
-      held = false;
+      downTime = Date.now();
       downX = e.clientX;
       downY = e.clientY;
-      holdTimer = setTimeout(() => {
-        held = true;
-        setHeld(true);
-      }, HOLD_MS);
+      // Пауза сразу при нажатии.
+      setHeld(true);
     },
     onPointerUp: (e: PointerEvent) => {
-      clearTimeout(holdTimer);
-      if (held) return setHeld(false);
+      // Продолжаем воспроизведение при отпускании.
+      setHeld(false);
+      const dur = Date.now() - downTime;
       const dx = e.clientX - downX;
       const dy = e.clientY - downY;
-      if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) return onSwipe(dx);
-      onTap();
+      // Короткий тап — листаем кадры/авторов.
+      if (dur < HOLD_MS) {
+        if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) return onSwipe(dx);
+        return onTap();
+      }
     },
     onPointerLeave: () => {
-      clearTimeout(holdTimer);
-      if (held) setHeld(false);
+      setHeld(false);
     },
   };
 }

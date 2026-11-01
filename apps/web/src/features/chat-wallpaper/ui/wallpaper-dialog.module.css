@@ -32,7 +32,7 @@ section:first-child > .groupLabel {
 
 .swatch {
   aspect-ratio: 1;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 2px solid transparent;
   padding: 3px;
   background: var(--color-surface-alt);

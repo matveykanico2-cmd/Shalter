@@ -128,7 +128,8 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
             name={chat.otherUser?.name ?? title}
             color={chat.otherUser?.avatarColor ?? chat.avatarColor}
             image={chat.otherUser?.avatarImage ?? chat.avatarImage}
-            emoji={chat.otherUser?.avatarEmoji ?? chat.avatarEmoji}
+            emoji={chat.otherUser ? chat.otherUser.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined}
+            sticker={!chat.otherUser && chat.avatarType === "sticker"}
             online={chat.type === "dm" && !!chat.otherUser?.online}
           />
           {community ? (

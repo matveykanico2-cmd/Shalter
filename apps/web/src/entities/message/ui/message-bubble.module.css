@@ -36,7 +36,7 @@
 /* Режим выбора (.message-row.selecting в public/styles/components.css). */
 .selecting {
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .selecting .bubble:active {
@@ -141,8 +141,91 @@
 }
 
 .stickerBubble {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0;
+  padding: 0;
+  min-width: auto;
+  max-width: none;
+  outline: none !important;
+}
+
+/* Стикер в сообщении — кликабельная область, открывает пак (как в Telegram). */
+.sticker-message {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-size: 0;
+  line-height: 0;
+  border-radius: 0;
+}
+.sticker-message:hover,
+.sticker-message:focus-visible {
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.sticker-message.is-image {
+  cursor: pointer;
+}
+
+/* Стикерное сообщение — без пузыря, рамки, фона и скруглений, сразу на фоне чата.
+   Выравнивание как у обычных сообщений: свои справа, чужие слева. */
+.stickerWrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+}
+.rowOut .stickerWrap {
+  align-items: flex-end;
+}
+.sticker-body {
+  border: none;
   background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-size: 0;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sticker-body:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+.sticker-body.is-image img.sticker-image {
+  border-radius: 0;
   box-shadow: none;
+  max-width: 256px;
+  max-height: 256px;
+  width: auto;
+  height: auto;
+  display: block;
+}
+/* Время и статус под стикером — мелко, полупрозрачно. */
+.stickerMeta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-muted);
+  line-height: 1;
+}
+.rowOut .stickerMeta {
+  color: var(--color-bubble-out-meta);
+  text-align: right;
+  width: 100%;
+  display: block;
 }
 
 /* Подарок — своя карточка без пузыря (.bubble-gift). */
@@ -156,7 +239,7 @@
 .stickerBubble .meta,
 .out.stickerBubble .meta {
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
   color: var(--color-muted);
   backdrop-filter: blur(3px);
@@ -172,7 +255,7 @@
   margin-bottom: 2px;
   padding: 0 6px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: color-mix(in srgb, currentColor 12%, transparent);
   color: var(--name-light, var(--color-accent));
   font: inherit;
@@ -203,7 +286,7 @@
   overflow: hidden;
   border: none;
   border-left: 3px solid var(--accent-line, var(--color-accent));
-  border-radius: 4px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--accent-line, var(--color-accent)) 10%, transparent);
   color: inherit;
   font: inherit;
@@ -368,12 +451,30 @@
   background: var(--color-accent-soft);
 }
 
-.reactionGlyph {
-  font-size: 15px;
+.reactionStar {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  animation: starReactionPop 0.3s ease-out;
 }
 
-.reactionCount {
-  font-family: var(--font-mono);
+.reactionStar:hover:not(:disabled) {
+  background: var(--color-warning-soft);
+}
+
+@keyframes starReactionPop {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(var(--color-warning-rgb), 0);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(var(--color-warning-rgb), 0.5);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(var(--color-warning-rgb), 0);
+  }
 }
 
 .system {
@@ -388,7 +489,7 @@
   display: inline-block;
   max-width: min(420px, 100%);
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(0, 0, 0, 0.22);
   color: #fff;
   font-size: 14px;
@@ -399,7 +500,7 @@
 .secretCard {
   max-width: 300px;
   padding: 10px 16px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(0, 0, 0, 0.22);
   color: #fff;
   font-size: 14px;
@@ -700,7 +801,7 @@
   min-width: 0;
   padding: 6px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-accent);
   font: inherit;
@@ -808,7 +909,7 @@
   margin-bottom: 4px;
   padding: 4px 8px 4px 6px;
   border-left: 3px solid var(--color-accent);
-  border-radius: 8px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
@@ -851,4 +952,34 @@
   top: 0;
   float: none;
   color: var(--color-muted);
+}
+
+/* Инлайн-стикер в строке текста — маленькая картинка 24 px, без рамки и фона. */
+.inlineStickers {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+}
+.inlineSticker {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.inlineSticker:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 0;
+}
+.inlineStickerImage {
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
 }

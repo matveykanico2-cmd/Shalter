@@ -40,7 +40,6 @@ import { MessagesRepository } from "./messages.repository.js";
 import { PaidMediaRepository } from "./paid-media.repository.js";
 import type { ForwardedFrom, Message } from "./model/domain.js";
 import type { ChatMessageDto, SendMessageDto } from "./model/schemas/message.schema.js";
-import { StickerPacksService } from "../stickers/sticker-packs.service.js";
 
 /**
  * Поля сообщения из запроса. Проверка (gate) заменяет в нём пересылаемое содержимым
@@ -72,16 +71,8 @@ export class MessageSendService {
     private readonly userSettings: UserSettingsService,
     private readonly stars: StarsRepository,
     private readonly privacy: UserPrivacyService,
-    private readonly paidMedia: PaidMediaRepository,
-    private readonly stickerPacks: StickerPacksService
+    private readonly paidMedia: PaidMediaRepository
   ) {}
-
-  /** Стикер после sanitizeSticker и, если он из стикерпака, — с packId (клик в ленте открывает пак). */
-  private stickerOf(raw: unknown) {
-    const sticker = sanitizers().sanitizeSticker(raw);
-    const packId = this.stickerPacks.packIdFor(raw, sticker);
-    return sticker && packId ? { ...sticker, packId } : sticker;
-  }
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
   public async send(uid: string, chat: Chat, dto: ChatMessageDto) {
@@ -157,8 +148,8 @@ export class MessageSendService {
     const needs: Permission[] = [
       "sendMessages",
       ...(kinds.has("poll") || kinds.has("checklist") ? (["sendPolls"] as const) : []),
-      ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice" && k !== "game") ? (["sendMedia"] as const) : []),
-      ...(body.sticker || kinds.has("dice") || kinds.has("game") ? (["sendStickers"] as const) : []),
+      ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice" && k !== "game" && k !== "sticker") ? (["sendMedia"] as const) : []),
+      ...(body.sticker || kinds.has("dice") || kinds.has("game") || kinds.has("sticker") ? (["sendStickers"] as const) : []),
     ];
     for (const need of needs) {
       if (!can(chat, uid, need)) throw new ApiError(403, DENIED[need]);
@@ -315,7 +306,7 @@ export class MessageSendService {
       storyReply: sanitizeStoryReply(body.storyReply),
       attachments: paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments)),
       forwardedFrom,
-      sticker: this.stickerOf(body.sticker),
+      sticker: clean.sanitizeSticker(body.sticker),
       customEmoji: sanitizeMessageEmoji(body.customEmoji),
       readByIds: [senderId],
       paidStars,
@@ -326,9 +317,9 @@ export class MessageSendService {
 
     const { registerAttachments } = uploadAccess();
     registerAttachments(chat.id, message.attachments, { by: senderId });
-    // Настоящие файлы платного поста к чату не привязываются: их отдают только автору,
-    // админам канала и купившим (server/lib/uploadAccess.js).
-    if (paid) this.paidMedia.save(message.id, chat.id, paid.stars, paid.real);
+    // Инлайн-стикеры в тексте — свои вложения, их тоже нужно зарегистрировать.
+    const inlineStickers = (message.attachments ?? []).filter((a) => (a as { kind?: string }).kind === "sticker" && (a as { inline?: boolean }).inline === true);
+    if (inlineStickers.length) registerAttachments(chat.id, inlineStickers.map((s) => ({ url: (s as { url?: string }).url })), { by: senderId });
     if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }], { by: senderId });
 
     if (message.threadRootId) {

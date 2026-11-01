@@ -43,6 +43,9 @@ export interface ChatPatch {
   avatarColor?: string;
   avatarImage?: string | null;
   avatarEmoji?: string | null;
+  avatarType?: "image" | "emoji" | "sticker" | null;
+  stickerId?: string | null;
+  packId?: string | null;
   ownerId?: string;
   linkedDiscussionChatId?: string | null;
   points?: number;

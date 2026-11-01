@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
 import { MainMenuHost, openMainMenu } from "@/features/accounts";
@@ -44,6 +44,19 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
   const { pathname } = useLocation();
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const linkClass = (active: boolean) => (active ? `${styles.railButton} ${styles.railActive}` : styles.railButton);
+
+  // Android: при открытии клавиатуры 100dvh может оставить белую зону вверху.
+  // Переключаем shell на 100% (layout viewport) во время фокуса инпута.
+  useEffect(() => {
+    const onFocus = () => document.documentElement.classList.add("keyboard-open");
+    const onBlur = () => document.documentElement.classList.remove("keyboard-open");
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onBlur);
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onBlur);
+    };
+  }, []);
 
   return (
     <div className={mainOpen ? `${styles.shell} ${styles.mainOpen}` : styles.shell}>

@@ -17,13 +17,12 @@ import { ScheduledMessagesController } from "./scheduled-messages.controller.js"
 import { ScheduledMessagesRepository } from "./scheduled-messages.repository.js";
 import { ScheduledMessagesService } from "./scheduled-messages.service.js";
 import { SummaryStore } from "./stores/summary.store.js";
-import { StickersModule } from "../stickers/stickers.module.js";
 
 // Сообщения чата (/api/chats/:id/messages) и отправка отложенных. Боты и фоновый процесс в
 // server/ пишут в ту же таблицу через server/data/messages.js.
 // ScheduledMessagesController первым: scheduled/… не должен совпасть с /:messageId/….
 @Module({
-  imports: [ChatsModule, TopicsModule, UsersModule, StickersModule],
+  imports: [ChatsModule, TopicsModule, UsersModule],
   controllers: [ScheduledMessagesController, MessagesController, PaidMediaController, MessageActionsController],
   providers: [
     MessagesService,

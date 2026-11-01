@@ -1,4 +1,4 @@
-const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist", "dice", "game"]);
+const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist", "dice", "game", "sticker"]);
 // Анимированные эмодзи-игры, как в Telegram: число выпадает на сервере,
 // клиент присылает только какой эмодзи бросить. Значение — максимум очков.
 const DICE = { "🎲": 6, "🎯": 6, "🏀": 5, "⚽": 5, "🎳": 6, "🎰": 64 };
@@ -44,6 +44,14 @@ function sanitizeAttachments(attachments) {
           if (wave.every((v) => Number.isInteger(v) && v >= 0 && v <= 31)) out.waveform = wave;
         }
         if (typeof a.transcript === "string" && a.transcript.trim()) out.transcript = a.transcript.trim().slice(0, 4000);
+      }
+      if (a.kind === "sticker") {
+        // Инлайн-стикер в тексте сообщения: маленькая картинка из своего пака.
+        if (typeof a.url !== "string" || !UPLOAD_URL_RE.test(a.url)) return null;
+        out.url = a.url;
+        if (typeof a.emoji === "string") out.emoji = a.emoji.trim().slice(0, 8);
+        if (typeof a.packId === "string") out.packId = a.packId;
+        out.inline = a.inline === true;
       }
       if (a.kind === "location") {
         const lat = Number(a.meta?.lat);

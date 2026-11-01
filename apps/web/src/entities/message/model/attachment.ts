@@ -19,6 +19,10 @@ export type Attachment = {
   waveform?: number[];
   transcript?: string;
   meta?: Record<string, unknown>;
+  /** Инлайн-стикер в тексте сообщения */
+  emoji?: string;
+  packId?: string;
+  inline?: boolean;
 };
 
 /** Карточка ссылки под текстом (server/lib/linkPreview.js). */

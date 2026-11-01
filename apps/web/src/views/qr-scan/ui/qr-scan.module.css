@@ -43,7 +43,7 @@
 
 .card {
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 14px 16px;
   background: var(--color-surface);
 }
@@ -74,7 +74,7 @@
   min-width: 140px;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-input-bg);
   color: var(--color-text);
   font: inherit;
@@ -97,7 +97,7 @@
   height: 260px;
   background: #fff;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 

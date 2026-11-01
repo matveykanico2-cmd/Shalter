@@ -81,6 +81,9 @@ export const chats = sqliteTable("chats", {
   avatarColor: text(),
   avatarImage: text(),
   avatarEmoji: text(),
+  avatarType: text(),
+  stickerId: text(),
+  packId: text(),
   ownerId: text(),
   pinned: integer().default(0).notNull(),
   muted: integer().default(0).notNull(),
@@ -421,20 +424,28 @@ export const stickerPacks = sqliteTable("sticker_packs", {
   id: text().primaryKey(),
   ownerId: text().notNull(),
   name: text().notNull(),
+  description: text(),
   stickers: text().default("[]").notNull(),
   createdAt: text().notNull(),
-  description: text().default("").notNull(),
 });
 
-export const stickerPackInstalls = sqliteTable(
-  "sticker_pack_installs",
-  {
-    userId: text().notNull(),
-    packId: text().notNull(),
-    addedAt: text().notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.packId], name: "sticker_pack_installs_userId_packId_pk" })]
-);
+export const stickers = sqliteTable("stickers", {
+  id: text().primaryKey(),
+  packId: text("pack_id").notNull().references(() => stickerPacks.id, { onDelete: "cascade" }),
+  file: text().notNull(),
+  emoji: text().notNull(),
+  position: integer().notNull().default(0),
+  createdAt: text().notNull(),
+});
+
+export const userStickerPacks = sqliteTable("user_sticker_packs", {
+  userId: text("user_id").notNull(),
+  packId: text("pack_id").notNull().references(() => stickerPacks.id, { onDelete: "cascade" }),
+  addedAt: text("added_at").notNull(),
+},
+(table) => [
+  primaryKey({ columns: [table.userId, table.packId], name: "user_sticker_packs_user_id_pack_id_pk" }),
+]);
 
 export const customEmoji = sqliteTable("custom_emoji", {
   id: text().primaryKey(),
@@ -934,4 +945,21 @@ export const partnerProfiles = sqliteTable("partner_profiles", {
 export const mediaBackfill = sqliteTable("media_backfill", {
   messageId: text().primaryKey(),
   queuedAt: text().notNull(),
+});
+
+export const starReactions = sqliteTable("star_reactions", {
+  messageId: text().notNull().references(() => messages.id, { onDelete: "cascade" }),
+  userId: text().notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: integer().default(1).notNull(),
+  createdAt: text().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.messageId, table.userId], name: "star_reactions_messageId_userId_pk" }),
+]);
+
+export const starReactionRequests = sqliteTable("star_reaction_requests", {
+  requestId: text().primaryKey(),
+  messageId: text().notNull().references(() => messages.id, { onDelete: "cascade" }),
+  userId: text().notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: integer().default(1).notNull(),
+  createdAt: text().notNull(),
 });

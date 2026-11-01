@@ -4,8 +4,7 @@ import { renderCustomScene } from "./custom-scene";
 import { lottieNameFor, renderLottie } from "./lottie";
 
 /** Стикер в сообщении: встроенный (по id/эмодзи/сцене), из своего пака — картинка или сцена. */
-/** packId — пак, из которого стикер отправлен (по нему клик в ленте открывает окно пака). */
-export type Sticker = { id?: string; uid?: string; emoji?: string; name?: string; scene?: unknown; anim?: string; kind?: "image" | "custom"; url?: string; packId?: string };
+export type Sticker = { id?: string; uid?: string; packId?: string; emoji?: string; name?: string; scene?: unknown; anim?: string; kind?: "image" | "custom"; url?: string; position?: number };
 
 export const DRAWN_STICKERS: Sticker[] = [
   { id: "art_hello", emoji: "👋", name: "Привет", scene: "hello" },

@@ -3,6 +3,7 @@ import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { chatQueries, type ChatSummary, chatTitle, openDm } from "@/entities/chat";
+import { communityQueries } from "@/entities/community";
 import { openGame } from "@/entities/game";
 import { stripCustomEmoji } from "@/entities/message";
 
@@ -34,12 +35,14 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
   const navigate = useNavigate();
   const [bucket, setBucket] = useState<Bucket>("all");
   const result = useQuery(searchQueries.all(query));
+  const communities = useQuery(communityQueries.joined()).data ?? [];
+  const communityChatIds = new Set(communities.flatMap((c) => c.chatIds));
   if (result.isError) return <p className={styles.empty}>{errorText(result.error, "Не удалось найти")}</p>;
   const r = result.data;
   if (!r) return null;
 
   const matched = new Set(r.chats.map((c) => c.id));
-  const mine = chats.filter((c) => matched.has(c.id));
+  const mine = chats.filter((c) => matched.has(c.id) && !communityChatIds.has(c.id));
   const dms = mine.filter((c) => c.type === "dm" || c.type === "bot");
   const groups = mine.filter((c) => c.type === "group");
   const myChannels = mine.filter((c) => c.type === "channel");

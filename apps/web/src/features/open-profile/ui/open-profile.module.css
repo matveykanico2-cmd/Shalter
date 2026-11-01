@@ -38,7 +38,7 @@
 
 .rows {
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--color-surface-alt);
 }
 
@@ -123,7 +123,7 @@
   max-width: 420px;
   margin: 8px auto;
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface);
   font-size: 14px;
   white-space: pre-wrap;
@@ -146,7 +146,7 @@
 
 .day span {
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-date-pill);
   color: #fff;
   font-size: 13px;

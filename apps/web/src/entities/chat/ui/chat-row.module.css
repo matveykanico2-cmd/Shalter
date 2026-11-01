@@ -6,7 +6,7 @@
   width: 100%;
   padding: 7px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: none;
   color: inherit;
   font: inherit;
@@ -46,10 +46,8 @@
   opacity: 0.85;
 }
 
-.active .unread,
-.active .mention {
+.active .unreadMark {
   background: var(--color-accent-contrast);
-  color: var(--color-accent);
 }
 
 .saved {
@@ -180,10 +178,11 @@
 }
 
 .unreadMark {
-  width: 12px;
-  min-width: 12px;
-  height: 12px;
+  width: 10px;
+  min-width: 10px;
+  height: 10px;
   padding: 0;
+  border-radius: 50%;
 }
 
 .mention {
@@ -197,7 +196,7 @@
 .wrap {
   position: relative;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .withMore {
@@ -219,7 +218,7 @@
   display: flex;
   justify-content: flex-end;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
   opacity: 0;
   pointer-events: none;
 }

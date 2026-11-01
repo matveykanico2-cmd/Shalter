@@ -24,6 +24,8 @@ function sanitizeSticker(sticker) {
       url: sticker.url,
       emoji: String(sticker.emoji ?? "").trim().slice(0, 8) || IMAGE_EMOJI,
       name,
+      ...(sticker.id ? { id: String(sticker.id) } : {}),
+      ...(sticker.packId ? { packId: String(sticker.packId) } : {}),
       ...(sticker.animated ? { animated: true } : {}),
     };
   }
@@ -32,6 +34,7 @@ function sanitizeSticker(sticker) {
   return {
     emoji,
     name,
+    ...(sticker.packId ? { packId: String(sticker.packId) } : {}),
     ...(typeof sticker.anim === "string" && NAME_RE.test(sticker.anim) ? { anim: sticker.anim } : {}),
     ...(typeof sticker.scene === "string" && NAME_RE.test(sticker.scene) ? { scene: sticker.scene } : {}),
   };

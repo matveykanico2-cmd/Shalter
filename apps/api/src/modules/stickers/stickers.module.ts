@@ -11,6 +11,5 @@ import { CustomEmojiController, StickerPacksController } from "./stickers.contro
   imports: [UsersModule],
   controllers: [StickerPacksController, CustomEmojiController],
   providers: [StickerPacksService, StickerPacksRepository, CustomEmojiService, CustomEmojiRepository],
-  exports: [StickerPacksService],
 })
 export class StickersModule {}

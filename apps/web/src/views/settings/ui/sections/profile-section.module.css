@@ -198,7 +198,7 @@
 .bannerPreview {
   height: 110px;
   margin: 4px 8px 0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--tile-bg, transparent);
 }
 
@@ -223,7 +223,7 @@
   height: 56px;
   overflow: hidden;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--tile-bg);
   cursor: pointer;
 }

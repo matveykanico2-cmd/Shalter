@@ -23,7 +23,7 @@ let uid = 0;
  * Редактор фото истории — как openStoryEditor в public/js/components/storyEditor.js: текст «Aa»,
  * эмодзи и картинки поверх фото, перетаскивание, поворот и масштаб за уголок. «Готово» —
  * новый JPEG 1080×1920, «Пропустить» — исходный файл, «Отмена» и Esc — null.
- * Без файла — текстовая история: белый холст и сразу поле для текста.
+ * Без файла — статья: белый холст и сразу поле для текста.
  */
 export function StoryEditor({ file, onDone }: { file: File | null; onDone: (result: File | null) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);

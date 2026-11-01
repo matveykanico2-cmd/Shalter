@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, openStickerPack, outgoingSticker, StickerPackDetail, stickerPackQueries, StickerPackSheet, useSendMessage, useStickerPackView } from "@/features/send-message";
+import { closeStickerPack, Composer, openStickerPack, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -38,6 +38,14 @@ import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
 import type { Sticker } from "@/shared/lib/anim";
+
+function outgoing(s: Sticker): Sticker {
+  const packId = s.packId;
+  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
+  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}) };
+  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
+}
+
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -58,7 +66,7 @@ const ROW_ESTIMATE = 56;
 /** Ближе этого к низу — лента «прилипла» и держит низ при новых сообщениях. */
 const STICK_PX = 80;
 /** Ближе этого к верху — подгружаем историю раньше. */
-const LOAD_OLDER_PX = 600;
+const LOAD_OLDER_PX = 200;
 const HIGHLIGHT_MS = 1600;
 /** Сколько страниц старее листать в поисках сообщения — как jumpTo в chatView.js. */
 const JUMP_MAX_PAGES = 20;
@@ -100,13 +108,27 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
-  // Клик по стикеру в сообщении — окно его пака (как в Telegram): добавить себе или удалить.
-  const [packOf, setPackOf] = useState<Sticker | null>(null);
   const viewingPack = useStickerPackView();
-  const openPackBySticker = setPackOf;
+  const openPackBySticker = (sticker: Sticker) => {
+    void (async () => {
+      // 1) По packId из стикера — открываем настоящий пак.
+      if (sticker.packId) {
+        try {
+          const { http } = await import("@/shared/api");
+          const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId)}`);
+          if (res?.pack) { openStickerPack(res.pack); return; }
+          return;
+        } catch {
+          return;
+        }
+      }
+      // packId нет — стикер не относится ни к какому паку (старые сообщения).
+      return;
+    })();
+  };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);
   const sendSticker = useCallback((s: Sticker) => {
-    void sendOne("", null, [], outgoingSticker(s)).catch(() => {});
+    void sendOne("", null, [], outgoing(s)).catch(() => {});
     closeStickerPack();
   }, [sendOne]);
   const refreshPacks = useCallback(() => {
@@ -233,7 +255,8 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     } catch {
       // Не вышло — попробуем при следующей прокрутке.
     } finally {
-      setLoadingOlder(false);
+      // После подгрузки даём скроллу осесть, чтобы не было каскадной загрузки всей истории.
+      setTimeout(() => setLoadingOlder(false), 300);
     }
   }, [client, chat.id, topic, data?.hasMore, loadingOlder]);
 
@@ -413,7 +436,10 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <p className={styles.empty}>Сообщений пока нет — напишите первым</p>
+          <div className={styles.empty}>
+            <p>Сообщений пока нет — напишите первым</p>
+            <p className={styles.emptyHint}>Поздоровайтесь с кем-нибудь и предложите стикер</p>
+          </div>
         ) : (
           <div className={styles.rows} style={{ height: totalSize }}>
             {virtualizer.getVirtualItems().map((item) => {
@@ -544,18 +570,6 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         />
       ) : null}
       {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
-      {packOf ? (
-        <StickerPackSheet
-          sticker={packOf}
-          meId={meId}
-          onSend={sendSticker}
-          onEdit={(pack) => {
-            setPackOf(null);
-            openStickerPack(pack);
-          }}
-          onClose={() => setPackOf(null)}
-        />
-      ) : null}
       {viewingPack ? (
         <StickerPackDetail
           pack={viewingPack}

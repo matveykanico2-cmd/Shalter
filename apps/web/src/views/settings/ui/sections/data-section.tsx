@@ -35,6 +35,24 @@ export function DataSection() {
         {BUCKETS.map((b) => (
           <SettingsRow key={b.key} icon={b.icon} color={b.color} title={b.label} subtitle={size(buckets?.[b.key])} />
         ))}
+        <SettingsRow
+          icon="Trash"
+          color="red"
+          title="Очистить кэш"
+          subtitle="Удалить временные файлы и кэш на устройстве"
+          onClick={() => {
+            try {
+              // Очистить кэш TanStack Query и localStorage (кроме сессии).
+              localStorage.removeItem("shalter.proxy");
+              if ("caches" in window) {
+                void caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+              }
+            } catch {
+              // ignore
+            }
+            window.location.reload();
+          }}
+        />
       </SettingsSection>
       <SettingsSection title="Автозагрузка медиа" caption="Если выключено, фото и видео загружаются только по нажатию.">
         <SettingsRow title="Автозагрузка медиа" toggle={{ checked: settings.autoDownload, onChange: (v) => update.mutate({ autoDownload: v }) }} />

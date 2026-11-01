@@ -15,7 +15,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px 0;
+  padding: 12px 0 90px;
 }
 
 .rows {
@@ -32,11 +32,11 @@
   top: 0;
   left: 0;
   width: 100%;
-  padding: 0 16px;
+  padding: 0 14px;
 }
 
 .message {
-  border-radius: 8px;
+  border-radius: 12px;
   transition: background-color 0.4s;
 }
 
@@ -96,7 +96,7 @@
 .day span,
 .day button {
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-date-pill);
   color: #fff;
   font-size: 13px;
@@ -128,6 +128,12 @@
 
 .empty {
   align-content: center;
+}
+
+.emptyHint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
 }
 
 .retry {
@@ -176,18 +182,18 @@
 
 .down {
   position: absolute;
-  right: 16px;
-  bottom: 12px;
+  right: 14px;
+  bottom: 86px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: var(--down-btn-size, 44px);
+  height: var(--down-btn-size, 44px);
   border: none;
   border-radius: 999px;
-  background: var(--color-surface);
-  box-shadow: var(--bubble-shadow);
-  color: var(--color-muted);
+  background: var(--down-btn-bg, var(--color-surface));
+  box-shadow: var(--down-btn-shadow, 0 2px 8px rgba(0,0,0,0.25));
+  color: var(--color-text);
   cursor: pointer;
 }
 

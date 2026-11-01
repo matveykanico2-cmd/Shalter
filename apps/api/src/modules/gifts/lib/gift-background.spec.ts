@@ -36,9 +36,9 @@ test("битый цвет узора не ломает фон — узор пр�
 });
 
 test("идентификатор символа принимается только из безопасных символов", () => {
-  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "../../etc/passwd" }).symbol, undefined);
-  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "Moon-1" }).symbol, undefined);
-  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "moon" }).symbol, "moon");
+  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "../../etc/passwd" })!.symbol, undefined);
+  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "Moon-1" })!.symbol, undefined);
+  assert.equal(sanitizeGiftBackground({ from: "#fff", to: "#000", symbol: "moon" })!.symbol, "moon");
 });
 
 test("фон без узора и символа остаётся валидным (подарок до выбора фона)", () => {

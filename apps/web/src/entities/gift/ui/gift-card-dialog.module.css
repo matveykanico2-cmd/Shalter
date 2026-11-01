@@ -94,7 +94,7 @@
 }
 /* Нажатие на фон/узор открывает отправку с этим фоном (handleAttributeClick в tweb). */
 .attr {
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
 }
 .attr:hover,

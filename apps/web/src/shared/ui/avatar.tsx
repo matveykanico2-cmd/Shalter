@@ -10,6 +10,8 @@ type Props = {
   color?: string | null;
   image?: string | null;
   emoji?: string | null;
+  /** Стикер-аватар: картинка вписывается в круг (object-fit: contain) на цветном фоне. */
+  sticker?: boolean;
   size?: number;
   online?: boolean;
 };
@@ -24,18 +26,23 @@ const initials = (name: string) =>
     .toUpperCase();
 
 /**
- * Аватар: смайл (анимированный, как эмодзи-аватарки в Telegram), фото или инициалы на цвете
- * профиля. Смайл выбран вместо фото, поэтому он важнее: у профиля фото остаются в галерее.
+ * Аватар: смайл (анимированный, как эмодзи-аватарки в Telegram), стикер, фото или инициалы на
+ * цвете профиля. Смайл выбран вместо фото, поэтому он важнее: у профиля фото остаются в галерее.
  */
-export function Avatar({ name, color, image, emoji, size = 44, online = false }: Props) {
+export function Avatar({ name, color, image, emoji, sticker = false, size = 44, online = false }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
-  const showImage = !emoji && !!image && broken !== image;
+  const showImage = !emoji && !!image && !sticker && broken !== image;
+  const showSticker = !emoji && !!image && sticker && broken !== image;
   return (
     <span className={styles.avatar} style={{ width: size, height: size }}>
       {emoji && hasAnimatedEmoji(emoji) ? (
         <DomNode key={`animated:${emoji}`} create={() => renderAnimatedEmoji(emoji, { size, replay: true })} />
       ) : showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
+      ) : showSticker ? (
+        <span className={styles.stickerWrap} style={{ background: color ?? undefined }}>
+          <img className={styles.sticker} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
+        </span>
       ) : (
         <span className={styles.fallback} translate="no" style={{ background: color ?? undefined, fontSize: size * 0.5 }}>
           {emoji ? emoji : initials(name) || "?"}

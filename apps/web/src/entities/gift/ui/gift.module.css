@@ -61,7 +61,7 @@
   overflow: hidden;
   padding: 14px 10px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text);
@@ -230,7 +230,7 @@
 .service {
   max-width: 320px;
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--color-date-pill);
   color: #fff;
   font-size: 13px;
@@ -245,7 +245,7 @@
   align-items: center;
   overflow: hidden;
   padding: 6px 8px 13px;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--color-date-pill);
   color: #fff;
   text-align: center;

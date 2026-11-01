@@ -7,7 +7,7 @@ import { useMediaQuery } from "./use-media-query";
 // На телефоне это обычные экраны во всю ширину.
 const SIDE_ROUTES = ["/contacts", "/calls", "/archive", "/settings"];
 
-export const DESKTOP_QUERY = "(min-width: 768px)";
+export const DESKTOP_QUERY = "(min-width: 900px)";
 
 export const isSidePath = (path: string) => SIDE_ROUTES.some((r) => path === r || path.startsWith(`${r}/`));
 

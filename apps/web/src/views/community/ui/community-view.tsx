@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { AddChatFlow, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
+import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
 
 import { chatQueries } from "@/entities/chat";
 import { chatMembersLabel, chatsCountLabel, type Community, communityApi, CommunityAvatar, type CommunityChat, communityMembersLabel, communityQueries, useOpenCommunity } from "@/entities/community";
@@ -55,6 +56,7 @@ function CommunityPage({ community }: { community: Community }) {
   const openCommunity = useOpenCommunity();
   const [busy, setBusy] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"add" | "settings" | "members" | null>(null);
+  const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const rights = community.rights;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
 
@@ -136,6 +138,16 @@ function CommunityPage({ community }: { community: Community }) {
             <Icon name="Plus" size={15} /> {community.addPolicy === "suggest" ? "Предложить чат" : "Добавить чат"}
           </Button>
         ) : null}
+        {community.isMember && (community.rights?.editChats || community.isOwner) ? (
+          <>
+            <Button variant="secondary" onClick={() => setCreating("group")}>
+              <Icon name="Users" size={15} /> Создать группу
+            </Button>
+            <Button variant="secondary" onClick={() => setCreating("channel")}>
+              <Icon name="Send" size={15} /> Создать канал
+            </Button>
+          </>
+        ) : null}
         {community.isMember ? (
           <Button variant="secondary" onClick={() => setDialog("settings")}>
             <Icon name={rights.editInfo || rights.editChats ? "Edit" : "Users"} size={15} /> {rights.editInfo || rights.editChats ? "Управление" : "Подробнее"}
@@ -175,6 +187,24 @@ function CommunityPage({ community }: { community: Community }) {
         К чатам
       </Button>
       {dialog === "add" && me ? <AddChatFlow community={community} meId={me.id} onDone={reload} onClose={() => setDialog(null)} /> : null}
+      {creating && me ? (
+        <CreateChatDialog
+          kind={creating}
+          members={[]}
+          onClose={() => setCreating(null)}
+          onSubmit={async (fields) => {
+            const created =
+              creating === "channel"
+                ? await createChannel({ ...fields, memberIds: [], adminIds: [] })
+                : await createGroup({ ...fields, memberIds: [], adminIds: [] });
+            await communityApi.addChat(community.id, created.chat.id, true);
+            await client.refetchQueries({ queryKey: chatQueries.list().queryKey }).catch(() => {});
+            reload();
+            setCreating(null);
+            void navigate(`/chat/${created.chat.id}`);
+          }}
+        />
+      ) : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
       {dialog === "members" && me ? <CommunityMembersDialog community={community} onClose={() => setDialog(null)} /> : null}
     </div>

@@ -19,7 +19,7 @@
 .notice {
   margin: 4px 16px 8px;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--color-success) 14%, transparent);
   font-size: 14px;
 }
@@ -52,7 +52,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--color-surface);
 }
 

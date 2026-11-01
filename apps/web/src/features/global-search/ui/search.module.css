@@ -110,7 +110,7 @@
 }
 
 .hit {
-  border-radius: 3px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--color-accent) 25%, transparent);
   color: var(--color-text);
 }
@@ -149,7 +149,7 @@
   height: 44px;
   padding: 0 16px 0 44px;
   border: 1px solid var(--tw-input-border);
-  border-radius: 22px;
+  border-radius: 24px;
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;

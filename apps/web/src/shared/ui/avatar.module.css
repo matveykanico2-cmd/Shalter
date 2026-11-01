@@ -5,13 +5,26 @@
 }
 
 .image,
-.fallback {
+.fallback,
+.stickerWrap {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.stickerWrap {
+  overflow: hidden;
+  object-fit: contain;
+}
+
+.sticker {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
 }
 
 .fallback {

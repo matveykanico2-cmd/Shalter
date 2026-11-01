@@ -2,7 +2,7 @@
   height: 48px;
   padding: 0 20px;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: 16px;
   background: var(--color-accent);
   color: var(--color-accent-contrast);
   font: inherit;

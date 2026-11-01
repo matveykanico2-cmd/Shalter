@@ -1,6 +1,6 @@
 [package]
 name = "shalter"
-version = "1.0.0"
+version = "1.0.1"
 description = "Shalter — десктоп-приложение на системном WebView (Tauri)"
 authors = ["Shalter <mtvniko@gmail.com>"]
 edition = "2021"

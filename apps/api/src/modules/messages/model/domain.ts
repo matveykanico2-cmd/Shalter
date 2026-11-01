@@ -135,3 +135,9 @@ export interface ScheduledMessage {
   sendAt: string;
   createdAt: string;
 }
+
+/** Одна платная звёздная реакция: пользователь и сколько звёзд потратил. */
+export interface StarReactionEntry {
+  userId: string;
+  amount: number;
+}
