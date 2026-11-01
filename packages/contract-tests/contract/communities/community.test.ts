@@ -1,6 +1,7 @@
 // Сообщество целиком: создание, карточка, правка, удаление, списки (mine/joined/by-chat),
 // участие (join/leave), личные настройки (prefs/mute/read) и список участников.
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 import { chatCard } from "../../schemas/chats";
 import { okBody } from "../../schemas/common";
 import { banResultBody, byChatBody, communityBody, joinedBody, membersBody, mineBody } from "../../schemas/communities";
@@ -407,29 +408,58 @@ describe("DELETE /api/communities/:id", () => {
 });
 
 describe("участие: join / leave", () => {
-  test("вступивший сразу во всех видимых группах и каналах сообщества; вышел — ушёл из них", async () => {
+  test("вступивший сразу в открытых чатах; в приватные, с заявками и скрытые — нет; вышел — только из них", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const joiner = await registerUser(baseUrl);
-    const group = await createGroup(a, []);
-    const channel = await createChannel(a, [], { isPublic: true, username: `club${Date.now().toString(36)}` });
-    const hiddenGroup = await createGroup(a, []);
-    const c = await createCommunity(a, { chatId: group.id });
-    expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: channel.id }), communityBody);
+    const tag = Date.now().toString(36);
+    const openGroup = await createGroup(a, [], { isPublic: true, username: `og${tag}` });
+    const channel = await createChannel(a, [], { isPublic: true, username: `oc${tag}` });
+    const privateGroup = await createGroup(a, []);
+    const approval = await createGroup(a, [], { isPublic: true, username: `ap${tag}` });
+    expectOk(await a.api.post(`/api/chats/${approval.id}/settings`, { approveJoins: true }), z.unknown());
+    const hiddenGroup = await createGroup(a, [], { isPublic: true, username: `hg${tag}` });
+    const c = await createCommunity(a, { chatId: openGroup.id });
+    for (const chat of [channel, privateGroup, approval]) expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: chat.id }), communityBody);
     expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: hiddenGroup.id, visible: false }), communityBody);
     const joinerWs = await ws(joiner);
 
     const joined = expectOk(await joiner.api.post(`/api/communities/${c.id}/join`), communityBody).community;
-    expect(joined.chats.map((x) => [x.id, x.isMember])).toEqual([[group.id, true], [channel.id, true]]);
-    await joinerWs.waitFor("chat:added", (e) => e.chat?.id === group.id);
-    expectOk(await joiner.api.get(`/api/chats/${group.id}`), chatCard);
-    expectOk(await joiner.api.get(`/api/chats/${channel.id}`), chatCard);
+    const memberOf = (v: typeof joined) => Object.fromEntries(v.chats.map((x) => [x.id, x.isMember]));
+    expect(memberOf(joined)).toEqual({ [openGroup.id]: true, [channel.id]: true, [privateGroup.id]: false, [approval.id]: false });
+    await joinerWs.waitFor("chat:added", (e) => e.chat?.id === openGroup.id);
     expect((await joiner.api.get(`/api/chats/${hiddenGroup.id}`)).status).toBe(404);
 
+    // Сам вышел из группы — повторное «Вступить» в сообщество его туда не возвращает.
+    expectOk(await joiner.api.post(`/api/chats/${openGroup.id}/leave`), z.unknown());
+    expectOk(await joiner.api.post(`/api/communities/${c.id}/join`), communityBody);
+    expect((await joiner.api.get(`/api/chats/${openGroup.id}`)).status).toBe(404);
+
+    // Выход из сообщества — из чатов, куда его добавило сообщество.
     expectOk(await joiner.api.post(`/api/communities/${c.id}/leave`), okBody);
-    await joinerWs.waitFor("chat:deleted", (e) => e.chatId === group.id);
-    expect((await joiner.api.get(`/api/chats/${group.id}`)).status).toBe(404);
+    await joinerWs.waitFor("chat:deleted", (e) => e.chatId === channel.id);
     expect((await joiner.api.get(`/api/chats/${channel.id}`)).status).toBe(404);
+  });
+
+  test("новый открытый чат сообщества — у вступивших, но не у подписчиков каналов и не у запретивших добавлять себя", async () => {
+    const { baseUrl } = server();
+    const a = await registerUser(baseUrl);
+    const member = await registerUser(baseUrl);
+    const strict = await registerUser(baseUrl);
+    const subscriber = await registerUser(baseUrl);
+    const tag = Date.now().toString(36);
+    const door = await createChannel(a, [subscriber], { isPublic: true, username: `dr${tag}` });
+    const c = await createCommunity(a, { chatId: door.id });
+    expectOk(await member.api.post(`/api/communities/${c.id}/join`), communityBody);
+    expectOk(await strict.api.post(`/api/communities/${c.id}/join`), communityBody);
+    expectOk(await strict.api.patch("/api/settings", { privacy: { invites: "nobody" } }), z.unknown());
+
+    const fresh = await createGroup(a, [], { isPublic: true, username: `fr${tag}` });
+    expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: fresh.id }), communityBody);
+    const ids = (await a.api.get(`/api/chats/${fresh.id}`)).body.chat.memberIds as string[];
+    expect(ids).toContain(member.id);
+    expect(ids).not.toContain(strict.id);
+    expect(ids).not.toContain(subscriber.id);
   });
 
   test("закрытое — посторонний не вступает; открытое — вступает, участник выходит, владелец выйти не может", async () => {
@@ -457,15 +487,14 @@ describe("участие: join / leave", () => {
 
     expectError(await a.api.post(`/api/communities/${c.id}/leave`), 400, "Владелец не может покинуть сообщество — его можно только удалить");
 
-    // Выход из сообщества — и из его чатов (кроме своих).
+    // Выход — только из сообщества: чат остаётся.
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/leave`), okBody)).toEqual({ ok: true });
     const asB = expectOk(await b.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(asB).toMatchObject({ role: null, isMember: false, isBanned: false, addPolicy: null });
     expect(asB.chats.map((x) => x.id)).toEqual([group.id]);
     expect(expectOk(await b.api.get("/api/communities/joined"), joinedBody).communities).toEqual([]);
-    // В чате его больше нет — карточка сообщества по чату ему не положена.
-    expect((await b.api.get(`/api/communities/by-chat/${group.id}`)).status).toBe(404);
-    expect((await b.api.get(`/api/chats/${group.id}`)).status).toBe(404);
+    expect(expectOk(await b.api.get(`/api/communities/by-chat/${group.id}`), byChatBody).community?.isMember).toBe(false);
+    expectOk(await b.api.get(`/api/chats/${group.id}`), chatCard);
     expectError(await b.api.post(`/api/communities/${c.id}/leave`), 403, NOT_MEMBER);
     expect(expectOk(await a.api.get(`/api/communities/${c.id}`), communityBody).community.membersCount).toBe(2);
 
@@ -529,14 +558,14 @@ describe("личные настройки: prefs / mute / read", () => {
 
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { hours: 2 }), okBody)).toEqual({ ok: true });
     const timed = await mutedOf();
-    // Все его чаты сообщества: в g2, добавленный позже, он попал сам, как участник сообщества.
-    expect(Object.keys(timed).sort()).toEqual([g1.id, g2.id].sort());
+    // Только чаты, где B состоит: g2 он не видит.
+    expect(Object.keys(timed)).toEqual([g1.id]);
     const until = Date.parse(timed[g1.id]);
     expect(until).toBeGreaterThan(Date.now() + 3600_000);
     expect(until).toBeLessThan(Date.now() + 3 * 3600_000);
 
     expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { forever: true }), okBody);
-    expect(await mutedOf()).toEqual({ [g1.id]: true, [g2.id]: true });
+    expect(await mutedOf()).toEqual({ [g1.id]: true });
 
     expectOk(await b.api.post(`/api/communities/${c.id}/mute`, { off: true }), okBody);
     expect(await mutedOf()).toEqual({});

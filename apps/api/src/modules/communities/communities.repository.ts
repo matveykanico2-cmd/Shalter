@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
-import { communities, communityBans, communityChats, communityMembers, communityRequests } from "../db/schema.js";
+import { communities, communityAutoMembers, communityBans, communityChats, communityMembers, communityRequests } from "../db/schema.js";
 import { ADD_MODES, cleanRights, parseRights } from "./lib/community-rights.js";
 import type { Community, CommunityBan, CommunityMemberRow, CommunityPatch, CommunityRequest, CommunityRights, CommunityRow } from "./model/domain.js";
 
@@ -176,6 +176,44 @@ export class CommunitiesRepository {
     const left = new Set(rows.filter((r) => r.left === 1).map((r) => r.userId));
     const banned = new Set(this.listBans(communityId).map((b) => b.userId));
     return [...ids].filter((id) => id === community.ownerId || (!left.has(id) && !banned.has(id)));
+  }
+
+  /** Явные участники: владелец и вступившие (не вышедшие, не удалённые) — без «участников через чат». */
+  public explicitMemberIds(communityId: string): string[] {
+    const community = this.db.select({ ownerId: communities.ownerId }).from(communities).where(eq(communities.id, communityId)).get();
+    if (!community) return [];
+    const banned = new Set(this.listBans(communityId).map((b) => b.userId));
+    const rows = this.db
+      .select({ userId: communityMembers.userId })
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.left, 0)))
+      .all();
+    return [...new Set([community.ownerId, ...rows.map((r) => r.userId)])].filter((id) => id === community.ownerId || !banned.has(id));
+  }
+
+  // ---------- кого в чат добавило сообщество ----------
+
+  /** Сообщество уже добавляло его в этот чат (и если его там нет — он вышел сам или удалён). */
+  public wasAutoAdded(chatId: string, userId: string): boolean {
+    return !!this.db.select({ chatId: communityAutoMembers.chatId }).from(communityAutoMembers).where(and(eq(communityAutoMembers.chatId, chatId), eq(communityAutoMembers.userId, userId))).get();
+  }
+
+  public markAutoAdded(communityId: string, chatId: string, userId: string, at: string): void {
+    this.db.insert(communityAutoMembers).values({ communityId, chatId, userId, addedAt: at }).onConflictDoNothing().run();
+  }
+
+  /** Чаты сообщества, куда его добавило само сообщество. */
+  public autoChatIds(communityId: string, userId: string): string[] {
+    return this.db
+      .select({ chatId: communityAutoMembers.chatId })
+      .from(communityAutoMembers)
+      .where(and(eq(communityAutoMembers.communityId, communityId), eq(communityAutoMembers.userId, userId)))
+      .all()
+      .map((r) => r.chatId);
+  }
+
+  public forgetAutoAdded(communityId: string, userId: string): void {
+    this.db.delete(communityAutoMembers).where(and(eq(communityAutoMembers.communityId, communityId), eq(communityAutoMembers.userId, userId))).run();
   }
 
   // ---------- администраторы ----------

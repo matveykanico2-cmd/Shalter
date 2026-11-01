@@ -122,16 +122,10 @@ describe("PATCH /:id/chats/:chatId — видимость", () => {
     const hidden = expectOk(await a.api.patch(`/api/communities/${c.id}/chats/${extra.id}`, { visible: 0 }), communityBody).community;
     expect(hidden.chats.find((x) => x.id === extra.id)?.visible).toBe(false);
     await bWs.waitFor("community:updated", aboutCommunity(c.id));
-    // Вступивший до скрытия уже в чате и видит его; вступивший после — в скрытый не попадает.
-    expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id, extra.id]);
-    const late = await registerUser(server().baseUrl);
-    await admit(a, c.id, [late]);
-    expect(chatsOf(expectOk(await late.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id]);
+    expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id]);
 
-    // Снова видимый — в нём сразу все участники сообщества.
     expectOk(await a.api.patch(`/api/communities/${c.id}/chats/${extra.id}`, { visible: true }), communityBody);
-    const lateView = expectOk(await late.api.get(`/api/communities/${c.id}`), communityBody).community;
-    expect(lateView.chats.map((x) => [x.id, x.isMember])).toEqual([[shared.id, true], [extra.id, true]]);
+    expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id, extra.id]);
   });
 });
 

@@ -45,11 +45,12 @@ export class CommunityChatsService {
     if (!community.chatIds.includes(chatId)) throw new ApiError(404, NOT_IN_COMMUNITY);
     const { visible } = dto;
     if (visible === undefined) throw new ApiError(400, "Нужно visible: true или false");
+    const wasHidden = community.hiddenChatIds.includes(chatId);
     this.communities.setChatVisible(community.id, chatId, visible);
     const fresh = this.access.reload(community.id);
-    // Чат снова видимый — в нём сразу все участники сообщества.
-    const chat = visible ? this.chats.findById(chatId) : undefined;
-    if (chat) this.access.addMembersToChat(fresh, chat);
+    // Скрытый чат стал видимым — в нём сразу вступившие в сообщество (только при смене видимости).
+    const chat = visible && wasHidden ? this.chats.findById(chatId) : undefined;
+    if (chat) this.access.addMembersToChat(fresh, chat, uid);
     this.access.notify(community.id);
     return { community: this.access.view(fresh, uid) };
   }

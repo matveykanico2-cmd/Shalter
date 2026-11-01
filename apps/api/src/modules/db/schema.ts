@@ -963,3 +963,14 @@ export const starReactionRequests = sqliteTable("star_reaction_requests", {
   amount: integer().default(1).notNull(),
   createdAt: text().notNull(),
 });
+
+export const communityAutoMembers = sqliteTable(
+  "community_auto_members",
+  {
+    chatId: text().notNull(),
+    userId: text().notNull(),
+    communityId: text().notNull(),
+    addedAt: text().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.chatId, table.userId], name: "community_auto_members_chatId_userId_pk" })]
+);

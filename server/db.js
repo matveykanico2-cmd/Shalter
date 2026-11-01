@@ -1469,23 +1469,46 @@ runOnce("settings-ui-language-auto", () => {
   ).run();
 });
 
-// Участник сообщества сразу состоит во всех его группах и каналах (apps/api modules/communities):
-// тем, кто вступил раньше, недостающие чаты добавляются один раз. Только явные участники —
-// владелец и вступившие (не вышедшие и не удалённые); скрытые и секретные чаты и бан в самом чате — нет.
-runOnce("community-members-in-all-chats", () => {
-  db.prepare(
-    `INSERT OR IGNORE INTO chat_members (chatId, userId)
-     SELECT cc.chatId, m.userId
-       FROM community_chats cc
-       JOIN (SELECT communityId, userId FROM community_members WHERE left = 0
-             UNION SELECT id AS communityId, ownerId AS userId FROM communities) m ON m.communityId = cc.communityId
-       JOIN chats c ON c.id = cc.chatId
-      WHERE cc.visible = 1
-        AND COALESCE(c.secret, 0) = 0
-        AND c.type IN ('group', 'channel')
-        AND instr(COALESCE(c.bannedIds, '[]'), '"' || m.userId || '"') = 0
-        AND NOT EXISTS (SELECT 1 FROM community_bans b WHERE b.communityId = cc.communityId AND b.userId = m.userId)`
-  ).run();
+// Кого в чат добавило сообщество (apps/api modules/communities): при выходе из сообщества
+// человек уходит только из этих чатов, а вышедший из такого чата сам туда не возвращается.
+db.exec(`
+CREATE TABLE IF NOT EXISTS community_auto_members (
+  chatId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  communityId TEXT NOT NULL,
+  addedAt TEXT NOT NULL,
+  PRIMARY KEY (chatId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_community_auto_members_user ON community_auto_members(communityId, userId);
+`);
+
+// Вступившим в сообщество раньше — один раз его открытые чаты (публичные, видимые, без
+// одобрения вступления), как при вступлении сейчас. Только явные участники и владелец.
+runOnce("community-members-in-open-chats", () => {
+  const rows = db
+    .prepare(
+      `SELECT cc.chatId, m.userId, cc.communityId
+         FROM community_chats cc
+         JOIN (SELECT communityId, userId FROM community_members WHERE left = 0
+               UNION SELECT id AS communityId, ownerId AS userId FROM communities) m ON m.communityId = cc.communityId
+         JOIN chats c ON c.id = cc.chatId
+        WHERE cc.visible = 1
+          AND c.type IN ('group', 'channel')
+          AND COALESCE(c.secret, 0) = 0
+          AND COALESCE(c.isPublic, 0) = 1
+          AND COALESCE(c.approveJoins, 0) = 0
+          AND instr(COALESCE(c.bannedIds, '[]'), '"' || m.userId || '"') = 0
+          AND NOT EXISTS (SELECT 1 FROM community_bans b WHERE b.communityId = cc.communityId AND b.userId = m.userId)
+          AND NOT EXISTS (SELECT 1 FROM chat_members x WHERE x.chatId = cc.chatId AND x.userId = m.userId)`
+    )
+    .all();
+  const add = db.prepare("INSERT OR IGNORE INTO chat_members (chatId, userId) VALUES (?, ?)");
+  const mark = db.prepare("INSERT OR IGNORE INTO community_auto_members (chatId, userId, communityId, addedAt) VALUES (?, ?, ?, ?)");
+  const now = new Date().toISOString();
+  for (const r of rows) {
+    add.run(r.chatId, r.userId);
+    mark.run(r.chatId, r.userId, r.communityId, now);
+  }
 });
 
 db.exec(`

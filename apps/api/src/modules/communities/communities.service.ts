@@ -171,7 +171,7 @@ export class CommunitiesService {
   /**
    * Вступить. Сообщество открытое, если в нём есть видимый публичный чат; иначе — только по
    * приглашению в один из его чатов (участник чата — уже участник сообщества) или вернуться,
-   * если вы в нём уже были. Вступивший сразу состоит во всех группах и каналах сообщества.
+   * если вы в нём уже были. Вступивший сразу состоит в открытых группах и каналах сообщества.
    */
   public join(uid: string, id: string) {
     const community = this.access.load(id, uid);
@@ -180,9 +180,12 @@ export class CommunitiesService {
       const open = this.access.visibleChats(community, uid, this.access.rightsOf(community, uid)).some((c) => c.isPublic);
       if (!open) throw new ApiError(403, "Сообщество закрытое — вступить можно только по приглашению в один из его чатов");
     }
+    const row = this.communities.memberRow(community.id, uid);
+    const alreadyJoined = community.ownerId === uid || (!!row && !row.left);
     this.communities.join(community.id, uid);
-    // Вступил в сообщество — сразу во всех его чатах.
-    this.access.addToChats(this.access.reload(community.id), uid);
+    // Вступил сам — сразу в открытых чатах сообщества. Повторное «Вступить» ничего не добавляет:
+    // иначе вышедший из чата возвращался бы туда против воли.
+    if (!alreadyJoined) this.access.addToChats(this.access.reload(community.id), uid);
     // Открытые страницы сообщества у остальных обновляют число участников сразу.
     this.access.notify(community.id);
     return { community: this.access.view(community, uid) };

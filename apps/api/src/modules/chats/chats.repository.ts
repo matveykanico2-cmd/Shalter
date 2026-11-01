@@ -336,6 +336,15 @@ export class ChatsRepository {
     this.db.delete(chats).where(eq(chats.id, id)).run();
   }
 
+  /** Один участник без ролей — одной строкой (update с memberIds переписывает весь состав). */
+  public addMember(chatId: string, userId: string): void {
+    this.db.insert(chatMembers).values({ chatId, userId, isAdmin: 0, isModerator: 0, isOwner: 0 }).onConflictDoNothing().run();
+  }
+
+  public removeMember(chatId: string, userId: string): void {
+    this.db.delete(chatMembers).where(and(eq(chatMembers.chatId, chatId), eq(chatMembers.userId, userId))).run();
+  }
+
   private setMembers(chatId: string, memberIds: string[], adminIds: string[], moderatorIds: string[], ownerIds: string[]): void {
     this.db.transaction((tx) => {
       tx.delete(chatMembers).where(eq(chatMembers.chatId, chatId)).run();

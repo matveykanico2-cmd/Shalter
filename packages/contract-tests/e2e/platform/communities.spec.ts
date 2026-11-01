@@ -47,7 +47,7 @@ test("создание сообщества и добавление своей �
   await expect(page.getByRole("button", { name: /Дачники.*Клуб садоводов: Группа добавлена в сообщество/ })).toBeVisible();
 });
 
-test("страница сообщества по ссылке: вступивший сразу во всех чатах сообщества", async ({ newUser, openAs }) => {
+test("страница сообщества по ссылке: вступивший сразу в открытой группе, закрытая — по приглашению", async ({ newUser, openAs }) => {
   const alice = await newUser("Алиса");
   const boris = await newUser("Борис");
   const open = await publicGroup(alice, [], "Открытый клуб");
@@ -77,20 +77,20 @@ test("страница сообщества по ссылке: вступивш�
   await a.reload();
   await expect(a.getByText(/Сообщество · 2 чата · 2 участника$/)).toBeVisible();
 
-  // Вступивший в сообщество уже состоит во всех его чатах — и в закрытой группе тоже.
-  expect((await alice.api.get(`/api/chats/${open.id}`)).body.chat.memberIds).toContain(boris.id);
-  expect((await alice.api.get(`/api/chats/${closed.id}`)).body.chat.memberIds).toContain(boris.id);
+  // В открытую группу он попал вместе с сообществом, в закрытую — нет.
+  expect((await alice.api.get(`/api/chats/${closed.id}`)).body.chat.memberIds).not.toContain(boris.id);
   await expect(b.getByRole("button", { name: "Вступить", exact: true })).toHaveCount(0);
-  await b.getByRole("button", { name: "Открыть", exact: true }).first().click();
+  await expect(b.getByText(/по приглашению/)).toBeVisible();
+  await b.getByRole("button", { name: "Открыть", exact: true }).click();
   await expect(b).toHaveURL(new RegExp(`/chat/${open.id}$`));
   await expect(composer(b)).toBeVisible();
   await expect(messageText(b, "Всем привет в клубе")).toBeVisible();
+  expect((await alice.api.get(`/api/chats/${open.id}`)).body.chat.memberIds).toContain(boris.id);
 
   // После перезагрузки страница сообщества помнит членство.
   await b.goto(`/community/${community.id}`);
   await expect(b.getByRole("button", { name: "Открыть в списке чатов" })).toBeVisible();
-  // Оба чата сообщества — «Открыть», вступать никуда не нужно.
-  await expect(b.getByRole("button", { name: "Открыть", exact: true })).toHaveCount(2);
+  await expect(b.getByRole("button", { name: "Открыть", exact: true })).toBeVisible();
 });
 
 test("несуществующее сообщество — понятная ошибка и возврат к чатам", async ({ newUser, openAs }) => {

@@ -184,6 +184,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
   const menu = useCommunityMenu(community, chats, { inPanel: true });
   const mine = sortChats(memberChatsOf(base, chats));
   const others = (info?.chats ?? []).filter((c) => !c.isMember);
+  const hiddenIds = new Set((info?.chats ?? []).filter((c) => c.visible === false).map((c) => c.id));
   const count = info?.chats.length ?? base.chatIds.length;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(base.id).queryKey });
 
@@ -294,7 +295,16 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
           </>
         ) : null}
         {/* Один общий список, как в Telegram: участник сообщества сразу состоит во всех его чатах. */}
-        {mine.map((c) => <div key={c.id}>{renderChat(c)}</div>)}
+        {mine.map((c) => (
+          <div key={c.id}>
+            {renderChat(c)}
+            {hiddenIds.has(c.id) ? (
+              <span className={styles.hiddenNote}>
+                <Icon name="EyeOff" size={12} /> Скрыт от участников сообщества
+              </span>
+            ) : null}
+          </div>
+        ))}
         {others.map(otherRow)}
         {!mine.length && !others.length ? (
           <p className={styles.empty}>{!info ? "Загрузка…" : info.addPolicy ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов"}</p>

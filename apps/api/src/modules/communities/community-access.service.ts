@@ -6,6 +6,7 @@ import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { ALL_RIGHTS, cleanRights, parseRights } from "./lib/community-rights.js";
@@ -24,6 +25,7 @@ export class CommunityAccessService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly realtime: RealtimeService,
+    private readonly privacy: UserPrivacyService,
   ) {}
 
   /** Сообщество с проверкой права; без need — любому. */
@@ -111,45 +113,82 @@ export class CommunityAccessService {
   }
 
   /**
-   * Участник сообщества сразу состоит во всех его видимых группах и каналах — без отдельного
-   * вступления в каждый (кроме секретных, скрытых админом и тех, где его заблокировали).
+   * Чат, куда сообщество добавляет само: видимый, публичный, без одобрения вступления, не
+   * секретный. В приватные группы и группы с заявками — только по приглашению или одобрению,
+   * как и без сообщества: в общем списке у них «по приглашению» / «Подать заявку».
    */
+  private opensItself(community: Community, chat: Chat): boolean {
+    return (
+      (chat.type === "group" || chat.type === "channel") &&
+      !chat.secret &&
+      !!chat.isPublic &&
+      !chat.approveJoins &&
+      !community.hiddenChatIds.includes(chat.id)
+    );
+  }
+
+  /** Добавить одного; false — нельзя (уже там, бан в чате, сам вышел после прошлого добавления). */
+  private autoAdd(community: Community, chat: Chat, uid: string, at: string): boolean {
+    if (chat.memberIds.includes(uid) || chat.bannedIds.includes(uid)) return false;
+    // Сообщество уже добавляло его сюда, а его нет — вышел сам или удалили: не возвращаем.
+    if (this.communities.wasAutoAdded(chat.id, uid)) return false;
+    this.chats.addMember(chat.id, uid);
+    this.communities.markAutoAdded(community.id, chat.id, uid, at);
+    return true;
+  }
+
+  /** Оповестить о новых участниках: им — чат целиком, в группе — остальным обновлённый состав. */
+  private announceAdded(chat: Chat, added: string[]): void {
+    if (!added.length) return;
+    const updated = this.chats.findById(chat.id)!;
+    this.realtime.broadcastToUsers(added, { type: "chat:added", chat: updated });
+    // Подписчикам канала состав не нужен — не рассылаем им его (у большого канала это тяжело).
+    if (chat.type === "group") this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+  }
+
+  /** Вступил сам (POST /join) — сразу в открытых чатах сообщества. */
   public addToChats(community: Community, uid: string): void {
+    const at = new Date().toISOString();
     for (const id of community.chatIds) {
-      if (community.hiddenChatIds.includes(id)) continue;
       const chat = this.chats.findById(id);
-      if (!chat || chat.secret || chat.memberIds.includes(uid) || chat.bannedIds.includes(uid)) continue;
-      const updated = this.chats.update(chat.id, { memberIds: [...chat.memberIds, uid] })!;
-      this.realtime.broadcastToUsers([uid], { type: "chat:added", chat: updated });
-      this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      if (!chat || !this.opensItself(community, chat)) continue;
+      if (this.autoAdd(community, chat, uid, at)) this.announceAdded(chat, [uid]);
     }
   }
 
-  /** Новый (или снова видимый) чат сообщества — сразу у всех его участников; скрытый — нет. */
-  public addMembersToChat(community: Community, chat: Chat): void {
-    if (community.hiddenChatIds.includes(chat.id)) return;
-    const add = this.communities.listMemberIds(community.id).filter((m) => !chat.memberIds.includes(m) && !chat.bannedIds.includes(m));
-    if (!add.length || chat.secret) return;
-    const updated = this.chats.update(chat.id, { memberIds: [...chat.memberIds, ...add] })!;
-    this.realtime.broadcastToUsers(add, { type: "chat:added", chat: updated });
-    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+  /**
+   * Новый (или ставший видимым) открытый чат — вступившим в сообщество, кроме тех, кто запретил
+   * добавлять себя в чаты другим (правило приватности «invites» для того, кто добавил чат).
+   * Подписчиков каналов сообщества, не вступавших в само сообщество, не трогаем.
+   */
+  public addMembersToChat(community: Community, chat: Chat, actorId: string): void {
+    if (!this.opensItself(community, chat)) return;
+    const at = new Date().toISOString();
+    const added = this.communities
+      .explicitMemberIds(community.id)
+      .filter((m) => m === actorId || this.privacy.allowsUser(m, "invites", actorId))
+      .filter((m) => this.autoAdd(community, chat, m, at));
+    this.announceAdded(chat, added);
   }
 
-  /** Вышел или удалён из сообщества — уходит и из его чатов (кроме тех, где он владелец). */
+  /**
+   * Вышел или удалён из сообщества — уходит только из чатов, куда его добавило сообщество, и
+   * если он там не владелец и не админ. Где он был сам до сообщества — остаётся.
+   */
   public removeFromChats(community: Community, uid: string): void {
-    for (const id of community.chatIds) {
+    for (const id of this.communities.autoChatIds(community.id, uid)) {
       const chat = this.chats.findById(id);
       if (!chat || !chat.memberIds.includes(uid)) continue;
-      if (chat.ownerId === uid || chat.ownerIds.includes(uid)) continue;
-      const memberIds = chat.memberIds.filter((m) => m !== uid);
-      const updated = this.chats.update(chat.id, {
-        memberIds,
-        adminIds: chat.adminIds.filter((m) => m !== uid),
-        moderatorIds: chat.moderatorIds.filter((m) => m !== uid),
-      })!;
+      if (chat.ownerId === uid || chat.ownerIds.includes(uid) || chat.adminIds.includes(uid) || chat.moderatorIds.includes(uid)) continue;
+      this.chats.removeMember(chat.id, uid);
       this.realtime.broadcastToUsers([uid], { type: "chat:deleted", chatId: chat.id });
-      this.realtime.broadcastToUsers(memberIds, { type: "chat:updated", chat: updated });
+      if (chat.type === "group") {
+        const updated = this.chats.findById(chat.id)!;
+        this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      }
     }
+    // Вступит снова — его снова добавят.
+    this.communities.forgetAutoAdded(community.id, uid);
   }
 
   /** Сообщество для клиента. Закрытое (без видимого публичного чата) постороннему — только название и аватар. */
@@ -197,7 +236,7 @@ export class CommunityAccessService {
   /** Чат в сообщество со служебной строкой в самом чате; false — он уже в другом. */
   public async linkChat(community: Community, chat: Chat, opts: { visible: boolean; addedBy: string }): Promise<boolean> {
     if (!this.communities.addChat(community.id, chat.id, opts)) return false;
-    if (opts.visible) this.addMembersToChat(this.reload(community.id), chat);
+    if (opts.visible) this.addMembersToChat(this.reload(community.id), chat, opts.addedBy);
     await this.announce(chat, `${kindOf(chat)} добавлен${chat.type === "channel" ? "" : "а"} в сообщество «${community.title}»`);
     this.notify(community.id);
     return true;
