@@ -10,5 +10,6 @@ import { NearbyService } from "./nearby.service.js";
   imports: [UsersModule],
   controllers: [NearbyController, GeoController],
   providers: [NearbyService, NearbyRepository, GeoService],
+  exports: [GeoService],
 })
 export class NearbyModule {}

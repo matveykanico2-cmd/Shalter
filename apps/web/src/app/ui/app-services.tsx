@@ -5,6 +5,7 @@ import { permissionsAlreadyAsked,PermissionsDialog } from "@/features/permission
 
 import type { SelfUser } from "@/entities/session";
 import { settingsQueries } from "@/entities/settings";
+import { http } from "@/shared/api";
 
 import { useAppIcon } from "../model/use-app-icon";
 import { useAppLock } from "../model/use-app-lock";
@@ -15,7 +16,9 @@ import { useKeyboardShortcuts } from "../model/use-keyboard-shortcuts";
 import { useNativeNotify } from "../model/use-native-notify";
 import { useServiceWorker } from "../model/use-service-worker";
 import { useUiTranslation } from "../model/use-ui-translation";
+import { useUpdateSettings } from "@/entities/settings";
 import { useNativeUpdateCheck, useVersionWatch } from "../model/use-version-watch";
+import { initUiTranslation } from "@/shared/lib/ui-translate";
 
 import { HolidayBanner } from "./holiday-banner";
 import { PasscodeLockScreen } from "./passcode-lock-screen";
@@ -51,6 +54,25 @@ export function AppServices({ user, ready, children }: Props) {
   useBackButton(locked);
   useAppIcon(user, settings);
   useUiTranslation(settings?.uiLanguage);
+  const updateSettings = useUpdateSettings();
+
+  // Первый вход: язык интерфейса по стране IP (если язык ещё не выбирали вручную).
+  useEffect(() => {
+    if (!ready || !settings || settings.uiLanguage !== "ru") return;
+    if (localStorage.getItem("shalter:ui-language-picked")) return;
+    (async () => {
+      try {
+        const { language } = await http.get<{ language: string }>("/api/settings/country-language");
+        if (language && language !== "ru") {
+          initUiTranslation(language);
+          await updateSettings.mutateAsync({ uiLanguage: language });
+        }
+        localStorage.setItem("shalter:ui-language-picked", "1");
+      } catch {
+        localStorage.setItem("shalter:ui-language-picked", "1");
+      }
+    })();
+  }, [ready, settings, updateSettings]);
 
   // Первый запуск — окно разрешений, чуть погодя (и не поверх экрана блокировки).
   useEffect(() => {

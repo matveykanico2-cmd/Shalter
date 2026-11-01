@@ -215,6 +215,7 @@ export function AppearanceSection() {
               className={styles.select}
               value={settings.uiLanguage}
               onChange={async (e) => {
+                localStorage.setItem("shalter:ui-language-picked", "1");
                 try {
                   await patchSettings({ uiLanguage: e.target.value });
                   window.location.reload();
