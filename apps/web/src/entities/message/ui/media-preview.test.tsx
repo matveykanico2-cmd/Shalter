@@ -20,13 +20,15 @@ describe("превью сообщения с медиа (mediaPreview.js)", () =
     expect(screen.getByText("3 фото")).toBeTruthy();
   });
 
-  it("голосовое — значок и длительность; кружок — круглый кадр", () => {
+  it("голосовое — значок и длительность; кружок без обложки — круглая заглушка с Play", () => {
     const { container, rerender } = render(<MediaPreview message={msg({ attachments: [{ kind: "voice", url: "/uploads/v.webm", durationSec: 67 }] })} />);
     expect(container.textContent).toBe("1:07");
     expect(container.querySelector("svg")).toBeTruthy();
     rerender(<MediaPreview message={msg({ attachments: [{ kind: "video-note", url: "/uploads/n.mp4" }] })} />);
     expect(container.textContent).toBe("Кружок");
-    expect(container.querySelector("video")?.getAttribute("src")).toBe("/uploads/n.mp4#t=0.1");
+    // Кадр самого ролика не грузим: в списке чатов это лишняя загрузка видео.
+    expect(container.querySelector("video")).toBeNull();
+    expect(container.querySelector('[data-icon="PlayFill"]')).toBeTruthy();
   });
 
   it("видео — значок «играть» поверх обложки; файл — обычной строкой", () => {

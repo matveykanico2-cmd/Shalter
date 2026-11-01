@@ -1427,11 +1427,12 @@ describe("стикеры и эмодзи", () => {
     await waitFor(() => expect(bubble(custom.id).querySelector(".inline-custom-emoji .ce-scene text")?.textContent).toBe("🐱"));
   });
 
-  it("выбор стикера: разделы, отправка стикера, «выбирает стикер» у собеседника", async () => {
+  it("выбор стикера: свои паки, отправка стикера, «выбирает стикер» у собеседника", async () => {
+    const pack = { id: "sp_1", name: "Котики", description: null, stickerCount: 1, stickers: [{ id: "st_1", kind: "image", url: "/uploads/cat", emoji: "🐱" }] };
     const { calls } = fakeApi({
       "GET /api/chats/c_1": card(),
       [HISTORY]: page([]),
-      "GET /api/stickers/packs": { body: { packs: [{ id: "sp_1", name: "Котики", stickers: [{ kind: "image", url: "/uploads/cat", emoji: "🐱", name: "Кот" }] }], maxStickers: 60 } },
+      "GET /api/stickers/packs": { body: { packs: [pack], maxStickers: 120 } },
       "POST /api/chats/c_1/messages": (body) => ({ body: { message: msg("", { senderId: ME.id, type: "sticker", sticker: body.sticker }) } }),
       ...typingRoutes,
     });
@@ -1439,14 +1440,13 @@ describe("стикеры и эмодзи", () => {
     await screen.findByText("Сообщений пока нет — напишите первым");
     fireEvent.click(screen.getByTitle("Стикеры"));
     const panel = screen.getByRole("menu", { name: "Стикеры" });
-    expect(within(panel).getByRole("region", { name: "Shalter" })).toBeTruthy();
     expect(await within(panel).findByRole("region", { name: "Котики" })).toBeTruthy();
     expect(calls.some((c) => c.key === "POST /api/chats/c_1/typing" && (c.body as { action: string }).action === "choose_sticker")).toBe(true);
 
-    fireEvent.click(within(panel).getAllByRole("button", { name: "Привет" })[0]!);
+    fireEvent.click(within(panel).getByRole("button", { name: "🐱" }));
     expect(screen.queryByRole("menu")).toBeNull();
     await waitFor(() => expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(true));
-    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "", sticker: { emoji: "👋", name: "Привет", scene: "hello" } });
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "", sticker: { kind: "image", url: "/uploads/cat" } });
   });
 
   it("в канале кнопки стикеров нет", async () => {

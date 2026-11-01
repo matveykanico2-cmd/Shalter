@@ -96,6 +96,8 @@ const REFERENCE_COLUMNS = {
   bots: ["code", "appUrl", "appCode"],
   stories: ["url", "items"],
   sticker_packs: ["stickers"],
+  // Стикеры пака отдельными строками (apps/api modules/stickers): файл проверяется при добавлении.
+  stickers: ["file"],
   gift_catalog: ["mediaUrl", "scene"],
   games: ["code"],
   ad_campaigns: ["url", "imageUrl"],

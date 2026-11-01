@@ -17,7 +17,7 @@ describe("превью сообщения (как public/js/lib/messagePreview.j
     expect(messagePreview(msg({ attachments: [{ kind: "file", name: "song.mp3" }] }))).toBe("🎵 song");
     expect(messagePreview(msg({ attachments: [{ kind: "poll" }] }))).toBe("📊 Опрос");
     expect(messagePreview(msg({ attachments: [{ kind: "dice", meta: { emoji: "🎯", value: 6 } }] }))).toBe("🎯 В яблочко!");
-    expect(messagePreview(msg({ type: "sticker", sticker: { emoji: "😀" } }))).toBe("😀 Стикер");
+    expect(messagePreview(msg({ type: "sticker", sticker: { emoji: "😀" } }))).toBe("😀");
     expect(messagePreview(msg({ type: "gift", gift: {} }))).toBe("🎁 Подарок");
   });
 

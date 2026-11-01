@@ -1,174 +1,118 @@
-// Свои стикерпаки (server/routes/stickers.js, data/stickerPacks.js,
-// lib/sanitizeSticker.js): видны только владельцу, стикеры трёх видов
-// (эмодзи, картинка из загрузок, нарисованная сцена) — с очисткой.
+// Стикерпаки (/api/stickers/packs): пак создаётся пустым (название, описание), стикеры —
+// отдельными строками (файл PNG/WebP из /api/uploads + эмодзи), чужой пак открывается по id
+// и добавляется себе в коллекцию. Менять пак и его стикеры может только владелец.
 import { describe, expect, test } from "vitest";
 import { Api } from "../../support/client";
 import { expectError, expectOk } from "../../support/expect";
-import { registerUser, registerUsers } from "../../support/seed";
+import { createDm, registerUser, registerUsers, sendText, type TestUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { download } from "../uploads/helpers";
-import { okBody } from "../../schemas/common";
 import { packBody, packsListBody } from "../../schemas/stickers";
-import { fakeUploadUrl, uploadedUrl } from "../users/helpers";
+import { uploadedUrl } from "../users/helpers";
 
 const server = useServer();
+const PACKS = "/api/stickers/packs";
+
+async function newPack(user: TestUser, body: Record<string, unknown> = { name: "Коты" }) {
+  return expectOk(await user.api.post(PACKS, body), packBody).pack;
+}
+
+async function addSticker(user: TestUser, packId: string, emoji = "🐱") {
+  const file = await uploadedUrl(user, "webp");
+  const res = await user.api.post(`${PACKS}/${packId}/stickers`, { file, emoji });
+  expect(res.status, res.text).toBe(200);
+  return { file, sticker: res.body.sticker };
+}
 
 describe("без сессии", () => {
   test.each([
-    ["GET", "/api/stickers/packs"],
-    ["POST", "/api/stickers/packs"],
-    ["PATCH", "/api/stickers/packs/sp_x_y"],
-    ["DELETE", "/api/stickers/packs/sp_x_y"],
-  ])("%s %s → 401 unauthorized", async (method, path) => {
+    ["GET", PACKS],
+    ["POST", PACKS],
+    ["GET", `${PACKS}/sp_x_y`],
+    ["PATCH", `${PACKS}/sp_x_y`],
+    ["DELETE", `${PACKS}/sp_x_y`],
+    ["POST", `${PACKS}/sp_x_y/stickers`],
+    ["POST", `${PACKS}/sp_x_y/collection`],
+  ])("%s %s → 401", async (method, path) => {
     expectError(await new Api(server().baseUrl).request(method, path, method === "GET" ? {} : { json: {} }), 401, "unauthorized");
   });
 });
 
-describe("создание", () => {
-  test("три вида стикеров; мусор отбрасывается; название обрезается до 40", async () => {
-    const [me, other] = await registerUsers(server().baseUrl, 2);
-    expect(expectOk(await me.api.get("/api/stickers/packs"), packsListBody)).toEqual({ packs: [], maxStickers: 60 });
-
-    const img = await uploadedUrl(me, "webp");
-    const res = expectOk(
-      await me.api.post("/api/stickers/packs", {
-        name: `  ${"П".repeat(50)}  `,
-        stickers: [
-          { emoji: " 😀 ", name: " улыбка ", anim: "bounce", scene: "party" },
-          { emoji: "🔥", scene: "Bad Scene!", anim: "<script>" },
-          { kind: "image", url: img, animated: true, emoji: "" },
-          { kind: "image", url: "https://evil.example/x.png" },
-          { kind: "custom", emoji: "🎈", scene: { loop: 99, bg: "#FFF", layers: [{ type: "circle", r: 99, fill: "red", extra: 1 }, { type: "bogus" }] } },
-          { kind: "custom", scene: { layers: [] } },
-          { name: "без эмодзи" },
-          null,
-          "строка",
-        ],
-      }),
-      packBody
-    );
-    expect(res.pack).toEqual({
-      id: expect.any(String),
-      ownerId: me.id,
-      name: "П".repeat(40),
-      stickers: [
-        // anim при сохранении отбрасывается, scene остаётся только как имя [a-z0-9_-].
-        // uid — метка стикера (по ней в ленте открывается его пак); сервер выдаёт, если не прислали.
-        { emoji: "😀", name: "улыбка", scene: "party", uid: expect.stringMatching(/^st_[0-9a-f]{8}$/) },
-        { emoji: "🔥", name: "", uid: expect.any(String) },
-        { kind: "image", url: img, emoji: "🖼️", name: "", animated: true, uid: expect.any(String) },
-        {
-          kind: "custom",
-          emoji: "🎈",
-          name: "",
-          uid: expect.any(String),
-          scene: {
-            v: 1,
-            loop: 12,
-            bg: "#fff",
-            layers: [{ type: "circle", x: 50, y: 50, fill: "#ff8a3d", opacity: 1, rot: 0, anim: "none", delay: 0, dur: 1.6, r: 50 }],
-          },
-        },
-      ],
-      createdAt: expect.any(String),
-    });
-
-    expect(expectOk(await me.api.get("/api/stickers/packs"), packsListBody).packs).toEqual([res.pack]);
-    // Чужие паки не видны.
-    expect((await other.api.get("/api/stickers/packs")).body.packs).toEqual([]);
-  });
-
-  test("ошибки: без названия, без стикеров", async () => {
+describe("свой пак", () => {
+  test("создание: название обрезается, описание необязательно; стикеры добавляются по одному", async () => {
     const me = await registerUser(server().baseUrl);
-    expectError(await me.api.post("/api/stickers/packs", { stickers: [{ emoji: "😀" }] }), 400, "Назовите пак");
-    expectError(await me.api.post("/api/stickers/packs", { name: "   ", stickers: [{ emoji: "😀" }] }), 400, "Назовите пак");
-    expectError(await me.api.post("/api/stickers/packs", { name: "x" }), 400, "Добавьте хотя бы один стикер");
-    expectError(await me.api.post("/api/stickers/packs", { name: "x", stickers: [] }), 400, "Добавьте хотя бы один стикер");
-    expectError(await me.api.post("/api/stickers/packs", { name: "x", stickers: { emoji: "😀" } }), 400, "Добавьте хотя бы один стикер");
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([]);
+    expect(expectOk(await me.api.get(PACKS), packsListBody).packs).toEqual([]);
+
+    const pack = await newPack(me, { name: `  ${"П".repeat(70)}  `, description: "Пушистые" });
+    expect(pack).toMatchObject({ ownerId: me.id, name: "П".repeat(60), description: "Пушистые", stickers: [], stickerCount: 0, isOwner: true });
+
+    const { file, sticker } = await addSticker(me, pack.id, "😺");
+    expect(sticker).toMatchObject({ packId: pack.id, url: file, emoji: "😺", position: 0 });
+    const listed = expectOk(await me.api.get(PACKS), packsListBody).packs;
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ id: pack.id, stickerCount: 1, stickers: [{ id: sticker.id, url: file }] });
   });
 
-  test("картинка — только своя или уже доступная загрузка: чужой неприкреплённый файл и выдуманная ссылка → 400", async () => {
+  test("ошибки: без названия; файл не из загрузок или не PNG/WebP", async () => {
+    const me = await registerUser(server().baseUrl);
+    expectError(await me.api.post(PACKS, { name: "  " }), 400, "Назовите пак");
+    const pack = await newPack(me);
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { file: "https://evil.example/x.webp", emoji: "😀" }), 400);
+    const gif = await uploadedUrl(me, "gif");
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { file: gif, emoji: "😀" }), 400);
+    expect(expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack.stickerCount).toBe(0);
+  });
+
+  test("чужой неприкреплённый файл в стикер не добавить — иначе его увидел бы любой", async () => {
     const [me, other] = await registerUsers(server().baseUrl, 2);
     const theirs = await uploadedUrl(other, "webp");
-    for (const url of [theirs, fakeUploadUrl("webp")]) {
-      expectError(
-        await me.api.post("/api/stickers/packs", { name: "Чужое", stickers: [{ kind: "image", url }] }),
-        400,
-        "Некорректная ссылка на файл"
-      );
-    }
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([]);
-    // Чужой файл так и остался недоступен.
+    const pack = await newPack(me);
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { file: theirs, emoji: "😀" }), 400, "Некорректная ссылка на файл");
     expect((await download(me.api, theirs)).status).toBe(404);
-
-    // Файл из чужого пака (уже доступный всем) — можно.
-    const mine = await uploadedUrl(other, "webp");
-    expectOk(await other.api.post("/api/stickers/packs", { name: "Их", stickers: [{ kind: "image", url: mine }] }), packBody);
-    expectOk(await me.api.post("/api/stickers/packs", { name: "Себе", stickers: [{ kind: "image", url: mine }] }), packBody);
   });
 
-  test("все стикеры некорректны — 400, пак не создаётся", async () => {
-    const me = await registerUser(server().baseUrl);
-    expectError(await me.api.post("/api/stickers/packs", { name: "Пустой", stickers: [null, { name: "x" }] }), 400, "Добавьте хотя бы один стикер");
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([]);
-  });
+  test("менять и удалять пак и стикеры может только владелец", async () => {
+    const [me, other] = await registerUsers(server().baseUrl, 2);
+    const pack = await newPack(me);
+    const { sticker } = await addSticker(me, pack.id);
+    expectError(await other.api.patch(`${PACKS}/${pack.id}`, { name: "Чужое" }), 404, "Пак не найден");
+    expectError(await other.api.post(`${PACKS}/${pack.id}/stickers`, { file: await uploadedUrl(other, "webp"), emoji: "😀" }), 404, "Пак не найден");
+    expectError(await other.api.delete(`${PACKS}/${pack.id}/stickers/${sticker.id}`), 404);
+    expectError(await other.api.delete(`${PACKS}/${pack.id}`), 404, "Пак не найден");
 
-  test("не больше 60 стикеров — лишние молча отрезаются; паки — по времени создания", async () => {
-    const me = await registerUser(server().baseUrl);
-    const many = Array.from({ length: 65 }, (_, i) => ({ emoji: "⭐", name: `s${i}` }));
-    const first = expectOk(await me.api.post("/api/stickers/packs", { name: "Много", stickers: many }), packBody).pack;
-    expect(first.stickers).toHaveLength(60);
-    expect(first.stickers.at(-1)).toEqual({ emoji: "⭐", name: "s59", uid: expect.any(String) });
-    const second = expectOk(await me.api.post("/api/stickers/packs", { name: "Второй", stickers: [{ emoji: "🌙" }] }), packBody).pack;
-    expect((await me.api.get("/api/stickers/packs")).body.packs.map((p: any) => p.id)).toEqual([first.id, second.id]);
+    const renamed = expectOk(await me.api.patch(`${PACKS}/${pack.id}`, { description: "Новое" }), packBody).pack;
+    expect(renamed).toMatchObject({ name: "Коты", description: "Новое" });
+    expect((await me.api.delete(`${PACKS}/${pack.id}`)).status).toBe(200);
+    expectError(await me.api.get(`${PACKS}/${pack.id}`), 404, "Пак не найден");
   });
 });
 
-describe("изменение и удаление", () => {
-  async function withPack() {
-    const [me, other] = await registerUsers(server().baseUrl, 2);
-    const pack = expectOk(await me.api.post("/api/stickers/packs", { name: "Пак", stickers: [{ emoji: "😀" }] }), packBody).pack;
-    return { me, other, pack };
-  }
+describe("чужой пак: окно и коллекция", () => {
+  test("открывается по id, картинки видны; «добавить» и «убрать» из своей коллекции", async () => {
+    const [owner, other] = await registerUsers(server().baseUrl, 2);
+    const pack = await newPack(owner, { name: "Коты", description: "Пушистые" });
+    const { file } = await addSticker(owner, pack.id);
 
-  test("PATCH: только переданные поля; пустое название — остаётся прежним", async () => {
-    const { me, pack } = await withPack();
-    const renamed = expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { name: "  Новое  " }), packBody).pack;
-    expect(renamed).toEqual({ ...pack, name: "Новое" });
-    const restickered = expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { name: "   ", stickers: [{ emoji: "🔥", anim: "spin" }, null] }), packBody).pack;
-    expect(restickered).toEqual({ ...pack, name: "Новое", stickers: [{ emoji: "🔥", name: "", uid: expect.any(String) }] });
-    // Пустой список стикеров при изменении — разрешён.
-    expect(expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { stickers: [] }), packBody).pack.stickers).toEqual([]);
-    expect(expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, {}), packBody).pack.name).toBe("Новое");
+    const seen = expectOk(await other.api.get(`${PACKS}/${pack.id}`), packBody).pack;
+    expect(seen).toMatchObject({ id: pack.id, isOwner: false, isAdded: false, stickerCount: 1, description: "Пушистые" });
+    // Картинка стикера из чужого пака открывается — иначе окно пака пустое.
+    expect((await download(other.api, file)).status).toBe(200);
+
+    expect((await other.api.post(`${PACKS}/${pack.id}/collection`)).status).toBe(200);
+    const mine = expectOk(await other.api.get(PACKS), packsListBody).packs;
+    expect(mine.map((p) => [p.id, p.isAdded, p.isOwner])).toEqual([[pack.id, true, false]]);
+
+    expect((await other.api.delete(`${PACKS}/${pack.id}/collection`)).status).toBe(200);
+    expect(expectOk(await other.api.get(PACKS), packsListBody).packs).toEqual([]);
   });
 
-  test("PATCH: чужая неприкреплённая загрузка → 400, пак не меняется; прежние стикеры сохраняются повторно", async () => {
-    const [me, other] = await registerUsers(server().baseUrl, 2);
-    const img = await uploadedUrl(me, "webp");
-    const pack = expectOk(await me.api.post("/api/stickers/packs", { name: "Пак", stickers: [{ kind: "image", url: img }] }), packBody).pack;
-    const theirs = await uploadedUrl(other, "webp");
-    expectError(
-      await me.api.patch(`/api/stickers/packs/${pack.id}`, { stickers: [...pack.stickers, { kind: "image", url: theirs }] }),
-      400,
-      "Некорректная ссылка на файл"
-    );
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([pack]);
-    expect(expectOk(await me.api.patch(`/api/stickers/packs/${pack.id}`, { name: "Тот же", stickers: pack.stickers }), packBody).pack).toEqual({ ...pack, name: "Тот же" });
-  });
-
-  test("чужой и несуществующий — 404 «Пак не найден», чужой не меняется", async () => {
-    const { me, other, pack } = await withPack();
-    expectError(await other.api.patch(`/api/stickers/packs/${pack.id}`, { name: "Взлом" }), 404, "Пак не найден");
-    expectError(await other.api.delete(`/api/stickers/packs/${pack.id}`), 404, "Пак не найден");
-    expectError(await me.api.patch("/api/stickers/packs/sp_nope_000000", { name: "x" }), 404, "Пак не найден");
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([pack]);
-  });
-
-  test("DELETE: удаляет; повторно — 404", async () => {
-    const { me, pack } = await withPack();
-    expectOk(await me.api.delete(`/api/stickers/packs/${pack.id}`), okBody);
-    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([]);
-    expectError(await me.api.delete(`/api/stickers/packs/${pack.id}`), 404, "Пак не найден");
+  test("стикер в сообщении хранит packId — по нему собеседник открывает пак", async () => {
+    const [owner, other] = await registerUsers(server().baseUrl, 2);
+    const pack = await newPack(owner);
+    const { file } = await addSticker(owner, pack.id);
+    const chat = await createDm(owner, other);
+    const sent = await sendText(owner, chat.id, "", { sticker: { kind: "image", url: file, emoji: "🐱", packId: pack.id } });
+    expect(sent.sticker).toMatchObject({ kind: "image", url: file, packId: pack.id });
+    expect(expectOk(await other.api.get(`${PACKS}/${sent.sticker.packId}`), packBody).pack.id).toBe(pack.id);
   });
 });

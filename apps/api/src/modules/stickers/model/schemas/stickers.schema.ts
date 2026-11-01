@@ -67,17 +67,20 @@ export type PackIdParam = z.infer<typeof packIdParam>;
 
 // --- кастомные эмодзи (отдельная функция /api/custom-emoji) ------------------
 
+/** Имя эмодзи — до 40 символов, как было (у паков свой лимит); пустое при изменении допустимо. */
+const MAX_EMOJI_NAME = 40;
+
 const cleanScene = (scene: unknown): Record<string, unknown> | null =>
   (sanitizers().sanitizeScene(scene, { requireLayers: true }) as Record<string, unknown> | undefined) || null;
 
 export const createEmojiSchema = requestBody({
-  name: text().transform((v) => v.trim().slice(0, MAX_PACK_NAME)),
+  name: text().transform((v) => v.trim().slice(0, MAX_EMOJI_NAME)),
   scene: z.unknown().optional().transform(cleanScene),
 });
 export type CreateEmojiDto = z.infer<typeof createEmojiSchema>;
 
 export const patchEmojiSchema = requestBody({
-  name: ifPresent((v) => (v == null ? undefined : String(v).trim().slice(0, MAX_PACK_NAME) || undefined)),
+  name: ifPresent((v) => String(v).trim().slice(0, MAX_EMOJI_NAME)),
   scene: ifPresent(cleanScene),
 });
 export type PatchEmojiDto = z.infer<typeof patchEmojiSchema>;

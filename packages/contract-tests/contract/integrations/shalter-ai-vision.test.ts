@@ -187,7 +187,8 @@ describe("Shalter AI — фото", () => {
     const att = await uploaded(s.user, png, { kind: "image", name: "st.png", mimeType: "image/png" });
     const { lastUser } = await askBot(s, "", { sticker: { kind: "image", url: att.url, emoji: "😺" } });
     expect(imagesOf(lastUser)).toEqual([dataUrl("image/png", png)]);
-    expect(textOf(lastUser)).toContain("[стикер 😺]");
+    // Стикер уходит в нейросеть своим эмодзи (без служебной пометки «[стикер …]»).
+    expect(textOf(lastUser)).toContain("😺");
   });
 });
 

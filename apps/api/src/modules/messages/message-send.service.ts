@@ -317,6 +317,9 @@ export class MessageSendService {
 
     const { registerAttachments } = uploadAccess();
     registerAttachments(chat.id, message.attachments, { by: senderId });
+    // Настоящие файлы платного поста к чату не привязываются: их отдают только автору,
+    // админам канала и купившим (server/lib/uploadAccess.js).
+    if (paid) this.paidMedia.save(message.id, chat.id, paid.stars, paid.real);
     // Инлайн-стикеры в тексте — свои вложения, их тоже нужно зарегистрировать.
     const inlineStickers = (message.attachments ?? []).filter((a) => (a as { kind?: string }).kind === "sticker" && (a as { inline?: boolean }).inline === true);
     if (inlineStickers.length) registerAttachments(chat.id, inlineStickers.map((s) => ({ url: (s as { url?: string }).url })), { by: senderId });

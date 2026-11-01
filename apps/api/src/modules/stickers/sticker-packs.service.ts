@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { usesForeignUpload } from "../../legacy/legacy.js";
 import {
   MAX_PACK_NAME,
   MAX_STICKERS_PER_PACK,
@@ -57,6 +58,8 @@ export class StickerPacksService {
   /** Добавляет стикер в пак (загруженный через /api/uploads файл + эмодзи). Только владелец. */
   public addSticker(userId: string, packId: string, { file, emoji, position }: AddStickerDto) {
     const pack = this.ownerPack(packId, userId);
+    // Файл стикера становится виден всем, кто открыл пак: только свой или уже доступный.
+    if (usesForeignUpload(userId, file)) throw new ApiError(400, "Некорректная ссылка на файл");
     if (pack.stickerCount >= MAX_STICKERS_PER_PACK) {
       throw new ApiError(400, `В паке уже максимум ${MAX_STICKERS_PER_PACK} стикеров`);
     }
