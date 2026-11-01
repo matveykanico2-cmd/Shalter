@@ -97,7 +97,7 @@ export function DiscoverChannelsView() {
 function ChannelInfo({ channel: c }: { channel: FoundChannel }) {
   return (
     <>
-      <Avatar name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+      <Avatar name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
       <span className={styles.body}>
         <span className={styles.name}>{c.title}</span>
         <span className={styles.status}>

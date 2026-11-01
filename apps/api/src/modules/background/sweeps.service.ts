@@ -6,6 +6,7 @@ import { AccountDeletionSweep } from "./sweeps/account-deletion.sweep.js";
 import { AutoDeleteSweep } from "./sweeps/auto-delete.sweep.js";
 import { BirthdaysSweep } from "./sweeps/birthdays.sweep.js";
 import { HolidaysSweep } from "./sweeps/holidays.sweep.js";
+import { MediaBackfillSweep } from "./sweeps/media-backfill.sweep.js";
 import { RemindersSweep } from "./sweeps/reminders.sweep.js";
 
 // Обходы по таймеру фонового процесса — то, что startSweeps в server/lib/sweeps.js. Приём
@@ -20,9 +21,10 @@ export class SweepsService implements OnApplicationShutdown {
     reminders: RemindersSweep,
     accountDeletion: AccountDeletionSweep,
     birthdays: BirthdaysSweep,
-    holidays: HolidaysSweep
+    holidays: HolidaysSweep,
+    mediaBackfill: MediaBackfillSweep
   ) {
-    this.sweeps = new Map([autoDelete, reminders, accountDeletion, birthdays, holidays].map((s) => [s.name, s]));
+    this.sweeps = new Map([autoDelete, reminders, accountDeletion, birthdays, holidays, mediaBackfill].map((s) => [s.name, s]));
   }
 
   /** Запуск по таймеру; в режиме тестов обходы не идут (кроме переноса в S3, если его включил тест). */

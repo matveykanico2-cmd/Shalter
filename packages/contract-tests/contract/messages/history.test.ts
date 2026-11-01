@@ -53,6 +53,24 @@ describe("GET /api/chats/:id/messages — история", () => {
     expect(older.messages.every((m) => m.createdAt < sent[3].createdAt)).toBe(true);
   });
 
+  test("скрытое «у себя» не съедает страницу: hasMore остаётся true, ниже — следующие", async () => {
+    const { baseUrl } = server();
+    const [a, b] = await registerUsers(baseUrl, 2);
+    const dm = await createDm(a, b);
+    const sent = [];
+    for (let i = 1; i <= 5; i++) sent.push(await sendText(a, dm.id, `m${i}`));
+    // Удалить у себя самое новое: раньше страница limit=3 выходила из 3 строк без запасной, и hasMore = false.
+    expectOk(await a.api.delete(msgs(dm.id, `/${sent[4].id}`), { forEveryone: false }), z.unknown());
+    const first = expectOk(await a.api.get(msgs(dm.id, "?limit=3")), historyPage);
+    expect(first.messages.map((m) => m.text)).toEqual(["m2", "m3", "m4"]);
+    expect(first.hasMore).toBe(true);
+    const older = expectOk(await a.api.get(msgs(dm.id, `?limit=3&before=${encodeURIComponent(first.messages[0].createdAt)}&beforeId=${first.messages[0].id}`)), historyPage);
+    expect(older.messages.map((m) => m.text)).toEqual(["m1"]);
+    expect(older.hasMore).toBe(false);
+    // У собеседника всё на месте.
+    expect(expectOk(await b.api.get(msgs(dm.id, "?limit=3")), historyPage).messages.map((m) => m.text)).toEqual(["m3", "m4", "m5"]);
+  });
+
   test("limit ограничен 1…200, мусор — значение по умолчанию 60", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);

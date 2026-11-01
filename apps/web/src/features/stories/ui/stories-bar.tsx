@@ -6,6 +6,7 @@ import { hasUnseen, openStoryViewer, type StoryGroup, storyQueries } from "@/ent
 
 import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
+import { plural } from "@/shared/lib/presence";
 import { Avatar, Icon, toast } from "@/shared/ui";
 
 import { postStory, postTextStory } from "../model/post-story";
@@ -99,7 +100,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       }}
     >
       <span className={ring(myGroup)}>
-        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
+        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={52} />
       </span>
       <span className={styles.label}>{progress ?? "Моя история"}</span>
     </button>
@@ -117,7 +118,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       }}
     >
       <span className={ring(null)}>
-        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={52} />
+        <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={52} />
         <span className={styles.addBadge} title="Выложить историю" onClick={(e) => { e.stopPropagation(); openCreate(); }}>
           <Icon name="Plus" size={12} />
         </span>
@@ -140,7 +141,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           </button>
           <button type="button" className={styles.item} title="История" onClick={addStory}>
             <span className={styles.ring}>
-              <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} size={44} />
+              <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={44} />
             </span>
             <span className={styles.label}>История</span>
           </button>
@@ -151,7 +152,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       ) : null}
       {selectedFiles.length > 0 ? (
         <div className={styles.mediaSelection}>
-          <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} файлов</div>
+          <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} {plural(selectedFiles.length, "файл", "файла", "файлов")}</div>
           <div className={styles.mediaSelectionGrid}>
             {selectedFiles.map((file, i) => {
               const url = URL.createObjectURL(file);
@@ -199,7 +200,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         g.user.id === me.id ? null : (
           <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
             <span className={ring(g)}>
-              <Avatar name={g.user.name ?? ""} color={g.user.avatarColor} image={g.user.avatarImage} size={52} />
+              <Avatar name={g.user.name ?? ""} color={g.user.avatarColor} image={g.user.avatarImage} emoji={g.user.avatarEmoji} size={52} />
             </span>
             <span className={styles.label}>{(g.user.name ?? "").split(" ")[0]}</span>
           </button>

@@ -28,6 +28,7 @@ interface ChannelAuthor {
   username: string | null;
   avatarColor: string | undefined;
   avatarImage: string | null;
+  avatarEmoji: string | null;
   isChannel: true;
   canManage: boolean;
 }
@@ -365,6 +366,7 @@ export class StoriesService {
         username: chat.username ?? null,
         avatarColor: chat.avatarColor,
         avatarImage: chat.avatarImage ?? null,
+        avatarEmoji: chat.avatarEmoji ?? null,
         isChannel: true,
         canManage: isChannelStaff(chat, viewerId),
       };

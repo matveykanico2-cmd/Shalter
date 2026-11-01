@@ -54,7 +54,7 @@ export function FolderInviteView() {
         <div className={styles.chats}>
           {info.chats.map((c) => (
             <div key={c.id} className={styles.chat}>
-              <Avatar size={32} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+              <Avatar size={32} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
               <p className={styles.chatTitle}>{c.title}</p>
             </div>
           ))}

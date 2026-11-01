@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, openStickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
+import { closeStickerPack, Composer, openStickerPack, outgoingSticker, StickerPackDetail, stickerPackQueries, StickerPackSheet, useSendMessage, useStickerPackView } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -38,13 +38,6 @@ import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
 import type { Sticker } from "@/shared/lib/anim";
-
-function outgoing(s: Sticker): Sticker {
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid };
-  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
-}
-
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -107,16 +100,13 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
-  // Свои стикерпаки — чтобы при клике на стикер в сообщении открыть его пак (как в Telegram).
-  const packs = useQuery(stickerPackQueries.list());
+  // Клик по стикеру в сообщении — окно его пака (как в Telegram): добавить себе или удалить.
+  const [packOf, setPackOf] = useState<Sticker | null>(null);
   const viewingPack = useStickerPackView();
-  const openPackBySticker = (sticker: Sticker) => {
-    const pack = packs.data?.find((p) => p.stickers.some((s) => s.uid === sticker.uid));
-    if (pack) openStickerPack(pack);
-  };
+  const openPackBySticker = setPackOf;
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);
   const sendSticker = useCallback((s: Sticker) => {
-    void sendOne("", null, [], outgoing(s)).catch(() => {});
+    void sendOne("", null, [], outgoingSticker(s)).catch(() => {});
     closeStickerPack();
   }, [sendOne]);
   const refreshPacks = useCallback(() => {
@@ -256,6 +246,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     if (bottom !== atBottom) setAtBottom(bottom);
     if (el.scrollTop < LOAD_OLDER_PX) void loadOlder();
   };
+
+  // Открыли чат с непрочитанными — как в Telegram, к плашке «Непрочитанные сообщения», а не в
+  // самый низ (раньше плашка оставалась за экраном, а всё уже считалось прочитанным).
+  const unreadShown = useRef(false);
+  useEffect(() => {
+    if (unreadShown.current || !unreadId) return;
+    const i = rows.findIndex((r) => r.kind === "unread");
+    if (i < 0) return;
+    unreadShown.current = true;
+    stuck.current = false;
+    virtualizer.scrollToIndex(i, { align: "start" });
+  }, [unreadId, rows, virtualizer]);
 
   // Мало сообщений на экран — прокрутки нет, историю догружаем сами.
   useEffect(() => {
@@ -542,6 +544,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         />
       ) : null}
       {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
+      {packOf ? (
+        <StickerPackSheet
+          sticker={packOf}
+          meId={meId}
+          onSend={sendSticker}
+          onEdit={(pack) => {
+            setPackOf(null);
+            openStickerPack(pack);
+          }}
+          onClose={() => setPackOf(null)}
+        />
+      ) : null}
       {viewingPack ? (
         <StickerPackDetail
           pack={viewingPack}

@@ -31,7 +31,7 @@ export function InviteDialog({ url, callChatId, onClose }: Props) {
       {recent.length ? <p className={styles.section}>Отправить в чат</p> : null}
       <div className={styles.chats}>
         {recent.map((c) => (
-          <SendRow key={c.id} chatId={c.id} name={chatTitle(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser?.avatarImage ?? c.avatarImage} text={text} />
+          <SendRow key={c.id} chatId={c.id} name={chatTitle(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser?.avatarImage ?? c.avatarImage} emoji={c.otherUser?.avatarEmoji ?? c.avatarEmoji} text={text} />
         ))}
       </div>
       <Button variant="secondary" onClick={onClose}>
@@ -41,9 +41,9 @@ export function InviteDialog({ url, callChatId, onClose }: Props) {
   );
 }
 
-type RowProps = { chatId: string; name: string; color?: string | null; image?: string | null; text: string };
+type RowProps = { chatId: string; name: string; color?: string | null; image?: string | null; emoji?: string | null; text: string };
 
-function SendRow({ chatId, name, color, image, text }: RowProps) {
+function SendRow({ chatId, name, color, image, emoji, text }: RowProps) {
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const send = async () => {
     setState("sending");
@@ -58,7 +58,7 @@ function SendRow({ chatId, name, color, image, text }: RowProps) {
   };
   return (
     <div className={styles.chat}>
-      <Avatar size={36} name={name} color={color} image={image} />
+      <Avatar size={36} name={name} color={color} image={image} emoji={emoji} />
       <span className={styles.chatName}>{name}</span>
       <button type="button" className={styles.send} disabled={state !== "idle"} onClick={() => void send()}>
         {state === "sent" ? "Отправлено ✓" : "Отправить"}

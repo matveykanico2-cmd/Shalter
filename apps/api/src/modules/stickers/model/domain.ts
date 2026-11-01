@@ -8,6 +8,7 @@ export interface StickerPack {
   id: string;
   ownerId: string;
   name: string;
+  description: string;
   stickers: unknown[];
   createdAt: string;
 }

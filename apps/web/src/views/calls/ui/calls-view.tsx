@@ -130,7 +130,7 @@ function HistoryRow({ call: c, onOpen, onCall }: { call: CallListItem; onOpen: (
   return (
     <div className={styles.row}>
       <button type="button" className={styles.open} title="Открыть чат" onClick={onOpen}>
-        <Avatar size={54} name={name} color={c.group?.avatarColor ?? c.otherUser?.avatarColor ?? "#8A8F98"} image={c.group?.avatarImage ?? c.otherUser?.avatarImage} />
+        <Avatar size={54} name={name} color={c.group?.avatarColor ?? c.otherUser?.avatarColor ?? "#8A8F98"} image={c.group?.avatarImage ?? c.otherUser?.avatarImage} emoji={c.group?.avatarEmoji ?? c.otherUser?.avatarEmoji} />
       </button>
       <div className={styles.rowBody}>
         <p className={missed ? `${styles.name} ${styles.missed}` : styles.name}>{name}</p>
@@ -150,7 +150,7 @@ function HistoryRow({ call: c, onOpen, onCall }: { call: CallListItem; onOpen: (
 function ContactRow({ user: u, busy, onCall }: { user: Contact; busy: boolean; onCall: (kind: CallKind) => void }) {
   return (
     <div className={styles.row}>
-      <Avatar size={54} name={u.name} color={u.avatarColor} image={u.avatarImage} online={!!u.online} />
+      <Avatar size={54} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={!!u.online} />
       <div className={styles.rowBody}>
         <p className={styles.name}>{u.name}</p>
         <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{busy ? "Соединяем…" : u.online ? "в сети" : u.username ? `@${u.username}` : "не в сети"}</p>

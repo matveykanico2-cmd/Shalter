@@ -2,7 +2,7 @@ import { useId, useRef, useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
-import { askConfirm, Avatar, Button, Dialog, EmojiText, Icon, TextField, toast } from "@/shared/ui";
+import { askConfirm, Avatar, Button, Dialog, EmojiAvatarPicker, EmojiText, Icon, TextField, toast } from "@/shared/ui";
 
 import { type Bot, broadcastBot, updateBot } from "../api/bots";
 
@@ -129,6 +129,8 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
   const fieldId = useId();
   const [bot, setBot] = useState(initial);
   const [avatarImage, setAvatarImage] = useState<string | null>(initial.user.avatarImage ?? null);
+  const [avatarEmoji, setAvatarEmoji] = useState<string | null>(initial.user.avatarEmoji ?? null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [name, setName] = useState(initial.user.name ?? "");
   const [username, setUsername] = useState(initial.user.username ?? "");
   const [description, setDescription] = useState(initial.description ?? "");
@@ -155,6 +157,7 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
         description: description.trim(),
         username: username.trim(),
         avatarImage,
+        avatarEmoji,
         appName: appName.trim(),
         appUrl: appMode === "url" ? appUrl.trim() : "",
       });
@@ -187,14 +190,22 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
   return (
     <Dialog title="Настройки бота" onClose={onClose}>
       <div className={styles.avatarRow}>
-        <Avatar size={64} name={bot.user.name} color={bot.user.avatarColor} image={avatarImage} />
+        <Avatar size={64} name={bot.user.name} color={bot.user.avatarColor} image={avatarImage} emoji={avatarEmoji} />
         <div className={styles.avatarActions}>
           <Button variant="secondary" onClick={() => fileInput.current?.click()}>
             Загрузить фото
           </Button>
+          <Button variant="secondary" aria-expanded={emojiOpen} onClick={() => setEmojiOpen((v) => !v)}>
+            Смайл
+          </Button>
           {avatarImage ? (
             <Button variant="secondary" className={styles.danger} onClick={() => setAvatarImage(null)}>
               Убрать фото
+            </Button>
+          ) : null}
+          {avatarEmoji ? (
+            <Button variant="secondary" className={styles.danger} onClick={() => setAvatarEmoji(null)}>
+              Убрать смайл
             </Button>
           ) : null}
         </div>
@@ -206,10 +217,24 @@ export function EditBotDialog({ bot: initial, onSaved, onClose }: { bot: Bot; on
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = "";
-            if (file) void fileToImageDataUrl(file, 512).then(setAvatarImage);
+            // Фото сменяет смайл на аватарке.
+            if (file)
+              void fileToImageDataUrl(file, 512).then((image) => {
+                setAvatarImage(image);
+                setAvatarEmoji(null);
+              });
           }}
         />
       </div>
+      {emojiOpen ? (
+        <EmojiAvatarPicker
+          onPick={(e) => {
+            setAvatarEmoji(e);
+            setAvatarImage(null);
+            setEmojiOpen(false);
+          }}
+        />
+      ) : null}
       <div className={styles.fields}>
         <p id={`${fieldId}-name`} className={styles.label}>
           Имя

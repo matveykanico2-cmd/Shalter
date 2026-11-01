@@ -22,6 +22,8 @@ export interface Community {
   description?: string;
   avatarColor?: string;
   avatarImage?: string;
+  /** Смайл вместо аватарки (анимированный, если есть). */
+  avatarEmoji?: string;
   addMode: "all" | "admins";
   createdAt: string;
   chatIds: string[];
@@ -35,6 +37,7 @@ export interface CommunityPatch {
   title?: string;
   description?: string;
   avatarImage?: string | null;
+  avatarEmoji?: string | null;
   addMode?: string;
 }
 

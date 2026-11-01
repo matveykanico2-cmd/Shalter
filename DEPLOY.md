@@ -308,6 +308,81 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Обновление 2026-11-01: прокси Shalter (`apps/proxy`)
+
+Новое: свой прокси, как MTProto-прокси у Telegram. Его поднимает кто угодно на любом
+сервере и раздаёт ссылкой `https://<прокси>/?proxy=<секрет>` или QR-кодом; в приложении —
+«Настройки → Прокси». Весь сайт (страницы, API, файлы, WebSocket) идёт через прокси к
+основному серверу. Подробности и ограничения — `apps/proxy/README.md`.
+
+### Основной сервер
+
+Обязательных шагов нет: обычная выкладка (`git pull && npm install && npm run build &&
+npm run build:api && npm prune --omit=dev && pm2 restart shalter`, или пересборка образа —
+в `Dockerfile` добавлена строка с `apps/proxy/package.json`, без неё `npm ci` не сходится
+с `package-lock.json`). Схема базы не менялась.
+
+Необязательно: если прокси поднимаете вы сами, впишите их IP в `SHALTER_TRUSTED_PROXIES` —
+тогда сервер видит настоящий адрес их пользователей (список устройств, лимит попыток
+входа `AUTH_RATE_LIMIT` — на адрес, а не один на всех за прокси). Чужие прокси туда не
+вписывайте: такой прокси сможет подставить любой адрес.
+
+```bash
+cd /opt/shalter
+echo 'SHALTER_TRUSTED_PROXIES=203.0.113.10,198.51.100.7' >> .env   # адреса своих прокси через запятую
+pm2 restart shalter --update-env
+```
+
+### Прокси на любом VPS (Docker)
+
+На машине с Docker (Ubuntu/Debian: `curl -fsSL https://get.docker.com | sh`). Папку
+`apps/proxy` достаточно скопировать с репозитория — зависимостей у прокси нет:
+
+```bash
+scp -r apps/proxy root@VPS:/opt/shalter-proxy        # с машины, где есть репозиторий
+ssh root@VPS
+cd /opt/shalter-proxy
+docker build -t shalter-proxy .
+```
+
+**Без TLS, по IP** (быстро; но по http браузер не даёт микрофон, камеру и уведомления —
+звонки и голосовые не работают, переписка и файлы — работают):
+
+```bash
+docker run -d --name shalter-proxy --restart unless-stopped -p 80:8080 \
+  -e PROXY_SECRET="$(openssl rand -hex 12)" shalter-proxy
+docker logs shalter-proxy        # строка «ссылка для друзей» — подставьте IP сервера
+```
+
+**С TLS через Caddy** (нужен домен, A-запись которого указывает на VPS; Caddy сам
+получит и продлит сертификат Let's Encrypt; порты 80 и 443 должны быть свободны):
+
+```bash
+cd /opt/shalter-proxy
+PROXY_DOMAIN=proxy.example.net PROXY_SECRET="$(openssl rand -hex 12)" docker compose up -d --build
+docker compose logs proxy        # ссылка для друзей: https://proxy.example.net/?proxy=…
+```
+
+Свой сертификат без Caddy: `-v /etc/letsencrypt:/etc/letsencrypt:ro -e TLS_CERT_FILE=…/fullchain.pem
+-e TLS_KEY_FILE=…/privkey.pem -e PORT=8443 -p 443:8443` (образ работает от пользователя `node`,
+ему нужен доступ на чтение к файлам).
+
+Переменные окружения:
+
+| Переменная | По умолчанию | Что делает |
+|---|---|---|
+| `SHALTER_UPSTREAM` | `https://shalter.ru` | Основной сервер Shalter |
+| `PROXY_SECRET` | — | Секрет ссылки; без него прокси открыт всем и находится сканированием |
+| `PORT`, `HOST` | `8080`, `0.0.0.0` | Где слушать |
+| `TLS_CERT_FILE`, `TLS_KEY_FILE` | — | Сертификат, если прокси сам слушает https |
+| `PROXY_TRUST_FORWARDED` | — | `1` за своим фронтом (Caddy/nginx): адрес и схема клиента — из `X-Forwarded-*` |
+| `PROXY_PUBLIC_URL` | — | Публичный адрес для ссылки «Поделиться» |
+| `PROXY_RELAY_HOSTS` | `storage.yandexcloud.net,*.storage.yandexcloud.net` | Хосты S3, на чьи перенаправления (`/uploads/…` → 302) прокси идёт сам. Если `S3_ENDPOINT` у сервера другой — впишите его хост (и `*.хост` для бакетов-поддоменов) |
+
+Обновить прокси: снова скопировать `apps/proxy`, затем `docker build -t shalter-proxy . &&
+docker rm -f shalter-proxy` и та же `docker run` (с тем же `PROXY_SECRET`, иначе старые
+ссылки перестанут работать), или `docker compose up -d --build`.
+
 ## Обновление 2026-10-28: сцены подарков в архиве, файлы и голосовые
 
 Для сервера, который **уже работает на `apps/api`** (PM2 + nginx, путь `/opt/shalter`).
@@ -889,6 +964,65 @@ pm2 restart ecosystem.config.js --update-env
 `[static] клиент — сборка /app/apps/web/dist`. Проверка — шаг 5 выше (без
 строки про `X-Powered-By`: в контейнере файлы отдаёт Node). Откат —
 пересобрать образ из коммита до переключения.
+
+## Язык интерфейса по стране (IP)
+
+Язык интерфейса теперь выбирается по стране, из которой человек зашёл, пока он
+не выбрал язык сам (Настройки → Внешний вид → Язык интерфейса, вариант
+«Автоматически (по региону)» возвращает автоматику; в боте-помощнике —
+`/lang auto`). Страну сервер спрашивает у тех же бесплатных сервисов, что и
+запасная геолокация (`ipwho.is`, запасной — `get.geojs.io`), без ключей; ответ
+держится в памяти 6 часов. Нет ответа — язык браузера (`Accept-Language`), иначе
+русский. Экраны входа и регистрации переводятся тоже (`GET /api/geo/language`,
+`POST /api/translate/ui` — без входа, с лимитом 600 строк в час на адрес).
+
+Что поменялось для выкладки:
+- таблиц и переменных окружения не добавилось; в настройках пользователя
+  появляется ключ `uiLanguageAuto`. При первом запуске сервер один раз
+  проставляет его всем сохранённым настройкам (отметка
+  `settings-ui-language-auto` в таблице `data_migrations`), руками ничего делать
+  не нужно;
+- у тех, кто уже зарегистрирован, язык остаётся прежним; по стране он
+  выбирается новым пользователям и тем, кто сам включит в настройках
+  «Автоматически (по региону)»;
+- адрес клиента сервер берёт из `X-Forwarded-For` (доверяет одному прокси,
+  nginx из `deploy/nginx.conf.example` его ставит). Если перед nginx есть ещё
+  CDN, страна будет определяться по адресу узла CDN — тогда язык придёт из
+  `Accept-Language`/по стране узла.
+
+### Шаги (PM2)
+
+1. **Код и сборки, перезапуск:**
+   ```bash
+   cd /opt/shalter
+   git pull
+   npm install
+   npm run build
+   npm run build:api
+   npm prune --omit=dev
+   pm2 restart ecosystem.config.js --update-env
+   sqlite3 data/app.db "SELECT * FROM data_migrations WHERE name = 'settings-ui-language-auto';"   # одна строка с датой
+   sqlite3 data/app.db "SELECT COUNT(*) FROM settings WHERE json_valid(data) AND json_type(data, '$.uiLanguageAuto') IS NULL;"   # 0
+   ```
+2. **Сервер достаёт до геосервиса** (с самого сервера; должно напечатать
+   `{"success":true,"country_code":"US"}` или похожее):
+   ```bash
+   curl -s --max-time 5 "https://ipwho.is/8.8.8.8?fields=success,country_code"; echo
+   curl -s --max-time 5 "https://get.geojs.io/v1/ip/country/8.8.8.8.json"; echo
+   ```
+3. **Проверка снаружи** (с любой машины):
+   ```bash
+   D=https://ВАШ-ДОМЕН
+   curl -s $D/api/geo/language; echo        # {"language":"ru","country":"RU","source":"ip"} — страна вашей машины
+   curl -s -X POST -H 'Content-Type: application/json' -d '{"texts":["Войти"],"target":"en"}' $D/api/translate/ui; echo   # {"translations":["Sign in"]} или похожее
+   ```
+   `country` равен `null` при адресе вашей машины — сервер не видит адрес клиента
+   (проверить `proxy_set_header X-Forwarded-For` в конфиге nginx) или не достал
+   до геосервиса (шаг 2).
+
+Docker/Dokploy: пересобрать образ и перезапустить контейнер, проверка — шаги 2
+(внутри контейнера: `docker exec <контейнер> wget -qO- "https://ipwho.is/8.8.8.8?fields=success,country_code"`)
+и 3.
 
 ## Переезд вложений в S3 с шифрованием на стороне хранилища
 

@@ -56,6 +56,12 @@ export class MessagesRepository {
     if (topic === null) where.push(isNull(messages.topicId));
     else if (topic !== undefined) where.push(eq(messages.topicId, topic));
     if (clearedBefore) where.push(gt(messages.createdAt, clearedBefore));
+    // Скрытое у зрителя отсекаем в самом запросе: фильтр после LIMIT съедал запасную строку,
+    // hasMore становился false, и старая история переставала подгружаться.
+    if (viewerId) {
+      where.push(sql`instr(${messages.deletedForIds}, ${JSON.stringify(viewerId)}) = 0`);
+      where.push(or(isNull(messages.visibleToId), eq(messages.visibleToId, viewerId), eq(messages.senderId, viewerId)));
+    }
     if (before) {
       where.push(
         beforeId

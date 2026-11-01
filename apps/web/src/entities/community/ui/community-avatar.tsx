@@ -2,7 +2,7 @@ import { Avatar } from "@/shared/ui";
 
 import styles from "./community-avatar.module.css";
 
-type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null }; size?: number };
+type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null }; size?: number };
 
 /** Аватар сообщества с двумя «карточками» за ним — CommunityAvatar (tweb CommunityAvatarDecoration). */
 export function CommunityAvatar({ community, size = 54 }: Props) {
@@ -20,7 +20,7 @@ export function CommunityAvatar({ community, size = 54 }: Props) {
           fill="currentColor"
         />
       </svg>
-      <Avatar size={size} name={community.title} color={community.avatarColor} image={community.avatarImage} />
+      <Avatar size={size} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />
     </span>
   );
 }

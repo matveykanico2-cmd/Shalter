@@ -58,6 +58,7 @@ describe("POST /:id/chats", () => {
       username: null,
       avatarColor: channel.avatarColor,
       avatarImage: null,
+      avatarEmoji: null,
       isPublic: false,
       approveJoins: false,
       members: 2,

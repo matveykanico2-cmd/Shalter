@@ -27,7 +27,7 @@ export function CallDock() {
       </div>
       {s.minimized && !onCallScreen ? (
         <button type="button" className={styles.bubble} onClick={() => void navigate(`/call/${s.call.id}`)}>
-          <Avatar size={28} name={other?.name ?? s.chatTitle} color={other?.avatarColor ?? "#8A8F98"} image={other?.avatarImage} />
+          <Avatar size={28} name={other?.name ?? s.chatTitle} color={other?.avatarColor ?? "#8A8F98"} image={other?.avatarImage} emoji={other?.avatarEmoji} />
           <span className={styles.title}>{s.chatTitle}</span>
           <span className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</span>
         </button>

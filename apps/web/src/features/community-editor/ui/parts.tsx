@@ -53,13 +53,13 @@ export function Row({ icon, title, subtitle, right, danger, accent, onClick }: R
   );
 }
 
-type Chatish = Pick<CommunityChat, "id" | "type" | "title" | "avatarColor" | "avatarImage"> & { username?: string | null; members?: number | null; visible?: boolean };
+type Chatish = Pick<CommunityChat, "id" | "type" | "title" | "avatarColor" | "avatarImage"> & { avatarEmoji?: string | null; username?: string | null; members?: number | null; visible?: boolean };
 
 /** Чат в списках сообщества — chatRow() в communityEditor.js. */
 export function ChatLine({ chat, onClick, right }: { chat: Chatish; onClick?: () => void; right?: ReactNode }) {
   const body = (
     <>
-      <Avatar size={42} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} />
+      <Avatar size={42} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} emoji={chat.avatarEmoji} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>
           {chat.type === "channel" ? <Icon name="Megaphone" size={14} /> : null}
@@ -88,13 +88,13 @@ export function ChatLine({ chat, onClick, right }: { chat: Chatish; onClick?: ()
   );
 }
 
-type Person = { id: string; name?: string | null; avatarColor?: string | null; avatarImage?: string | null; badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
+type Person = { id: string; name?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
 /** Человек в списках сообщества — userRow() в communityEditor.js. */
 export function UserLine({ user, subtitle, right, onClick }: { user: Person; subtitle?: string | null; right?: ReactNode; onClick?: () => void }) {
   const body = (
     <>
-      <Avatar size={42} name={user.name ?? "Пользователь"} color={user.avatarColor} image={user.avatarImage} />
+      <Avatar size={42} name={user.name ?? "Пользователь"} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{user.name ?? "Пользователь"}</span>
         {user.badge ? <span className={styles.badge}>{user.badge}</span> : null}

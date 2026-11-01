@@ -11,6 +11,7 @@ import { fakeApi } from "@/shared/lib/test";
 import { Toaster } from "@/shared/ui";
 
 import { AddChatFlow } from "./add-chat-flow";
+import { CommunitySettingsDialog } from "./community-settings-dialog";
 import { CreateCommunityDialog } from "./create-community-dialog";
 
 const ME = "u_me";
@@ -79,5 +80,45 @@ describe("сообщества", () => {
     expect(await screen.findByText("Группа добавлена в сообщество")).toBeTruthy();
     expect(calls.find((c) => c.key.startsWith("POST"))?.body).toEqual({ chatId: "c_club", visible: true });
     expect(onDone).toHaveBeenCalled();
+  });
+
+  it("смайл вместо фото: выбрать в «Изменить сообщество», затем убрать", async () => {
+    let current: Record<string, unknown> = { ...community, avatarEmoji: null };
+    const { calls } = fakeApi({
+      "GET /api/communities/cm_dacha0000000": () => ({ body: { community: current } }),
+      "PATCH /api/communities/cm_dacha0000000": (body) => {
+        current = { ...current, ...(body as object) };
+        return { body: { community: current } };
+      },
+      "GET /api/communities/joined": { body: { communities: [] } },
+    });
+    const onClose = vi.fn();
+    setup(<CommunitySettingsDialog communityId="cm_dacha0000000" meId={ME} onClose={onClose} />);
+    const dialog = await screen.findByRole("dialog", { name: "Изменить сообщество" });
+    expect(within(dialog).queryByRole("button", { name: "Сохранить" })).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Смайл/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "🔥" }));
+    expect(within(dialog).queryByRole("group", { name: "Смайл на аватарке" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(calls.find((c) => c.key.startsWith("PATCH"))?.body).toMatchObject({ avatarEmoji: "🔥", avatarImage: null });
+  });
+
+  it("смайл в «Новом сообществе» уходит вместе с названием", async () => {
+    const { calls } = fakeApi({
+      "GET /api/chats": { body: { chats: [] } },
+      "POST /api/communities": { body: { community } },
+      "GET /api/communities/joined": { body: { communities: [] } },
+    });
+    setup(<CreateCommunityDialog onCreated={() => {}} onClose={() => {}} />);
+    const dialog = screen.getByRole("dialog", { name: "Новое сообщество" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Смайл/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "😇" }));
+    expect(within(dialog).getByRole("button", { name: /Убрать смайл/ })).toBeTruthy();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Название сообщества" }), { target: { value: "Дачники" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
+    expect(await screen.findByText("Сообщество создано")).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/communities")?.body).toMatchObject({ title: "Дачники", avatarImage: null, avatarEmoji: "😇" });
   });
 });

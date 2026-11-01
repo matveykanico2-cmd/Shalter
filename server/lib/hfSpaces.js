@@ -17,36 +17,41 @@ async function uploadFile(base, buf, name, mime) {
 
 // Вызов функции пространства: POST /call/<api> → event_id → поток с результатом.
 // Бесплатные публичные Gradio‑пространства время от времени падают в event: error
-// (холодный старт GPU, очередь, мгновенная перегрузка). 2 повтора через 15–30 с почти
-// всегда «оживляют» запрос — иначе сразу пишем «Фото пока не видно».
-async function callSpace(base, api, data, { timeoutMs = 120000 } = {}) {
+// (холодный старт GPU, очередь, мгновенная перегрузка) — повторяем, но в пределах общего
+// срока budgetMs: раньше 3 попытки по 140 с с паузами шли до 7 минут на одну модель, и
+// человек ждал ответа бота минутами, чтобы получить «фото не видно».
+async function callSpace(base, api, data, { budgetMs = 120000 } = {}) {
+  const deadline = Date.now() + budgetMs;
+  const left = () => deadline - Date.now();
   const attempt = async () => {
     const start = await fetch(`${base}/call/${api}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...auth() },
       body: JSON.stringify({ data }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(Math.max(1000, Math.min(20000, left()))),
     });
     const { event_id: eventId } = await start.json().catch(() => ({}));
     if (!eventId) throw new Error(`${api}: HTTP ${start.status}`);
-    const res = await fetch(`${base}/call/${api}/${eventId}`, { headers: auth(), signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetch(`${base}/call/${api}/${eventId}`, { headers: auth(), signal: AbortSignal.timeout(Math.max(1000, left())) });
     const text = await res.text();
     if (/event:\s*error/.test(text)) throw new Error(`${api}: пространство вернуло ошибку (холодный старт или перегрузка)`);
     const line = text.split("\n").reverse().find((l) => l.startsWith("data:"));
     if (!line) throw new Error(`${api}: пустой ответ`);
     return JSON.parse(line.slice(5).trim());
   };
-  const delays = [0, 15000, 30000];
   let lastErr;
-  for (const delay of delays) {
+  for (const delay of [0, 8000, 15000]) {
+    if (delay) {
+      if (left() < delay + 15000) break;
+      await new Promise((r) => setTimeout(r, delay));
+    }
     try {
       return await attempt();
     } catch (err) {
       lastErr = err;
-      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     }
   }
-  throw lastErr;
+  throw lastErr ?? new Error(`${api}: не успели за ${Math.round(budgetMs / 1000)} с`);
 }
 
 const QWEN_VL = process.env.HF_VISION_SPACE || "https://ganymedenil-qwen2-vl-7b.hf.space";
@@ -59,14 +64,14 @@ async function describeImageRemote(jpeg, prompt) {
     "Опиши подробно по-русски, что на изображении: объекты, люди и их действия, цвета, место, настроение. Если есть текст — перепиши его дословно. Не выдумывай того, чего не видно.";
   try {
     const file = await uploadFile(QWEN_VL, jpeg, "image.jpg", "image/jpeg");
-    const [out] = await callSpace(QWEN_VL, "run_example", [file, ask, "Qwen/Qwen2-VL-7B-Instruct"]);
+    const [out] = await callSpace(QWEN_VL, "run_example", [file, ask, "Qwen/Qwen2-VL-7B-Instruct"], { budgetMs: 75000 });
     if (typeof out === "string" && out.trim().length > 10) return out.trim();
     throw new Error("qwen: пустой ответ");
   } catch (err) {
     console.warn("hf vision qwen failed:", err.message);
   }
   const file = await uploadFile(FLORENCE, jpeg, "image.jpg", "image/jpeg");
-  const [out] = await callSpace(FLORENCE, "describe_image", [file, "Florence-2-large"]);
+  const [out] = await callSpace(FLORENCE, "describe_image", [file, "Florence-2-large"], { budgetMs: 45000 });
   if (typeof out === "string" && out.trim().length > 10 && !/invalid/i.test(out)) return `(описание на английском) ${out.trim()}`;
   throw new Error("распознавание изображения недоступно");
 }

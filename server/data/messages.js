@@ -184,6 +184,13 @@ function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before 
     sql += " AND createdAt > @clearedBefore";
     params.clearedBefore = clearedBefore;
   }
+  // Скрытое у зрителя — в самом запросе (как findPage в apps/api): фильтр после LIMIT
+  // съедал запасную строку, и hasMore становился false.
+  if (viewerId) {
+    sql += " AND instr(deletedForIds, @viewerJson) = 0 AND (visibleToId IS NULL OR visibleToId = @viewerId OR senderId = @viewerId)";
+    params.viewerJson = JSON.stringify(viewerId);
+    params.viewerId = viewerId;
+  }
   if (before) {
     if (beforeId) {
       sql += " AND (createdAt < @before OR (createdAt = @before AND id < @beforeId))";

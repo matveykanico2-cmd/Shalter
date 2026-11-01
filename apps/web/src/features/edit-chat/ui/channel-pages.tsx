@@ -168,7 +168,7 @@ function GroupPicker({ title, onPick, onClose }: { title: string; onPick: (chatI
             const count = c.membersCount ?? c.memberIds.length;
             return (
               <button key={c.id} type="button" className={styles.person} onClick={() => onPick(c.id)}>
-                <Avatar size={36} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+                <Avatar size={36} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
                 <span className={styles.rowBody}>
                   <span className={styles.rowTitle}>{c.title}</span>
                   <span className={styles.subtitle}>
@@ -218,7 +218,7 @@ function AdminLogList({ chat }: PageProps) {
           const actor = users.get(e.actorId);
           return (
             <li key={e.id} className={styles.person}>
-              <Avatar size={32} name={actor?.name ?? "?"} color={actor?.avatarColor} image={actor?.avatarImage} />
+              <Avatar size={32} name={actor?.name ?? "?"} color={actor?.avatarColor} image={actor?.avatarImage} emoji={actor?.avatarEmoji} />
               <span className={styles.rowBody}>
                 <span>
                   <b>{actor?.name ?? "Кто-то"}</b> {describeAdminAction(e, name)}

@@ -130,7 +130,11 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t !== document.body && !overlayRef.current?.contains(t)) return;
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
+      // В поле ответа Esc сначала уводит фокус (история снова идёт), второй Esc — закрывает.
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") {
+        if (e.key === "Escape") t.blur();
+        return;
+      }
       if (e.key === "Escape") closeStoryViewer();
       else if (e.key === "ArrowRight") dispatch({ type: "next" });
       else if (e.key === "ArrowLeft") dispatch({ type: "prev" });
@@ -346,7 +350,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
 
         <div className={styles.header}>
           <button type="button" className={styles.authorLink} title={"isChannel" in author ? "Открыть канал" : "Открыть профиль"} onClick={() => openAuthor(asWho(author))}>
-            <Avatar name={author.name ?? ""} color={author.avatarColor} image={author.avatarImage} size={32} />
+            <Avatar name={author.name ?? ""} color={author.avatarColor} image={author.avatarImage} emoji={author.avatarEmoji} size={32} />
           </button>
           <div className={styles.titles}>
             <p className={`${styles.name} ${styles.nameLink}`} onClick={() => openAuthor(asWho(author))}>
@@ -443,7 +447,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             <p className={styles.panelTitle}>{s.viewers === null ? "Загружаем…" : s.viewers.length ? "Смотрели" : "Пока никто не смотрел"}</p>
             {(s.viewers ?? []).map((u) => (
               <button key={u.id} type="button" className={styles.viewerRow} title="Открыть профиль" onClick={() => openAuthor(u)}>
-                <Avatar name={u.name ?? ""} color={u.avatarColor} image={u.avatarImage} size={30} />
+                <Avatar name={u.name ?? ""} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={30} />
                 <span>{u.name}</span>
               </button>
             ))}
@@ -649,7 +653,7 @@ function CommentRow({
   return (
     <div className={[styles.commentRow, editing ? styles.commentEditing : "", isReply ? styles.commentReply : ""].filter(Boolean).join(" ")}>
       <button type="button" className={styles.authorLink} title="Открыть профиль" onClick={onAuthor}>
-        <Avatar name={c.author?.name ?? "?"} color={c.author?.avatarColor} image={c.author?.avatarImage} size={26} />
+        <Avatar name={c.author?.name ?? "?"} color={c.author?.avatarColor} image={c.author?.avatarImage} emoji={c.author?.avatarEmoji} size={26} />
       </button>
       <div className={styles.commentBody}>
         <span className={`${styles.commentAuthor} ${styles.nameLink}`} onClick={onAuthor}>

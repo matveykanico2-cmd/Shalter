@@ -6,13 +6,13 @@ import { fakeApi } from "@/shared/lib/test";
 
 import { StickerButton } from "./sticker-picker";
 
-const pack = { id: "sp_1", name: "Котики", stickers: [{ emoji: "😺", name: "" }], createdAt: "2026-10-01T10:00:00.000Z" };
+const pack = { id: "sp_1", ownerId: "u_me", name: "Котики", description: "", stickers: [{ emoji: "😺", name: "" }], createdAt: "2026-10-01T10:00:00.000Z" };
 
 function renderPicker() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <StickerButton chatId="c_1" onSend={vi.fn()} />
+      <StickerButton chatId="c_1" meId="u_me" onSend={vi.fn()} />
     </QueryClientProvider>
   );
 }
@@ -28,7 +28,7 @@ describe("«Мои стикерпаки» (stickerPackDialog.js)", () => {
     const { calls } = fakeApi({
       "GET /api/stickers/packs": () => ({ body: { packs, maxStickers: 60 } }),
       "POST /api/stickers/packs": (body) => {
-        const created = { id: "sp_2", createdAt: pack.createdAt, ...(body as { name: string; stickers: [] }) };
+        const created = { id: "sp_2", ownerId: "u_me", description: "", createdAt: pack.createdAt, ...(body as { name: string; stickers: [] }) };
         packs = [...packs, created];
         return { body: { pack: created } };
       },
@@ -59,7 +59,7 @@ describe("«Мои стикерпаки» (stickerPackDialog.js)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Создать пак" }));
     await screen.findByText("Мои");
     expect(screen.getByRole("dialog", { name: "Стикерпаки" })).toBeTruthy();
-    expect(calls.find((c) => c.key === "POST /api/stickers/packs")?.body).toEqual({ name: "Мои", stickers: [{ emoji: "🔥", name: "огонь", scene: "cat_yarn" }] });
+    expect(calls.find((c) => c.key === "POST /api/stickers/packs")?.body).toEqual({ name: "Мои", description: "", stickers: [{ emoji: "🔥", name: "огонь", scene: "cat_yarn" }] });
 
     fireEvent.click(screen.getByRole("button", { name: "Удалить «Котики»" }));
     await waitFor(() => expect(screen.queryByText("Котики")).toBeNull());

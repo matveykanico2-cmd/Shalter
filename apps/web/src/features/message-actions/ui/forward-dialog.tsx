@@ -81,7 +81,7 @@ export function ForwardDialog({ count = 1, onSend, onClose }: Props) {
                   <Icon name="Bookmark" size={18} />
                 </span>
               ) : (
-                <Avatar size={36} name={titleOf(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser ? c.otherUser.avatarImage : c.avatarImage} />
+                <Avatar size={36} name={titleOf(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser ? c.otherUser.avatarImage : c.avatarImage} emoji={c.otherUser ? c.otherUser.avatarEmoji : c.avatarEmoji} />
               )}
               <span className={styles.forwardTitle}>{titleOf(c)}</span>
               <span className={styles.forwardCheck}>

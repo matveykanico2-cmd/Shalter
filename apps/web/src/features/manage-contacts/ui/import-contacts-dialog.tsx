@@ -164,7 +164,7 @@ export function ImportContactsDialog({ onAdded, onClose }: Props) {
                   const sub = entry.localName && entry.localName !== u.name ? `${entry.localName} · @${u.username}` : u.username ? `@${u.username}` : "";
                   return (
                     <div key={u.id} className={styles.importRow}>
-                      <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} size={36} online={u.online} />
+                      <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={36} online={u.online} />
                       <div className={styles.importText}>
                         <p className={styles.importName}>{u.name}</p>
                         {sub ? <p className={styles.importSub}>{sub}</p> : null}

@@ -38,6 +38,7 @@ export const callListItem = z.strictObject({
       title: z.string().nullable(),
       avatarColor: z.string().optional(),
       avatarImage: z.string().optional(),
+      avatarEmoji: z.string().optional(),
     })
     .nullable(),
 });

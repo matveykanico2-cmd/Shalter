@@ -70,6 +70,7 @@ describe("истории каналов", () => {
       username: null,
       avatarColor: expect.any(String),
       avatarImage: null,
+      avatarEmoji: null,
       isChannel: true,
       canManage: false,
     });

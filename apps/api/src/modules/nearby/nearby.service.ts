@@ -46,7 +46,7 @@ export class NearbyService {
       if (theirBlocked.includes(uid)) continue;
       const km = distanceKm(vLat, vLng, r.nearbyLat!, r.nearbyLng!);
       if (!(km <= MAX_RADIUS_KM)) continue;
-      withDistance.push({ id: r.id, name: r.name, username: r.username, avatarColor: r.avatarColor, avatarImage: r.avatarImage, ...bucketFor(km) });
+      withDistance.push({ id: r.id, name: r.name, username: r.username, avatarColor: r.avatarColor, avatarImage: r.avatarImage, avatarEmoji: r.avatarEmoji, ...bucketFor(km) });
     }
 
     for (let i = withDistance.length - 1; i > 0; i--) {

@@ -18,6 +18,7 @@ type Props = {
 export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: Props) {
   const [stickers, setStickers] = useState(pack.stickers.slice());
   const [name, setName] = useState(pack.name);
+  const [description, setDescription] = useState(pack.description ?? "");
   const [busy, setBusy] = useState(false);
 
   const removeSticker = async (uid: string | undefined) => {
@@ -25,7 +26,7 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: P
     const next = stickers.filter((s) => s.uid !== uid);
     setStickers(next);
     try {
-      await updateStickerPack(pack.id, { name, stickers: next });
+      await updateStickerPack(pack.id, { name, description, stickers: next });
       onRefresh();
     } catch {
       setStickers(pack.stickers.slice());
@@ -48,7 +49,7 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: P
     if (busy) return;
     setBusy(true);
     try {
-      await updateStickerPack(pack.id, { name, stickers });
+      await updateStickerPack(pack.id, { name, description, stickers });
       onRefresh();
       onClose();
     } catch {
@@ -86,6 +87,15 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: P
           Удалить пак
         </button>
       </div>
+      <textarea
+        className={styles.detailDescription}
+        placeholder="Описание — его увидят, открыв пак"
+        aria-label="Описание пака"
+        value={description}
+        maxLength={200}
+        rows={2}
+        onChange={(e) => setDescription(e.target.value)}
+      />
       <p className={styles.detailHint}>Нажмите на стикер, чтобы отправить; «Удалить» — убрать из пака.</p>
       <div className={styles.detailGrid}>
         {stickers.map((s) => (
@@ -95,7 +105,7 @@ export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: P
               className={styles.detailSticker}
               title={s.name || s.emoji || "Стикер"}
               aria-label={s.name || s.emoji || "Стикер"}
-              onClick={() => onStickerPick(s)}
+              onClick={() => onStickerPick({ ...s, packId: pack.id })}
             >
               <DomNode create={() => renderSticker(s, { size: 44 })} />
             </button>

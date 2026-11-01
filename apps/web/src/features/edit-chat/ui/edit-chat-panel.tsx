@@ -2,14 +2,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { chatQueries, type ChatSummary } from "@/entities/chat";
-import { graphemes } from "@/entities/message";
 
-import { hasAnimatedEmoji } from "@/shared/lib/anim";
-import { ALL_EMOJI } from "@/shared/lib/emoji-list";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { useEscape } from "@/shared/lib/use-escape";
-import { Avatar, Button, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, Button, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
 
 import { type ChatProfilePatch, editChatQueries, patchChatProfile, setChatDiscussion } from "../api/edit-chat";
 import { allowedReactions } from "../lib/chat-fields";
@@ -33,9 +30,6 @@ const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   discussion: "Обсуждение",
   log: "Недавние действия",
 };
-
-/** Все существующие эмодзи для заставки — анимированные где есть (как в Telegram). */
-const EMOJIS = ALL_EMOJI.filter(hasAnimatedEmoji);
 
 /** «Добавить историю канала» — выбор файлов и редактор у ленты историй, здесь только строка. */
 type ChannelStory = { open: () => void; progress: string | null };
@@ -88,7 +82,6 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   const [avatarColor, setAvatarColor] = useState<string | null>(chat.avatarColor ?? null);
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(chat.avatarEmoji ?? null);
   const [avatarMode, setAvatarMode] = useState<"image" | "emoji" | "letter" | null>(null);
-  const [customEmoji, setCustomEmoji] = useState("");
   const [letter, setLetter] = useState("");
   const initialLetter = (chat.title ?? "").trim().slice(0, 1).toUpperCase();
   const [titleError, setTitleError] = useState(false);
@@ -127,11 +120,9 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   };
 
   const pickEmoji = (e: string) => {
-    const g = graphemes(e.trim());
-    if (g.length !== 1) return toast("Один смайл", { error: true });
     setAvatarMode(null);
     setAvatarImage(null);
-    setAvatarEmoji(g[0]!);
+    setAvatarEmoji(e);
   };
 
   const pickLetter = (l: string) => {
@@ -205,30 +196,7 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
           }}
         />
         {avatarMode === "image" ? null : null}
-        {avatarMode === "emoji" && (
-          <div className={styles.emojiPicker}>
-            <p className={styles.emojiLabel}>Смайл на заставке</p>
-            <div className={styles.emojiRow}>
-              {EMOJIS.map((e) => (
-                <button key={e} type="button" className={styles.emoji} title={e} onClick={() => pickEmoji(e)}>
-                  {e}
-                </button>
-              ))}
-              <div className={styles.emojiInputWrap}>
-                <input
-                  className={styles.emojiInput}
-                  maxLength={10}
-                  placeholder="свой смайл"
-                  value={customEmoji}
-                  onChange={(e) => setCustomEmoji(e.target.value)}
-                />
-                <button type="button" className={styles.emojiApply} onClick={() => pickEmoji(customEmoji.trim())}>
-                  Установить
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {avatarMode === "emoji" && <EmojiAvatarPicker label="Смайл на заставке" emojiOnly={false} onPick={pickEmoji} />}
         {avatarMode === "letter" && (
           <div className={styles.emojiPicker}>
             <p className={styles.emojiLabel}>Буква на заставке</p>

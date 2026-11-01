@@ -90,7 +90,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
       <div className={styles.body}>
         {/* В личке аватар с именем открывает полный профиль (как info-panel-avatar-row в infoPanel.js). */}
         <HeroBox className={styles.hero} onClick={other ? () => openUserProfile(other.id) : undefined}>
-          <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} />
+          <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={other?.avatarEmoji ?? chat.avatarEmoji} />
           <p className={styles.title}>
             {other?.name ?? title}
             {(other ? other.isVerified : chat.isVerified) ? (
@@ -151,6 +151,12 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         ) : null}
 
         <div className={styles.card}>
+          {/* Заметка, контакт, «поделиться», секретный чат — в полном профиле; раньше туда вёл только клик по аватару. */}
+          {other && other.id !== me.id ? (
+            <Row icon="User" onClick={() => openUserProfile(other.id)}>
+              Открыть профиль
+            </Row>
+          ) : null}
           {!isDm && isAdmin ? (
             <Row icon="Edit" onClick={() => setScreen("edit")}>
               Редактировать {kind}
@@ -280,7 +286,7 @@ function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly
           <div key={m.id} className={styles.member} role="group" aria-label={m.name}>
             {/* Аватар и имя — кнопка профиля, как info-panel-member-profile-btn. */}
             <button type="button" className={styles.memberProfile} onClick={() => openUserProfile(m.id)}>
-            <Avatar size={42} name={m.name} color={m.avatarColor} image={m.avatarImage} online={m.online} />
+            <Avatar size={42} name={m.name} color={m.avatarColor} image={m.avatarImage} emoji={m.avatarEmoji} online={m.online} />
             <span className={styles.memberText}>
               <span className={styles.memberName} translate="no">
                 <span className={styles.ellipsis}>{m.name}</span>

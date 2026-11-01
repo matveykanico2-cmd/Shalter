@@ -10,7 +10,7 @@ import { ADD_MODES, TITLE_MAX } from "../lib/options";
 import { useCommunityActions } from "../model/use-community-actions";
 
 import { AddChatFlow, ChatSettingsDialog } from "./add-chat-flow";
-import { AvatarEdit } from "./avatar-edit";
+import { AvatarEdit, type AvatarValue } from "./avatar-edit";
 import styles from "./community-editor.module.css";
 import { AdminsDialog, BansDialog, RequestsDialog } from "./community-people";
 import { ChatLine, Empty, RadioRows, Row } from "./parts";
@@ -68,23 +68,23 @@ type MainProps = { community: Community; onOpen: (s: Screen) => void; onClose: (
 function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProps) {
   const actions = useCommunityActions();
   const rights = community.rights;
-  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarImage: community.avatarImage ?? null };
+  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarImage: community.avatarImage ?? null, avatarEmoji: community.avatarEmoji ?? null };
   const [title, setTitle] = useState(saved.title);
   const [description, setDescription] = useState(saved.description);
   const [addMode, setAddMode] = useState<AddMode>(saved.addMode);
-  const [avatarImage, setAvatarImage] = useState<string | null>(saved.avatarImage);
+  const [avatar, setAvatar] = useState<AvatarValue>({ image: saved.avatarImage, emoji: saved.avatarEmoji });
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   // tweb hasCommunityEditChanges: «Сохранить» — только когда что-то изменилось.
   const dirty =
-    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatarImage !== saved.avatarImage)) || (rights.editChats && addMode !== saved.addMode);
+    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatar.image !== saved.avatarImage || avatar.emoji !== saved.avatarEmoji)) || (rights.editChats && addMode !== saved.addMode);
 
   const save = async () => {
     const t = title.trim();
     if (!t) return setInvalid(true);
     setBusy(true);
     const patch: Parameters<typeof communityApi.update>[1] = {};
-    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarImage });
+    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarImage: avatar.image, avatarEmoji: avatar.emoji });
     if (rights.editChats) patch.addMode = addMode;
     try {
       await communityApi.update(community.id, patch);
@@ -101,10 +101,10 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
   return (
     <Dialog title={rights.editInfo || rights.editChats ? "Изменить сообщество" : "Сообщество"} onClose={onClose} className={styles.wide}>
       {rights.editInfo ? (
-        <AvatarEdit name={title} image={avatarImage} onChange={setAvatarImage} />
+        <AvatarEdit name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
       ) : (
         <span className={styles.center}>
-          <Avatar size={120} name={community.title} color={community.avatarColor} image={community.avatarImage} />
+          <Avatar size={120} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />
         </span>
       )}
       <label className={styles.field}>

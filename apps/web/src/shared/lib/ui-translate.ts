@@ -23,6 +23,8 @@ const failed = new Set<string>();
 const waiting = new Map<string, Item[]>();
 let observer: MutationObserver | null = null;
 let lang = "ru";
+/** До входа строки переводит POST /api/translate/ui (без сессии), после — /api/translate/batch. */
+let endpoint = "/api/translate/batch";
 let fetchTimer: ReturnType<typeof setTimeout> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let fetching = false;
@@ -101,7 +103,7 @@ async function fetchWaiting() {
   fetching = true;
   const batch = [...waiting.keys()].slice(0, BATCH_SIZE);
   try {
-    const { translations } = await http.post<{ translations: (string | null)[] }>("/api/translate/batch", { texts: batch, target: lang });
+    const { translations } = await http.post<{ translations: (string | null)[] }>(endpoint, { texts: batch, target: lang });
     batch.forEach((text, i) => {
       const items = waiting.get(text) ?? [];
       waiting.delete(text);
@@ -141,13 +143,17 @@ function onMutations(mutations: MutationRecord[]) {
   scheduleFetch();
 }
 
-/** Включить перевод интерфейса; "ru" (или пусто) — выключить. */
-export function initUiTranslation(language: string | undefined) {
+/**
+ * Включить перевод интерфейса; "ru" (или пусто) — выключить. guest — экраны входа и регистрации:
+ * сессии ещё нет, строки переводит POST /api/translate/ui.
+ */
+export function initUiTranslation(language: string | undefined, { guest = false }: { guest?: boolean } = {}) {
   lang = language || "ru";
+  endpoint = guest ? "/api/translate/ui" : "/api/translate/batch";
   observer?.disconnect();
   observer = null;
-  if (lang === "ru") return;
   document.documentElement.lang = lang;
+  if (lang === "ru") return;
   try {
     cache = (JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null") as typeof cache | null) ?? {};
   } catch {

@@ -56,7 +56,8 @@ export class BotApiProfileService {
   public setAvatar(bot: Bot, dto: SetAvatarDto) {
     const { image } = dto;
     if (this.usesForeignUpload(bot, image, this.users.findById(bot.userId)?.avatarImage)) throw new ApiError(400, "Некорректная ссылка на файл");
-    this.users.updateProfile(bot.userId, { avatarImage: image || null });
+    // Новое фото сменяет смайл на аватарке.
+    this.users.updateProfile(bot.userId, image ? { avatarImage: image, avatarEmoji: null } : { avatarImage: null });
     return { bot: publicUser(this.users.findById(bot.userId)!) };
   }
 

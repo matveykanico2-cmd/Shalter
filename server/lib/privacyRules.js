@@ -119,6 +119,7 @@ async function publicUserFor(user, viewerId) {
   if (blocked || !canSee("photo")) {
     delete visible.avatarImage;
     delete visible.avatarImages;
+    delete visible.avatarEmoji;
   }
   if (blocked || !canSee("bio")) delete visible.bio;
   if (blocked || !canSee("birthday")) delete visible.birthday;

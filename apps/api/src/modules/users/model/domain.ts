@@ -42,6 +42,8 @@ export interface ProfilePatch {
   avatarColor?: string;
   /** Только у ботов (PATCH /api/bots/:id); у людей аватарки — setAvatars. */
   avatarImage?: string | null;
+  /** Смайл вместо аватарки; null — убрать. */
+  avatarEmoji?: string | null;
   birthday?: string | null;
   businessAddress?: string | null;
   /** Как пришло в запросе: колонка REAL, SQLite сам приводит числовую строку. */

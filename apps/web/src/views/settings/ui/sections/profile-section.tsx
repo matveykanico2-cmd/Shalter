@@ -17,6 +17,7 @@ import { AVATAR_COLORS, NAME_COLORS } from "../../lib/profile-colors";
 import { PhonePasswordDialog } from "../phone-password-dialog";
 import { StatusDialog } from "../status-dialog";
 
+import { ProfileEmojiAvatar } from "./profile-emoji";
 import profileStyles from "./profile-section.module.css";
 import styles from "./sections.module.css";
 
@@ -102,7 +103,7 @@ function Profile({ me }: { me: SelfUser }) {
     <SettingsPage>
       <div className={profileStyles.header}>
         <button type="button" className={profileStyles.avatarButton} aria-label="Фото профиля" onClick={() => setAvatarOpen(true)}>
-          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={me.avatarImage} size={120} />
+          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={120} />
           <span className={profileStyles.avatarEdit}>
             <Icon name="Edit" size={12} />
           </span>
@@ -124,6 +125,8 @@ function Profile({ me }: { me: SelfUser }) {
         </p>
         <p className={`${profileStyles.sub} ${styles.mono}`}>{me.phone || me.email}</p>
       </div>
+
+      <ProfileEmojiAvatar me={me} />
 
       {!me.avatarImage ? (
         <SettingsSection title="Цвет аватара">
@@ -225,7 +228,7 @@ function Profile({ me }: { me: SelfUser }) {
       </Button>
 
       {statusOpen ? <StatusDialog onClose={() => setStatusOpen(false)} /> : null}
-      {avatarOpen ? <AvatarViewer user={me} canEdit onChange={(u) => updateSelf(u as Partial<SelfUser>)} onClose={() => setAvatarOpen(false)} /> : null}
+      {avatarOpen ? <AvatarViewer user={me} canEdit onChange={(u) => updateSelf({ ...(u as Partial<SelfUser>), avatarEmoji: (u as Partial<SelfUser>).avatarEmoji })} onClose={() => setAvatarOpen(false)} /> : null}
       {phoneAsk ? (
         <PhonePasswordDialog
           onClose={() => setPhoneAsk(null)}

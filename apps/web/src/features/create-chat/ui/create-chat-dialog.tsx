@@ -132,7 +132,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
           <div className={styles.memberList}>
             {members.map((u) => (
               <div key={u.id} className={styles.memberRow}>
-                <Avatar size={32} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+                <Avatar size={32} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
                 <span>{u.name}</span>
               </div>
             ))}

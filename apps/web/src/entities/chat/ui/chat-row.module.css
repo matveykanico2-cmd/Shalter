@@ -35,6 +35,12 @@
   color: var(--color-accent-contrast);
 }
 
+/* Значки в превью (микрофон голосового и т. п.) красятся акцентом — на акцентном фоне
+   выбранной строки они пропадали. */
+.active .preview :global(svg) {
+  color: var(--color-accent-contrast);
+}
+
 .active .draft {
   color: var(--color-accent-contrast);
   opacity: 0.85;

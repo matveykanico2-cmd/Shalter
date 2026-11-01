@@ -96,6 +96,7 @@ describe("список людей рядом", () => {
       username: same.username,
       avatarColor: expect.any(String),
       avatarImage: null,
+      avatarEmoji: null,
       label: "менее 1 км",
     });
 

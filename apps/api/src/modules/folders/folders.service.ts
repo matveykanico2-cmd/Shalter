@@ -69,7 +69,7 @@ export class FoldersService {
     const chats = folder.chatIds
       .map((id) => this.chats.findById(id))
       .filter((c) => c?.isPublic)
-      .map((c) => ({ id: c!.id, type: c!.type, title: c!.title, username: c!.username, avatarColor: c!.avatarColor, avatarImage: c!.avatarImage }));
+      .map((c) => ({ id: c!.id, type: c!.type, title: c!.title, username: c!.username, avatarColor: c!.avatarColor, avatarImage: c!.avatarImage, avatarEmoji: c!.avatarEmoji }));
     return { name: folder.name, chats };
   }
 

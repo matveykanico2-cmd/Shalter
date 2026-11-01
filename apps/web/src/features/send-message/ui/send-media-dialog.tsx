@@ -10,12 +10,14 @@ import type { Pick } from "../model/use-uploads";
 import styles from "./send-media-dialog.module.css";
 
 /** paidStars — платный пост: фото и видео откроют за столько звёзд (0 — бесплатно). */
-export type MediaSendChoice = { picks: Pick[]; spoiler: boolean; paidStars: number };
+export type MediaSendChoice = { picks: Pick[]; spoiler: boolean; paidStars: number; caption: string };
 
 type Props = {
   files: readonly File[];
   /** Можно «Размыть за звёзды» (не Избранное, не секретный, в канале — админ). */
   allowPaid?: boolean;
+  /** Подпись — сначала текст, уже набранный в поле ввода. */
+  initialCaption?: string;
   onSend: (choice: MediaSendChoice) => void;
   onClose: () => void;
 };
@@ -25,10 +27,11 @@ const MAX_PAID_STARS = 10_000;
 /**
  * Окно отправки вложений — как public/js/components/mediaSendPopup.js (tweb popups/newMedia):
  * фото и видео альбомом, остальное списком; «Отправить без сжатия» и спойлер в «Ещё».
- * Подпись — текст из поля ввода.
+ * Подпись — поле «Подпись» в самом окне (как в Telegram); набранное в поле ввода переходит в неё.
  */
-export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onClose }: Props) {
+export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onSend, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
+  const [caption, setCaption] = useState(initialCaption);
   const [asFiles, setAsFiles] = useState(false);
   const [spoiler, setSpoiler] = useState(false);
   const [paidStars, setPaidStars] = useState(0);
@@ -67,7 +70,7 @@ export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onC
   const send = () => {
     if (!files.length) return;
     // «Без сжатия» — файлом: фото и видео уходят как есть, без превью и пережатия.
-    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars });
+    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars, caption });
   };
 
   const moreItems: MenuItem[] = [
@@ -165,6 +168,20 @@ export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onC
           </div>
         ) : null}
         <div className={styles.footer}>
+          <textarea
+            className={styles.caption}
+            placeholder="Подпись"
+            aria-label="Подпись"
+            rows={1}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
+          />
           <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" autoFocus onClick={send}>
             <Icon name="Send" size={22} />
           </button>

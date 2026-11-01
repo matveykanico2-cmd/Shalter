@@ -1,0 +1,14 @@
+{
+  "name": "@shalter/proxy",
+  "private": true,
+  "type": "module",
+  "description": "Прокси Shalter, который можно поднять на любом сервере и раздать ссылкой или QR-кодом",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

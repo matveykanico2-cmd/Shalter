@@ -11,9 +11,13 @@
   gap: 6px;
   width: fit-content;
   max-width: 170px;
+  /* Стикер без подложки и рамки, как в Telegram (это <button> — у него своя рамка). */
+  border: 0;
   border-radius: 10px;
-  background: var(--color-surface);
+  background: none;
   padding: 4px;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   transition: transform 0.1s ease, background 0.12s ease;
 }

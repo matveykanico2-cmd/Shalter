@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
+import type { Request } from "express";
 import { ApiError } from "../../common/errors/api-error.js";
 import { unsupportedLanguages, usesForeignUpload } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
+import { UiLanguageService } from "../ui-language/ui-language.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { normalizePrivacy } from "../users/lib/privacy-rules.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -25,7 +27,8 @@ export class SettingsService {
     private readonly userSettings: UserSettingsService,
     private readonly users: UsersRepository,
     private readonly chats: ChatsRepository,
-    private readonly messages: MessagesRepository
+    private readonly messages: MessagesRepository,
+    private readonly uiLanguage: UiLanguageService
   ) {}
 
   public get(uid: string) {
@@ -43,7 +46,7 @@ export class SettingsService {
     return { bytesByBucket };
   }
 
-  public update(uid: string, body: PatchSettingsDto) {
+  public async update(uid: string, body: PatchSettingsDto, req: Request) {
     const patch = pickClientKeys(body);
     if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
     if (patch.notifications) patch.notifications = mergeNotifications(patch.notifications, this.userSettings.get(uid).notifications);
@@ -53,6 +56,10 @@ export class SettingsService {
     if (languages.isUnsupportedLanguage(patch.uiLanguage) || languages.isUnsupportedLanguage(patch.translateLanguage)) {
       throw new ApiError(400, languages.UNSUPPORTED_MESSAGE);
     }
+    // «Автоматически (по региону)» — язык сразу по стране IP (или языку браузера); выбор языка
+    // вручную выключает автоматический режим.
+    if (patch.uiLanguageAuto === true) patch.uiLanguage = (await this.uiLanguage.detect(req)).language;
+    else if (patch.uiLanguage !== undefined) patch.uiLanguageAuto = false;
     // Обои, вложения автоответов и т. п.: только свои или и так доступные файлы.
     if (usesForeignUpload(uid, patch, this.userSettings.get(uid))) throw new ApiError(400, "Некорректная ссылка на файл");
     return { settings: this.userSettings.update(uid, patch) };

@@ -86,7 +86,7 @@ export function BlockedPage({ users }: { users: BlockedUser[] }) {
       {users.length ? (
         users.map((u) => (
           <div key={u.id} className={styles.userRow}>
-            <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} size={42} />
+            <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={42} />
             <span className={styles.userBody}>
               <span className={styles.userName}>{u.name}</span>
               {u.username ? <span className={styles.muted}>@{u.username}</span> : null}

@@ -171,7 +171,7 @@ function CommonGroups({ userId }: { userId: string }) {
             void navigate(`/chat/${g.id}`);
           }}
         >
-          <Avatar size={38} name={g.title} color={g.avatarColor} image={g.avatarImage} />
+          <Avatar size={38} name={g.title} color={g.avatarColor} image={g.avatarImage} emoji={g.avatarEmoji} />
           <span className={styles.channelBody}>
             <span className={styles.channelTitle}>{g.title}</span>
             <span className={styles.channelSub}>

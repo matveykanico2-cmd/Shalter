@@ -41,10 +41,10 @@ export class CallsService {
     const calls = this.calls.listFor(uid);
     const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== uid))];
     const users = this.users.findByIds(otherIds);
-    const groupTitles = new Map<string, { title: unknown; avatarColor: unknown; avatarImage: unknown }>();
+    const groupTitles = new Map<string, { title: unknown; avatarColor: unknown; avatarImage: unknown; avatarEmoji: unknown }>();
     for (const chatId of new Set(calls.map((c) => c.chatId))) {
       const chat = this.chats.findById(chatId);
-      if (chat && chat.type !== "dm") groupTitles.set(chatId, { title: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage });
+      if (chat && chat.type !== "dm") groupTitles.set(chatId, { title: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, avatarEmoji: chat.avatarEmoji });
     }
     const visibleById = new Map<string, Record<string, unknown>>();
     for (const u of users) visibleById.set(u.id, this.privacy.publicUserFor(u, uid));

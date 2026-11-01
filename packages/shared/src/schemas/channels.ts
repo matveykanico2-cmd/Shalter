@@ -15,6 +15,7 @@ export const channelSearchBody = z.strictObject({
       description: z.string().optional(),
       avatarColor: z.string().optional(),
       avatarImage: z.string().optional(),
+      avatarEmoji: z.string().optional(),
       subscriberCount: z.number(),
       isMember: z.boolean(),
     })
@@ -30,6 +31,7 @@ export const similarChannelsBody = z.strictObject({
       username: z.string().optional(),
       avatarColor: z.string().optional(),
       avatarImage: z.string().optional(),
+      avatarEmoji: z.string().optional(),
       isVerified: z.boolean(),
       subscriberCount: z.number(),
       isMember: z.boolean(),

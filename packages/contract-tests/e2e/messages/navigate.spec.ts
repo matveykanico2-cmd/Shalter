@@ -4,17 +4,21 @@ import { createDm, sendText } from "../../support/seed";
 import { messageText } from "../support/ui";
 import { chatMenu } from "./helpers";
 
-/** Длинная история: первое сообщение не попадает в первую загруженную страницу ленты. */
-async function seedLongHistory(user: Parameters<typeof sendText>[0], chatId: string, first: string, total = 75) {
+/**
+ * Длинная история: первое сообщение не попадает в первую загруженную страницу ленты.
+ * reader её уже прочитал: чат с непрочитанными открывается на первом из них, а здесь нужен низ.
+ */
+async function seedLongHistory(user: Parameters<typeof sendText>[0], chatId: string, first: string, reader: Parameters<typeof sendText>[0], total = 75) {
   await sendText(user, chatId, first);
   for (let i = 2; i <= total; i++) await sendText(user, chatId, `Сообщение номер ${i}`);
+  await reader.api.get(`/api/chats/${chatId}/messages`);
 }
 
 test("поиск по чату находит старое сообщение и прокручивает к нему", async ({ newUser, openAs }) => {
   const alice = await newUser("Алиса");
   const boris = await newUser("Борис");
   const chat = await createDm(alice, boris);
-  await seedLongHistory(boris, chat.id, "Пароль от wi-fi: кукушка42");
+  await seedLongHistory(boris, chat.id, "Пароль от wi-fi: кукушка42", alice);
 
   const a = (await openAs(alice.api, `/chat/${chat.id}`)).page;
   await expect(messageText(a, "Сообщение номер 75")).toBeVisible();
@@ -41,7 +45,7 @@ test("переход к дате: календарь подсвечивает д
   const alice = await newUser("Алиса");
   const boris = await newUser("Борис");
   const chat = await createDm(alice, boris);
-  await seedLongHistory(boris, chat.id, "Самое первое сообщение сегодня");
+  await seedLongHistory(boris, chat.id, "Самое первое сообщение сегодня", alice);
 
   const a = (await openAs(alice.api, `/chat/${chat.id}`)).page;
   await expect(messageText(a, "Сообщение номер 75")).toBeVisible();

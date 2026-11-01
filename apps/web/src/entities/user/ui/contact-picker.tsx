@@ -6,7 +6,7 @@ import { userQueries } from "../api/user-queries";
 
 import styles from "./contact-picker.module.css";
 
-export type PickedContact = { id: string; name: string; phone?: string | null; avatarColor?: string | null; avatarImage?: string | null };
+export type PickedContact = { id: string; name: string; phone?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 
 const NONE: readonly PickedContact[] = [];
 
@@ -44,7 +44,7 @@ export function ContactPicker({ title, extra = NONE, exclude, onPick, onClose }:
                 onPick(u);
               }}
             >
-              <Avatar size={36} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+              <Avatar size={36} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
               <span>{u.name}</span>
             </button>
           ))

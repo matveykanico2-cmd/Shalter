@@ -10,7 +10,7 @@ import { Button, Dialog, TextField, toast } from "@/shared/ui";
 import { ADD_MODES, TITLE_MAX } from "../lib/options";
 import { useCommunityActions } from "../model/use-community-actions";
 
-import { AvatarEdit } from "./avatar-edit";
+import { AvatarEdit, type AvatarValue } from "./avatar-edit";
 import styles from "./community-editor.module.css";
 import { RadioRows } from "./parts";
 
@@ -19,7 +19,7 @@ type Props = { onCreated: (community: Community) => void; onClose: () => void };
 /** «Новое сообщество» — openCreateCommunityDialog в communityEditor.js. */
 export function CreateCommunityDialog({ onCreated, onClose }: Props) {
   const actions = useCommunityActions();
-  const [avatarImage, setAvatarImage] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<AvatarValue>({ image: null, emoji: null });
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [addMode, setAddMode] = useState<AddMode>("all");
@@ -39,7 +39,8 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
       const { community } = await communityApi.create({
         title: t,
         description: description.trim(),
-        avatarImage,
+        avatarImage: avatar.image,
+        ...(avatar.emoji ? { avatarEmoji: avatar.emoji } : {}),
         addMode,
         chatId,
         chatVisible,
@@ -56,7 +57,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
 
   return (
     <Dialog title="Новое сообщество" onClose={onClose} className={styles.wide}>
-      <AvatarEdit name={title} image={avatarImage} onChange={setAvatarImage} />
+      <AvatarEdit name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
       <label className={styles.field}>
         <span>Название сообщества</span>
         <TextField

@@ -125,12 +125,12 @@ describe("профиль человека", () => {
     expect(calls.find((c) => c.key === "POST /api/chats/secret")?.body).toEqual({ userId: BORIS.id });
   });
 
-  it("свой профиль: «Так ваш профиль видят другие», QR-код, без действий с контактом", async () => {
+  it("свой профиль: подпись про приватность, QR-код, без действий с контактом", async () => {
     fakeApi({ "GET /api/users/u_me0000000": { body: profile({ user: { ...BORIS, id: ME.id, name: "Аня", username: "anya", profileName: undefined } }) } });
     renderHost();
     act(() => openUserProfile(ME.id));
     const panel = await screen.findByRole("complementary", { name: "Профиль" });
-    expect(await within(panel).findByText("Так ваш профиль видят другие")).toBeTruthy();
+    expect(await within(panel).findByText("Так ваш профиль видят те, кому это разрешает приватность")).toBeTruthy();
     expect(within(panel).queryByRole("button", { name: /Заблокировать/ })).toBeNull();
     expect(within(panel).getByText("Закрепите свои публичные каналы — их увидит каждый, кто откроет ваш профиль.")).toBeTruthy();
     fireEvent.click(within(panel).getByRole("button", { name: "QR-код" }));

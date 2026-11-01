@@ -27,12 +27,13 @@ WORKDIR /app
 # replaces. No python3/make/g++ needed in this stage at all any more, since
 # nothing here compiles anything from source.
 #
-# Репозиторий — npm workspaces (apps/api, apps/web, packages/shared,
+# Репозиторий — npm workspaces (apps/api, apps/web, apps/proxy, packages/shared,
 # packages/contract-tests), и npm ci сверяет package-lock.json с их package.json,
 # поэтому они копируются вместе с корневым.
 COPY package*.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
+COPY apps/proxy/package.json ./apps/proxy/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/contract-tests/package.json ./packages/contract-tests/
 RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
@@ -74,6 +75,7 @@ RUN apk add --no-cache ffmpeg font-dejavu
 COPY package*.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
+COPY apps/proxy/package.json ./apps/proxy/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/contract-tests/package.json ./packages/contract-tests/
 # Копирование из первого этапа стоит до установки намеренно: BuildKit

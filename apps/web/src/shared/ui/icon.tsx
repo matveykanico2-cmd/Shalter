@@ -77,7 +77,7 @@ const PATHS = {
   Share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
   Shield: '<path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 21l2.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/>',
   ShieldOff: '<path d="M19.7 14A10.3 10.3 0 0 0 20 11.5V5l-8-3-3.2 1.2"/><path d="M4.7 4.7 4 5v6.5c0 5 3.4 8.6 8 10.5a13.4 13.4 0 0 0 5.4-3.6"/><path d="M3 3l18 18"/>',
-  Smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01"/><path d="M8.5 16.5s1.2-2 3.5-2 3.5 2 3.5 2"/>',
+  Smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01"/><path d="M8.5 14.5s1.2 2 3.5 2 3.5-2 3.5-2"/>',
   Star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7Z"/>',
   Sticker:
     '<path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/><circle cx="9" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="13" r="1" fill="currentColor" stroke="none"/><path d="M8.5 16.5a4 4 0 0 0 6 0"/>',

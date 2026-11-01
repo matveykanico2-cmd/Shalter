@@ -442,6 +442,16 @@ CREATE TABLE IF NOT EXISTS sticker_packs (
 );
 CREATE INDEX IF NOT EXISTS idx_sticker_packs_owner ON sticker_packs(ownerId);
 
+-- Чужие паки, добавленные себе из окна пака (клик по стикеру в чате, как в Telegram).
+-- Пак остаётся у владельца: здесь только связь «кто добавил».
+CREATE TABLE IF NOT EXISTS sticker_pack_installs (
+  userId TEXT NOT NULL,
+  packId TEXT NOT NULL,
+  addedAt TEXT NOT NULL,
+  PRIMARY KEY (userId, packId)
+);
+CREATE INDEX IF NOT EXISTS idx_sticker_pack_installs_pack ON sticker_pack_installs(packId);
+
 -- Кастомные эмодзи, нарисованные пользователем в аниматоре (public/js/lib/
 -- customScene.js). Как и стикеры в паке, эмодзи-сцена уходит в чужие чаты, но
 -- вставляется прямо в текст сообщения (server/data/messages.js). Сцена лежит
@@ -493,6 +503,8 @@ CREATE TABLE IF NOT EXISTS data_exports (
 CREATE INDEX IF NOT EXISTS idx_data_exports_created ON data_exports(createdAt);
 `);
 
+const existingStickerPackColumns = new Set(db.prepare("PRAGMA table_info(sticker_packs)").all().map((c) => c.name));
+if (!existingStickerPackColumns.has("description")) db.exec("ALTER TABLE sticker_packs ADD COLUMN description TEXT NOT NULL DEFAULT ''");
 const existingStoryColumns = new Set(db.prepare("PRAGMA table_info(stories)").all().map((c) => c.name));
 if (!existingStoryColumns.has("items")) db.exec("ALTER TABLE stories ADD COLUMN items TEXT");
 if (!existingStoryColumns.has("likedByIds")) db.exec("ALTER TABLE stories ADD COLUMN likedByIds TEXT NOT NULL DEFAULT '[]'");
@@ -1156,6 +1168,8 @@ if (!existingAdminSectionCols.has("adminSections"))
   db.exec("ALTER TABLE users ADD COLUMN adminSections TEXT NOT NULL DEFAULT '[]'");
 
 if (!existingAdminSectionCols.has("profileTrack")) db.exec("ALTER TABLE users ADD COLUMN profileTrack TEXT");
+// Смайл вместо аватарки (анимированный, если есть) — как avatarEmoji у чатов.
+if (!existingAdminSectionCols.has("avatarEmoji")) db.exec("ALTER TABLE users ADD COLUMN avatarEmoji TEXT");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS short_links (
@@ -1303,6 +1317,7 @@ CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(comm
   const communityCols = new Set(db.prepare("PRAGMA table_info(communities)").all().map((c) => c.name));
   if (!communityCols.has("avatarImage")) db.exec("ALTER TABLE communities ADD COLUMN avatarImage TEXT");
   if (!communityCols.has("addMode")) db.exec("ALTER TABLE communities ADD COLUMN addMode TEXT NOT NULL DEFAULT 'all'");
+  if (!communityCols.has("avatarEmoji")) db.exec("ALTER TABLE communities ADD COLUMN avatarEmoji TEXT");
   const chatCols = new Set(db.prepare("PRAGMA table_info(community_chats)").all().map((c) => c.name));
   if (!chatCols.has("visible")) db.exec("ALTER TABLE community_chats ADD COLUMN visible INTEGER NOT NULL DEFAULT 1");
   if (!chatCols.has("addedBy")) db.exec("ALTER TABLE community_chats ADD COLUMN addedBy TEXT");
@@ -1356,6 +1371,13 @@ if (!existingCommunityMemberColumns.has("title")) db.exec("ALTER TABLE community
 // Разовые переносы данных. Отметка пишется в той же транзакции, что и сам перенос, —
 // второй запуск (и фоновый процесс, который открывает базу следом) его пропускает.
 db.exec(`
+-- Старые сообщения, которым обход media-backfill (apps/api) поставил задачу на превью,
+-- обложку и длительность: каждому — один раз, чтобы битый файл не крутился по кругу.
+CREATE TABLE IF NOT EXISTS media_backfill (
+  messageId TEXT PRIMARY KEY,
+  queuedAt TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS data_migrations (
   name TEXT PRIMARY KEY,
   doneAt TEXT NOT NULL
@@ -1417,6 +1439,19 @@ runOnce("upload-access-backfill-2", () => {
   for (const row of db.prepare("SELECT senderId, attachments, createdAt FROM scheduled_messages WHERE instr(attachments, '/uploads/') > 0").all()) {
     for (const m of String(row.attachments).matchAll(FILE_RE)) uploader.run(m[1], row.senderId, row.createdAt);
   }
+});
+
+// Автоязык интерфейса (settings.uiLanguageAuto, apps/api modules/ui-language): у настроек,
+// сохранённых до него, флага нет, а запись настроек сливает их с DEFAULT_SETTINGS
+// (uiLanguageAuto: true) — и выбранный когда-то язык стал бы «автоматическим». Проставляем
+// флаг заранее: у тех, кто уже пользуется приложением, язык остаётся как был (не автоматический) —
+// по IP он выбирается новым людям и тем, кто сам включит «Автоматически (по региону)».
+runOnce("settings-ui-language-auto", () => {
+  db.prepare(
+    `UPDATE settings
+        SET data = json_set(data, '$.uiLanguageAuto', json('false'))
+      WHERE json_valid(data) AND json_type(data, '$.uiLanguageAuto') IS NULL`
+  ).run();
 });
 
 db.exec(`

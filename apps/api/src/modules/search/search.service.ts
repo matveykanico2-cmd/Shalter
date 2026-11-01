@@ -75,6 +75,7 @@ export class SearchService {
         description: c.description,
         avatarColor: c.avatarColor,
         avatarImage: c.avatarImage,
+        avatarEmoji: c.avatarEmoji,
         subscriberCount: c.memberIds.length,
       }));
 

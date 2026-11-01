@@ -108,6 +108,7 @@ describe("POST /api/communities", () => {
       description: "О нас",
       avatarColor: "#0123456789abcdefghi",
       avatarImage: null,
+      avatarEmoji: null,
       addMode: "all",
       role: "owner",
       isOwner: true,
@@ -183,6 +184,7 @@ describe("POST /api/communities", () => {
         username: null,
         avatarColor: group.avatarColor,
         avatarImage: null,
+        avatarEmoji: null,
         isPublic: false,
         approveJoins: false,
         members: 2,
@@ -240,10 +242,10 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
     expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: hidden.id, visible: false }), communityBody);
 
     const mineA = expectOk(await a.api.get("/api/communities/mine"), mineBody).communities;
-    expect(mineA).toContainEqual({ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, chatCount: 2, addPolicy: "add" });
+    expect(mineA).toContainEqual({ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 2, addPolicy: "add" });
     // Обычный участник при «только админы» может лишь предложить чат.
     const mineB = expectOk(await b.api.get("/api/communities/mine"), mineBody).communities;
-    expect(mineB).toEqual([{ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, chatCount: 2, addPolicy: "suggest" }]);
+    expect(mineB).toEqual([{ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 2, addPolicy: "suggest" }]);
     expect(expectOk(await outsider.api.get("/api/communities/mine"), mineBody).communities).toEqual([]);
 
     const joinedA = expectOk(await a.api.get("/api/communities/joined"), joinedBody).communities.find((x) => x.id === c.id)!;
@@ -253,6 +255,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
       description: null,
       avatarColor: null,
       avatarImage: null,
+      avatarEmoji: null,
       role: "owner",
       isOwner: true,
       rights: OWNER_RIGHTS,
@@ -279,7 +282,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
     const c = await createCommunity(a, { title: "Клуб", chatId: group.id });
 
     expect(expectOk(await a.api.get(`/api/communities/by-chat/${group.id}`), byChatBody)).toEqual({
-      community: { id: c.id, title: "Клуб", avatarColor: null, avatarImage: null, isOwner: true, isMember: true, canRemoveChat: true },
+      community: { id: c.id, title: "Клуб", avatarColor: null, avatarImage: null, avatarEmoji: null, isOwner: true, isMember: true, canRemoveChat: true },
     });
     expect(expectOk(await b.api.get(`/api/communities/by-chat/${group.id}`), byChatBody).community).toMatchObject({
       isOwner: false,
@@ -299,6 +302,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
       title: "Клуб",
       avatarColor: null,
       avatarImage: null,
+      avatarEmoji: null,
       isOwner: false,
       isMember: false,
       canRemoveChat: false,

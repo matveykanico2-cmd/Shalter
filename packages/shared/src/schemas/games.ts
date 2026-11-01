@@ -52,6 +52,7 @@ export const scoresBody = z.strictObject({
       name: z.string(),
       avatarColor: z.string().optional(),
       avatarImage: z.string().optional(),
+      avatarEmoji: z.string().optional(),
     }),
   ),
 });

@@ -45,6 +45,7 @@ function rowToUser(row) {
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
     avatarImages: parseList(row.avatarImages),
+    avatarEmoji: row.avatarEmoji ?? undefined,
     bio: row.bio,
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
@@ -264,7 +265,7 @@ async function createGuestUser() {
   return getUser(id);
 }
 
-const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "avatarEmoji", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
 
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);

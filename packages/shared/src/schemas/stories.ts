@@ -64,6 +64,7 @@ export const channelAuthor = z.strictObject({
   username: z.string().nullable(),
   avatarColor: z.string().optional(),
   avatarImage: z.string().nullable(),
+  avatarEmoji: z.string().nullable(),
   isChannel: z.literal(true),
   canManage: z.boolean(),
 });

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { AVATAR_EMOJI_ERROR, cleanAvatarEmoji } from "../../common/lib/avatar-emoji.js";
 import { genId } from "../../common/lib/gen-id.js";
 import {
   botMessaging,
@@ -147,6 +148,14 @@ export class BotsService {
     const patch: ProfilePatch = {};
     if (dto.name?.trim()) patch.name = dto.name.trim().slice(0, BOT_NAME_MAX);
     if (typeof dto.avatarImage === "string") patch.avatarImage = dto.avatarImage || null;
+    if (dto.avatarEmoji !== undefined) {
+      const emoji = cleanAvatarEmoji(dto.avatarEmoji);
+      if (emoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+      patch.avatarEmoji = emoji;
+    }
+    // Фото и смайл на аватарке взаимоисключают друг друга: новое сменяет прежнее.
+    if (patch.avatarImage && patch.avatarEmoji === undefined) patch.avatarEmoji = null;
+    if (patch.avatarEmoji && patch.avatarImage === undefined) patch.avatarImage = null;
 
     if (dto.username?.trim()) {
       const username = normalizeUsername(dto.username);

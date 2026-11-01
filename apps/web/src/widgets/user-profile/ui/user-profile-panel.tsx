@@ -99,7 +99,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           // Пока профиль грузится — сразу аватар и имя, если человек уже известен (из списка чатов).
           <>
             <div className={styles.avatarRow}>
-              <Avatar size={88} name={known.name} color={known.avatarColor} image={known.avatarImage} />
+              <Avatar size={88} name={known.name} color={known.avatarColor} image={known.avatarImage} emoji={known.avatarEmoji} />
             </div>
             <p className={styles.name} translate="no">{known.name}</p>
           </>
@@ -262,11 +262,11 @@ export function UserProfilePanel({ userId, me }: Props) {
           aria-label="Открыть фото"
           onClick={() => (isSelf || u.avatarImage ? setOverlay("avatars") : undefined)}
         >
-          <Avatar size={88} name={u.name} color={u.avatarColor} image={u.avatarImage} online={u.online} />
+          <Avatar size={88} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={u.online} />
           {avatarCount > 1 ? <span className={styles.avatarCount}>{avatarCount}</span> : null}
         </button>
       </div>
-      {isSelf ? <p className={styles.selfHint}>Так ваш профиль видят другие</p> : null}
+      {isSelf ? <p className={styles.selfHint}>Так ваш профиль видят те, кому это разрешает приватность</p> : null}
       <p className={styles.name} translate="no">
         <EmojiText text={u.name || "Без имени"} />
         {u.isVerified ? (
@@ -434,7 +434,7 @@ export function UserProfilePanel({ userId, me }: Props) {
             data.pinnedChannels.map((c) => (
               // Вся строка открывает канал (там — большая кнопка «Подписаться»).
               <button key={c.id} type="button" className={styles.channelRow} onClick={() => openChannel(c)}>
-                <Avatar size={42} name={c.title} color={c.avatarColor} image={c.avatarImage} />
+                <Avatar size={42} name={c.title} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
                 <span className={styles.channelBody}>
                   <span className={styles.channelTitle}>
                     {c.title}

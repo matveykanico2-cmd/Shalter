@@ -5,7 +5,7 @@ import type { z } from "zod";
 import { http } from "@/shared/api";
 
 export type Bot = z.infer<typeof botListBody>["bots"][number];
-export type BotPatch = { name: string; description: string; username: string; avatarImage: string | null; appName: string; appUrl: string };
+export type BotPatch = { name: string; description: string; username: string; avatarImage: string | null; avatarEmoji: string | null; appName: string; appUrl: string };
 
 const id = encodeURIComponent;
 

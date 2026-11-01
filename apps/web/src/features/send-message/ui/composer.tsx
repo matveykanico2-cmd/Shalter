@@ -385,7 +385,7 @@ export function Composer(props: Props) {
 
   // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
   // (по 10 вложений; подпись — у первого).
-  const sendMedia = async ({ picks, spoiler, paidStars }: MediaSendChoice) => {
+  const sendMedia = async ({ picks, spoiler, paidStars, caption: typedCaption }: MediaSendChoice) => {
     // Платный пост: размытая миниатюра первого фото или видео — её видят до оплаты; готовится, пока идёт загрузка.
     const firstMedia = picks.find((p) => p.kind === "image" || p.kind === "video");
     const blur = paidStars && firstMedia ? blurThumb(firstMedia.file).catch(() => ({})) : null;
@@ -402,7 +402,7 @@ export function Composer(props: Props) {
     if (!uploaded.length) return;
     const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
     const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
-    const caption = latestText.current.trim();
+    const caption = typedCaption.trim();
     const reply = replyTo;
     const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
     setText("");
@@ -805,6 +805,7 @@ export function Composer(props: Props) {
             {!editing && !channel ? (
               <StickerButton
                 chatId={chatId}
+                meId={meId}
                 onSend={(sticker) => {
                   const reply = replyTo;
                   onCancelReply();
@@ -882,7 +883,7 @@ export function Composer(props: Props) {
       {scheduling === "dialog" ? <ScheduleDialog allowWhenOnline={!!props.allowWhenOnline} onSchedule={(c) => void schedule(c)} onClose={() => setScheduling(null)} /> : null}
       {scheduling === "list" ? <ScheduledList chatId={chatId} onClose={() => setScheduling(null)} /> : null}
       {placePicker ? <LocationPicker reason={placePicker.reason} onDone={placePicker.resolve} /> : null}
-      {picked ? <SendMediaDialog files={picked} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
+      {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );
 }

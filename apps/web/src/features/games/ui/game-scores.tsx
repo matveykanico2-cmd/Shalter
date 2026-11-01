@@ -35,7 +35,7 @@ export function GameScores({ game, chatId }: { game: GameRef; chatId: string | n
             scores.data.map((s, i) => (
               <div key={s.userId} className={styles.scoreRow}>
                 <span className={styles.place}>{MEDALS[i] ?? String(i + 1)}</span>
-                <Avatar size={32} name={s.name} color={s.avatarColor} image={s.avatarImage} />
+                <Avatar size={32} name={s.name} color={s.avatarColor} image={s.avatarImage} emoji={s.avatarEmoji} />
                 <span className={styles.scoreName}>{s.name}</span>
                 <b>{s.score}</b>
               </div>

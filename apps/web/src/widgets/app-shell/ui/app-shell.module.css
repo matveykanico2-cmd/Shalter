@@ -35,7 +35,8 @@
 .side {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  /* Выше кнопки «новое сообщение» списка чатов (z-index 5), который остаётся под панелью. */
+  z-index: 6;
   overflow: auto;
   background: var(--color-surface);
 }

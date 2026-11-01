@@ -32,6 +32,8 @@
   padding: 2px;
   border-radius: 999px;
   border: 2px solid transparent;
+  /* Своё наложение: иначе кольцо непросмотренной (z-index: -1) уходит под фон ленты. */
+  isolation: isolate;
 }
 .seen {
   border-color: var(--color-border);
@@ -43,7 +45,7 @@
   z-index: -1;
   border-radius: 999px;
   padding: 2px;
-  background: conic-gradient(from 0deg, #1f1f1f, #3a3a3a, #1f1f1f);
+  background: conic-gradient(from 0deg, var(--color-accent), #36c3ff, #7b61ff, var(--color-accent));
   animation: story-ring-spin 3s linear infinite;
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,

@@ -18,6 +18,8 @@ export const loadLegacyApp = (): LegacyApp => require(path.join(LEGACY_DIR, "app
 // Общая обработка запроса до маршрутов (server/front.js): заголовки, сжатие, cookie,
 // JSON-тело, лимиты. Express 4-приложение, как и старое.
 export const loadLegacyFront = (): RequestHandler & { handle: LegacyHandle } => require(path.join(LEGACY_DIR, "front.js")).front;
+// Чьему X-Forwarded-For верить (SHALTER_TRUSTED_PROXIES) — одна функция на оба бэкенда.
+export const legacyTrustProxy = (): ((addr: string, i: number) => boolean) => require(path.join(LEGACY_DIR, "front.js")).trustProxy;
 type LegacyHandle = (req: IncomingMessage, res: ServerResponse, done: (err?: unknown) => void) => void;
 
 /** Шлюз WebSocket Nest для старого кода: события server/ и фонового процесса идут в него. */

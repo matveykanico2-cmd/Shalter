@@ -115,7 +115,7 @@ export function ContactsView() {
                   <div key={c.userId} className={styles.row}>
                     <button type="button" className={styles.profileButton} onClick={() => openUserProfile(c.userId)}>
                       <span aria-hidden="true">
-                        <Avatar name={displayName(c)} color={c.user.avatarColor} image={c.user.avatarImage} online={c.user.online} size={54} />
+                        <Avatar name={displayName(c)} color={c.user.avatarColor} image={c.user.avatarImage} emoji={c.user.avatarEmoji} online={c.user.online} size={54} />
                       </span>
                       <span className={styles.body}>
                         <span className={styles.name}>{displayName(c)}</span> <span className={styles.status}>Поздравьте!</span>
@@ -173,7 +173,7 @@ function ContactRow({ contact: c, blocked, onOpen, onRename, onWrite, onToggleBl
       <button type="button" className={styles.profileButton} onClick={onOpen}>
         {/* Аватар не входит в имя кнопки: «имя + статус», как у строки в старом клиенте. */}
         <span aria-hidden="true">
-          <Avatar name={displayName(c)} color={user.avatarColor} image={user.avatarImage} online={user.online} size={54} />
+          <Avatar name={displayName(c)} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} online={user.online} size={54} />
         </span>
         <span className={styles.body}>
           <span className={styles.name}>

@@ -9,7 +9,7 @@ export type CallListItem = z.infer<typeof callListItem>;
 export type Signal = z.infer<typeof signal>;
 export type CallKind = "audio" | "video";
 /** Участник звонка — имя и аватар из участников чата или профиля. */
-export type CallPeer = { id: string; name: string; avatarColor?: string | null; avatarImage?: string | null };
+export type CallPeer = { id: string; name: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 
 const id = encodeURIComponent;
 type CallBody = { call: Call };

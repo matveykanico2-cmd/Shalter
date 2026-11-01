@@ -34,7 +34,7 @@ ensureHelperBotAccount();
 const SERVER_STARTED_AT = new Date().toISOString();
 
 const app = express();
-app.set("trust proxy", 1);
+app.set("trust proxy", require("./front").trustProxy);
 app.set("json replacer", require("./lib/publicJson").publicJsonReplacer);
 
 // Заголовки, сжатие, cookie, JSON-тело, лимиты — общие с NestJS (front.js).

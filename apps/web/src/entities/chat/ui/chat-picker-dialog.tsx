@@ -75,7 +75,7 @@ export function ChatPickerDialog({ title, exclude, onSend, onClose }: Props) {
                   <Icon name="Bookmark" size={18} />
                 </span>
               ) : (
-                <Avatar size={36} name={titleOf(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser ? c.otherUser.avatarImage : c.avatarImage} />
+                <Avatar size={36} name={titleOf(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser ? c.otherUser.avatarImage : c.avatarImage} emoji={c.otherUser ? c.otherUser.avatarEmoji : c.avatarEmoji} />
               )}
               <span className={styles.title}>{titleOf(c)}</span>
               <span className={styles.check}>

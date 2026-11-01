@@ -18,6 +18,7 @@ export const createCommunitySchema = requestBody({
   description: raw().transform(cleanDescription),
   avatarColor: raw().transform((v) => (typeof v === "string" ? v.slice(0, 20) : null)),
   avatarImage: raw(),
+  avatarEmoji: raw(),
   addMode: raw().transform((v) => cleanAddMode(v) ?? "all"),
   /** id первого чата; пустое — без чата, не строка — «Чат не найден» в сервисе. */
   chatId: raw(),
@@ -29,6 +30,8 @@ export const patchCommunitySchema = requestBody({
   title: patchField(cleanTitle),
   description: patchField(cleanDescription),
   avatarImage: raw(),
+  /** Смайл вместо аватарки; null или "" — убрать. Проверяет сервис (после проверки права). */
+  avatarEmoji: raw(),
   /** Неизвестный режим — null: 400 в сервисе, но только после проверки права. */
   addMode: patchField((v) => cleanAddMode(v) ?? null),
 });

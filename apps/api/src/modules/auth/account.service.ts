@@ -8,6 +8,7 @@ import { hashPassword, passwordMatches } from "../../common/lib/password.js";
 import { EMAIL_RE, PHONE_RE, normalizeBirthday } from "../../common/lib/validators.js";
 import { checkUsername, deleteAccount, findOrCreateDm, sendMail, sendMessageAndBroadcast } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
+import { UiLanguageService } from "../ui-language/ui-language.service.js";
 import { selfUser } from "../users/lib/user.presenter.js";
 import { isUsernameConflict } from "../users/lib/username.js";
 import type { User } from "../users/model/domain.js";
@@ -33,7 +34,8 @@ export class AccountService {
     private readonly signIn: SignInService,
     private readonly codes: AuthCodesStore,
     private readonly tickets: TwoFactorTicketsStore,
-    private readonly notices: SystemNoticesService
+    private readonly notices: SystemNoticesService,
+    private readonly uiLanguage: UiLanguageService
   ) {}
 
   public async register(req: Request, res: Response, dto: RegisterEmailDto) {
@@ -91,6 +93,8 @@ export class AccountService {
       await this.notifyReferralBonus(referrer.id, user);
     }
 
+    // Язык интерфейса — по стране IP (или языку браузера), пока пользователь не выберет сам.
+    await this.uiLanguage.applyForNewUser(user.id, req);
     this.sessionCookies.addAccount(req, res, user.id);
     await this.signIn.recordSession(req, res, user.id);
     return { user: selfUser(user) };
@@ -116,6 +120,7 @@ export class AccountService {
       lastSeen: new Date().toISOString(),
       isGuest: 1,
     });
+    await this.uiLanguage.applyForNewUser(user.id, req);
     return this.signIn.finishLogin(req, res, user);
   }
 

@@ -1,0 +1,25 @@
+# Прокси Shalter с HTTPS: Caddy (сертификат Let's Encrypt) → прокси → настоящий сервер.
+# Запуск (README.md): PROXY_DOMAIN=proxy.example.net PROXY_SECRET=… docker compose up -d --build
+services:
+  proxy:
+    build: .
+    restart: unless-stopped
+    environment:
+      SHALTER_UPSTREAM: ${SHALTER_UPSTREAM:-https://shalter.ru}
+      PROXY_SECRET: ${PROXY_SECRET:-}
+      PROXY_PUBLIC_URL: https://${PROXY_DOMAIN:?укажите PROXY_DOMAIN}
+      PROXY_TRUST_FORWARDED: "1"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [proxy]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PROXY_DOMAIN: ${PROXY_DOMAIN:?укажите PROXY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+volumes:
+  caddy-data:

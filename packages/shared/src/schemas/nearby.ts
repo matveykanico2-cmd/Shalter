@@ -10,6 +10,7 @@ export const nearbyUser = z.strictObject({
   username: z.string(),
   avatarColor: z.string().nullable(),
   avatarImage: z.string().nullable(),
+  avatarEmoji: z.string().nullable(),
   label: nearbyLabel,
 });
 

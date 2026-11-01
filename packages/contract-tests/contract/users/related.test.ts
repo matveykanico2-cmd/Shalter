@@ -22,7 +22,7 @@ describe("закреплённые каналы", () => {
 
     const pinnable = expectOk(await me.api.get("/api/users/me/pinnable-channels"), pinnableChannelsBody);
     expect(pinnable.channels).toEqual([
-      { id: pub.id, title: "Публичный", username: pub.username, avatarColor: expect.any(String), avatarImage: null, isVerified: false, members: 2, isMember: true },
+      { id: pub.id, title: "Публичный", username: pub.username, avatarColor: expect.any(String), avatarImage: null, avatarEmoji: null, isVerified: false, members: 2, isMember: true },
     ]);
 
     const pinned = expectOk(
@@ -68,7 +68,7 @@ describe("общие группы", () => {
     await createDm(a, b);
 
     const res = expectOk(await a.api.get(`/api/users/${b.id}/common-chats`), commonChatsBody);
-    expect(res.chats).toEqual([{ id: shared.id, title: "Общая", avatarColor: expect.any(String), avatarImage: null, members: 2 }]);
+    expect(res.chats).toEqual([{ id: shared.id, title: "Общая", avatarColor: expect.any(String), avatarImage: null, avatarEmoji: null, members: 2 }]);
     expect((await b.api.get(`/api/users/${a.id}/common-chats`)).body.chats.map((x: any) => x.id)).toEqual([shared.id]);
     expect((await a.api.get(`/api/users/${b.id}`)).body.commonGroupsCount).toBe(1);
     expect(expectOk(await a.api.get(`/api/users/${a.id}/common-chats`), commonChatsBody)).toEqual({ chats: [] });

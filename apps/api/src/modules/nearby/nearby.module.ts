@@ -10,5 +10,7 @@ import { NearbyService } from "./nearby.service.js";
   imports: [UsersModule],
   controllers: [NearbyController, GeoController],
   providers: [NearbyService, NearbyRepository, GeoService],
+  // Страна по IP нужна и языку интерфейса (модуль ui-language).
+  exports: [GeoService],
 })
 export class NearbyModule {}

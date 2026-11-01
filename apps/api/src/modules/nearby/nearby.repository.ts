@@ -25,6 +25,7 @@ export class NearbyRepository {
         username: users.username,
         avatarColor: users.avatarColor,
         avatarImage: users.avatarImage,
+        avatarEmoji: users.avatarEmoji,
         nearbyLat: users.nearbyLat,
         nearbyLng: users.nearbyLng,
         blockedUserIds: users.blockedUserIds,

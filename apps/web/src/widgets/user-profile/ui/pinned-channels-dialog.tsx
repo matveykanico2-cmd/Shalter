@@ -61,7 +61,7 @@ export function PinnedChannelsDialog({ pinned, onSaved, onClose }: Props) {
               const at = shown.indexOf(c.id);
               return (
                 <button key={c.id} type="button" className={at >= 0 ? `${styles.pinnedRow} ${styles.pinnedOn}` : styles.pinnedRow} aria-pressed={at >= 0} onClick={() => toggle(c.id)}>
-                  <Avatar size={36} name={c.title} color={c.avatarColor} image={c.avatarImage} />
+                  <Avatar size={36} name={c.title} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
                   <span className={styles.channelBody}>
                     <span className={styles.channelTitle}>{c.title}</span>
                     <span className={styles.channelSub}>{c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`}</span>

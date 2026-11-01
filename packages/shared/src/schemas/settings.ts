@@ -64,6 +64,8 @@ export const settings = z.strictObject({
   homeWallpaper: z.boolean(),
   translateLanguage: z.string(),
   uiLanguage: z.string(),
+  // true — язык интерфейса по стране IP, пока пользователь не выбрал его сам; нет у настроек из времени до автоязыка.
+  uiLanguageAuto: z.boolean().optional(),
   autoDownload: z.boolean(),
   voiceTranscription: z.boolean(),
   timeFormat: z.union([z.literal(12), z.literal(24)]),

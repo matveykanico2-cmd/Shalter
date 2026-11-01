@@ -11,6 +11,6 @@ export class BootstrapController {
 
   @Get()
   public load(@Req() req: Request) {
-    return this.bootstrap.load(req.uid!, req.cookies?.device_id ?? null);
+    return this.bootstrap.load(req.uid!, req.cookies?.device_id ?? null, req);
   }
 }

@@ -83,15 +83,41 @@ describe("строка чата", () => {
     expect(row.querySelector('img[src="/uploads/p.jpg"]')).toBeTruthy();
   });
 
-  it("значок звука виден всегда: динамик, у заглушённого — перечёркнутый", () => {
+  it("перечёркнутый динамик — только у заглушённого чата, как в Telegram", () => {
     renderRow(chat());
     const row = screen.getByRole("button", { name: /Дача/ });
-    expect(row.querySelector('[data-icon="Volume"]')).toBeTruthy();
+    expect(row.querySelector('[data-icon="Volume"]')).toBeNull();
     expect(row.querySelector('[data-icon="VolumeOff"]')).toBeNull();
     cleanup();
     renderRow(chat({ muted: true }));
     const muted = screen.getByRole("button", { name: /Дача/ });
     expect(muted.querySelector('[data-icon="VolumeOff"]')).toBeTruthy();
     expect(muted.querySelector('[data-icon="BellOff"]')).toBeNull();
+  });
+
+  it("долгое нажатие пальцем по строке открывает меню чата (iPhone не шлёт contextmenu)", () => {
+    vi.useFakeTimers();
+    try {
+      const onMenu = vi.fn();
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      fakeApi({});
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <ChatRow chat={chat()} meId={ME} onMenu={onMenu} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const row = screen.getByRole("button", { name: /Дача/ });
+      fireEvent.pointerDown(row.querySelector("span") ?? row, { pointerType: "touch", clientX: 10, clientY: 10 });
+      vi.advanceTimersByTime(500);
+      expect(onMenu).toHaveBeenCalledTimes(1);
+      // По «⋮» удержание не срабатывает — у неё своё меню.
+      fireEvent.pointerDown(screen.getByTitle("Действия с чатом"), { pointerType: "touch", clientX: 10, clientY: 10 });
+      vi.advanceTimersByTime(500);
+      expect(onMenu).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

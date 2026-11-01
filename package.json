@@ -37,7 +37,8 @@
     "test:contract": "npm run test:contract -w @shalter/contract-tests --",
     "test:contract:watch": "npm run test:contract:watch -w @shalter/contract-tests --",
     "test:e2e": "npm run test:e2e -w @shalter/contract-tests --",
-    "test:types": "npm run test:types -w @shalter/contract-tests"
+    "test:types": "npm run test:types -w @shalter/contract-tests",
+    "test:proxy": "npm test -w @shalter/proxy"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",

@@ -12,7 +12,7 @@ import styles from "./manage-contacts.module.css";
 
 type Props = { contacts: readonly ContactItem[]; onAdded: () => void };
 
-type Candidate = { id: string; name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null };
+type Candidate = { id: string; name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 
 const NAME_DRAFT_KEY = "contact-add-name-draft";
 
@@ -192,7 +192,7 @@ export function AddContactPanel({ contacts, onAdded }: Props) {
         {error ? <p className={styles.emptyHint}>{error}</p> : null}
         {result ? (
           <button type="button" className={styles.candidate} onClick={() => void confirmAdd(result)}>
-            <Avatar name={result.name} color={result.avatarColor} image={result.avatarImage} size={32} />
+            <Avatar name={result.name} color={result.avatarColor} image={result.avatarImage} emoji={result.avatarEmoji} size={32} />
             <span className={styles.candidateName}>{result.name}</span>
             {result.username ? <span className={styles.candidateUsername}>@{result.username}</span> : null}
           </button>

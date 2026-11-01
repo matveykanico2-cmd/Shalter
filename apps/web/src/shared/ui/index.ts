@@ -9,6 +9,7 @@ export { type Choice, ChoiceDialog } from "./choice-dialog";
 export { DateField } from "./date-field";
 export { Dialog } from "./dialog";
 export { DomNode } from "./dom-node";
+export { EmojiAvatarPicker } from "./emoji-avatar-picker";
 export { EmojiText } from "./emoji-text";
 export { Icon, type IconName } from "./icon";
 export { InfoRow } from "./info-row";

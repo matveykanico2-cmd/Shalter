@@ -13,6 +13,7 @@ import { bootstrapQuery, persistChats, restoreCachedChats } from "../model/boots
 import { useAppearance } from "../model/use-appearance";
 import { useMessageSounds } from "../model/use-message-sounds";
 import { useRealtime } from "../model/use-realtime";
+import { useGuestUiTranslation } from "../model/use-ui-translation";
 
 import { AppRoutes } from "./app-routes";
 import { AppServices } from "./app-services";
@@ -61,8 +62,11 @@ export function GuestOnly() {
   const { data, isPending } = useSession();
   useHideSplash(!isPending);
   const [params] = useSearchParams();
+  const signedIn = !!data?.user && params.get("add") !== "1";
+  // Без входа — экраны на языке страны (с ?add=1 язык уже выбран в аккаунте).
+  useGuestUiTranslation(!isPending && !data?.user);
   if (isPending) return <Splash />;
-  if (data?.user && params.get("add") !== "1") return <Navigate to="/" replace />;
+  if (signedIn) return <Navigate to="/" replace />;
   return <SignInView />;
 }
 

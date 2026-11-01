@@ -130,6 +130,8 @@
 }
 
 .radio {
+  display: inline-block;
+  box-sizing: border-box;
   width: 20px;
   height: 20px;
   flex-shrink: 0;

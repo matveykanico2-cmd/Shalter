@@ -380,6 +380,8 @@
   height: 0;
   padding: 0;
   overflow: visible;
+  /* Иначе flex растягивает кнопку до высоты 0: фон — полоска, текст под ней. */
+  align-items: flex-start;
 }
 
 .stickyDay button {

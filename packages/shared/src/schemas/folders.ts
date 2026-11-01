@@ -24,6 +24,7 @@ export const folderInvite = z.strictObject({
       username: z.string().optional(),
       avatarColor: z.string().optional(),
       avatarImage: z.string().optional(),
+      avatarEmoji: z.string().optional(),
     })
   ),
 });

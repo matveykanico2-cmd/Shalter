@@ -40,6 +40,7 @@ export const channelCard = z.strictObject({
   username: z.string().nullable(),
   avatarColor: z.string().nullable(),
   avatarImage: z.string().nullable(),
+  avatarEmoji: z.string().nullable(),
   isVerified: z.boolean(),
   members: z.number().int().nonnegative(),
   isMember: z.boolean(),
@@ -82,6 +83,7 @@ export const commonChatsBody = z.strictObject({
       title: z.string(),
       avatarColor: z.string().nullable(),
       avatarImage: z.string().nullable(),
+      avatarEmoji: z.string().nullable(),
       members: z.number().int().nonnegative(),
     })
   ),

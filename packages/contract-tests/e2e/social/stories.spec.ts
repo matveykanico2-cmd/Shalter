@@ -17,7 +17,7 @@ import type { TestUser } from "../support/fixtures";
 async function postStoryViaUi(page: Page) {
   await page.getByRole("button", { name: /Выложить историю$/ }).click();
   await chooseFile(page, () => page.getByTitle("История", { exact: true }).click(), { name: "закат.png", mimeType: "image/png", buffer: solidPng(120, 200) });
-  await expect(page.getByText("Выбрано 1 файлов")).toBeVisible();
+  await expect(page.getByText("Выбрано 1 файл")).toBeVisible();
   await page.getByRole("button", { name: "Опубликовать историю", exact: true }).click();
   const done = page.getByRole("button", { name: "Готово", exact: true });
   await expect(done).toBeVisible();

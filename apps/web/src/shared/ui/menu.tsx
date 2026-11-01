@@ -45,6 +45,10 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
     closeRef.current = onClose;
   });
   const focusOnOpen = useRef(autoFocus);
+  // Меню, открытое удержанием пальца, появляется под ним: «click» от отпускания попадал в
+  // первый пункт («Ответить») и закрывал меню. Пункт срабатывает, только если нажатие
+  // началось внутри меню (клавиатура — detail 0 — всегда).
+  const pressedInside = useRef(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   // Меню не выходит за край окна: у правого и нижнего края открывается влево и вверх.
@@ -102,7 +106,17 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
   return createPortal(
     <>
       {sheet ? <div className={styles.backdrop} /> : null}
-      <div ref={ref} className={[styles.menu, sheet ? styles.sheet : "", wide ? styles.wide : ""].filter(Boolean).join(" ")} style={style} role="menu" aria-label={label} onKeyDown={onKeyDown}>
+      <div
+        ref={ref}
+        className={[styles.menu, sheet ? styles.sheet : "", wide ? styles.wide : ""].filter(Boolean).join(" ")}
+        style={style}
+        role="menu"
+        aria-label={label}
+        onKeyDown={onKeyDown}
+        onPointerDown={() => {
+          pressedInside.current = true;
+        }}
+      >
         {header}
         {items.length ? (
         <div className={styles.list}>
@@ -112,7 +126,8 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
                 key={item.label}
                 type="button"
                 className={item.danger ? `${styles.item} ${styles.danger}` : styles.item}
-                onClick={() => {
+                onClick={(e) => {
+                  if (e.detail !== 0 && !pressedInside.current) return;
                   onClose();
                   item.onClick?.();
                 }}

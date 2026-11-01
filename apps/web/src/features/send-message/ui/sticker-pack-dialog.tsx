@@ -6,7 +6,7 @@ import { renderSticker, SCENES, sceneSummaryEmoji, type Sticker } from "@/shared
 import { errorText } from "@/shared/lib/error-text";
 import { AnimatorDialog, Button, Dialog, DomNode, Icon } from "@/shared/ui";
 
-import { createStickerPack, deleteStickerPack, type StickerPack, stickerPackQueries, updateStickerPack } from "../api/sticker-packs";
+import { createStickerPack, deleteStickerPack, type StickerPack, stickerPackQueries, uninstallStickerPack, updateStickerPack } from "../api/sticker-packs";
 import { prepareStickerImage } from "../lib/sticker-image";
 
 import styles from "./drawing.module.css";
@@ -29,11 +29,12 @@ type Animating = { index: number | null };
  * «Стикерпаки» — public/js/components/stickerPackDialog.js: список своих паков, создание и
  * правка (картинки, рисунок, своя анимация, эмодзи со сценой), удаление.
  */
-export function StickerPackDialog({ onClose }: { onClose: () => void }) {
+export function StickerPackDialog({ meId, onClose }: { meId: string; onClose: () => void }) {
   const client = useQueryClient();
   const packs = useQuery(stickerPackQueries.list());
   const [editing, setEditing] = useState<Editing | null>(null);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,12 +51,14 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
   const startNew = () => {
     setEditing({ id: null });
     setName("");
+    setDescription("");
     setStickers([]);
     setError(null);
   };
   const startEdit = (pack: StickerPack) => {
     setEditing({ id: pack.id });
     setName(pack.name);
+    setDescription(pack.description ?? "");
     setStickers(pack.stickers.map((s) => ({ ...s })));
     setError(null);
   };
@@ -67,14 +70,25 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      if (editing.id) await updateStickerPack(editing.id, { name, stickers });
-      else await createStickerPack({ name, stickers });
+      if (editing.id) await updateStickerPack(editing.id, { name, description, stickers });
+      else await createStickerPack({ name, description, stickers });
       await refresh();
       setEditing(null);
     } catch (err) {
       setError(errorText(err, "Не удалось сохранить"));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const ownPacks = (packs.data ?? []).filter((p) => p.ownerId === meId);
+  const addedPacks = (packs.data ?? []).filter((p) => p.ownerId !== meId);
+  const removeAdded = async (pack: StickerPack) => {
+    try {
+      await uninstallStickerPack(pack.id);
+      await refresh();
+    } catch (err) {
+      setError(errorText(err, "Не удалось убрать пак"));
     }
   };
 
@@ -141,6 +155,15 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
           {editing ? (
             <>
               <input className={styles.input} placeholder="Название пака" aria-label="Название пака" value={name} onChange={(e) => setName(e.target.value)} />
+              <textarea
+                className={styles.input}
+                placeholder="Описание (необязательно)"
+                aria-label="Описание пака"
+                value={description}
+                maxLength={200}
+                rows={2}
+                onChange={(e) => setDescription(e.target.value)}
+              />
               <p className={styles.fieldLabel}>Стикеры ({stickers.length})</p>
               {stickers.length ? (
                 <div className={styles.packGrid}>
@@ -208,9 +231,9 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             <>
-              {packs.data?.length ? (
+              {ownPacks.length ? (
                 <div className={styles.packList}>
-                  {packs.data.map((p) => (
+                  {ownPacks.map((p) => (
                     <div key={p.id} className={styles.packRow}>
                       <button type="button" className={styles.packOpen} onClick={() => startEdit(p)}>
                         <span className={styles.packPreview}>
@@ -231,6 +254,31 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
                 </div>
               ) : packs.isError ? null : packs.data ? (
                 <p className={styles.empty}>У вас пока нет своих паков</p>
+              ) : null}
+              {addedPacks.length ? (
+                <>
+                  <p className={styles.fieldLabel}>Добавленные</p>
+                  <div className={styles.packList}>
+                    {addedPacks.map((p) => (
+                      <div key={p.id} className={styles.packRow}>
+                        <span className={styles.packOpen}>
+                          <span className={styles.packPreview}>
+                            {p.stickers.slice(0, 4).map((s, i) => (
+                              <DomNode key={i} create={() => renderSticker(s, { size: 22 })} />
+                            ))}
+                          </span>
+                          <span className={styles.packMeta}>
+                            <span className={styles.packName}>{p.name}</span>
+                            <span className={styles.packCount}>{p.stickers.length} шт.</span>
+                          </span>
+                        </span>
+                        <button type="button" className={styles.iconButton} title="Убрать" aria-label={`Убрать «${p.name}»`} onClick={() => void removeAdded(p)}>
+                          <Icon name="X" size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : null}
               {error || packs.isError ? (
                 <p className={styles.error} role="alert">

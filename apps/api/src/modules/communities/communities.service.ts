@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { AVATAR_EMOJI_ERROR, cleanAvatarEmoji } from "../../common/lib/avatar-emoji.js";
 import { genId } from "../../common/lib/gen-id.js";
 import { usesForeignUpload } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
@@ -39,6 +40,7 @@ export class CommunitiesService {
           title: c.title,
           avatarColor: c.avatarColor ?? null,
           avatarImage: c.avatarImage ?? null,
+          avatarEmoji: c.avatarEmoji ?? null,
           chatCount: c.chatIds.length,
           addPolicy: this.access.addPolicy(c, uid),
         }))
@@ -58,6 +60,7 @@ export class CommunitiesService {
           description: c.description ?? null,
           avatarColor: c.avatarColor ?? null,
           avatarImage: c.avatarImage ?? null,
+          avatarEmoji: c.avatarEmoji ?? null,
           role: this.access.roleOf(c, uid),
           isOwner: c.ownerId === uid,
           rights,
@@ -82,6 +85,7 @@ export class CommunitiesService {
         title: community.title,
         avatarColor: community.avatarColor ?? null,
         avatarImage: community.avatarImage ?? null,
+        avatarEmoji: community.avatarEmoji ?? null,
         isOwner: community.ownerId === uid,
         isMember: !!this.access.roleOf(community, uid),
         // Убрать чат может тот, кто управляет чатами сообщества, или админ самого чата.
@@ -94,13 +98,17 @@ export class CommunitiesService {
     const first = dto.chatId ? this.access.addableChat(dto.chatId, uid) : null;
     const avatarImage = cleanAvatarImage(dto.avatarImage);
     if (avatarImage === undefined || usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
+    const avatarEmoji = dto.avatarEmoji === undefined ? null : cleanAvatarEmoji(dto.avatarEmoji);
+    if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
     const community = this.communities.create({
       id: genId("cm"),
       ownerId: uid,
       title: dto.title,
       description: dto.description,
       avatarColor: dto.avatarColor,
+      // Фото и смайл взаимоисключают друг друга: при обоих остаётся фото.
       avatarImage,
+      avatarEmoji: avatarImage ? null : avatarEmoji,
       addMode: dto.addMode,
     });
     if (first) await this.access.linkChat(community, first, { visible: dto.chatVisible, addedBy: uid });
@@ -117,7 +125,7 @@ export class CommunitiesService {
     const community = this.access.load(id, uid);
     const rights = this.access.rightsOf(community, uid);
     const patch: CommunityPatch = {};
-    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarImage !== undefined;
+    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined;
     if (infoTouched && !rights.editInfo) throw new ApiError(403, "Нет права менять информацию о сообществе");
     if (dto.title !== undefined) {
       if (!dto.title) throw new ApiError(400, "Введите название сообщества");
@@ -129,6 +137,14 @@ export class CommunitiesService {
       if (avatarImage === undefined || usesForeignUpload(uid, avatarImage, community.avatarImage)) throw new ApiError(400, "Некорректное изображение");
       patch.avatarImage = avatarImage;
     }
+    if (dto.avatarEmoji !== undefined) {
+      const avatarEmoji = cleanAvatarEmoji(dto.avatarEmoji);
+      if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+      patch.avatarEmoji = avatarEmoji;
+    }
+    // Фото и смайл на аватарке взаимоисключают друг друга: новое сменяет прежнее.
+    if (patch.avatarImage && patch.avatarEmoji === undefined) patch.avatarEmoji = null;
+    if (patch.avatarEmoji && patch.avatarImage === undefined) patch.avatarImage = null;
     if (dto.addMode !== undefined) {
       if (!rights.editChats) throw new ApiError(403, "Нет права менять список чатов");
       if (!dto.addMode) throw new ApiError(400, "Некорректный режим добавления чатов");

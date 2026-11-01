@@ -35,6 +35,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "privacy", label: "Конфиденциальность", icon: "Lock", color: "grey", group: "main", load: () => import("@/features/privacy-settings").then((m) => ({ default: m.PrivacySection })) },
   { id: "appearance", label: "Внешний вид", icon: "Palette", color: "orange", group: "main", load: () => import("@/features/appearance-settings").then((m) => ({ default: m.AppearanceSection })) },
   { id: "folders", label: "Папки с чатами", icon: "Folder", color: "blue", group: "main", load: () => import("@/features/chat-folders").then((m) => ({ default: m.FoldersSection })) },
+  { id: "proxy", label: "Прокси", icon: "Shield", color: "green", group: "main", load: () => import("@/features/proxy-settings").then((m) => ({ default: m.ProxySection })) },
   { id: "devices", label: "Устройства", icon: "Monitor", color: "blue", group: "main", load: () => import("../ui/sections/devices-section").then((m) => ({ default: m.DevicesSection })) },
   { id: "accounts", label: "Аккаунты", icon: "Accounts", color: "purple", group: "main", load: () => import("../ui/sections/accounts-section").then((m) => ({ default: m.AccountsSection })) },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "orange", group: "main", load: () => import("../ui/sections/shortcuts-section").then((m) => ({ default: m.ShortcutsSection })) },

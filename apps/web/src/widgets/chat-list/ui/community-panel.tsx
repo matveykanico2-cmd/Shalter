@@ -204,7 +204,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
 
   const otherRow = (c: CommunityChat) => (
     <div key={c.id} className={styles.otherChat}>
-      <Avatar size={54} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+      <Avatar size={54} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
       <span className={styles.body}>
         <span className={styles.line}>
           <span className={styles.title}>{c.title}</span>

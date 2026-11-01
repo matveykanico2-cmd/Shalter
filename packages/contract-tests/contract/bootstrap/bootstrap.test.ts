@@ -30,6 +30,7 @@ describe("GET /api/bootstrap", () => {
       hiddenChats: {},
       chatWallpapers: {},
       uiLanguage: "ru",
+      uiLanguageAuto: true,
     });
   });
 

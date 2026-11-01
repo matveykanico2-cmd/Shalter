@@ -68,6 +68,7 @@ export const users = sqliteTable("users", {
   nearbyUpdatedAt: text(),
   adminSections: text().default("[]").notNull(),
   profileTrack: text(),
+  avatarEmoji: text(),
 });
 
 export const chats = sqliteTable("chats", {
@@ -422,7 +423,18 @@ export const stickerPacks = sqliteTable("sticker_packs", {
   name: text().notNull(),
   stickers: text().default("[]").notNull(),
   createdAt: text().notNull(),
+  description: text().default("").notNull(),
 });
+
+export const stickerPackInstalls = sqliteTable(
+  "sticker_pack_installs",
+  {
+    userId: text().notNull(),
+    packId: text().notNull(),
+    addedAt: text().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.packId], name: "sticker_pack_installs_userId_packId_pk" })]
+);
 
 export const customEmoji = sqliteTable("custom_emoji", {
   id: text().primaryKey(),
@@ -830,6 +842,7 @@ export const communities = sqliteTable("communities", {
   avatarImage: text(),
   addMode: text().default("all").notNull(),
   createdAt: text().notNull(),
+  avatarEmoji: text(),
 });
 
 export const communityChats = sqliteTable("community_chats", {
@@ -917,3 +930,8 @@ export const partnerProfiles = sqliteTable("partner_profiles", {
 (table) => [
   primaryKey({ columns: [table.id], name: "partner_profiles_id_pk" }),
 ]);
+
+export const mediaBackfill = sqliteTable("media_backfill", {
+  messageId: text().primaryKey(),
+  queuedAt: text().notNull(),
+});

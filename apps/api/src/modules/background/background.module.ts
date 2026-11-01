@@ -6,6 +6,7 @@ import { UsersModule } from "../users/users.module.js";
 import { BackgroundJobsRepository } from "./background-jobs.repository.js";
 import { BackgroundService } from "./background.service.js";
 import { JobRunnerService } from "./job-runner.service.js";
+import { MediaBackfillRepository } from "./media-backfill.repository.js";
 import { MediaJobsService } from "./media-jobs.service.js";
 import { GreetingsRepository } from "./greetings.repository.js";
 import { RemindersRepository } from "./reminders.repository.js";
@@ -14,6 +15,7 @@ import { AccountDeletionSweep } from "./sweeps/account-deletion.sweep.js";
 import { AutoDeleteSweep } from "./sweeps/auto-delete.sweep.js";
 import { BirthdaysSweep } from "./sweeps/birthdays.sweep.js";
 import { HolidaysSweep } from "./sweeps/holidays.sweep.js";
+import { MediaBackfillSweep } from "./sweeps/media-backfill.sweep.js";
 import { RemindersSweep } from "./sweeps/reminders.sweep.js";
 
 // Фоновая работа: очередь задач (background_jobs) и обходы по таймеру. Модуль подключают и
@@ -32,6 +34,8 @@ import { RemindersSweep } from "./sweeps/reminders.sweep.js";
     AccountDeletionSweep,
     BirthdaysSweep,
     HolidaysSweep,
+    MediaBackfillSweep,
+    MediaBackfillRepository,
     BackgroundJobsRepository,
     RemindersRepository,
     GreetingsRepository,

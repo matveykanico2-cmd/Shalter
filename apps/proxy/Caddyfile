@@ -1,0 +1,7 @@
+# Caddy перед прокси: сам получает и продлевает сертификат Let's Encrypt для PROXY_DOMAIN.
+# X-Forwarded-For/-Proto Caddy ставит сам, Host оставляет — поэтому у прокси PROXY_TRUST_FORWARDED=1.
+{$PROXY_DOMAIN} {
+	reverse_proxy proxy:8080 {
+		flush_interval -1
+	}
+}

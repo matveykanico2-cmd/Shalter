@@ -22,7 +22,7 @@ export function AccountsSection() {
         {accounts.map((a) => (
           <div key={a.id} className={accountStyles.row}>
             <button type="button" className={accountStyles.main} onClick={() => (a.id === me.id ? undefined : void switchAccount(a.id, { to: "/" }))}>
-              <Avatar name={a.name || a.phone || "?"} color={a.avatarColor} image={a.avatarImage} size={42} />
+              <Avatar name={a.name || a.phone || "?"} color={a.avatarColor} image={a.avatarImage} emoji={a.avatarEmoji} size={42} />
               <span className={accountStyles.body}>
                 <span className={accountStyles.title}>{a.name || a.phone || a.email}</span>
                 <span className={accountStyles.subtitle}>{a.id === me.id ? "текущий аккаунт" : a.phone || a.email}</span>

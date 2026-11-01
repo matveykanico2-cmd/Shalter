@@ -23,7 +23,7 @@ export class CommunitiesRepository {
   }
 
   /** Новое сообщество; владелец — первый участник. */
-  public create(c: { id: string; ownerId: string; title: string; description: string; avatarColor: string | null; avatarImage: string | null; addMode: string }): Community {
+  public create(c: { id: string; ownerId: string; title: string; description: string; avatarColor: string | null; avatarImage: string | null; avatarEmoji?: string | null; addMode: string }): Community {
     const now = new Date().toISOString();
     this.db.transaction((tx) => {
       tx.insert(communities)
@@ -34,6 +34,7 @@ export class CommunitiesRepository {
           description: c.description || null,
           avatarColor: c.avatarColor ?? null,
           avatarImage: c.avatarImage ?? null,
+          avatarEmoji: c.avatarEmoji ?? null,
           addMode: ADD_MODES.has(c.addMode) ? c.addMode : "all",
           createdAt: now,
         })
@@ -46,13 +47,14 @@ export class CommunitiesRepository {
   public update(id: string, patch: CommunityPatch): Community | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
-    const { title, description, avatarImage, addMode } = patch;
+    const { title, description, avatarImage, avatarEmoji, addMode } = patch;
     this.db
       .update(communities)
       .set({
         title: title ?? existing.title,
         description: description === undefined ? (existing.description ?? null) : description || null,
         avatarImage: avatarImage === undefined ? (existing.avatarImage ?? null) : avatarImage || null,
+        avatarEmoji: avatarEmoji === undefined ? (existing.avatarEmoji ?? null) : avatarEmoji || null,
         addMode: addMode === undefined ? existing.addMode : ADD_MODES.has(addMode) ? addMode : existing.addMode,
       })
       .where(eq(communities.id, id))
@@ -284,6 +286,7 @@ export class CommunitiesRepository {
       description: row.description ?? undefined,
       avatarColor: row.avatarColor ?? undefined,
       avatarImage: row.avatarImage ?? undefined,
+      avatarEmoji: row.avatarEmoji ?? undefined,
       addMode: ADD_MODES.has(row.addMode) ? (row.addMode as Community["addMode"]) : "all",
       createdAt: row.createdAt,
       chatIds: chats.map((c) => c.chatId),

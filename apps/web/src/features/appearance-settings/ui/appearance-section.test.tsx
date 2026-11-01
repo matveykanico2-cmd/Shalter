@@ -37,3 +37,49 @@ describe("«Внешний вид» → «Формат времени»", () => 
     expect(select.value).toBe("12");
   });
 });
+
+describe("«Внешний вид» → «Язык интерфейса»", () => {
+  const base = { theme: "system", fontSize: 16, accent: null, chatWallpaper: null, translateLanguage: "ru", timeFormat: 24 };
+
+  function renderWith(settings: Record<string, unknown>) {
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    const api = fakeApi({ "PATCH /api/settings": (patch) => ({ body: { settings: { ...settings, ...patch } } }) });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionQueries.current().queryKey, { user: { id: "u_me0000001", name: "Я" } } as never);
+    client.setQueryData(settingsQueries.current().queryKey, settings as never);
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AppearanceSection />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    return { api, reload, select: screen.getByRole("combobox", { name: "Язык интерфейса" }) as HTMLSelectElement };
+  }
+
+  it("автоматический режим — выбрано «Автоматически (по региону)»; выбор языка выключает его", async () => {
+    const { api, reload, select } = renderWith({ ...base, uiLanguage: "de", uiLanguageAuto: true });
+    expect(select.selectedOptions[0]?.textContent).toBe("Автоматически (по региону)");
+    fireEvent.change(select, { target: { value: "en" } });
+    await waitFor(() => expect(api.calls.find((c) => c.key === "PATCH /api/settings")?.body).toEqual({ uiLanguage: "en" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it("язык выбран сам — виден он; «Автоматически (по региону)» включает автоматику снова", async () => {
+    const { api, reload, select } = renderWith({ ...base, uiLanguage: "en", uiLanguageAuto: false });
+    expect(select.value).toBe("en");
+    fireEvent.change(select, { target: { value: "auto" } });
+    await waitFor(() => expect(api.calls.find((c) => c.key === "PATCH /api/settings")?.body).toEqual({ uiLanguageAuto: true }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it("настройки без флага: русский — автоматически, другой язык — выбран сам; язык не из списка тоже показан", () => {
+    expect(renderWith({ ...base, uiLanguage: "ru" }).select.value).toBe("auto");
+    cleanup();
+    expect(renderWith({ ...base, uiLanguage: "fr" }).select.value).toBe("fr");
+    cleanup();
+    const { select } = renderWith({ ...base, uiLanguage: "uz", uiLanguageAuto: false });
+    expect(select.value).toBe("uz");
+  });
+});

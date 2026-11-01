@@ -31,8 +31,31 @@
   border-top: 1px solid var(--color-border);
 }
 
-.heading {
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   margin: 0 0 6px;
+}
+
+.headingAction {
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.headingAction:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.heading {
+  margin: 0;
   color: var(--color-muted);
   font-size: 11px;
   font-weight: 600;
@@ -199,4 +222,17 @@
 .saveButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.detailDescription {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
 }

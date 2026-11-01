@@ -33,7 +33,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
       <div className={styles.card}>
         <p className={styles.kind}>{kind}</p>
         <div className={styles.avatar}>
-          <Avatar size={132} name={other?.name ?? "?"} color={other?.avatarColor} image={other?.avatarImage} />
+          <Avatar size={132} name={other?.name ?? "?"} color={other?.avatarColor} image={other?.avatarImage} emoji={other?.avatarEmoji} />
         </div>
         <p className={styles.name}>{other?.name ?? "Звонок"}</p>
         <p className={styles.hint}>{other?.username ? `@${other.username}` : "Звонит…"}</p>

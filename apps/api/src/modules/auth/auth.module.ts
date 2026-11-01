@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import { SessionsModule } from "../sessions/sessions.module.js";
+import { UiLanguageModule } from "../ui-language/ui-language.module.js";
 import { UsersModule } from "../users/users.module.js";
 import { AccountController } from "./account.controller.js";
 import { AccountService } from "./account.service.js";
@@ -26,7 +27,7 @@ import { TwoFactorService } from "./two-factor.service.js";
 // модуль глобальный.
 @Global()
 @Module({
-  imports: [SessionsModule, UsersModule],
+  imports: [SessionsModule, UsersModule, UiLanguageModule],
   controllers: [AuthController, AccountController, TwoFactorController, PasskeysController, RecoveryController],
   providers: [
     AuthService,

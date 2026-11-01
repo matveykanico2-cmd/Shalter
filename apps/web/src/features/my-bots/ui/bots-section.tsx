@@ -95,7 +95,7 @@ export function BotsSection() {
       <div className={styles.list}>
         {bots?.map((b) => (
           <div key={b.id} className={styles.row}>
-            <Avatar name={b.user.name} color={b.user.avatarColor} image={b.user.avatarImage} size={32} />
+            <Avatar name={b.user.name} color={b.user.avatarColor} image={b.user.avatarImage} emoji={b.user.avatarEmoji} size={32} />
             <div className={styles.rowBody}>
               <p className={styles.rowName}>{b.user.name}</p>
               <p className={`${styles.hint} ${styles.mono}`}>@{b.user.username}</p>

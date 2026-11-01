@@ -1,13 +1,12 @@
 // Сообщение из 1–3 эмодзи — крупно (jumboEmojiCount в messageBubble.js).
+import { graphemes } from "@/shared/lib/graphemes";
+
 const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
 const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
 
 const isEmojiGrapheme = (g: string) => EXTENDED_PICTOGRAPHIC_RE.test(g) || FLAG_RE.test(g);
 
-export function graphemes(text: string) {
-  if (typeof Intl === "undefined" || !Intl.Segmenter) return [...text];
-  return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((s) => s.segment);
-}
+export { graphemes };
 
 /** 0 — обычный текст, 1–3 — столько эмодзи, ничего больше. */
 export function jumboEmojiCount(text: string | null | undefined) {

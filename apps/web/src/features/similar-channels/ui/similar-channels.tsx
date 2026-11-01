@@ -43,7 +43,7 @@ export function SimilarChannels({ chatId }: { chatId: string }) {
         {channels.map((c) => (
           <button key={c.id} type="button" className={styles.channel} title={c.title ?? ""} onClick={() => void open(c)}>
             <span className={styles.avatar}>
-              <Avatar size={56} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+              <Avatar size={56} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
               <span className={styles.count}>
                 <Icon name="Users" size={10} />
                 {compactCount(c.subscriberCount)}

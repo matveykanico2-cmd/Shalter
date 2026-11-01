@@ -61,6 +61,7 @@ describe("GET /api/settings", () => {
       homeWallpaper: false,
       translateLanguage: "ru",
       uiLanguage: "ru",
+      uiLanguageAuto: true,
       autoDownload: true,
       voiceTranscription: false,
       timeFormat: 24,

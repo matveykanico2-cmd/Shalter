@@ -40,6 +40,7 @@ import { MessagesRepository } from "./messages.repository.js";
 import { PaidMediaRepository } from "./paid-media.repository.js";
 import type { ForwardedFrom, Message } from "./model/domain.js";
 import type { ChatMessageDto, SendMessageDto } from "./model/schemas/message.schema.js";
+import { StickerPacksService } from "../stickers/sticker-packs.service.js";
 
 /**
  * Поля сообщения из запроса. Проверка (gate) заменяет в нём пересылаемое содержимым
@@ -71,8 +72,16 @@ export class MessageSendService {
     private readonly userSettings: UserSettingsService,
     private readonly stars: StarsRepository,
     private readonly privacy: UserPrivacyService,
-    private readonly paidMedia: PaidMediaRepository
+    private readonly paidMedia: PaidMediaRepository,
+    private readonly stickerPacks: StickerPacksService
   ) {}
+
+  /** Стикер после sanitizeSticker и, если он из стикерпака, — с packId (клик в ленте открывает пак). */
+  private stickerOf(raw: unknown) {
+    const sticker = sanitizers().sanitizeSticker(raw);
+    const packId = this.stickerPacks.packIdFor(raw, sticker);
+    return sticker && packId ? { ...sticker, packId } : sticker;
+  }
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
   public async send(uid: string, chat: Chat, dto: ChatMessageDto) {
@@ -306,7 +315,7 @@ export class MessageSendService {
       storyReply: sanitizeStoryReply(body.storyReply),
       attachments: paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments)),
       forwardedFrom,
-      sticker: clean.sanitizeSticker(body.sticker),
+      sticker: this.stickerOf(body.sticker),
       customEmoji: sanitizeMessageEmoji(body.customEmoji),
       readByIds: [senderId],
       paidStars,

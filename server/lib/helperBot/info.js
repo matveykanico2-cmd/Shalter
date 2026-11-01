@@ -39,12 +39,21 @@ const commands = {
 
   async lang(ctx) {
     const { getSettings, updateSettings } = require("../../data/settings");
+    const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../unsupportedLanguages");
     const code = ctx.argv[0];
     if (!code) {
       const settings = await getSettings(ctx.senderId);
-      return `🌐 Текущий язык интерфейса: ${settings.uiLanguage}.\nЧтобы сменить: /lang ru (или любой другой код языка)`;
+      // Без флага (настройки до автоязыка) русский считается невыбранным — как isUiLanguageAuto в apps/api.
+      const auto = typeof settings.uiLanguageAuto === "boolean" ? settings.uiLanguageAuto : (settings.uiLanguage ?? "ru") === "ru";
+      return `🌐 Текущий язык интерфейса: ${settings.uiLanguage}${auto ? " (автоматически, по региону)" : ""}.\nЧтобы сменить: /lang ru (или любой другой код языка), по региону — /lang auto`;
     }
-    await updateSettings(ctx.senderId, { uiLanguage: code.toLowerCase() });
+    if (code.toLowerCase() === "auto") {
+      // Сам язык подберёт сервер при следующем входе или открытии приложения — по стране IP.
+      await updateSettings(ctx.senderId, { uiLanguageAuto: true });
+      return "✅ Язык интерфейса будет выбираться автоматически — по региону.";
+    }
+    if (isUnsupportedLanguage(code)) return `❌ ${UNSUPPORTED_MESSAGE}`;
+    await updateSettings(ctx.senderId, { uiLanguage: code.toLowerCase(), uiLanguageAuto: false });
     return `✅ Язык интерфейса изменён на «${code.toLowerCase()}».`;
   },
 

@@ -67,7 +67,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
             openMainMenu({ x: r.left, y: r.top });
           }}
         >
-          <Avatar name={user.name || user.phone || "?"} color={user.avatarColor} image={user.avatarImage} size={34} online />
+          <Avatar name={user.name || user.phone || "?"} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} size={34} online />
         </button>
         {LINKS.map((l) => (
           <NavLink key={l.to} to={l.to} className={linkClass(l.active(pathname))} title={l.label} aria-label={l.label}>

@@ -25,7 +25,8 @@
 }
 
 .bg {
-  position: absolute;
+  /* fixed: фон на весь экран и при прокрутке длинной формы, без обреза по первому экрану. */
+  position: fixed;
   inset: 0;
   z-index: 0;
   overflow: hidden;

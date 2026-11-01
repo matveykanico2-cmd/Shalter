@@ -6,6 +6,7 @@ import { passwordMatches } from "../../common/lib/password.js";
 import { sendMessagePush } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import type { Session } from "../sessions/model/domain.js";
+import { UiLanguageService } from "../ui-language/ui-language.service.js";
 import { selfUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -32,7 +33,8 @@ export class SignInService {
     private readonly tickets: TwoFactorTicketsStore,
     private readonly codes: AuthCodesStore,
     private readonly qrLogins: QrLoginsStore,
-    private readonly notices: SystemNoticesService
+    private readonly notices: SystemNoticesService,
+    private readonly uiLanguage: UiLanguageService
   ) {}
 
   public async loginWithEmail(req: Request, res: Response, email: string, password: string): Promise<LoginResult> {
@@ -153,6 +155,8 @@ export class SignInService {
       this.usersRepository.cancelDeletion(userId);
     } catch {}
     await this.recordSession(req, res, userId);
+    // Автоязык интерфейса — по стране входа; вход не ждёт геосервис (страна попадёт в кэш к /api/bootstrap).
+    void this.uiLanguage.refresh(userId, req, Number.POSITIVE_INFINITY);
     return alreadyLinked;
   }
 

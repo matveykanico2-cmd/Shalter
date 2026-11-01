@@ -31,6 +31,8 @@ export const patchBotSchema = requestBody({
   name: stringOrUndefined(),
   // Как пришли: чужие загрузки ищутся и внутри не-строк (usesForeignUpload).
   avatarImage: raw(),
+  /** Смайл вместо аватарки; null или "" — убрать. Проверяет сервис (после проверки владельца). */
+  avatarEmoji: raw(),
   username: stringOrUndefined(),
   appName: text().transform((v) => v.trim().slice(0, 40)),
   appCode: raw(),

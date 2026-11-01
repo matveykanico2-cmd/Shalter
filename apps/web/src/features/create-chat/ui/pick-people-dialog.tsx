@@ -56,7 +56,7 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
         <div className={styles.chips}>
           {[...picked.values()].map((u) => (
             <button key={u.id} type="button" className={styles.chip} onClick={() => toggle(u)}>
-              <Avatar size={24} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+              <Avatar size={24} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
               <span>{u.name.split(" ")[0]}</span>
               <Icon name="X" size={14} />
             </button>
@@ -78,7 +78,7 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
             return (
               <div key={u.id} className={styles.personRow}>
                 <button type="button" aria-pressed={single ? undefined : checked} className={styles.person} onClick={() => toggle(u)}>
-                  <Avatar size={40} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+                  <Avatar size={40} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
                   <span className={styles.personText}>
                     <span>{u.name}</span>
                     {admin ? <span className={styles.hint}>администратор</span> : u.username ? <span className={styles.hint}>@{u.username}</span> : null}

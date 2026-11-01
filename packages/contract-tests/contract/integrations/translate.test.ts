@@ -96,3 +96,30 @@ describe("POST /api/translate/batch", () => {
     expectError(await u.api.post("/api/translate/batch", { texts: ["a"], target: 1 }), 400, "Не указан язык перевода");
   });
 });
+
+describe("POST /api/translate/ui — строки интерфейса без входа", () => {
+  test("без сессии; проверки те же, что у /batch", async () => {
+    const anon = new Api(server().baseUrl);
+    expectError(await anon.post("/api/translate/ui", { texts: [], target: "en" }), 400, "texts must be a non-empty array");
+    expectError(await anon.post("/api/translate/ui", { texts: ["Войти"] }), 400, "Не указан язык перевода");
+    expectError(await anon.post("/api/translate/ui", { texts: ["Войти"], target: "uk" }), 400, UNSUPPORTED);
+  });
+
+  test("переводятся только короткие строки с кириллицей: прочие — null без запроса наружу", async () => {
+    const anon = new Api(server().baseUrl);
+    const before = egress.proxy().connects.length;
+    const res = expectOk(await anon.post("/api/translate/ui", { texts: ["", "Shalter", "я".repeat(201)], target: "en" }), translateBatchBody);
+    expect(res).toEqual({ translations: ["", null, null] });
+    expect(egress.proxy().connects.length).toBe(before);
+  });
+
+  test("сервис недоступен — null на месте строки; запрос шёл в translate.googleapis.com", async () => {
+    const anon = new Api(server().baseUrl);
+    const before = egress.proxy().connects.length;
+    const res = expectOk(await anon.post("/api/translate/ui", { texts: ["Войти", "Shalter", "", "Войти"], target: "de" }), translateBatchBody);
+    expect(res).toEqual({ translations: [null, null, "", null] });
+    const tried = egress.proxy().connects.slice(before);
+    expect(tried.length).toBeGreaterThan(0);
+    expect(new Set(tried)).toEqual(new Set(["translate.googleapis.com:443"]));
+  });
+});

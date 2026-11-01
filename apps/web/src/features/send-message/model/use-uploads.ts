@@ -6,6 +6,7 @@ import { UPLOAD_CANCELLED, type Uploaded, uploadFile, type UploadKind } from "@/
 import { errorText } from "@/shared/lib/error-text";
 
 import { sendTyping } from "../api/send-message";
+import { compressPhoto } from "../lib/compress-photo";
 import { checkSize, uploadActionFor } from "../lib/files";
 
 const ACTION_PING_MS = 2500;
@@ -61,10 +62,12 @@ export function useUploads(chatId: string) {
 
       const results = await Promise.allSettled(
         started.map(({ id, pick, controller }) =>
-          uploadFile(pick.file, pick.kind, { signal: controller.signal, onProgress: (progress) => patch(id, { progress }) }).catch((err: unknown) => {
-            patch(id, { failed: true });
-            throw err;
-          })
+          (pick.kind === "image" ? compressPhoto(pick.file) : Promise.resolve(pick.file))
+            .then((file) => uploadFile(file, pick.kind, { signal: controller.signal, onProgress: (progress) => patch(id, { progress }) }))
+            .catch((err: unknown) => {
+              patch(id, { failed: true });
+              throw err;
+            })
         )
       );
       clearInterval(ping);

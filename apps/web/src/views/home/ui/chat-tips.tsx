@@ -131,6 +131,7 @@ function ChatsCard({ filter, onFilter }: { filter: string; onFilter: (id: string
                     name={name}
                     color={c.otherUser?.avatarColor ?? c.avatarColor}
                     image={c.otherUser?.avatarImage ?? c.avatarImage}
+                    emoji={c.otherUser?.avatarEmoji ?? c.avatarEmoji}
                     size={54}
                     online={c.type === "dm" && !!c.otherUser?.online}
                   />

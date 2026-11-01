@@ -13,6 +13,7 @@ export const searchChannel = z.strictObject({
   description: z.string().optional(),
   avatarColor: z.string().optional(),
   avatarImage: z.string().optional(),
+  avatarEmoji: z.string().optional(),
   subscriberCount: z.number().int(),
 });
 

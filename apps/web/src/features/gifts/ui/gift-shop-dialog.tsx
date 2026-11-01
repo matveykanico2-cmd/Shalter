@@ -330,13 +330,13 @@ export function GiftShopDialog({ request }: { request: GiftShopRequest }) {
 
 function RecipientHero({ target, onPick }: { target: GiftRecipient | null; onPick: () => void }) {
   const profile = useQuery({ ...userQueries.profile(target?.id ?? ""), enabled: !!target }).data?.user;
-  const u = target ? { name: target.name, avatarColor: profile?.avatarColor, avatarImage: profile?.avatarImage } : null;
+  const u = target ? { name: target.name, avatarColor: profile?.avatarColor, avatarImage: profile?.avatarImage, avatarEmoji: profile?.avatarEmoji } : null;
   return (
     <div className={styles.hero}>
       <div className={styles.glow} />
       {u ? (
         <button type="button" className={styles.heroAvatar} title="Сменить получателя" onClick={onPick}>
-          <Avatar size={100} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+          <Avatar size={100} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
         </button>
       ) : (
         <button type="button" className={`${styles.heroAvatar} ${styles.heroEmpty}`} title="Выбрать получателя" onClick={onPick}>
@@ -426,7 +426,7 @@ type ChosenProps = {
   chosen: Chosen;
   target: GiftRecipient;
   balance: number;
-  me: { name: string; isPremium: boolean; avatarColor?: string; avatarImage?: string } | null;
+  me: { name: string; isPremium: boolean; avatarColor?: string; avatarImage?: string; avatarEmoji?: string } | null;
   backdropId: string;
   onBackdrop: (id: string) => void;
   onBack: () => void;
@@ -475,7 +475,7 @@ function ChosenPage({ chosen, target, balance, me, backdropId, onBackdrop, onSen
               <p className={styles.from}>
                 Подарок от{" "}
                 <span className={styles.fromUser}>
-                  {anonymous ? null : <Avatar size={16} name={me?.name ?? "Вы"} color={me?.avatarColor} image={me?.avatarImage} />}
+                  {anonymous ? null : <Avatar size={16} name={me?.name ?? "Вы"} color={me?.avatarColor} image={me?.avatarImage} emoji={me?.avatarEmoji} />}
                   <span>{anonymous ? "Аноним" : (me?.name ?? "Вы")}</span>
                 </span>
               </p>

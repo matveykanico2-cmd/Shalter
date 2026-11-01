@@ -9,6 +9,10 @@ import { sanitizers } from "../../../../legacy/legacy.js";
 
 export const MAX_STICKERS = 60;
 const MAX_NAME = 40;
+export const MAX_DESCRIPTION = 200;
+/** Сколько чужих паков можно добавить себе. */
+export const MAX_INSTALLED_PACKS = 200;
+export const PACK_ID = /^sp_[a-z0-9]+_[a-z0-9]{1,6}$/;
 
 const STICKER_UID = /^st_[0-9a-f]{8}$/;
 
@@ -44,6 +48,7 @@ export const createPackSchema = requestBody({
     .unknown().optional()
     .transform(sanitizeStickers)
     .refine((clean) => clean.length > 0, { error: "Добавьте хотя бы один стикер" }),
+  description: text().transform((v) => v.trim().slice(0, MAX_DESCRIPTION)),
 });
 export type CreatePackDto = z.infer<typeof createPackSchema>;
 
@@ -51,6 +56,7 @@ export const patchPackSchema = requestBody({
   // Пустое название оставляет прежнее (undefined); null — строка "null", как в server/.
   name: ifPresent((v) => String(v).trim().slice(0, MAX_NAME) || undefined),
   stickers: ifPresent(sanitizeStickers),
+  description: ifPresent((v) => (v == null ? "" : String(v)).trim().slice(0, MAX_DESCRIPTION)),
 });
 export type PatchPackDto = z.infer<typeof patchPackSchema>;
 

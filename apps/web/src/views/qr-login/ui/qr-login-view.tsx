@@ -60,7 +60,7 @@ function Confirm({ token, user }: { token: string; user: SelfUser }) {
     <div className={styles.panel}>
       <p className={styles.title}>Подтвердить вход в Shalter?</p>
       <div className={styles.account}>
-        <Avatar name={user.name} color={user.avatarColor} image={user.avatarImage} size={56} />
+        <Avatar name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} size={56} />
         <div>
           <p className={styles.name}>{user.name || "Без имени"}</p>
           <p className={styles.sub}>{user.phone || user.email}</p>

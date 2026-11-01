@@ -34,6 +34,7 @@ export type MessageSender = {
   name: string;
   avatarColor?: string | null;
   avatarImage?: string | null;
+  avatarEmoji?: string | null;
   nameColor?: string | null;
   isBot?: boolean;
   isVerified?: boolean;
@@ -464,10 +465,10 @@ export function MessageBubble(props: Props) {
           {showAvatar && sender ? (
             onOpenProfile && !m.anonymous ? (
               <button type="button" className={styles.avatarButton} title={`Профиль: ${sender.name}`} onClick={() => onOpenProfile(sender.id)}>
-                <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} />
+                <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} emoji={sender.avatarEmoji} />
               </button>
             ) : (
-              <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} />
+              <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} emoji={sender.avatarEmoji} />
             )
           ) : null}
         </span>
@@ -625,7 +626,7 @@ function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDet
         <span className={styles.reactionAvatars}>
           {avatars.map((u) => (
             <span key={u.id} className={styles.reactionAvatar} title={u.name}>
-              <Avatar size={16} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+              <Avatar size={16} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
             </span>
           ))}
         </span>

@@ -30,13 +30,13 @@ export class AvatarsService {
 
     const list = [checked.entry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
-    return this.save(userId, list);
+    return this.save(userId, list, true);
   }
 
   public makeMain(userId: string, index: string) {
     const list = [...this.existing(userId, index)];
     const [picked] = list.splice(Number(index), 1);
-    return this.save(userId, [picked, ...list]);
+    return this.save(userId, [picked, ...list], true);
   }
 
   public remove(userId: string, index: string) {
@@ -55,7 +55,9 @@ export class AvatarsService {
     return list;
   }
 
-  private save(userId: string, list: AvatarEntry[]) {
+  /** dropEmoji — новое главное фото сменяет смайл на аватарке. */
+  private save(userId: string, list: AvatarEntry[], dropEmoji = false) {
+    if (dropEmoji) this.users.updateProfile(userId, { avatarEmoji: null });
     const updated = this.users.setAvatars(userId, list)!;
     this.notify.profileChanged(userId, updated);
     return { user: publicUser(updated), avatars: updated.avatarImages };

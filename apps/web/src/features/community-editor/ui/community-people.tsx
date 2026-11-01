@@ -13,7 +13,7 @@ import styles from "./community-editor.module.css";
 import { ChatLine, Empty, Row, UserLine } from "./parts";
 
 type Base = { community: Community; onChanged: () => void; onClose: () => void };
-type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage"> & { badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
+type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage" | "avatarEmoji"> & { badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
 const peopleKey = (id: string, what: string) => ["communities", "people", id, what] as const;
 

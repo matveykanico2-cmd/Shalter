@@ -32,6 +32,7 @@ function channelCard(chat: Chat, viewerId: string) {
     username: chat.username ?? null,
     avatarColor: chat.avatarColor ?? null,
     avatarImage: chat.avatarImage ?? null,
+    avatarEmoji: chat.avatarEmoji ?? null,
     isVerified: !!chat.isVerified,
     members: chat.memberIds.length,
     isMember: chat.memberIds.includes(viewerId),
@@ -90,12 +91,14 @@ export class ProfilesService {
       if (!canSee("photo")) {
         delete visible.avatarImage;
         delete visible.avatarImages;
+        delete visible.avatarEmoji;
       }
       // Заблокированному — как будто всё скрыто настройками: ни фото и статуса,
       // ни телефона, «о себе» и дня рождения.
       if ((user.blockedUserIds ?? []).includes(uid)) {
         delete visible.avatarImage;
         delete visible.avatarImages;
+        delete visible.avatarEmoji;
         delete visible.lastSeen;
         delete visible.phone;
         delete visible.bio;
@@ -178,6 +181,7 @@ export class ProfilesService {
         title: c.title,
         avatarColor: c.avatarColor ?? null,
         avatarImage: c.avatarImage ?? null,
+        avatarEmoji: c.avatarEmoji ?? null,
         members: c.memberIds.length,
       })),
     };

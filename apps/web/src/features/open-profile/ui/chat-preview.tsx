@@ -82,7 +82,7 @@ export function ChatPreview({ chatId, msg }: { chatId: string; msg: string | nul
         <button type="button" className={styles.back} title="Назад" onClick={() => void navigate("/")}>
           <Icon name="ChevronLeft" size={20} />
         </button>
-        <Avatar size={38} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} />
+        <Avatar size={38} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} emoji={chat.avatarEmoji} />
         <div className={styles.previewTitles}>
           <p className={styles.previewTitle}>
             <EmojiText text={chat.title ?? ""} />

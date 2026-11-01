@@ -11,6 +11,8 @@ const publicUserShape = {
   avatarColor: z.string().optional(),
   avatarImage: z.string().optional(),
   avatarImages: z.array(anyJson),
+  /** Смайл вместо аватарки (анимированный, если есть); фото тогда не показывается. */
+  avatarEmoji: z.string().optional(),
   bio: z.string().nullable(),
   online: z.boolean(),
   lastSeen: isoDate.optional(),

@@ -64,12 +64,12 @@ export function RadioRows<T>({ label, options, value, onPick }: { label: string;
   );
 }
 
-type Person = { id: string; name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null };
+type Person = { id: string; name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 
 export function PersonRow({ user, children }: { user: Person; children: ReactNode }) {
   return (
     <div className={styles.person}>
-      <Avatar size={42} name={user.name} color={user.avatarColor} image={user.avatarImage} />
+      <Avatar size={42} name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{user.name}</span>
         {user.username ? <span className={styles.subtitle}>@{user.username}</span> : null}

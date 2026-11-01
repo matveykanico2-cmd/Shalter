@@ -199,7 +199,7 @@ function FolderEditor({ folder, chats, onChange, guarded }: EditorProps) {
           list.map((c) => (
             <label key={c.id} className={styles.chatCheck}>
               <input type="checkbox" checked={folder.chatIds.includes(c.id)} onChange={() => toggleChat(c.id)} />
-              <Avatar name={chatName(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser?.avatarImage ?? c.avatarImage} size={28} />
+              <Avatar name={chatName(c)} color={c.otherUser?.avatarColor ?? c.avatarColor} image={c.otherUser?.avatarImage ?? c.avatarImage} emoji={c.otherUser?.avatarEmoji ?? c.avatarEmoji} size={28} />
               <span className={styles.chatName}>{chatName(c)}</span>
               <span className={styles.muted}>{TYPE_LABEL[c.type] ?? ""}</span>
             </label>

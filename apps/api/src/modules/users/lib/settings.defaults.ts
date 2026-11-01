@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS = {
   homeWallpaper: false,
   translateLanguage: "ru",
   uiLanguage: "ru",
+  // Язык интерфейса по стране IP, пока пользователь не выбрал его сам (modules/ui-language).
+  uiLanguageAuto: true,
   autoDownload: true,
   voiceTranscription: false,
   timeFormat: 24,

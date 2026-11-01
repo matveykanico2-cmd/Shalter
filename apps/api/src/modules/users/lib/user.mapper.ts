@@ -70,6 +70,7 @@ export function toUser(row: UserRow) {
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
     avatarImages: parseAvatarList(row.avatarImages),
+    avatarEmoji: row.avatarEmoji ?? undefined,
     bio: row.bio,
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,

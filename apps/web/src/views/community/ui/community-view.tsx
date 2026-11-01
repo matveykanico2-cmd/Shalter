@@ -151,7 +151,7 @@ function CommunityPage({ community }: { community: Community }) {
         <div className={styles.chats}>
           {community.chats.map((c) => (
             <div key={c.id} className={styles.chat}>
-              <Avatar size={40} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+              <Avatar size={40} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
               <div className={styles.chatBody}>
                 <p className={styles.chatTitle}>
                   {c.type === "channel" ? "📢 " : null}
@@ -206,7 +206,7 @@ function CommunityMembersDialog({ community, onClose }: { community: Community; 
         {members.data && list.length ? (
           list.map((m) => (
             <button key={m.id} type="button" className={styles.memberRow} onClick={() => void openUserProfile(m.id)}>
-              <Avatar size={40} name={m.name} color={m.avatarColor} image={m.avatarImage} online={m.online} />
+              <Avatar size={40} name={m.name} color={m.avatarColor} image={m.avatarImage} emoji={m.avatarEmoji} online={m.online} />
               <span className={styles.memberBody}>
                 <span className={styles.memberName}>{m.name}</span>
                 {m.username ? <span className={styles.memberUsername}>@{m.username}</span> : null}

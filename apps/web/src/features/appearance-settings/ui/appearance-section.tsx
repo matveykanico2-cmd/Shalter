@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useSession } from "@/entities/session";
-import { patchSettings, useSettings, useUpdateSettings } from "@/entities/settings";
+import { isUiLanguageAuto, patchSettings, useSettings, useUpdateSettings } from "@/entities/settings";
 
 import { APP_ICONS, type AppIcon, appIconScope, appIconSvg, canUseAppIcon, getAppIconId, setAppIcon } from "@/shared/lib/app-icons";
 import { errorText } from "@/shared/lib/error-text";
@@ -46,6 +46,8 @@ function FontSizeControl({ saved, onSave }: { saved: number | undefined; onSave:
     </div>
   );
 }
+
+const UI_LANGUAGE_AUTO = "auto";
 
 /** «Внешний вид» — renderAppearance в public/js/views/settings/index.js. */
 export function AppearanceSection() {
@@ -213,21 +215,29 @@ export function AppearanceSection() {
             <span className={styles.fieldLabel}>Язык интерфейса</span>
             <select
               className={styles.select}
-              value={settings.uiLanguage}
+              aria-label="Язык интерфейса"
+              value={isUiLanguageAuto(settings) ? UI_LANGUAGE_AUTO : settings.uiLanguage}
               onChange={async (e) => {
+                const value = e.target.value;
                 try {
-                  await patchSettings({ uiLanguage: e.target.value });
+                  // «Автоматически» — язык подберёт сервер по стране; любой другой выбор выключает автоматику.
+                  await patchSettings(value === UI_LANGUAGE_AUTO ? { uiLanguageAuto: true } : { uiLanguage: value });
                   window.location.reload();
                 } catch (err) {
                   toast(errorText(err, "Не удалось сохранить настройки"), { error: true });
                 }
               }}
             >
+              <option value={UI_LANGUAGE_AUTO}>Автоматически (по региону)</option>
               {LANGUAGES.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.label}
                 </option>
               ))}
+              {/* Язык не из списка (подобран по стране или выбран командой /lang) — тоже виден. */}
+              {!isUiLanguageAuto(settings) && !LANGUAGES.some((l) => l.id === settings.uiLanguage) ? (
+                <option value={settings.uiLanguage}>{settings.uiLanguage}</option>
+              ) : null}
             </select>
             <span className={styles.note}>
               Переводит саму программу — кнопки, меню, надписи (не сообщения) — через Google Translate. Применяется после перезагрузки страницы.

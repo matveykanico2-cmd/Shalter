@@ -166,7 +166,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <StreamVideo key={key} stream={stream} className={styles.tileVideo} />
         ) : (
           <div className={styles.tileAvatar}>
-            <Avatar size={small ? 40 : 72} name={p.name} color={p.avatarColor} image={p.avatarImage} />
+            <Avatar size={small ? 40 : 72} name={p.name} color={p.avatarColor} image={p.avatarImage} emoji={p.avatarEmoji} />
             <p className={styles.tileName}>{p.name}</p>
           </div>
         )}
@@ -297,7 +297,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <LocalVideo stream={pipStream} mirrored={!swap && !s.facingBack} freeze={ownPreview && s.switchingCamera} />
         ) : (
           <div className={styles.localAvatar}>
-            <Avatar size={48} name={who.name} color={who.avatarColor} image={who.avatarImage} />
+            <Avatar size={48} name={who.name} color={who.avatarColor} image={who.avatarImage} emoji={who.avatarEmoji} />
           </div>
         )}
         {s.cameraOn && s.cameraCount > 1 ? (

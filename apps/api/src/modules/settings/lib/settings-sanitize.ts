@@ -25,6 +25,7 @@ const CLIENT_KEYS: Record<string, (v: unknown) => boolean> = {
   homeWallpaper: isBool,
   translateLanguage: shortString(16),
   uiLanguage: shortString(16),
+  uiLanguageAuto: isBool,
   autoDownload: isBool,
   voiceTranscription: isBool,
   timeFormat: (v) => v === 12 || v === 24,

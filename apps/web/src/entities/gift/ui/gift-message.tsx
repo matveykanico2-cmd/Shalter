@@ -78,7 +78,7 @@ export function GiftMessage({ messageId, gift, mine, meta, readByIds }: Props) {
       link(
         gift.fromId,
         senderName,
-        <Avatar size={16} name={senderName} color={mine ? me?.avatarColor : gift.fromAvatarColor} image={mine ? me?.avatarImage : gift.fromAvatarImage} />
+        <Avatar size={16} name={senderName} color={mine ? me?.avatarColor : gift.fromAvatarColor} image={mine ? me?.avatarImage : gift.fromAvatarImage} emoji={mine ? me?.avatarEmoji : null} />
       )
     );
   const note = mine ? (

@@ -31,6 +31,22 @@ export class StickerPacksController {
     return this.packs.create(req.uid!, dto);
   }
 
+  @Get(":id")
+  public view(@Req() req: Request, @Param("id") id: string) {
+    return this.packs.view(req.uid!, id);
+  }
+
+  @Post(":id/install")
+  @HttpCode(200)
+  public install(@Req() req: Request, @Param("id") id: string) {
+    return this.packs.install(req.uid!, id);
+  }
+
+  @Delete(":id/install")
+  public uninstall(@Req() req: Request, @Param("id") id: string) {
+    return this.packs.uninstall(req.uid!, id);
+  }
+
   @Patch(":id")
   public update(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(patchPackSchema)) dto: PatchPackDto) {
     return this.packs.update(req.uid!, id, dto);

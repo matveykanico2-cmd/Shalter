@@ -17,7 +17,10 @@
 .back {
   display: flex;
   padding: 6px;
+  border: none;
   border-radius: 999px;
+  background: none;
+  cursor: pointer;
   color: var(--color-text);
 }
 

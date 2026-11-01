@@ -12,6 +12,7 @@ export const patchProfileSchema = requestBody({
   bio: raw(),
   avatarColor: raw(),
   avatarImage: raw(),
+  avatarEmoji: raw(),
   birthday: raw(),
   businessAddress: raw(),
   businessLat: raw(),

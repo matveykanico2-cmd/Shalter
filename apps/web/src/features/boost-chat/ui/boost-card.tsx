@@ -74,7 +74,7 @@ function BoostDialog({ chat, me, onClose }: { chat: ChatSummary; me: SelfUser; o
   return (
     <Dialog title={boostedToday ? "Вы уже бустили сегодня" : to == null ? "Максимальный уровень" : "Нужно больше бустов"} onClose={onClose} className={styles.dialog}>
       <div className={styles.entity}>
-        <Avatar size={30} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} />
+        <Avatar size={30} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} emoji={chat.avatarEmoji} />
         <span>{chat.title}</span>
       </div>
       <div className={styles.meter} style={{ "--progress": `${progress}%` } as CSSProperties}>

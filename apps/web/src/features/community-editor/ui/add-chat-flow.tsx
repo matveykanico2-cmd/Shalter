@@ -25,6 +25,7 @@ export function AddChatFlow({ community, meId, onClose, onDone }: Props) {
     title: picked.title,
     avatarColor: picked.avatarColor ?? null,
     avatarImage: picked.avatarImage ?? null,
+    avatarEmoji: picked.avatarEmoji ?? null,
     username: picked.username ?? null,
     members: picked.membersCount,
     visible: true,
@@ -45,7 +46,7 @@ function OwnChatPicker({ community, meId, onPick, onClose }: { community: Commun
         <div className={styles.list}>
           {candidates.map((c) => (
             <button key={c.id} type="button" className={styles.row} onClick={() => onPick(c)}>
-              <Avatar size={36} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+              <Avatar size={36} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
               <span>{`${c.type === "channel" ? "📢 " : ""}${c.title ?? ""}`}</span>
             </button>
           ))}
@@ -62,7 +63,7 @@ function OwnChatPicker({ community, meId, onPick, onClose }: { community: Commun
 
 type SettingsProps = {
   community: Community;
-  chat: Pick<CommunityChat, "id" | "type" | "title" | "avatarColor" | "avatarImage" | "username" | "members" | "visible"> & { isChatAdmin?: boolean };
+  chat: Pick<CommunityChat, "id" | "type" | "title" | "avatarColor" | "avatarImage" | "avatarEmoji" | "username" | "members" | "visible"> & { isChatAdmin?: boolean };
   mode?: "add" | "settings";
   onSaved?: () => void;
   onClose: () => void;

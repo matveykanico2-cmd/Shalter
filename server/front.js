@@ -11,8 +11,23 @@ const compression = require("compression");
 const { errorHandler } = require("./middleware/errors");
 const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 
+// Чьему X-Forwarded-For верить. Всегда — одному ближайшему прокси (nginx перед сервером),
+// как раньше с "trust proxy" 1. SHALTER_TRUSTED_PROXIES=1.2.3.4,5.6.7.8 — ещё и этим адресам
+// (свои прокси Shalter, apps/proxy): тогда адрес клиента — тот, что дописал такой прокси,
+// а не сам прокси, и лимиты попыток входа у его пользователей свои, а не один на всех.
+// Чужой прокси подделать адрес не может: его адреса в списке нет.
+const TRUSTED_PROXIES = new Set(
+  (process.env.SHALTER_TRUSTED_PROXIES || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+function trustProxy(addr, i) {
+  return i < 1 || TRUSTED_PROXIES.has(String(addr).replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, ""));
+}
+
 const front = express();
-front.set("trust proxy", 1);
+front.set("trust proxy", trustProxy);
 
 front.use((req, res, next) => {
   if (req.shalterFront) return next("router");
@@ -64,4 +79,4 @@ for (const route of [
 
 front.use(errorHandler);
 
-module.exports = { front };
+module.exports = { front, trustProxy };

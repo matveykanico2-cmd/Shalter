@@ -7,7 +7,7 @@ import { callApi, type CallListItem } from "../api/call-api";
 
 /** Входящий звонок на экране: из call:incoming или из опроса GET /api/calls. */
 export type RingingCall = Pick<CallListItem, "id" | "kind" | "callerId" | "status" | "startedAt" | "participantIds"> & {
-  otherUser?: { name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null } | null;
+  otherUser?: { name: string; username?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null } | null;
 };
 
 const POLL_MS = 5_000;

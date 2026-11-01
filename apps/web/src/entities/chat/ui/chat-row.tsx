@@ -37,7 +37,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
   const muted = isChatMuted(chat);
   const preview = chatPreview(chat, meId);
   const verified = chat.type === "dm" ? chat.otherUser?.isVerified : chat.isVerified;
-  const hold = useLongPress((at) => onMenu?.(at), "button");
+  // Вся строка — <button>, поэтому "button" здесь отключал удержание целиком (на iPhone меню
+  // чата не открывалось вовсе): пропускаем только внутренние кнопки.
+  const hold = useLongPress((at) => onMenu?.(at), "[data-no-hold]");
   const swipe = useRef<{ x: number; y: number; active: boolean | null } | null>(null);
   const [shift, setShift] = useState(0);
   const endSwipe = () => {
@@ -126,6 +128,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
             name={chat.otherUser?.name ?? title}
             color={chat.otherUser?.avatarColor ?? chat.avatarColor}
             image={chat.otherUser?.avatarImage ?? chat.avatarImage}
+            emoji={chat.otherUser?.avatarEmoji ?? chat.avatarEmoji}
             online={chat.type === "dm" && !!chat.otherUser?.online}
           />
           {community ? (
@@ -187,8 +190,8 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
           )}
           <span className={styles.badges}>
             {chat.pinned ? <Icon name="Pin" size={12} /> : null}
-            {/* Звук чата — всегда: перечёркнутый динамик, когда уведомления выключены. */}
-            <Icon name={muted ? "VolumeOff" : "Volume"} size={12} className={styles.sound} />
+            {/* Как в Telegram: перечёркнутый динамик только у чатов без звука. */}
+            {muted ? <Icon name="VolumeOff" size={12} className={styles.sound} /> : null}
             {chat.hasUnreadMention ? <span className={styles.mention}>@</span> : null}
             {chat.unreadCount > 0 ? (
               <span className={styles.unread}>{chat.unreadCount > 99 ? "99+" : String(chat.unreadCount)}</span>
@@ -202,6 +205,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
       {onMenu ? (
         <button
           type="button"
+          data-no-hold
           className={styles.more}
           title="Действия с чатом"
           aria-label="Действия с чатом"

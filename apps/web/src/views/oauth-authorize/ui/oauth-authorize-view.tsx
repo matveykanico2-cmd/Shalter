@@ -90,7 +90,7 @@ function Approve({ params, appName, user }: { params: Params; appName: string; u
     <div className={styles.panel}>
       <p className={styles.title}>{`«${appName}» хочет войти через Shalter`}</p>
       <div className={styles.account}>
-        <Avatar name={user.name} color={user.avatarColor} image={user.avatarImage} size={56} />
+        <Avatar name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} size={56} />
         <div>
           <p className={styles.name}>{user.name || "Без имени"}</p>
           <p className={styles.sub}>{user.username ? `@${user.username}` : ""}</p>

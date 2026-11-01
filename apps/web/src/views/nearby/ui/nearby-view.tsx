@@ -75,7 +75,7 @@ export function NearbyView() {
             <div className={styles.list}>
               {users.map((u) => (
                 <div key={u.id} className={styles.row}>
-                  <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} size={40} />
+                  <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={40} />
                   <div className={styles.rowBody}>
                     <p className={styles.name}>{u.name}</p>
                     <p className={styles.label}>{u.label}</p>

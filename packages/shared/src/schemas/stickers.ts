@@ -41,12 +41,16 @@ export const stickerPack = z.strictObject({
   id: z.string().regex(/^sp_[a-z0-9]+_[a-z0-9]{1,6}$/),
   ownerId: z.string(),
   name: z.string(),
+  description: z.string(),
   stickers: z.array(sticker),
   createdAt: isoDate,
 });
 
+/** Свои паки и добавленные себе чужие (ownerId — не свой). */
 export const packsListBody = z.strictObject({ packs: z.array(stickerPack), maxStickers: z.literal(60) });
 export const packBody = z.strictObject({ pack: stickerPack });
+/** Окно пака (GET /api/stickers/packs/:id, POST …/install): installed — свой или добавлен себе. */
+export const packViewBody = z.strictObject({ pack: stickerPack, installed: z.boolean() });
 
 export const customEmoji = z.strictObject({
   id: z.string().regex(/^ce_[a-z0-9]+_[a-z0-9]{1,6}$/),

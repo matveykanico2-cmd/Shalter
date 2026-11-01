@@ -131,6 +131,7 @@ export class GamesService {
         name: byId.get(r.userId)?.name ?? "Игрок",
         avatarColor: byId.get(r.userId)?.avatarColor,
         avatarImage: byId.get(r.userId)?.avatarImage,
+        avatarEmoji: byId.get(r.userId)?.avatarEmoji,
       })),
     };
   }

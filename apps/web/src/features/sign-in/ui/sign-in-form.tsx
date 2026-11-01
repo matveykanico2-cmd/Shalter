@@ -137,6 +137,9 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    // Пустые поля — подсказка сразу, без запроса (раньше пустой вход отвечал «Неверный email или пароль»).
+    const missing = isRegister && !name.trim() ? "Введите имя" : !email.trim() ? "Введите email" : !password ? "Введите пароль" : null;
+    if (missing) return setError(missing);
     void run(async () => {
       if (!isRegister) return onResult(await loginByEmail(email.trim(), password));
       const { user } = await register({ name, lastName, email, phone, username, password, birthday: birthday || null });

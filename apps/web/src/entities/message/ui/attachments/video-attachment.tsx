@@ -94,7 +94,7 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
         <span className={styles.pendingSpinner} aria-label="Видео обрабатывается" />
       ) : (
         <span className={styles.play}>
-          <Icon name="Play" size={28} />
+          <Icon name="PlayFill" size={26} />
         </span>
       )}
       {a.durationSec && a.durationSec > 0 ? <span className={styles.duration}>{clockTime(a.durationSec)}</span> : null}

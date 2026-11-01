@@ -55,6 +55,7 @@ export class UserPrivacyService {
     if (blocked || !canSee("photo")) {
       delete hidden.avatarImage;
       delete hidden.avatarImages;
+      delete hidden.avatarEmoji;
     }
     if (blocked || !canSee("bio")) delete hidden.bio;
     if (blocked || !canSee("birthday")) delete hidden.birthday;

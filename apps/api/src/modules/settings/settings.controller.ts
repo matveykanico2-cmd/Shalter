@@ -23,6 +23,6 @@ export class SettingsController {
 
   @Patch()
   public update(@Req() req: Request, @Body(new ZodValidationPipe(patchSettingsSchema)) dto: PatchSettingsDto) {
-    return this.settings.update(req.uid!, dto);
+    return this.settings.update(req.uid!, dto, req);
   }
 }

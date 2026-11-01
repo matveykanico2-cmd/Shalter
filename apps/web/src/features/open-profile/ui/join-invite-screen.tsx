@@ -54,7 +54,7 @@ export function JoinInviteScreen({ code }: { code: string }) {
 
   return (
     <div className={styles.screen}>
-      <Avatar size={88} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} />
+      <Avatar size={88} name={chat.title ?? ""} color={chat.avatarColor} image={chat.avatarImage} emoji={chat.avatarEmoji} />
       <h1 className={styles.screenTitle}>
         <EmojiText text={chat.title ?? ""} />
         {chat.isVerified ? (

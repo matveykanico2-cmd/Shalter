@@ -33,8 +33,8 @@ function left(endsAt: string) {
   return h ? `осталось ${h} ч ${m} мин` : `осталось ${m} мин`;
 }
 
-const Hint = ({ text }: { text: string }) => (
-  <p className={styles.hint}>
+const Hint = ({ text, inset }: { text: string; inset?: boolean }) => (
+  <p className={inset ? `${styles.hint} ${styles.hintInset}` : styles.hint}>
     <EmojiText text={text} />
   </p>
 );
@@ -99,7 +99,7 @@ export function UsernamesSection() {
         </p>
       ) : null}
       {error ? <p className={styles.error}>{error}</p> : null}
-      <Hint text={`На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`} />
+      <Hint inset text={`На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`} />
 
       <Block title="Рынок юзернеймов">
         <p className={styles.hint}>Хендлы, которые продают их владельцы. Покупка мгновенная: звёзды уходят продавцу, юзернейм — вам.</p>

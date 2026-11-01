@@ -5,7 +5,7 @@ import { AppModule } from "./app.module.js";
 import { RealtimeService } from "./modules/realtime/realtime.service.js";
 import { frontMiddleware } from "./legacy/front.middleware.js";
 import { LegacyFallbackAdapter } from "./legacy/legacy-fallback.adapter.js";
-import { loadLegacyApp, publicJsonReplacer, startLegacyRuntime, workerBridge } from "./legacy/legacy.js";
+import { legacyTrustProxy, loadLegacyApp, publicJsonReplacer, startLegacyRuntime, workerBridge } from "./legacy/legacy.js";
 import { BackgroundService } from "./modules/background/background.service.js";
 import { WEB_DIST_DIR, webClientBuilt } from "./static/lib/web-client.js";
 import { staticFiles } from "./static/static-files.js";
@@ -18,8 +18,9 @@ async function bootstrap() {
     bodyParser: false,
     logger: ["error", "warn"],
   });
-  // Как у server/app.js: адрес клиента из X-Forwarded-For одного прокси, общий replacer JSON.
-  app.set("trust proxy", 1);
+  // Как у server/app.js: адрес клиента из X-Forwarded-For одного прокси (и доверенных
+  // прокси Shalter из SHALTER_TRUSTED_PROXIES, server/front.js), общий replacer JSON.
+  app.set("trust proxy", legacyTrustProxy());
   app.set("json replacer", publicJsonReplacer);
   // Раньше маршрутов Nest — тех же заголовков, cookie, тела и лимитов, что у старого приложения.
   app.use(frontMiddleware());

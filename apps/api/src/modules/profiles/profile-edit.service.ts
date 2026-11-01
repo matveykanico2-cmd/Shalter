@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { isAdminPhone } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
+import { AVATAR_EMOJI_ERROR, cleanAvatarEmoji } from "../../common/lib/avatar-emoji.js";
 import { verifyPassword } from "../../common/lib/password.js";
 import { PHONE_RE, normalizeBirthday, normalizePhone } from "../../common/lib/validators.js";
 import { checkUsername, isOwnUploadUrl, usesForeignUpload } from "../../legacy/legacy.js";
@@ -28,6 +29,7 @@ const EDITABLE_FIELDS = [
   "bio",
   "avatarColor",
   "avatarImage",
+  "avatarEmoji",
   "birthday",
   "businessAddress",
   "businessLat",
@@ -97,6 +99,12 @@ export class ProfileEditService {
         throw new ApiError(400, "Некорректное изображение");
       }
     }
+    if ("avatarEmoji" in patch) {
+      patch.avatarEmoji = cleanAvatarEmoji(patch.avatarEmoji);
+      if (patch.avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+    }
+    // Новое фото сменяет смайл на аватарке (и наоборот — смайл показывается поверх фото).
+    if (avatarPoster && !("avatarEmoji" in patch)) patch.avatarEmoji = null;
 
     if ("username" in patch) {
       patch.username = normalizeUsername(patch.username);

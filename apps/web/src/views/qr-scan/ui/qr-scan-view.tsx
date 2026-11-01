@@ -152,7 +152,7 @@ export function QrScanView() {
   );
 }
 
-function QrDialog({ url, user, onClose }: { url: string; user?: { name: string; avatarColor?: string; avatarImage?: string | null }; onClose: () => void }) {
+function QrDialog({ url, user, onClose }: { url: string; user?: { name: string; avatarColor?: string; avatarImage?: string | null; avatarEmoji?: string | null }; onClose: () => void }) {
   const [card, setCard] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -198,7 +198,7 @@ function QrDialog({ url, user, onClose }: { url: string; user?: { name: string; 
       <div className={styles.qrStage}>
         <div className={styles.qrCard}>
           <span className={styles.qrAvatar}>
-            <Avatar size={64} name={user?.name ?? ""} color={user?.avatarColor} image={user?.avatarImage} />
+            <Avatar size={64} name={user?.name ?? ""} color={user?.avatarColor} image={user?.avatarImage} emoji={user?.avatarEmoji} />
           </span>
           <div className={styles.qrCode} role="img" aria-label="QR-код входа" dangerouslySetInnerHTML={{ __html: prettyQrSvg(url) }} />
           <p className={styles.qrHint}>Отсканируйте на другом устройстве</p>

@@ -69,7 +69,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
   };
   const accountRow = (u: Account) => (
     <button key={u.id} type="button" className={styles.row} data-search-row="" onClick={() => void openAccount(u)}>
-      <Avatar size={30} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+      <Avatar size={30} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} />
       <span className={styles.name}>
         <EmojiText text={u.name} />
       </span>
@@ -115,7 +115,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
                   void navigate(c.username ? `/u/${c.username}` : "/");
                 }}
               >
-                <Avatar size={30} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} />
+                <Avatar size={30} name={c.title ?? ""} color={c.avatarColor} image={c.avatarImage} emoji={c.avatarEmoji} />
                 <span className={styles.name}>
                   <EmojiText text={c.title ?? ""} />
                 </span>
@@ -157,7 +157,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
                     void navigate(`/chat/${m.chatId}?msg=${encodeURIComponent(m.id)}`);
                   }}
                 >
-                  <Avatar size={40} name={c?.otherUser?.name ?? title} color={c?.otherUser?.avatarColor ?? c?.avatarColor} image={c?.otherUser?.avatarImage ?? c?.avatarImage} />
+                  <Avatar size={40} name={c?.otherUser?.name ?? title} color={c?.otherUser?.avatarColor ?? c?.avatarColor} image={c?.otherUser?.avatarImage ?? c?.avatarImage} emoji={c?.otherUser?.avatarEmoji ?? c?.avatarEmoji} />
                   <span className={styles.messageBody}>
                     <span className={styles.messageHead}>
                       <span className={styles.name}>{title}</span>

@@ -44,7 +44,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
           aria-label="Фото профиля"
           onClick={() => (me.avatarImage ? setViewAvatar(true) : void navigate("/settings/profile"))}
         >
-          <Avatar name={me.name || "?"} color={me.avatarColor} image={me.avatarImage} size={120} />
+          <Avatar name={me.name || "?"} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={120} />
         </button>
         <p className={styles.heroName}>
           <span>{me.name || "Профиль"}</span>

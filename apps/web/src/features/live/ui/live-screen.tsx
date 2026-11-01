@@ -19,6 +19,7 @@ const face = (u: LiveParticipant["user"]) => ({
   name: u.name,
   color: "avatarColor" in u ? u.avatarColor : null,
   image: "avatarImage" in u ? u.avatarImage : null,
+  emoji: "avatarEmoji" in u ? u.avatarEmoji : null,
 });
 
 const hasLiveVideo = (stream: MediaStream | null | undefined) => !!stream?.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
@@ -61,7 +62,7 @@ export function LiveScreen({ live, screen, me }: Props) {
   const mine = live.participants.find((p) => p.userId === live.meId);
   const hostIsMe = host?.userId === live.meId;
   const hostStream = hostIsMe ? live.localStream : host ? live.remoteStreams[host.userId] : null;
-  const hostFace = host ? face(host.user) : { name: "?", color: null, image: null };
+  const hostFace = host ? face(host.user) : { name: "?", color: null, image: null, emoji: null };
 
   const emptyStage = (text: string) => (
     <div className={styles.stageEmpty}>

@@ -5,6 +5,11 @@
   color: var(--color-muted);
 }
 
+/* Подсказка вне карточки — с тем же отступом, что заголовки разделов. */
+.hintInset {
+  padding: 0 24px;
+}
+
 .error {
   margin: 4px 16px;
   font-size: 14px;

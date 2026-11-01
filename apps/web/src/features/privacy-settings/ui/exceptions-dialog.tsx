@@ -10,7 +10,7 @@ import styles from "./privacy.module.css";
 
 export type Exceptions = { allow: string[]; deny: string[] };
 
-type Person = { id: string; name?: string | null; username?: string | null; phone?: string | null; avatarColor?: string | null; avatarImage?: string | null };
+type Person = { id: string; name?: string | null; username?: string | null; phone?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 
 const nameOf = (u: Person) => u.name || u.username || u.phone || "Без имени";
 const matches = (u: Person, q: string) => nameOf(u).toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(q);
@@ -50,7 +50,7 @@ export function ExceptionsDialog({ title, value, onSave, onClose }: Props) {
     const state = deny.has(u.id) ? "deny" : allow.has(u.id) ? "allow" : "";
     return (
       <div key={u.id} className={styles.excRow}>
-        <Avatar name={nameOf(u)} color={u.avatarColor} image={u.avatarImage} size={32} />
+        <Avatar name={nameOf(u)} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={32} />
         <div className={styles.userBody}>
           <span className={styles.userName}>{nameOf(u)}</span>
           {u.username ? <span className={`${styles.muted} ${styles.mono}`}>@{u.username}</span> : null}

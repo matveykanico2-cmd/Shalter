@@ -33,7 +33,7 @@ function savedTheme() {
   }
 }
 
-export type QrOwner = { name: string; username: string | null; avatarImage?: string | null; avatarColor?: string | null };
+export type QrOwner = { name: string; username: string | null; avatarImage?: string | null; avatarEmoji?: string | null; avatarColor?: string | null };
 
 /** «QR-код» профиля — как public/js/components/profileQrDialog.js. */
 export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () => void }) {
@@ -162,7 +162,7 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
         <div className={styles.stage} style={{ background: theme.bg }}>
           <div className={styles.card}>
             <span className={styles.avatar}>
-              <Avatar size={64} name={user.name} color={user.avatarColor} image={user.avatarImage} />
+              <Avatar size={64} name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} />
             </span>
             {/* Разметка кода — из своего же генератора, без пользовательского HTML. */}
             <div className={styles.code} role="img" aria-label="QR-код" dangerouslySetInnerHTML={{ __html: svg }} />
