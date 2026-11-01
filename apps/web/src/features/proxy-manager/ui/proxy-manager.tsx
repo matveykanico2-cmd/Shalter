@@ -31,7 +31,6 @@ interface PingResult {
 }
 type SheetState = null | { kind: "add" } | { kind: "scan" } | { kind: "share"; proxy: Proxy };
 
-const PING_EVERY_MS = 60000; void PING_EVERY_MS;
 const TOKEN_KEY = "proxy-hub:token";
 const DEVICE_KEY = "proxy-hub:device";
 
@@ -180,48 +179,23 @@ export default function ProxyManager() {
   const idsKey = useMemo(() => proxies.map((p) => p.id).join(","), [proxies]);
   void idsKey;
   const pingAll = useCallback(() => {
-    if (!idsKey) return;
-    const list = idsKey.split(",").filter(Boolean);
-    for (const id of list) { void pingOne(id); }
+    for (const p of proxies) {
+      void pingOne(p.id);
+    }
   }, [proxies, pingOne]);
 
   // Проверка при загрузке списка и затем раз в минуту, пока вкладка открыта
   useEffect(() => {
-    const parts = String(idsKey || "").split(",");
-    const list: string[] = [];
-    for (let i = 0; i < parts.length; i++) {
-      const x = parts[i];
-      if (typeof x === "string" && x.trim()) list.push(x.trim());
-    }
-    if (list.length === 0) return () => {};
-    const listRefArr: string[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const id = list[i];
-      if (id) {
-        listRefArr.push(id);
-        void pingOne(id);
-      }
-    }
-    const listRef: string[] = listRefArr.filter((x): x is string => typeof x === "string" && x.length > 0);
-    if (listRef.length === 0) {
-      const onVisibleEmpty = () => {};
-      document.addEventListener("visibilitychange", onVisibleEmpty);
-      return () => { document.removeEventListener("visibilitychange", onVisibleEmpty); };
-    }
+    if (proxies.length === 0) return;
+    for (const p of proxies) void pingOne(p.id);
     const t = setInterval(() => {
       if (document.visibilityState === "visible") {
-        for (let i = 0; i < listRef.length; i++) {
-          const id = listRef[i];
-          if (typeof id === "string") void pingOne(id);
-        }
+        for (const p of proxies) void pingOne(p.id);
       }
     }, 60000);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        for (let i = 0; i < listRef.length; i++) {
-          const id = listRef[i];
-          if (typeof id === "string") void pingOne(id);
-        }
+        for (const p of proxies) void pingOne(p.id);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -229,7 +203,7 @@ export default function ProxyManager() {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [pingOne]);
+  }, [proxies, pingOne]);
 
   /* ── Действия ── */
   const addProxy = useCallback(async (data: ProxyData): Promise<boolean> => {
@@ -255,6 +229,7 @@ export default function ProxyManager() {
     }
   };
 
+  /** Выбираем прокси и открываем tg://-ссылку: Telegram сам предложит подключиться */
   const connect = (p: Proxy) => {
     setDevice({ activeId: p.id, enabled: true });
     window.location.href = buildShareLink(p, "tg");
@@ -578,7 +553,7 @@ function ShareSheet({ proxy, onClose, onToast }: { proxy: Proxy; onClose: () => 
         return;
       }
     } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") return; // пользователь закрыл меню
+      if (e instanceof DOMException && e.name === "AbortError") return;
     }
     const u = new URL("https://t.me/share/url");
     u.searchParams.set("url", link);
