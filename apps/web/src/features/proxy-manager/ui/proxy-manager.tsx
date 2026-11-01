@@ -31,6 +31,7 @@ interface PingResult {
 }
 type SheetState = null | { kind: "add" } | { kind: "scan" } | { kind: "share"; proxy: Proxy };
 
+const PING_EVERY_MS = 60000;
 const TOKEN_KEY = "proxy-hub:token";
 const DEVICE_KEY = "proxy-hub:device";
 
@@ -179,9 +180,7 @@ export default function ProxyManager() {
   const idsKey = useMemo(() => proxies.map((p) => p.id).join(","), [proxies]);
   void idsKey;
   const pingAll = useCallback(() => {
-    for (const p of proxies) {
-      void pingOne(p.id);
-    }
+    for (const p of proxies) void pingOne(p.id);
   }, [proxies, pingOne]);
 
   // Проверка при загрузке списка и затем раз в минуту, пока вкладка открыта
@@ -192,7 +191,7 @@ export default function ProxyManager() {
       if (document.visibilityState === "visible") {
         for (const p of proxies) void pingOne(p.id);
       }
-    }, 60000);
+    }, PING_EVERY_MS);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         for (const p of proxies) void pingOne(p.id);
