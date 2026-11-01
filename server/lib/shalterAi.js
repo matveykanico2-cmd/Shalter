@@ -1088,7 +1088,7 @@ async function loadTurns(chat, userId) {
         if (a.kind === "image" && a.aiPrompt) parts.push(`[ты нарисовал и отправил картинку: ${a.aiPrompt}]`);
       }
     }
-    if (m.sticker) parts.push(`[стикер ${m.sticker.emoji ?? ""}]`.replace(" ]", "]"));
+    if (m.sticker) parts.push(m.sticker.emoji ?? "стикер");
     if (role === "assistant") {
       for (const a of m.attachments ?? []) {
         if (a.kind === "file") parts.push(`[ты отправил файл «${a.name}»]`);

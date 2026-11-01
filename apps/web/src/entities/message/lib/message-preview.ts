@@ -91,7 +91,7 @@ export function messagePreview(m: Message | null | undefined) {
   if (m.type === "system") return ceText(m.text);
   const sticker = m.sticker as { emoji?: string } | undefined;
   const gift = m.gift as { name?: string } | undefined;
-  if (m.type === "sticker") return `${sticker?.emoji ?? ""} Стикер`.trim();
+  if (m.type === "sticker") return sticker?.emoji ?? "Стикер";
   if (m.type === "gift") return `🎁 ${gift?.name ?? "Подарок"}`;
   if (m.type === "article") return `📰 ${plainText(stripCustomEmoji(splitArticle(m.text).title)) || "Статья"}`;
   const att = m.attachments?.[0] as Attachment | undefined;

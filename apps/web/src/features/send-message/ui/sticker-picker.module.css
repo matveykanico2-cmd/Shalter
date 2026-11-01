@@ -17,25 +17,24 @@
   color: var(--color-accent);
 }
 
+/* Панель в чате. */
 .panel {
-  width: min(360px, calc(100vw - 16px));
-  max-height: min(64vh, 420px);
+  width: min(400px, calc(100vw - 16px));
+  max-height: min(70vh, 460px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .section + .section {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: none;
+  margin-top: 12px;
 }
 
 .heading {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   color: var(--color-muted);
   font-size: 11px;
   font-weight: 600;
@@ -43,36 +42,41 @@
   text-transform: uppercase;
 }
 
+/* Сетка стикеров — только стикер, без рамок и кнопок. */
 .items {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
+  gap: 8px;
 }
 
 .item {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  width: 52px;
+  height: 52px;
   border: none;
-  border-radius: 16px;
+  border-radius: 14px;
   background: transparent !important;
-  font-size: 28px;
   cursor: pointer;
-  min-height: 52px;
-  pointer-events: auto;
   position: relative;
   z-index: 1;
 }
 
-.item:hover,
-.item:focus-visible {
-  background: transparent;
-  outline: none;
-  transform: scale(1.05);
+.item:hover {
+  background: var(--color-surface-alt) !important;
 }
 
-/* «Мои стикерпаки» под паками (.sticker-manage-btn). */
+.item:focus-visible {
+  outline: none;
+  transform: scale(1.04);
+}
+
+.item DomNode {
+  display: block;
+}
+
+/* Управление («Мои стикерпаки»). */
 .manage {
   width: 100%;
   margin-top: 10px;
@@ -82,192 +86,308 @@
   background: none;
   color: var(--color-accent);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   cursor: pointer;
 }
 
-/* Детальный вид своего пака (.sticker-pack-detail). */
-.packDetail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px;
-}
-.backButton {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: none;
-  color: var(--color-accent);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-}
-.detailHeader {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-.detailName {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 13px;
-}
-.detailCount {
-  font-size: 12px;
+.empty {
+  margin: 0;
   color: var(--color-muted);
-  white-space: nowrap;
-}
-.deletePackButton {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: var(--color-danger-bg);
-  color: var(--color-danger-text);
-  border-radius: 12px;
-  padding: 6px 10px;
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.deletePackButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.detailHint {
-  margin: 4px 0 0;
-  font-size: 11.5px;
-  color: var(--color-muted);
-}
-.detailGrid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  margin-top: 4px;
-}
-.detailCell {
-  position: relative;
-}
-.detailSticker {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-  position: relative;
-  z-index: 1;
-}
-.detailSticker:hover {
-  background: transparent;
-  transform: scale(1.08);
-}
-.detailRemove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  border: none;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  border-radius: 6px;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-.detailCell:hover .detailRemove {
-  opacity: 1;
-  pointer-events: auto;
-}
-.saveButton {
-  margin-top: 6px;
-  border: none;
-  border-radius: 12px;
-  background: var(--color-accent);
-  color: #fff;
-  padding: 8px 0;
-  font: inherit;
   font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.saveButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  text-align: center;
+  padding-top: 40px;
 }
 
-.packDialog {
-  border: none !important;
-  box-shadow: none !important;
-  background: var(--color-surface);
-}
-
-.packDialog *,
-.packDialog *::before,
-.packDialog *::after {
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-}
-
-/* Пак пользователя в панели (.sticker-picker packSection). */
+/* --- Раздел пака в панели (показ названия/описания) --- */
 .packSection {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .packHeader {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin-bottom: 6px;
 }
+
 .packName {
   font-size: 15px;
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
 }
+
 .packDesc {
   font-size: 12px;
   color: var(--color-muted);
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
+
 .packMeta {
   margin-left: auto;
   font-size: 12px;
   color: var(--color-muted);
 }
-.empty {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 13px;
-  text-align: center;
-  padding-top: 30px;
-}
-.packDialog {
+
+/* --- Лист детального вида пака (Telegram-стиль) --- */
+.packSheet {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 14px 18px;
-  max-width: min(420px, 92vw);
+  padding: 16px;
+  max-width: min(440px, 92vw);
+  background: var(--color-surface);
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sheetTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  flex: 1;
+}
+
+.sheetDesc {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0 0 4px;
+}
+
+.sheetMeta {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* Сетка стикеров в листе пака. */
+.stickerGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stickerItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: transparent !important;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+.stickerItem:hover {
+  background: var(--color-surface-alt) !important;
+}
+
+.stickerItem:focus-visible {
+  outline: none;
+  transform: scale(1.04);
+}
+
+.stickerGrid DomNode {
+  display: block;
+}
+
+/* Редактирование: ячейки стикера с кнопками управления. */
+.stickerCell {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: transparent !important;
+}
+
+.stickerCell DomNode {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.cellControls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 2px;
+  pointer-events: none;
+}
+
+.stickerCell:hover .cellControls {
+  pointer-events: auto;
+}
+
+.moveBtn,
+.removeBtn {
+  position: relative;
+  pointer-events: auto;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.stickerCell:hover .moveBtn,
+.stickerCell:hover .removeBtn {
+  opacity: 1;
+}
+
+.moveBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.removeBtn {
+  background: var(--color-danger-bg);
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editInput,
+.editDesc {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.editDesc {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.sheetActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.closeBtn {
+  width: 100%;
+  padding: 9px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: var(--color-surface-alt-hover, color-mix(in srgb, var(--color-surface-alt) 85%, var(--color-text) 10%));
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--color-text);
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.errorText {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.confirm p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.confirmButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmButtons Button {
+  flex: 1;
+}
+
+.addBtn {
+  width: 100%;
+  padding: 9px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.addBtn:hover {
+  background: var(--color-surface-alt-hover, color-mix(in srgb, var(--color-surface-alt) 85%, var(--color-text) 10%));
 }

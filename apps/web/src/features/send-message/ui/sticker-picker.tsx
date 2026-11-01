@@ -14,20 +14,21 @@ import styles from "./sticker-picker.module.css";
 
 const ACTION_PING_MS = 2500;
 
-/** Что уходит в сообщение — как sendSticker в composer.js (без служебных полей пака). */
+/** Что уходит в сообщение — без служебных полей пака. */
 function outgoing(s: Sticker): Sticker {
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid };
-  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
+  const packId = s.packId;
+  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
+  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}) };
+  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
 }
 
 type Props = { chatId: string; onSend: (sticker: Sticker) => void };
 
 /**
- * Стикеры — только свои стикерпаки пользователя (без встроенных наборов).
- * Каждый пак показывает название, описание и сетку стикеров.
+ * Панель стикеров в чате: только свои стикерпаки пользователя.
+ * Показывает название, описание и чистую сетку стикеров.
  * Клик по стикеру отправляет его в чат.
- * Внизу — «Мои стикерпаки» (создать/редактировать/удалить пак).
+ * «Мои стикерпаки» — создание/редактирование/удаление.
  */
 export function StickerButton({ chatId, onSend }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -41,7 +42,7 @@ export function StickerButton({ chatId, onSend }: Props) {
         aria-haspopup="menu"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
-          setAt({ x: r.right - 340, y: r.top - 8 });
+          setAt({ x: r.right - 360, y: r.top - 6 });
         }}
       >
         <Icon name="Sticker" size={21} />
@@ -121,6 +122,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
               <div className={styles.packHeader}>
                 <span className={styles.packName}>{pack.name}</span>
                 {pack.description && <span className={styles.packDesc}>{pack.description}</span>}
+                <span className={styles.packMeta}>{pack.stickerCount} шт.</span>
               </div>
               <div className={styles.items}>
                 {pack.stickers.map((s) => (
@@ -136,7 +138,7 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
                       pick(s);
                     }}
                   >
-                    <DomNode create={() => renderSticker(s, { size: 56 })} />
+                    <DomNode create={() => renderSticker(s, { size: 52 })} />
                   </button>
                 ))}
               </div>
