@@ -34,6 +34,8 @@ export function validateNativeProxy(p: NativeProxy): string | null {
   const host = p.host.trim();
   if (!host || /[\s/@?#]/.test(host)) return "Укажите IP-адрес или имя сервера прокси";
   if (!Number.isInteger(p.port) || p.port < 1 || p.port > 65535) return "Порт — число от 1 до 65535";
+  // Порт по умолчанию адрес не хранит, и оболочка не смогла бы его передать WebView.
+  if (p.type === "http" && p.port === 80) return "HTTP-прокси на порту 80 не поддерживается — укажите другой порт";
   if (p.password && !p.username) return "Пароль без логина не передать — укажите логин";
   return null;
 }
@@ -52,8 +54,7 @@ export function parseNativeProxyUrl(raw: string | null | undefined): NativeProxy
     const u = new URL(raw);
     const type = u.protocol.replace(/:$/, "");
     if (type !== "http" && type !== "socks5") return null;
-    // new URL("http://h:80").port — пустая строка: порт по умолчанию не хранится.
-    const port = Number(u.port) || (type === "http" ? 80 : 0);
+    const port = Number(u.port);
     if (!u.hostname || !port) return null;
     return {
       type,

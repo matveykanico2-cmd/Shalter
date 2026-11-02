@@ -456,6 +456,8 @@ CREATE TABLE IF NOT EXISTS stickers (
   createdAt TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_stickers_pack ON stickers(pack_id);
+-- Стикер в статусе ищется по файлу (apps/api StickerPacksRepository.isStickerFile).
+CREATE INDEX IF NOT EXISTS idx_stickers_file ON stickers(file);
 
 -- Коллекция пользователя: какие стикерпаки он добавил себе.
 CREATE TABLE IF NOT EXISTS user_sticker_packs (

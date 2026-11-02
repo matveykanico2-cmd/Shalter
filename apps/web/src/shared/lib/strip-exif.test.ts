@@ -20,7 +20,14 @@ describe("stripJpegMetadata", () => {
     expect(hex).not.toContain("8825"); // GPS-указателя нет
     expect(hex).toContain("011200030000000100060000"); // Orientation = 6
     expect(hex.endsWith(SCAN.map((b) => b.toString(16).padStart(2, "0")).join(""))).toBe(true);
-    expect(hex).toContain(APP0.map((b) => b.toString(16).padStart(2, "0")).join(""));
+    // APP0 (JFIF) — сразу после SOI, поворот — за ним.
+    expect(hex.startsWith("ffd8" + APP0.map((b) => b.toString(16).padStart(2, "0")).join("") + "ffe1")).toBe(true);
+  });
+
+  it("отбрасывает хвост после конца снимка (MPF со своим EXIF)", () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, ...APP0, ...SCAN, 0xff, 0xd8, ...exifSegment(), ...SCAN]);
+    const out = stripJpegMetadata(jpeg)!;
+    expect(out.length).toBe(2 + APP0.length + SCAN.length);
   });
 
   it("без EXIF и не JPEG — null (файл уходит как есть)", () => {

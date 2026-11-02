@@ -87,8 +87,17 @@ final class OfflineShell extends BridgeWebViewClient {
     @Override
     public void onReceivedHttpAuthRequest(WebView view, HttpAuthHandler handler, String host, String realm) {
         String[] creds = AppProxyPlugin.credentialsFor(view.getContext(), host);
-        if (creds != null) handler.proceed(creds[0], creds[1]);
-        else super.onReceivedHttpAuthRequest(view, handler, host, realm);
+        if (creds == null) {
+            super.onReceivedHttpAuthRequest(view, handler, host, realm);
+            return;
+        }
+        // Неверный логин или пароль: прокси снова отвечает 407 — после трёх попыток
+        // отменяем, страница получает ошибку сети вместо бесконечного повтора.
+        if (++AppProxyPlugin.authAttempts > 3) {
+            handler.cancel();
+            return;
+        }
+        handler.proceed(creds[0], creds[1]);
     }
 
     // Сервер лежит (502 от прокси и т. п.) — тоже открываем вшитую копию, а не страницу ошибки.

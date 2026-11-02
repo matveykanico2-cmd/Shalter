@@ -129,6 +129,7 @@ async function publicUserFor(user, viewerId) {
     delete visible.avatarEmoji;
   }
   if (blocked || !canSee("bio")) delete visible.bio;
+  if (blocked) delete visible.profileLinks;
   if (blocked || !canSee("birthday")) delete visible.birthday;
   // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
   applyContactName(visible, (await listContactsFor(viewerId)).find((c) => c.userId === user.id), isContact);

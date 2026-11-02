@@ -359,8 +359,9 @@ fn restart_app(app: AppHandle) {
 fn parse_proxy(s: &str) -> Option<Url> {
     let u = Url::parse(s).ok()?;
     if !matches!(u.scheme(), "http" | "socks5") { return None; }
-    // port_or_known_default: http://хост:80 url хранит без порта.
-    if u.host_str().map_or(true, str::is_empty) || u.port_or_known_default().is_none() { return None; }
+    // http://хост:80 url хранит без порта, и wry (parse_proxy_url) получил бы пустой порт —
+    // такой адрес не принимаем (validateNativeProxy в apps/web объясняет это человеку).
+    if u.host_str().map_or(true, str::is_empty) || u.port().is_none() { return None; }
     Some(u)
 }
 

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { UPLOAD_CANCELLED, type Uploaded, uploadFile, type UploadKind } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { withoutPhotoMetadata } from "@/shared/lib/strip-exif";
 
 import { sendTyping } from "../api/send-message";
 import { checkSize, uploadActionFor } from "../lib/files";
@@ -64,8 +63,8 @@ export function useUploads(chatId: string) {
         started.map(({ id, pick, controller }) =>
           // Фото уходит оригиналом, без пережатия: превью для ленты сервер делает сам
           // (mediaPreview), а в хранилище остаётся исходник без потери качества. EXIF
-          // (геопозиция и т. п.) вырезается без перекодирования, поворот остаётся.
-          (pick.kind === "file" ? Promise.resolve(pick.file) : withoutPhotoMetadata(pick.file)).then((file) => uploadFile(file, pick.kind, { signal: controller.signal, onProgress: (progress) => patch(id, { progress }) }))
+          // (геопозиция и т. п.) вырезает uploadFile без перекодирования, поворот остаётся.
+          uploadFile(pick.file, pick.kind, { signal: controller.signal, onProgress: (progress) => patch(id, { progress }) })
             .catch((err: unknown) => {
               patch(id, { failed: true });
               throw err;

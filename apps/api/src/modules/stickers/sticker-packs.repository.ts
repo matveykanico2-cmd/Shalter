@@ -101,13 +101,10 @@ export class StickerPacksRepository {
       .orderBy(desc(added), desc(stickerPacks.createdAt))
       .limit(limit)
       .all();
-    const out: StickerPack[] = [];
-    for (const row of rows) {
-      if (out.length >= limit) break;
+    return rows.flatMap((row) => {
       const pack = this.findPack(row.id, viewerId);
-      if (pack && pack.stickerCount > 0) out.push({ ...pack, addedCount: row.added });
-    }
-    return out;
+      return pack ? [{ ...pack, addedCount: row.added }] : [];
+    });
   }
 
   public updatePack(id: string, set: { name?: string; description?: string | null; coverStickerId?: string | null }): StickerPack {

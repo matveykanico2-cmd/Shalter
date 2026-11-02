@@ -29,19 +29,32 @@ public class AppProxyPlugin extends Plugin {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null);
     }
 
-    /** Ставит сохранённый прокси (или снимает), без ожидания. */
-    static void apply(Context ctx) {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return;
+    // Сколько раз подряд прокси спросил логин и пароль: неверный пароль — не крутим 407 вечно.
+    static int authAttempts = 0;
+
+    /**
+     * Ставит сохранённый прокси (или снимает), без ожидания. true — получилось; правило,
+     * которое WebView не принял, сбрасывается, иначе приложение падало бы на каждом запуске.
+     */
+    static boolean apply(Context ctx) {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return false;
+        authAttempts = 0;
         String url = saved(ctx);
         Runnable done = () -> {};
-        if (url == null) {
-            ProxyController.getInstance().clearProxyOverride(Runnable::run, done);
-            return;
+        try {
+            if (url == null) {
+                ProxyController.getInstance().clearProxyOverride(Runnable::run, done);
+                return true;
+            }
+            Uri u = Uri.parse(url);
+            String rule = u.getScheme() + "://" + u.getHost() + ":" + u.getPort();
+            ProxyConfig config = new ProxyConfig.Builder().addProxyRule(rule).build();
+            ProxyController.getInstance().setProxyOverride(config, Runnable::run, done);
+            return true;
+        } catch (RuntimeException e) {
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply();
+            return false;
         }
-        Uri u = Uri.parse(url);
-        String rule = u.getScheme() + "://" + u.getHost() + ":" + u.getPort();
-        ProxyConfig config = new ProxyConfig.Builder().addProxyRule(rule).build();
-        ProxyController.getInstance().setProxyOverride(config, Runnable::run, done);
     }
 
     /** Логин и пароль для запроса авторизации от прокси host, иначе null. */
@@ -67,6 +80,10 @@ public class AppProxyPlugin extends Plugin {
                 call.reject("Неверный адрес прокси");
                 return;
             }
+            if ("socks5".equals(scheme) && u.getUserInfo() != null) {
+                call.reject("SOCKS5 с логином и паролем Android не поддерживает — используйте HTTP-прокси или SOCKS5 без пароля");
+                return;
+            }
         } else {
             url = null;
         }
@@ -77,7 +94,10 @@ public class AppProxyPlugin extends Plugin {
         SharedPreferences.Editor e = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
         if (url == null) e.remove(KEY); else e.putString(KEY, url);
         e.apply();
-        apply(getContext());
+        if (!apply(getContext())) {
+            call.reject("Не удалось включить прокси с этим адресом");
+            return;
+        }
         call.resolve();
     }
 

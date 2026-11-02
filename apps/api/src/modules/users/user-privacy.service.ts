@@ -53,6 +53,7 @@ export class UserPrivacyService {
       delete hidden.avatarEmoji;
     }
     if (blocked || !canSee("bio")) delete hidden.bio;
+    if (blocked) delete hidden.profileLinks;
     if (blocked || !canSee("birthday")) delete hidden.birthday;
     // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
     applyContactName(

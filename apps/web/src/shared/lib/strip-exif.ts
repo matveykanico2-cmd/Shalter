@@ -49,7 +49,14 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array<ArrayBuffer> | 
     const marker = view.getUint16(at);
     if ((marker & 0xff00) !== 0xff00) return null;
     if (marker === SOS) {
-      parts.push(bytes.subarray(at));
+      // Картинка — до первого EOI: в сжатых данных за 0xFF идёт 0x00 или RST, так что
+      // FFD9 — конец основного снимка. Хвост после него (MPF: карта HDR, глубина,
+      // превью) несёт свой EXIF с геопозицией — отбрасываем.
+      let end = at + 2;
+      while (end + 1 < bytes.length && !(bytes[end] === 0xff && bytes[end + 1] === 0xd9)) end++;
+      if (end + 1 >= bytes.length) return null;
+      if (end + 2 < bytes.length) stripped = true;
+      parts.push(bytes.subarray(at, end + 2));
       break;
     }
     const length = view.getUint16(at + 2);
@@ -63,7 +70,9 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array<ArrayBuffer> | 
     at += 2 + length;
   }
   if (!stripped) return null;
-  if (orientation && orientation !== 1) parts.splice(1, 0, orientationSegment(orientation));
+  // JFIF требует APP0 сразу после SOI — поворот кладём за ним.
+  const afterApp0 = parts[1] && parts[1][0] === 0xff && parts[1][1] === 0xe0 ? 2 : 1;
+  if (orientation && orientation !== 1) parts.splice(afterApp0, 0, orientationSegment(orientation));
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let offset = 0;
   for (const p of parts) {

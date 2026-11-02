@@ -103,6 +103,7 @@ export class ProfilesService {
         delete visible.phone;
         delete visible.bio;
         delete visible.birthday;
+        delete visible.profileLinks;
         visible.online = false;
       }
       applyContactName(visible, myContact, isContact);

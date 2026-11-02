@@ -1,5 +1,7 @@
 // Загрузка файла (POST /api/uploads) — как public/js/lib/upload.js: XHR ради прогресса,
 // не больше трёх одновременно, повтор после сбоя сети или 5xx (через 1 и 3 с).
+import { withoutPhotoMetadata } from "../lib/strip-exif";
+
 const MAX_PARALLEL = 3;
 const RETRY_DELAYS_MS = [1000, 3000];
 // Ни байта за минуту — соединение мертво (сменилась сеть, уснул телефон): обрываем и
@@ -53,7 +55,12 @@ function releaseSlot() {
 
 type Options = { onProgress?: (fraction: number) => void; signal?: AbortSignal };
 
-export async function uploadFile(file: File, kind: UploadKind, { onProgress, signal }: Options = {}): Promise<Uploaded> {
+// Фото, которое увидят другие (в чате, на аватарке, в истории), — без EXIF: геопозиция,
+// модель телефона. Файл «без сжатия» (kind=file) уходит байт в байт, как в Telegram.
+const PHOTO_KINDS = new Set<UploadKind>(["image", "avatar", "gift"]);
+
+export async function uploadFile(original: File, kind: UploadKind, { onProgress, signal }: Options = {}): Promise<Uploaded> {
+  const file = PHOTO_KINDS.has(kind) ? await withoutPhotoMetadata(original) : original;
   await takeSlot(signal);
   try {
     for (let attempt = 0; ; attempt++) {
