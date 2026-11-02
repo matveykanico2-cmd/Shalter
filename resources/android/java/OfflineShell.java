@@ -91,9 +91,9 @@ final class OfflineShell extends BridgeWebViewClient {
             super.onReceivedHttpAuthRequest(view, handler, host, realm);
             return;
         }
-        // Неверный логин или пароль: прокси снова отвечает 407 — после трёх попыток
-        // отменяем, страница получает ошибку сети вместо бесконечного повтора.
-        if (++AppProxyPlugin.authAttempts > 3) {
+        // Неверный логин или пароль: прокси отвечает 407 снова и снова — после лимита за
+        // окно отменяем, страница получает ошибку сети вместо бесконечного повтора.
+        if (!AppProxyPlugin.allowAuthAttempt()) {
             handler.cancel();
             return;
         }

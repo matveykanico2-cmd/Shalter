@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ContactsRepository } from "./contacts.repository.js";
-import { applyContactName, privacyAllows, privacyAllowsLazy } from "./lib/privacy-rules.js";
+import { applyContactName, hideFromBlocked, privacyAllows, privacyAllowsLazy } from "./lib/privacy-rules.js";
 import { publicUser } from "./lib/user.presenter.js";
 import type { User } from "./model/domain.js";
 import { UserSettingsService } from "./user-settings.service.js";
@@ -43,18 +43,18 @@ export class UserPrivacyService {
     const canSee = (key: string) => privacyAllows(privacy, key, viewerId, isContact);
     const hidden: Record<string, unknown> = visible;
     const blocked = (user.blockedUserIds ?? []).includes(viewerId);
-    if (blocked || !canSee("lastSeen")) {
+    if (blocked) hideFromBlocked(hidden);
+    if (!canSee("lastSeen")) {
       delete hidden.lastSeen;
       visible.online = false;
     }
-    if (blocked || !canSee("photo")) {
+    if (!canSee("photo")) {
       delete hidden.avatarImage;
       delete hidden.avatarImages;
       delete hidden.avatarEmoji;
     }
-    if (blocked || !canSee("bio")) delete hidden.bio;
-    if (blocked) delete hidden.profileLinks;
-    if (blocked || !canSee("birthday")) delete hidden.birthday;
+    if (!canSee("bio")) delete hidden.bio;
+    if (!canSee("birthday")) delete hidden.birthday;
     // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
     applyContactName(
       visible,

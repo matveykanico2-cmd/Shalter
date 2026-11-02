@@ -94,6 +94,16 @@ export function privacyAllowsLazy(privacy: Privacy, key: string, viewerId: strin
  * Как в Telegram: у себя в контактах человек подписан вашим именем для него — везде.
  * Имя из профиля — в profileName. inContacts — он у вас в контактах, mutualContact — и вы у него.
  */
+/**
+ * Заблокированному — как будто всё скрыто настройками: ни фото и времени визита, ни
+ * телефона, «о себе», дня рождения и кнопок профиля. Одно правило для GET /users/:id
+ * и publicUserFor (как hideFromBlocked в server/lib/privacyRules.js).
+ */
+export function hideFromBlocked(visible: Record<string, unknown>): void {
+  for (const key of ["avatarImage", "avatarImages", "avatarEmoji", "lastSeen", "phone", "bio", "birthday", "profileLinks"]) delete visible[key];
+  visible.online = false;
+}
+
 export function applyContactName<T extends { name?: unknown; inContacts?: boolean; mutualContact?: boolean; profileName?: unknown; avatarImage?: unknown; profileAvatarImage?: unknown }>(
   visible: T,
   myContact: ContactRow | null | undefined,

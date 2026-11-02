@@ -7,7 +7,7 @@ import type { Chat } from "../chats/model/domain.js";
 import { GiftSendersService } from "../gifts/gift-senders.service.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
-import { applyContactName, privacyAllows } from "../users/lib/privacy-rules.js";
+import { applyContactName, hideFromBlocked, privacyAllows } from "../users/lib/privacy-rules.js";
 import { contactNote } from "../users/lib/contact-note.js";
 import { publicUser, selfUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -95,17 +95,7 @@ export class ProfilesService {
       }
       // Заблокированному — как будто всё скрыто настройками: ни фото и статуса,
       // ни телефона, «о себе» и дня рождения.
-      if ((user.blockedUserIds ?? []).includes(uid)) {
-        delete visible.avatarImage;
-        delete visible.avatarImages;
-        delete visible.avatarEmoji;
-        delete visible.lastSeen;
-        delete visible.phone;
-        delete visible.bio;
-        delete visible.birthday;
-        delete visible.profileLinks;
-        visible.online = false;
-      }
+      if ((user.blockedUserIds ?? []).includes(uid)) hideFromBlocked(visible);
       applyContactName(visible, myContact, isContact);
     }
 

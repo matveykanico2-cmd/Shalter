@@ -109,6 +109,13 @@ function applyContactName(visible, myContact, theyHaveMe) {
   return visible;
 }
 
+// Заблокированному — как будто всё скрыто настройками (как hideFromBlocked в
+// apps/api modules/users/lib/privacy-rules.ts).
+function hideFromBlocked(visible) {
+  for (const key of ["avatarImage", "avatarImages", "avatarEmoji", "lastSeen", "phone", "bio", "birthday", "profileLinks"]) delete visible[key];
+  visible.online = false;
+}
+
 // publicUser(), но с учётом приватности того, чей профиль смотрят: время
 // визита, фото, «о себе» и день рождения — как в GET /users/:id.
 async function publicUserFor(user, viewerId) {
@@ -119,18 +126,18 @@ async function publicUserFor(user, viewerId) {
   const isContact = (await listContactsFor(user.id)).some((c) => c.userId === viewerId);
   const canSee = (key) => privacyAllows(privacy, key, viewerId, isContact);
   const blocked = (user.blockedUserIds ?? []).includes(viewerId);
-  if (blocked || !canSee("lastSeen")) {
+  if (blocked) hideFromBlocked(visible);
+  if (!canSee("lastSeen")) {
     delete visible.lastSeen;
     visible.online = false;
   }
-  if (blocked || !canSee("photo")) {
+  if (!canSee("photo")) {
     delete visible.avatarImage;
     delete visible.avatarImages;
     delete visible.avatarEmoji;
   }
-  if (blocked || !canSee("bio")) delete visible.bio;
-  if (blocked) delete visible.profileLinks;
-  if (blocked || !canSee("birthday")) delete visible.birthday;
+  if (!canSee("bio")) delete visible.bio;
+  if (!canSee("birthday")) delete visible.birthday;
   // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
   applyContactName(visible, (await listContactsFor(viewerId)).find((c) => c.userId === user.id), isContact);
   return visible;

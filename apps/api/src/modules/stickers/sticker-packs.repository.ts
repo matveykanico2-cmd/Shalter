@@ -92,7 +92,15 @@ export class StickerPacksRepository {
   public popular(viewerId: string, limit: number): StickerPack[] {
     const added = count(userStickerPacks.userId);
     const rows = this.db
-      .select({ id: stickerPacks.id, added })
+      .select({
+        id: stickerPacks.id,
+        ownerId: stickerPacks.ownerId,
+        name: stickerPacks.name,
+        description: stickerPacks.description,
+        coverStickerId: stickerPacks.coverStickerId,
+        createdAt: stickerPacks.createdAt,
+        added,
+      })
       .from(stickerPacks)
       .leftJoin(userStickerPacks, eq(userStickerPacks.packId, stickerPacks.id))
       // Пустые паки отсекаем в SQL и берём не больше limit — без прохода по всей таблице.
@@ -101,9 +109,33 @@ export class StickerPacksRepository {
       .orderBy(desc(added), desc(stickerPacks.createdAt))
       .limit(limit)
       .all();
-    return rows.flatMap((row) => {
-      const pack = this.findPack(row.id, viewerId);
-      return pack ? [{ ...pack, addedCount: row.added }] : [];
+    if (!rows.length) return [];
+    // Стикеры и «добавлен ли у меня» — одним запросом на все паки, а не по пакету на строку.
+    const ids = rows.map((row) => row.id);
+    const stickersByPack = this.stickersFor(ids);
+    const mine = new Set(
+      this.db
+        .select({ packId: userStickerPacks.packId })
+        .from(userStickerPacks)
+        .where(and(eq(userStickerPacks.userId, viewerId), inArray(userStickerPacks.packId, ids)))
+        .all()
+        .map((r) => r.packId)
+    );
+    return rows.map((row) => {
+      const packStickers = stickersByPack[row.id] ?? [];
+      return {
+        id: row.id,
+        ownerId: row.ownerId,
+        name: row.name,
+        description: row.description,
+        createdAt: row.createdAt,
+        stickers: packStickers.map(toSticker),
+        stickerCount: packStickers.length,
+        isAdded: mine.has(row.id),
+        isOwner: false,
+        addedCount: row.added,
+        ...coverOf(row.coverStickerId, packStickers),
+      };
     });
   }
 

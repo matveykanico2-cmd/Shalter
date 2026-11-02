@@ -5,7 +5,9 @@
 
 const SOI = 0xffd8;
 const APP1 = 0xffe1;
+const APP2 = 0xffe2;
 const SOS = 0xffda;
+const MPF = 0x4d504600; // "MPF\0"
 
 /** Orientation (1–8) из сегмента APP1 «Exif», иначе null. */
 function readOrientation(view: DataView, start: number, length: number): number | null {
@@ -52,17 +54,21 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array<ArrayBuffer> | 
       // Картинка — до первого EOI: в сжатых данных за 0xFF идёт 0x00 или RST, так что
       // FFD9 — конец основного снимка. Хвост после него (MPF: карта HDR, глубина,
       // превью) несёт свой EXIF с геопозицией — отбрасываем.
+      // Нет EOI (файл обрезан) — берём до конца, EXIF всё равно вырезан.
       let end = at + 2;
       while (end + 1 < bytes.length && !(bytes[end] === 0xff && bytes[end + 1] === 0xd9)) end++;
-      if (end + 1 >= bytes.length) return null;
-      if (end + 2 < bytes.length) stripped = true;
-      parts.push(bytes.subarray(at, end + 2));
+      const stop = end + 1 < bytes.length ? end + 2 : bytes.length;
+      if (stop < bytes.length) stripped = true;
+      parts.push(bytes.subarray(at, stop));
       break;
     }
     const length = view.getUint16(at + 2);
     if (length < 2 || at + 2 + length > bytes.length) return null;
     if (marker === APP1) {
       orientation ??= readOrientation(view, at + 4, length - 2);
+      stripped = true;
+    } else if (marker === APP2 && length >= 6 && view.getUint32(at + 4) === MPF) {
+      // Индекс MPF указывает на снимки в хвосте, который мы отбрасываем, — убираем и его.
       stripped = true;
     } else {
       parts.push(bytes.subarray(at, at + 2 + length));
@@ -84,8 +90,12 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array<ArrayBuffer> | 
 
 /** Файл для отправки: JPEG — без метаданных, остальное — как есть. */
 export async function withoutPhotoMetadata(file: File): Promise<File> {
-  if (file.type !== "image/jpeg") return file;
+  // JPEG узнаём по первым байтам (FFD8): с «Поделиться» и из части галерей он приходит
+  // без MIME или как image/jpg.
+  if (file.type && !file.type.startsWith("image/")) return file;
   try {
+    const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+    if (head[0] !== 0xff || head[1] !== 0xd8) return file;
     const clean = stripJpegMetadata(new Uint8Array(await file.arrayBuffer()));
     return clean ? new File([clean], file.name, { type: file.type, lastModified: file.lastModified }) : file;
   } catch {

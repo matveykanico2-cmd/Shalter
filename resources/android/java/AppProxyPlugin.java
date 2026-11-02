@@ -25,20 +25,42 @@ public class AppProxyPlugin extends Plugin {
     private static final String PREFS = "shalter_proxy";
     private static final String KEY = "url";
 
+    private static void store(Context ctx, String url) {
+        SharedPreferences.Editor e = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
+        if (url == null) e.remove(KEY); else e.putString(KEY, url);
+        e.apply();
+    }
+
     static String saved(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null);
     }
 
-    // Сколько раз подряд прокси спросил логин и пароль: неверный пароль — не крутим 407 вечно.
-    static int authAttempts = 0;
+    // Запросы логина и пароля от прокси за последние 30 с: неверный пароль — не крутим 407
+    // вечно, а верный не отменяем после пачки параллельных запросов или переподключения.
+    private static final long AUTH_WINDOW_MS = 30_000;
+    private static final int AUTH_MAX_IN_WINDOW = 12;
+    private static long authWindowStart = 0;
+    private static int authAttempts = 0;
+
+    /** Можно ли ещё раз отдать логин и пароль (OfflineShell.onReceivedHttpAuthRequest). */
+    static synchronized boolean allowAuthAttempt() {
+        long now = System.currentTimeMillis();
+        if (now - authWindowStart > AUTH_WINDOW_MS) {
+            authWindowStart = now;
+            authAttempts = 0;
+        }
+        return ++authAttempts <= AUTH_MAX_IN_WINDOW;
+    }
 
     /**
-     * Ставит сохранённый прокси (или снимает), без ожидания. true — получилось; правило,
-     * которое WebView не принял, сбрасывается, иначе приложение падало бы на каждом запуске.
+     * Ставит сохранённый прокси (или снимает), без ожидания. false — WebView не принял
+     * правило (исключение ловим: иначе приложение падало бы на каждом запуске).
      */
     static boolean apply(Context ctx) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return false;
-        authAttempts = 0;
+        synchronized (AppProxyPlugin.class) {
+            authWindowStart = 0;
+        }
         String url = saved(ctx);
         Runnable done = () -> {};
         try {
@@ -52,7 +74,6 @@ public class AppProxyPlugin extends Plugin {
             ProxyController.getInstance().setProxyOverride(config, Runnable::run, done);
             return true;
         } catch (RuntimeException e) {
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply();
             return false;
         }
     }
@@ -91,10 +112,12 @@ public class AppProxyPlugin extends Plugin {
             call.reject("Этот WebView не поддерживает прокси — обновите Android System WebView");
             return;
         }
-        SharedPreferences.Editor e = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
-        if (url == null) e.remove(KEY); else e.putString(KEY, url);
-        e.apply();
+        String previous = saved(getContext());
+        store(getContext(), url);
         if (!apply(getContext())) {
+            // Не принятый адрес не затирает рабочий: возвращаем прежний прокси.
+            store(getContext(), previous);
+            apply(getContext());
             call.reject("Не удалось включить прокси с этим адресом");
             return;
         }

@@ -60,9 +60,11 @@ type Options = { onProgress?: (fraction: number) => void; signal?: AbortSignal }
 const PHOTO_KINDS = new Set<UploadKind>(["image", "avatar", "gift"]);
 
 export async function uploadFile(original: File, kind: UploadKind, { onProgress, signal }: Options = {}): Promise<Uploaded> {
-  const file = PHOTO_KINDS.has(kind) ? await withoutPhotoMetadata(original) : original;
   await takeSlot(signal);
   try {
+    // Внутри слота: не больше трёх файлов в памяти разом, отменённый не читаем.
+    if (signal?.aborted) throw new UploadError(UPLOAD_CANCELLED);
+    const file = PHOTO_KINDS.has(kind) ? await withoutPhotoMetadata(original) : original;
     for (let attempt = 0; ; attempt++) {
       if (signal?.aborted) throw new UploadError(UPLOAD_CANCELLED);
       try {

@@ -30,6 +30,19 @@ describe("stripJpegMetadata", () => {
     expect(out.length).toBe(2 + APP0.length + SCAN.length);
   });
 
+  it("обрезанный файл без EOI — EXIF всё равно вырезан", () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, ...exifSegment(), 0xff, 0xda, 0x00, 0x02, 0x11, 0x22]);
+    const hex = Array.from(stripJpegMetadata(jpeg)!, (b) => b.toString(16).padStart(2, "0")).join("");
+    expect(hex).not.toContain("8825");
+    expect(hex.endsWith("ffda00021122")).toBe(true);
+  });
+
+  it("убирает индекс MPF (APP2) вместе с хвостом", () => {
+    const mpf = [0xff, 0xe2, 0x00, 0x08, 0x4d, 0x50, 0x46, 0x00, 0x01, 0x02];
+    const out = stripJpegMetadata(new Uint8Array([0xff, 0xd8, ...APP0, ...mpf, ...SCAN, 0xff, 0xd8, ...SCAN]))!;
+    expect(Array.from(out)).toEqual([0xff, 0xd8, ...APP0, ...SCAN]);
+  });
+
   it("без EXIF и не JPEG — null (файл уходит как есть)", () => {
     expect(stripJpegMetadata(new Uint8Array([0xff, 0xd8, ...APP0, ...SCAN]))).toBeNull();
     expect(stripJpegMetadata(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
