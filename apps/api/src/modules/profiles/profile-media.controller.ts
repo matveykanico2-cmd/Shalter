@@ -12,6 +12,8 @@ import {
   type AddAvatarDto,
   type AddStatusDto,
   type AddTrackDto,
+  suggestedAvatarSchema,
+  type SuggestedAvatarDto,
 } from "./model/schemas/profile-media.schema.js";
 import { ProfileStatusService } from "./profile-status.service.js";
 import { ProfileTrackService } from "./profile-track.service.js";
@@ -32,6 +34,12 @@ export class AvatarsController {
   @HttpCode(200)
   public add(@Req() req: Request, @Body(new ZodValidationPipe(addAvatarSchema)) dto: AddAvatarDto) {
     return this.avatars.add(req.uid!, dto);
+  }
+
+  @Post("from-suggestion")
+  @HttpCode(200)
+  public fromSuggestion(@Req() req: Request, @Body(new ZodValidationPipe(suggestedAvatarSchema)) dto: SuggestedAvatarDto) {
+    return this.avatars.fromSuggestion(req.uid!, dto);
   }
 
   @Post(":index/main")

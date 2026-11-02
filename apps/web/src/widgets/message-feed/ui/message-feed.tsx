@@ -16,6 +16,7 @@ import {
   useSummaries,
 } from "@/features/message-actions";
 import { closeStickerPack, Composer, openStickerPack, openStickerPreview, outgoingSticker, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
+import { useSuggestedPhoto } from "@/features/suggested-photo";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -135,6 +136,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const openThread = (m: Message) => setThread({ kind: "thread", chatId: chat.id, root: m });
   // Перезвонить из записи о звонке — в группе снова всем, как placeCall в chatView.js.
   const startCall = useStartCall(me);
+  const applySuggestedPhoto = useSuggestedPhoto();
   const callBack = (kind: CallKind) => void startCall.call(chat.id, kind, { ringAll: chat.type === "group" });
   const data = history.data;
 
@@ -506,6 +508,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         onOpenThread={isGroup ? openThread : undefined}
                         onOpenComments={withComments(chat, row.message) ? (m) => setThread({ kind: "comments", post: m }) : undefined}
                         onCallBack={selection.active ? undefined : callBack}
+                        onUseSuggestedPhoto={selection.active ? undefined : (m) => void applySuggestedPhoto(m)}
                         onStickerClick={openPackBySticker}
                         onOpenStory={openStory}
                       />
@@ -622,6 +625,8 @@ type RowProps = {
   onOpenComments?: (m: Message) => void;
   /** Запись о звонке — перезвонить. */
   onCallBack?: (kind: CallKind) => void;
+  /** «Установить как фото профиля» под предложенным фото. */
+  onUseSuggestedPhoto?: (m: Message) => void;
   /** Клик на стикер в сообщении — открыть его пак (как в Telegram). */
   onStickerClick?: (sticker: Sticker) => void;
   /** Ответ на историю — открыть просмотр историй (как в Telegram). */
@@ -675,6 +680,7 @@ function MessageRow(props: RowProps) {
       onToggleSelect={props.onToggleSelect}
       summary={props.summaries.of(message.id)}
       onCallBack={props.onCallBack}
+      onUseSuggestedPhoto={props.onUseSuggestedPhoto}
       onStickerClick={onStickerClick}
       onOpenStory={onOpenStory}
       footer={

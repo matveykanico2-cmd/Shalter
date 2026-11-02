@@ -787,6 +787,8 @@ const existingMessageColumns = new Set(db.prepare("PRAGMA table_info(messages)")
 if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUMN gift TEXT");
 if (!existingMessageColumns.has("paidStars")) db.exec("ALTER TABLE messages ADD COLUMN paidStars INTEGER NOT NULL DEFAULT 0");
 if (!existingMessageColumns.has("anonymous")) db.exec("ALTER TABLE messages ADD COLUMN anonymous INTEGER NOT NULL DEFAULT 0");
+// «Предложить фото профиля»: одно фото в личке, получатель ставит его на аватар в одно касание.
+if (!existingMessageColumns.has("photoSuggestion")) db.exec("ALTER TABLE messages ADD COLUMN photoSuggestion INTEGER NOT NULL DEFAULT 0");
 if (!existingMessageColumns.has("sticker")) db.exec("ALTER TABLE messages ADD COLUMN sticker TEXT");
 if (!existingMessageColumns.has("linkPreview")) db.exec("ALTER TABLE messages ADD COLUMN linkPreview TEXT");
 if (!existingMessageColumns.has("report")) db.exec("ALTER TABLE messages ADD COLUMN report TEXT");

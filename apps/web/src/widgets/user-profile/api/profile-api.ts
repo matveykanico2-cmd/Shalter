@@ -45,9 +45,9 @@ export const profileApi = {
   renameContact: (userId: string, localName: string) => http.post<unknown>("/api/contacts/rename", { userId, localName }),
   /** Своё фото контакта — видите только вы; пустая ссылка — убрать. */
   setContactPhoto: (userId: string, url: string) => http.post<{ localAvatar: string | null }>("/api/contacts/photo", { userId, url }),
-  /** «Предложить фото» — фото уходит сообщением в личный чат. */
+  /** «Предложить фото» — фото уходит в личный чат с пометкой photoSuggestion, получатель ставит его в одно касание. */
   suggestPhoto: (chatId: string, image: Uploaded) =>
-    http.post<unknown>(`/api/chats/${id(chatId)}/messages`, { text: "📷 Предлагаю это фото для вашего профиля", attachments: [image] }),
+    http.post<unknown>(`/api/chats/${id(chatId)}/messages`, { text: "", attachments: [image], photoSuggestion: true }),
   startSecretChat: (userId: string) => http.post<z.infer<typeof chatBody>>("/api/chats/secret", { userId }),
   sendContact: (chatId: string, contact: { userId: string; name: string; phone?: string }) =>
     http.post<unknown>(`/api/chats/${id(chatId)}/messages`, { text: "", attachments: [{ kind: "contact", meta: contact }] }),

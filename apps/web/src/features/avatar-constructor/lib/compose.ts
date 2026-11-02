@@ -1,5 +1,7 @@
 import { emojiImageUrl } from "@/shared/lib/emoji-images";
 
+import { type Drawable, loadDrawable } from "./animated-source";
+
 export type Layer = {
   id: string;
   kind: "emoji" | "sticker" | "photo";
@@ -10,6 +12,8 @@ export type Layer = {
   y: number;
   /** Размер слоя, доля стороны квадрата. */
   scale: number;
+  /** Поворот, градусы по часовой стрелке. */
+  rotation: number;
 };
 
 export type Background = { id: string; css: string; stops: readonly string[] };
@@ -30,18 +34,39 @@ export const BACKGROUNDS: readonly Background[] = [
 
 export const layerImageUrl = (l: Layer) => (l.kind === "emoji" ? emojiImageUrl(l.src) : l.src);
 
-function loadImage(url: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
+export const MIN_SCALE = 0.1;
+export const MAX_SCALE = 1.5;
+export const clampScale = (v: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
+export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+/** Угол в градусах в диапазон (-180, 180]. */
+export const normalizeAngle = (deg: number) => {
+  const a = ((((deg + 180) % 360) + 360) % 360) - 180;
+  return a === -180 ? 180 : a;
+};
+
+type Pt = { x: number; y: number };
+
+/** Щипок двумя пальцами: масштаб — отношение расстояний, поворот — разница углов между пальцами. */
+export function pinch(start: { scale: number; rotation: number }, from: [Pt, Pt], to: [Pt, Pt]) {
+  const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
+  const angle = (a: Pt, b: Pt) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  const d0 = dist(from[0], from[1]);
+  const ratio = d0 > 0 ? dist(to[0], to[1]) / d0 : 1;
+  return {
+    scale: clampScale(start.scale * ratio),
+    rotation: normalizeAngle(start.rotation + angle(to[0], to[1]) - angle(from[0], from[1])),
+  };
 }
 
-/** Рисует аватар в квадрат size×size: фон, затем слои снизу вверх. */
-export async function renderAvatar(bg: Background, layers: readonly Layer[], size = 640): Promise<HTMLCanvasElement> {
+/** Где и каким размером слой ложится на квадрат size×size: вписан в рамку scale·size, центр в (x, y). */
+export function layerRect(l: Pick<Layer, "x" | "y" | "scale" | "rotation">, natW: number, natH: number, size: number) {
+  const box = l.scale * size;
+  const k = box / Math.max(natW, natH, 1);
+  return { cx: l.x * size, cy: l.y * size, w: natW * k, h: natH * k, angle: ((l.rotation || 0) * Math.PI) / 180 };
+}
+
+/** Рисует аватар в квадрат size×size: фон, затем слои снизу вверх (анимированные — неподвижным кадром). */
+export async function renderAvatar(bg: Background, layers: readonly Layer[], size = 640, load: (url: string) => Promise<Drawable | null> = loadDrawable): Promise<HTMLCanvasElement> {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -53,15 +78,16 @@ export async function renderAvatar(bg: Background, layers: readonly Layer[], siz
     ctx.fillStyle = g;
   } else ctx.fillStyle = bg.stops[0] ?? "#65aadd";
   ctx.fillRect(0, 0, size, size);
-  const images = await Promise.all(layers.map((l) => loadImage(layerImageUrl(l))));
+  const sources = await Promise.all(layers.map((l) => load(layerImageUrl(l))));
   layers.forEach((l, i) => {
-    const img = images[i];
-    if (!img || !img.naturalWidth) return;
-    const box = l.scale * size;
-    const k = box / Math.max(img.naturalWidth, img.naturalHeight);
-    const w = img.naturalWidth * k;
-    const h = img.naturalHeight * k;
-    ctx.drawImage(img, l.x * size - w / 2, l.y * size - h / 2, w, h);
+    const src = sources[i];
+    if (!src || !src.width || !src.height) return;
+    const r = layerRect(l, src.width, src.height, size);
+    ctx.save();
+    ctx.translate(r.cx, r.cy);
+    if (r.angle) ctx.rotate(r.angle);
+    ctx.drawImage(src.source, -r.w / 2, -r.h / 2, r.w, r.h);
+    ctx.restore();
   });
   return canvas;
 }
@@ -80,5 +106,3 @@ export function posterOf(canvas: HTMLCanvasElement): string {
   return small.toDataURL("image/jpeg", 0.85);
 }
 
-/** Анимированные стикеры (tgs/webm/json) на холст не нарисовать — берём только картинки. */
-export const isStaticImage = (url: string) => !/\.(tgs|json|webm|mp4|lottie)(\?|$)/i.test(url);

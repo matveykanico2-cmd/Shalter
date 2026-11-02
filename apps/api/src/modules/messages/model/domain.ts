@@ -51,6 +51,8 @@ export interface Message {
   discussionAnchorId?: string;
   signedBy?: string;
   anonymous?: true;
+  /** «Предложить фото профиля»: одно фото в личке, получатель может поставить его на аватар. */
+  photoSuggestion?: true;
   boostedUntil?: string;
   paidStars?: number;
   boostedById?: string;
@@ -90,6 +92,7 @@ export interface NewMessage {
   commentCount?: number;
   paidStars?: number;
   anonymous?: boolean;
+  photoSuggestion?: boolean;
   effect?: string | null;
   visibleToId?: string | null;
 }

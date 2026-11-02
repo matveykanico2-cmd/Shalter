@@ -92,7 +92,7 @@
   background: var(--color-surface-alt);
 }
 
-.cell img {
+.cell > * {
   display: block;
   width: 100%;
   aspect-ratio: 1;
@@ -143,7 +143,7 @@
   text-align: left;
 }
 
-.layerPick img {
+.layerPick > :first-child {
   width: 28px;
   height: 28px;
   object-fit: contain;
@@ -195,4 +195,14 @@
   width: 100%;
   height: 100%;
   margin-top: 3%;
+}
+
+.lottie {
+  display: block;
+}
+
+.lottie svg {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }

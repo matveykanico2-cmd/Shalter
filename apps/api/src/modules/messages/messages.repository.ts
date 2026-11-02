@@ -199,6 +199,7 @@ export class MessagesRepository {
         anonymous: message.anonymous ? 1 : 0,
         effect: message.effect ?? null,
         visibleToId: message.visibleToId ?? null,
+        photoSuggestion: message.photoSuggestion ? 1 : 0,
       })
       .run();
     return this.findById(id)!;

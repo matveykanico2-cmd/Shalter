@@ -36,6 +36,8 @@ export const message = z.strictObject({
   discussionAnchorId: z.string().optional(),
   signedBy: z.string().optional(),
   anonymous: z.literal(true).optional(),
+  /** «Предложить фото профиля» в личке: получатель может поставить фото на аватар. */
+  photoSuggestion: z.literal(true).optional(),
   boostedUntil: isoDate.optional(),
   paidStars: z.number().optional(),
   boostedById: z.string().optional(),

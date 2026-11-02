@@ -289,6 +289,10 @@ export class MessageSendService {
     const replyToId = inThisChat(body.replyToId) ? body.replyToId : null;
     const threadRootId = inThisChat(body.threadRootId) ? body.threadRootId : null;
     const clean = sanitizers();
+    const attachments = paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments));
+    // «Предложить фото профиля» — только одно фото в личке, как в Telegram.
+    const photoSuggestion =
+      body.photoSuggestion === true && chat.type === "dm" && !paid && !body.sticker && attachments?.length === 1 && attachments[0]?.kind === "image" && !!attachments[0].url;
 
     const message = this.messages.create({
       id: genId("m"),
@@ -304,7 +308,7 @@ export class MessageSendService {
       threadRootId,
       topicId: threadRootId ? null : ((body.topicId as string | null | undefined) ?? null),
       storyReply: sanitizeStoryReply(body.storyReply),
-      attachments: paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments)),
+      attachments,
       forwardedFrom,
       sticker: clean.sanitizeSticker(body.sticker),
       customEmoji: sanitizeMessageEmoji(body.customEmoji),
@@ -313,6 +317,7 @@ export class MessageSendService {
       anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
       // Эффекты — только в личных чатах, как в Telegram.
       effect: chat.type === "dm" && MESSAGE_EFFECTS.includes(body.effect as string) ? (body.effect as string) : null,
+      photoSuggestion,
     });
 
     const { registerAttachments } = uploadAccess();

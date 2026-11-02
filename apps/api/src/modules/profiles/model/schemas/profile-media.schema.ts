@@ -15,6 +15,10 @@ export const addAvatarSchema = requestBody({
 });
 export type AddAvatarDto = z.infer<typeof addAvatarSchema>;
 
+// «Установить как фото профиля» под предложенным в личке фото: превью (data:) считает клиент.
+export const suggestedAvatarSchema = requestBody({ messageId: text(), poster: text() });
+export type SuggestedAvatarDto = z.infer<typeof suggestedAvatarSchema>;
+
 export const addStatusSchema = requestBody({
   // Любое истинное значение — выбор из каталога (не найдётся — 404), иначе своя картинка.
   catalogId: z

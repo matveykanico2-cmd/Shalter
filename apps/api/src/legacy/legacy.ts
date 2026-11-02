@@ -298,6 +298,7 @@ interface UploadAccess {
   registerAttachments: (chatId: string, attachments: unknown, opts?: { by?: string }) => void;
   revokeAttachments: (chatId: string, refs: { url: string }[]) => void;
   canAccessUpload: (userId: string, filename: string) => boolean;
+  recordUploader: (filename: string, userId: string) => void;
 }
 export const uploadAccess = (): UploadAccess => legacyModule<UploadAccess>("lib/uploadAccess.js");
 

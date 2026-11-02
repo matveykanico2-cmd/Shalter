@@ -104,6 +104,7 @@ const RICH: Partial<NewMessage> = {
   anonymous: true,
   effect: "🔥",
   visibleToId: "u_b",
+  photoSuggestion: true,
 };
 
 /** Колонки строки без id/chatId и шифротекстов (у шифротекста случайный IV); «сейчас» — меткой. */

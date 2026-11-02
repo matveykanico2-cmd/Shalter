@@ -2,7 +2,10 @@ import { type ChangeEvent, useRef, useState } from "react";
 
 import { Icon, type IconName, Menu, type MenuItem } from "@/shared/ui";
 
+import { hasRecentPhotos } from "../lib/recent-photos";
+
 import styles from "./composer.module.css";
+import { RecentPhotosStrip } from "./recent-photos-strip";
 
 type Props = {
   onFiles: (files: File[]) => void;
@@ -99,21 +102,31 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
     else if (label === "Контакт") onContact();
   };
   const header = phone ? (
-    <div className={styles.attachTiles}>
-      {tiles.map((tile) => (
-        <button
-          key={tile.label}
-          type="button"
-          className={styles.attachTile}
-          onClick={() => runTile(tile.label)}
-        >
-          <span className={styles.attachTileIcon} style={{ background: tile.color }}>
-            <Icon name={tile.icon} size={24} />
-          </span>
-          <span>{tile.label}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      {hasRecentPhotos() ? (
+        <RecentPhotosStrip
+          onSend={(files) => {
+            setAt(null);
+            if (files.length) onFiles(files);
+          }}
+        />
+      ) : null}
+      <div className={styles.attachTiles}>
+        {tiles.map((tile) => (
+          <button
+            key={tile.label}
+            type="button"
+            className={styles.attachTile}
+            onClick={() => runTile(tile.label)}
+          >
+            <span className={styles.attachTileIcon} style={{ background: tile.color }}>
+              <Icon name={tile.icon} size={24} />
+            </span>
+            <span>{tile.label}</span>
+          </button>
+        ))}
+      </div>
+    </>
   ) : undefined;
 
   return (
@@ -136,7 +149,7 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
       <input ref={video} type="file" accept="video/*" capture="environment" hidden onChange={take} />
       <input ref={any} type="file" multiple hidden onChange={take} data-testid="attach-file" />
       <input ref={audio} type="file" accept="audio/*" multiple hidden onChange={take} />
-      {at ? <Menu at={at} label="Вложение" header={header} items={items} onClose={() => setAt(null)} /> : null}
+      {at ? <Menu at={at} label="Вложение" header={header} items={items} closeOnBlur={!hasRecentPhotos()} onClose={() => setAt(null)} /> : null}
       {diceAt ? (
         <Menu at={diceAt} label="Кубик и игры" items={[{ label: "🎮  Игры — 2048, Змейка, свои…", onClick: onGames }, ...DICE.map(([emoji, label]) => ({ label: `${emoji}  ${label}`, onClick: () => onDice(emoji) }))]} onClose={() => setDiceAt(null)} />
       ) : null}

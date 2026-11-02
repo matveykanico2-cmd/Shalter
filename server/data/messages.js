@@ -94,6 +94,7 @@ function rowToMessage(row) {
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,
     anonymous: !!row.anonymous || undefined,
+    photoSuggestion: !!row.photoSuggestion || undefined,
     boostedUntil: row.boostedUntil ?? undefined,
     paidStars: row.paidStars || undefined,
     boostedById: row.boostedById ?? undefined,
@@ -221,8 +222,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous, effect, visibleToId)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous, @effect, @visibleToId)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous, effect, visibleToId, photoSuggestion)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous, @effect, @visibleToId, @photoSuggestion)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -257,6 +258,7 @@ async function addMessage(message) {
     anonymous: message.anonymous ? 1 : 0,
     effect: message.effect ?? null,
     visibleToId: message.visibleToId ?? null,
+    photoSuggestion: message.photoSuggestion ? 1 : 0,
   });
   return getMessage(message.id);
 }

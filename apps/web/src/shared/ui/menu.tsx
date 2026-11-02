@@ -25,6 +25,8 @@ type Props = {
   sheet?: boolean;
   /** false — фокус остаётся, где был (курсор в поле ввода). */
   autoFocus?: boolean;
+  /** false — не закрывать при потере фокуса окном (системный запрос разрешения поверх). */
+  closeOnBlur?: boolean;
   onClose: () => void;
 };
 
@@ -35,7 +37,7 @@ const SHEET_QUERY = "(max-width: 560px)";
  * Выпадающее меню у точки нажатия — как openDropdownMenu в public/js/components/dropdownMenu.js;
  * на узком экране — шторкой снизу.
  */
-export function Menu({ at, items = [], header, label = "Меню", wide = false, sheet: allowSheet = true, autoFocus = true, onClose }: Props) {
+export function Menu({ at, items = [], header, label = "Меню", wide = false, sheet: allowSheet = true, autoFocus = true, closeOnBlur = true, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [sheet] = useState(() => allowSheet && typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches);
   // onClose у вызывающих — новая функция на каждый рендер; подписки ниже живут, пока открыто
@@ -88,15 +90,16 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
     const t = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
-    window.addEventListener("blur", onClose);
+    if (closeOnBlur) window.addEventListener("blur", onClose);
     return () => {
       clearTimeout(t);
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("blur", onClose);
+      if (closeOnBlur) window.removeEventListener("blur", onClose);
     };
-  }, []);
+    // closeOnBlur за время жизни меню не меняется — эффект по-прежнему один раз.
+  }, [closeOnBlur]);
 
   // Стрелки ходят по пунктам.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {

@@ -7,9 +7,10 @@ import { errorText } from "@/shared/lib/error-text";
 import { Button, Dialog } from "@/shared/ui";
 
 import { constructorStickerPacks, uploadConstructedAvatar } from "../api/avatar-constructor";
-import { BACKGROUNDS, canvasToFile, isStaticImage, type Layer, layerImageUrl, posterOf, renderAvatar } from "../lib/compose";
+import { BACKGROUNDS, canvasToFile, clamp01, clampScale, type Layer, layerImageUrl, normalizeAngle, pinch, posterOf, renderAvatar } from "../lib/compose";
 
 import styles from "./avatar-constructor.module.css";
+import { LayerMedia } from "./layer-media";
 
 type Props = {
   onClose: () => void;
@@ -18,6 +19,8 @@ type Props = {
 };
 
 type Picker = null | "emoji" | "sticker";
+type Pt = { x: number; y: number };
+type Pinch = { id: string; ids: [number, number]; from: [Pt, Pt]; scale: number; rotation: number };
 
 let seq = 0;
 const newId = () => `l${++seq}`;
@@ -34,12 +37,15 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const objectUrls = useRef<string[]>([]);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  // Пальцы на предпросмотре (clientX/Y): два пальца — щипок и поворот выбранного слоя.
+  const pointers = useRef(new Map<number, Pt>());
+  const pinchRef = useRef<Pinch | null>(null);
   const packs = useQuery({ ...constructorStickerPacks(), enabled: picker === "sticker" });
 
   useEffect(() => () => objectUrls.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
   const add = (kind: Layer["kind"], src: string, scale = 0.5) => {
-    const layer: Layer = { id: newId(), kind, src, x: 0.5, y: 0.5, scale };
+    const layer: Layer = { id: newId(), kind, src, x: 0.5, y: 0.5, scale, rotation: 0 };
     setLayers((ls) => [...ls, layer]);
     setSelected(layer.id);
     setPicker(null);
@@ -62,36 +68,92 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
     if (selected === id) setSelected(null);
   };
 
-  const point = (e: ReactPointerEvent) => {
+  const toUnit = (p: Pt) => {
     const r = previewRef.current?.getBoundingClientRect();
     if (!r || !r.width) return { x: 0.5, y: 0.5 };
-    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    return { x: (p.x - r.left) / r.width, y: (p.y - r.top) / r.height };
+  };
+
+  const startDrag = (id: string, client: Pt) => {
+    const l = layers.find((x) => x.id === id);
+    if (!l) return;
+    const p = toUnit(client);
+    drag.current = { id, dx: p.x - l.x, dy: p.y - l.y };
+  };
+
+  /** Второй палец — щипок над слоем, который тянет первый (или над выбранным). */
+  const startPinch = (id: string) => {
+    const l = layers.find((x) => x.id === id);
+    const entries = [...pointers.current.entries()].slice(0, 2);
+    if (!l || entries.length < 2) return;
+    pinchRef.current = { id, ids: [entries[0]![0], entries[1]![0]], from: [entries[0]![1], entries[1]![1]], scale: l.scale, rotation: l.rotation };
+    drag.current = null;
+  };
+
+  const capture = (e: ReactPointerEvent) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try {
+      previewRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      // jsdom и старые браузеры без захвата указателя
+    }
   };
 
   const onLayerDown = (e: ReactPointerEvent, l: Layer) => {
     e.preventDefault();
     e.stopPropagation();
+    capture(e);
+    if (pointers.current.size >= 2) {
+      startPinch(drag.current?.id ?? selected ?? l.id);
+      return;
+    }
     setSelected(l.id);
-    const p = point(e);
-    drag.current = { id: l.id, dx: p.x - l.x, dy: p.y - l.y };
-    previewRef.current?.setPointerCapture(e.pointerId);
+    startDrag(l.id, { x: e.clientX, y: e.clientY });
+  };
+
+  const onPreviewDown = (e: ReactPointerEvent) => {
+    const target = drag.current?.id ?? selected;
+    if (pointers.current.size >= 1 && target) {
+      capture(e);
+      startPinch(target);
+      return;
+    }
+    setSelected(null);
   };
 
   const onMove = (e: ReactPointerEvent) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pz = pinchRef.current;
+    if (pz) {
+      const a = pointers.current.get(pz.ids[0]);
+      const b = pointers.current.get(pz.ids[1]);
+      if (a && b) update(pz.id, pinch(pz, pz.from, [a, b]));
+      return;
+    }
     const d = drag.current;
     if (!d) return;
-    const p = point(e);
-    update(d.id, { x: Math.min(1, Math.max(0, p.x - d.dx)), y: Math.min(1, Math.max(0, p.y - d.dy)) });
+    const p = toUnit({ x: e.clientX, y: e.clientY });
+    update(d.id, { x: clamp01(p.x - d.dx), y: clamp01(p.y - d.dy) });
   };
 
-  const onUp = () => {
-    drag.current = null;
+  const onUp = (e: ReactPointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    const pz = pinchRef.current;
+    if (pz) {
+      pinchRef.current = null;
+      // Остался один палец — дальше он просто тянет слой.
+      const rest = [...pointers.current.values()][0];
+      if (rest) startDrag(pz.id, rest);
+      return;
+    }
+    if (!pointers.current.size) drag.current = null;
   };
 
   const onWheel = (e: ReactWheelEvent) => {
     if (!selected) return;
     const l = layers.find((x) => x.id === selected);
-    if (l) update(l.id, { scale: Math.min(1.5, Math.max(0.1, l.scale * (e.deltaY < 0 ? 1.08 : 0.92))) });
+    if (l) update(l.id, { scale: clampScale(l.scale * (e.deltaY < 0 ? 1.08 : 0.92)) });
   };
 
   const onPhoto = (file: File | undefined) => {
@@ -119,7 +181,7 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
   /** Готовый аватар в одно касание: градиент + персонаж; дальше можно двигать, добавлять слои или сразу «Готово». */
   const applyPreset = (p: AvatarPreset) => {
     setBg({ id: `preset-${p.id}`, css: `linear-gradient(135deg, ${p.stops[0]}, ${p.stops[1]})`, stops: p.stops });
-    const layer: Layer = { id: newId(), kind: "sticker", src: p.image, x: 0.5, y: 0.53, scale: 0.9 };
+    const layer: Layer = { id: newId(), kind: "sticker", src: p.image, x: 0.5, y: 0.53, scale: 0.9, rotation: 0 };
     setLayers([layer]);
     setSelected(null);
     setPicker(null);
@@ -138,17 +200,21 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        onPointerDown={() => setSelected(null)}
+        onPointerDown={onPreviewDown}
         onWheel={onWheel}
       >
         {layers.map((l) => (
-          <img
+          <LayerMedia
             key={l.id}
-            src={layerImageUrl(l)}
-            alt=""
-            draggable={false}
+            url={layerImageUrl(l)}
             className={l.id === selected ? `${styles.layer} ${styles.layerActive}` : styles.layer}
-            style={{ left: `${l.x * 100}%`, top: `${l.y * 100}%`, width: `${l.scale * 100}%`, height: `${l.scale * 100}%` }}
+            style={{
+              left: `${l.x * 100}%`,
+              top: `${l.y * 100}%`,
+              width: `${l.scale * 100}%`,
+              height: `${l.scale * 100}%`,
+              transform: `translate(-50%, -50%) rotate(${l.rotation}deg)`,
+            }}
             onPointerDown={(e) => onLayerDown(e, l)}
           />
         ))}
@@ -158,6 +224,12 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
         <label className={styles.scale}>
           Размер
           <input type="range" min={10} max={150} value={Math.round(sel.scale * 100)} onChange={(e) => update(sel.id, { scale: Number(e.target.value) / 100 })} />
+        </label>
+      ) : null}
+      {sel ? (
+        <label className={styles.scale}>
+          Поворот
+          <input type="range" min={-180} max={180} value={Math.round(sel.rotation)} onChange={(e) => update(sel.id, { rotation: normalizeAngle(Number(e.target.value)) })} />
         </label>
       ) : null}
 
@@ -221,7 +293,7 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
             .slice(0, 400)
             .map((em) => (
               <button key={em} type="button" className={styles.cell} aria-label={em} onClick={() => add("emoji", em)}>
-                <img src={layerImageUrl({ id: "", kind: "emoji", src: em, x: 0, y: 0, scale: 0 })} alt={em} loading="lazy" />
+                <img src={layerImageUrl({ id: "", kind: "emoji", src: em, x: 0, y: 0, scale: 0, rotation: 0 })} alt={em} loading="lazy" />
               </button>
             ))}
         </div>
@@ -232,13 +304,11 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
           {packs.isPending ? <p className={styles.caption}>Загрузка…</p> : null}
           {!packs.isPending && ownPacks.length === 0 ? <p className={styles.caption}>Нет стикерпаков</p> : null}
           {ownPacks.flatMap((p) =>
-            p.stickers
-              .filter((s) => isStaticImage(s.url))
-              .map((s) => (
-                <button key={s.id} type="button" className={styles.cell} aria-label={`Стикер ${s.emoji}`} onClick={() => add("sticker", s.url)}>
-                  <img src={s.url} alt={s.emoji} loading="lazy" />
-                </button>
-              ))
+            p.stickers.map((s) => (
+              <button key={s.id} type="button" className={styles.cell} aria-label={`Стикер ${s.emoji}`} onClick={() => add("sticker", s.url)}>
+                <LayerMedia url={s.url} alt={s.emoji} lazy />
+              </button>
+            ))
           )}
         </div>
       ) : null}
@@ -253,7 +323,7 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
               .map(({ l, i }) => (
                 <li key={l.id} className={l.id === selected ? `${styles.layerRow} ${styles.layerRowActive}` : styles.layerRow}>
                   <button type="button" className={styles.layerPick} onClick={() => setSelected(l.id)}>
-                    <img src={layerImageUrl(l)} alt="" />
+                    <LayerMedia url={layerImageUrl(l)} />
                     <span>{l.kind === "emoji" ? "Эмодзи" : l.kind === "sticker" ? "Стикер" : "Фото"}</span>
                   </button>
                   <button type="button" aria-label="Выше" disabled={i === layers.length - 1} onClick={() => move(l.id, 1)}>

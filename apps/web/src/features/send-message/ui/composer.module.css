@@ -430,3 +430,104 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* Лента последних фото над кнопками (RecentPhotosStrip, только Android-оболочка). */
+.recentPhotos {
+  padding: 18px 0 0;
+}
+
+.recentPhotos + .attachTiles {
+  padding-top: 12px;
+}
+
+.recentPhotosRow {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.recentPhotosRow::-webkit-scrollbar {
+  display: none;
+}
+
+.recentPhoto {
+  position: relative;
+  flex: 0 0 auto;
+  width: 92px;
+  height: 92px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  cursor: pointer;
+}
+
+.recentPhoto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.12s ease;
+}
+
+.recentPhotoPicked img {
+  transform: scale(0.86);
+  border-radius: 8px;
+}
+
+.recentPhoto:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.recentPhotoMark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
+}
+
+.recentPhotoPicked .recentPhotoMark {
+  background: var(--color-accent);
+}
+
+.recentPhotosSend {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recentPhotosSend:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.recentPhotosError {
+  padding: 6px 12px 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}

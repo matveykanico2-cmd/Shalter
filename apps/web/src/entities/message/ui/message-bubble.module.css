@@ -983,3 +983,35 @@
   box-shadow: none;
   display: block;
 }
+
+/* «Предложить фото профиля», как в Telegram: подпись у отправителя, кнопка у получателя. */
+.photoSuggestionNote {
+  margin: 6px 8px 2px;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.photoSuggestionButton {
+  display: block;
+  width: calc(100% - 12px);
+  margin: 6px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photoSuggestionButton:hover {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.photoSuggestionButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

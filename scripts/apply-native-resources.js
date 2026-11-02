@@ -232,6 +232,14 @@ function wirePushNotifications() {
     const line = `<uses-permission android:name="android.permission.${perm}" />`;
     if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    ${line}\n</manifest>`);
   }
+  // Лента последних фото в шторке скрепки (RecentPhotosPlugin.java): Android 13+ —
+  // READ_MEDIA_IMAGES (14+ — и частичный доступ), старее — READ_EXTERNAL_STORAGE.
+  for (const perm of ["READ_MEDIA_IMAGES", "READ_MEDIA_VISUAL_USER_SELECTED"]) {
+    if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    <uses-permission android:name="android.permission.${perm}" />\n</manifest>`);
+  }
+  if (!manifest.includes('android.permission.READ_EXTERNAL_STORAGE"')) {
+    manifest = manifest.replace("</manifest>", `    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n</manifest>`);
+  }
   // ACCESS_*_LOCATION: без них BridgeWebChromeClient молча отклоняет navigator.geolocation.
   if (!manifest.includes("android.hardware.location.gps\"")) {
     manifest = manifest.replace("</manifest>", `    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>`);

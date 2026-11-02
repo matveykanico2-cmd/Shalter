@@ -100,6 +100,7 @@ export function toMessage(row: MessageRow, secretKeyOf: SecretKeyOf): Message {
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,
     anonymous: !!row.anonymous || undefined,
+    photoSuggestion: !!row.photoSuggestion || undefined,
     boostedUntil: row.boostedUntil ?? undefined,
     paidStars: row.paidStars || undefined,
     boostedById: row.boostedById ?? undefined,

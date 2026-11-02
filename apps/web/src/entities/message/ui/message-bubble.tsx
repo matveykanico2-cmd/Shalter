@@ -94,6 +94,8 @@ type Props = {
   onCallBack?: (kind: "audio" | "video") => void;
   /** Время своей строкой, а не в хвосте текста — как ответы в ветке (thread-reply-time). */
   metaApart?: boolean;
+  /** «Установить как фото профиля» под предложенным собеседником фото; без него — только подпись. */
+  onUseSuggestedPhoto?: (m: Message) => void;
 };
 
 type Point = { x: number; y: number };
@@ -307,6 +309,30 @@ export function MessageBubble(props: Props) {
         onOpenMedia={props.onOpenMedia ? (url) => props.onOpenMedia?.(m, url) : undefined}
         onDoubleTap={!m.pending && props.onOpenReactions ? (at) => props.onOpenReactions?.(m, at) : undefined}
       />
+    );
+  }
+
+  if (m.photoSuggestion && !isChannel) {
+    const use = props.onUseSuggestedPhoto;
+    body.push(
+      mine || !use ? (
+        <p key="suggest" className={styles.photoSuggestionNote}>
+          {mine ? "Вы предложили фото профиля" : "Предлагает фото для вашего профиля"}
+        </p>
+      ) : (
+        <button
+          key="suggest"
+          type="button"
+          className={styles.photoSuggestionButton}
+          disabled={m.pending}
+          onClick={(e) => {
+            e.stopPropagation();
+            use(m);
+          }}
+        >
+          Установить как фото профиля
+        </button>
+      )
     );
   }
 

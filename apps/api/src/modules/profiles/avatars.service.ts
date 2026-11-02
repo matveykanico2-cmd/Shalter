@@ -1,11 +1,14 @@
+import fs from "node:fs";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { isOwnUploadUrl } from "../../legacy/legacy.js";
+import { isOwnUploadUrl, mediaPreview, uploadAccess, uploadTransfer } from "../../legacy/legacy.js";
+import { ChatsRepository } from "../chats/chats.repository.js";
+import { MessagesRepository } from "../messages/messages.repository.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { AvatarEntry, User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { MAX_AVATARS, validateEntry } from "./lib/avatars.js";
-import type { AddAvatarDto } from "./model/schemas/profile-media.schema.js";
+import type { AddAvatarDto, SuggestedAvatarDto } from "./model/schemas/profile-media.schema.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 
 // Аватарки профиля (/api/avatars) — как server/routes/avatars.js. Первая — главная.
@@ -13,7 +16,9 @@ import { ProfileNotifyService } from "./profile-notify.service.js";
 export class AvatarsService {
   public constructor(
     private readonly users: UsersRepository,
-    private readonly notify: ProfileNotifyService
+    private readonly notify: ProfileNotifyService,
+    private readonly messages: MessagesRepository,
+    private readonly chats: ChatsRepository
   ) {}
 
   public list(userId: string) {
@@ -31,6 +36,52 @@ export class AvatarsService {
     const list = [checked.entry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
     return this.save(userId, list, true);
+  }
+
+  /**
+   * «Установить как фото профиля» под фото, которое собеседник предложил в личке. Файл
+   * прикреплён к личному чату и виден только его участникам, поэтому аватаркой становится
+   * своя копия: фото перекодируется (без EXIF) и записывается новым файлом получателя.
+   */
+  public async fromSuggestion(userId: string, dto: SuggestedAvatarDto) {
+    const me = this.users.findById(userId);
+    if (!me) throw new ApiError(404, "not found");
+    const message = dto.messageId ? this.messages.findById(dto.messageId) : undefined;
+    const chat = message ? this.chats.findById(message.chatId) : undefined;
+    if (!message || !chat || !chat.memberIds.includes(userId) || message.deletedForIds.includes(userId)) throw new ApiError(404, "Сообщение не найдено");
+    if (!message.photoSuggestion || chat.type !== "dm") throw new ApiError(400, "Это не предложенное фото профиля");
+    if (message.senderId === userId) throw new ApiError(403, "Предложенное вами фото может установить только собеседник");
+    const source = /^\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)$/.exec(String(message.attachments?.[0]?.url ?? ""))?.[1];
+    if (!source) throw new ApiError(400, "Это не предложенное фото профиля");
+    const list = avatarList(me);
+    if (list.length >= MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
+
+    const url = await this.copyAsOwn(userId, source, message.attachments ?? []);
+    const checked = validateEntry({ url, kind: "image", poster: dto.poster });
+    if (checked.error !== undefined) throw new ApiError(400, checked.error);
+    return this.save(userId, [checked.entry, ...list], true);
+  }
+
+  // Своя копия фото. Два прохода: один проход даёт ровно превью сообщения (тот же sharp,
+  // те же байты — то же имя sha_…), а оно прикреплено к чату и чужим не откроется.
+  private async copyAsOwn(userId: string, filename: string, attachments: { url?: string; previewUrl?: string; thumbUrl?: string }[]): Promise<string> {
+    const transfer = uploadTransfer();
+    const temps: string[] = [];
+    try {
+      temps.push(await transfer.fetchUploadToTemp(filename));
+      temps.push(await mediaPreview().generateImagePreview(temps[0]!));
+      temps.push(await mediaPreview().generateImagePreview(temps[1]!));
+      const url = await transfer.storeGeneratedFile(temps[2]!);
+      const taken = new Set(attachments.flatMap((a) => [a.url, a.previewUrl, a.thumbUrl]));
+      if (taken.has(url)) throw new ApiError(500, "Не удалось установить фото");
+      uploadAccess().recordUploader(url.slice("/uploads/".length), userId);
+      return url;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, "Не удалось установить фото");
+    } finally {
+      for (const t of temps) await fs.promises.unlink(t).catch(() => {});
+    }
   }
 
   public makeMain(userId: string, index: string) {
