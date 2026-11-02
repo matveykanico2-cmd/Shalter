@@ -26,6 +26,10 @@ export const registerEmailSchema = requestBody({
 });
 export type RegisterEmailDto = z.infer<typeof registerEmailSchema>;
 
+/** Гость сам выбирает имя; пусто — «Гость NNNN». Длина — как у имени профиля (64). */
+export const guestSchema = requestBody({ name: text().transform((v) => v.replace(/\s+/g, " ").trim().slice(0, 64)) });
+export type GuestDto = z.infer<typeof guestSchema>;
+
 export const switchAccountSchema = requestBody({ userId: text() });
 export type SwitchAccountDto = z.infer<typeof switchAccountSchema>;
 

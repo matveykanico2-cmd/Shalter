@@ -16,7 +16,8 @@ export const catalogItemId = z.string().regex(/^st_[a-z0-9]+_[a-z0-9]{1,6}$/);
 
 export const statusItem = z.strictObject({
   id: statusItemId,
-  image: z.string().regex(/^data:image\/(png|jpeg|webp|gif);base64,/),
+  // Картинка (data URL) или, у Premium, файл стикера из пака («/uploads/…»).
+  image: z.string().regex(/^(data:image\/(png|jpeg|webp|gif);base64,|\/uploads\/)/),
   name: z.string(),
   // Только у статуса из каталога.
   catalogId: catalogItemId.optional(),

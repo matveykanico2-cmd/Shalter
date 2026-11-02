@@ -1304,6 +1304,8 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   if (!schedCols.has("topicId")) db.exec("ALTER TABLE scheduled_messages ADD COLUMN topicId TEXT");
   const contactCols = new Set(db.prepare("PRAGMA table_info(contacts)").all().map((c) => c.name));
   if (!contactCols.has("note")) db.exec("ALTER TABLE contacts ADD COLUMN note TEXT");
+  // localAvatar: фото, которое владелец поставил этому контакту «для себя» (как в Telegram).
+  if (!contactCols.has("localAvatar")) db.exec("ALTER TABLE contacts ADD COLUMN localAvatar TEXT");
 }
 
 // Сообщества (Communities): несколько групп и каналов под одной вывеской.
@@ -1553,6 +1555,7 @@ CREATE INDEX IF NOT EXISTS idx_partner_profiles_username ON partner_profiles(use
 // Стикерпаки: колонка description добавилась позднее — мигрируем старые базы.
 const existingStickerPackColumns = new Set(db.prepare("PRAGMA table_info(sticker_packs)").all().map((c) => c.name));
 if (!existingStickerPackColumns.has("description")) db.exec("ALTER TABLE sticker_packs ADD COLUMN description TEXT");
+if (!existingStickerPackColumns.has("coverStickerId")) db.exec("ALTER TABLE sticker_packs ADD COLUMN coverStickerId TEXT");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS star_reactions (

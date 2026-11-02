@@ -98,6 +98,12 @@ function applyContactName(visible, myContact, theyHaveMe) {
     visible.profileName = visible.name;
     visible.name = localName;
   }
+  // Своё фото контакта — его видит только владелец, вместо фото из профиля.
+  const localAvatar = myContact?.localAvatar;
+  if (localAvatar) {
+    visible.profileAvatarImage = visible.avatarImage ?? null;
+    visible.avatarImage = localAvatar;
+  }
   return visible;
 }
 

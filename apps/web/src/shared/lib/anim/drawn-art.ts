@@ -1,5 +1,6 @@
 // Нарисованные стикеры — перенос public/js/lib/drawnArt.js.
 import { type ArtItem, GIFT_ART, GIFT_ART_FOR_EMOJI } from "./gift-art";
+import { MASCOT_ART } from "./mascot-packs";
 
 const HELLO = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
@@ -197,6 +198,7 @@ const GIFTBOX = `
 
 export const ART: Record<string, ArtItem> = {
   ...GIFT_ART,
+  ...MASCOT_ART,
   hello: { markup: HELLO, name: "Привет" },
   love: { markup: LOVE, name: "Любовь" },
   thanks: { markup: THANKS, name: "Спасибо" },

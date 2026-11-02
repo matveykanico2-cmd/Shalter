@@ -88,7 +88,8 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
             name={other?.name ?? title}
             color={other?.avatarColor ?? chat.avatarColor}
             image={other?.avatarImage ?? chat.avatarImage}
-            emoji={other?.avatarEmoji ?? chat.avatarEmoji}
+            emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined}
+            sticker={!other && chat.avatarType === "sticker"}
             online={chat.type === "dm" && !!other?.online}
           />
         )}

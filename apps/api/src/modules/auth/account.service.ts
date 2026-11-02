@@ -101,7 +101,7 @@ export class AccountService {
   }
 
   /** Гость — аккаунт без телефона, почты и пароля (createGuestUser в server/data/users.js). */
-  public async guest(req: Request, res: Response) {
+  public async guest(req: Request, res: Response, name = "") {
     if (!GUEST_MODE_ENABLED) throw new ApiError(404, "Гостевой режим отключён");
     let username = "";
     for (let i = 0; i < 5 && !username; i++) {
@@ -110,7 +110,7 @@ export class AccountService {
     }
     const user = this.usersRepository.create({
       id: genId("u"),
-      name: `Гость ${randomInt(1000, 10000)}`,
+      name: name || `Гость ${randomInt(1000, 10000)}`,
       username,
       phone: "",
       email: null,

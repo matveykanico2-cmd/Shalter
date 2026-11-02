@@ -33,6 +33,12 @@ export class StickerPacksController {
     return this.packs.list(req.uid!);
   }
 
+  /** «Популярные»: чужие паки по числу добавивших (до 20). Стоит до `:id`. */
+  @Get("popular")
+  public popular(@Req() req: Request) {
+    return this.packs.popular(req.uid!);
+  }
+
   /** Один пак со стикерами, sticker_count и is_added. */
   @Get(":id")
   public get(@Req() req: Request, @Param("id", new ZodValidationPipe(packIdParam)) id: string) {

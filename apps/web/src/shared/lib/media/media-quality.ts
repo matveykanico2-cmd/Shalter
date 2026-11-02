@@ -4,7 +4,7 @@
 // через TURN и слабый Wi-Fi столько не пролезает (оценка полосы стартует с сотен кбит/с —
 // кадр рассыпается и замирает), а стерео с эхоподавлением и DTX портит голос. Поэтому, как
 // в Meet/Telegram: камера 720p/30 (на телефоне тоже — аппаратный кодер тянет), потолок
-// видео 2,5 Мбит/с на ПК и 1,2 Мбит/с на телефоне, degradationPreference «balanced»;
+// видео 3,5 Мбит/с на ПК и 1,8 Мбит/с на телефоне, degradationPreference «balanced»;
 // голос — моно Opus с FEC, без DTX.
 
 export const isMobileUa = (ua: string) => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
@@ -15,8 +15,8 @@ export function mediaQuality(mobile: boolean) {
   return {
     video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } satisfies MediaTrackConstraints,
     // Голос: моно с шумо- и эхоподавлением (стерео-захват на ПК ломал эхоподавление).
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } satisfies MediaTrackConstraints,
-    // Голос: Opus 80 кбит/с на телефоне, 96 кбит/с на ПК —_clearer речь, меньше артефактов.
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } } satisfies MediaTrackConstraints,
+    // Голос: Opus 80 кбит/с на телефоне, 96 кбит/с на ПК: чище речь, меньше артефактов.
     opusBitrate: mobile ? 80_000 : 96_000,
     // Видео: потолок выше, чтобы на хорошем канале не мылилось; balanced degradation
     // плавно снижает качество при слабой сети вместо замираний.

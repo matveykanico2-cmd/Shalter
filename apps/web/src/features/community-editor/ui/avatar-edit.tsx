@@ -34,7 +34,7 @@ export function AvatarEdit({ name, image, emoji, onChange }: Props) {
       </button>
       <div className={styles.avatarActions}>
         <button type="button" className={styles.avatarAction} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((v) => !v)}>
-          <Icon name="Smile" size={16} /> Смайл
+          <Icon name="Smile" size={16} /> Смайл или стикер
         </button>
         {image || emoji ? (
           <button
@@ -51,6 +51,7 @@ export function AvatarEdit({ name, image, emoji, onChange }: Props) {
       </div>
       {emojiOpen ? (
         <EmojiAvatarPicker
+          withStickers
           onPick={(e) => {
             onChange({ image: null, emoji: e });
             setEmojiOpen(false);

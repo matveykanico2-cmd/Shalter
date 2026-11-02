@@ -1,0 +1,198 @@
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.preview {
+  position: relative;
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.layer {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  cursor: grab;
+}
+
+.layerActive {
+  outline: 2px dashed rgb(255 255 255 / 80%);
+  outline-offset: 2px;
+}
+
+.scale {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.scale input {
+  flex: 1;
+}
+
+.caption {
+  margin: 8px 0 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatchActive {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+  max-height: 200px;
+  margin-top: 8px;
+  overflow-y: auto;
+}
+
+.cell {
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.cell:hover {
+  background: var(--color-surface-alt);
+}
+
+.cell img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.layerRow {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.layerRowActive {
+  background: var(--color-accent-soft);
+}
+
+.layerRow > button {
+  min-width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.layerRow > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.layerRow > .layerPick {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+}
+
+.layerPick img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* Готовые аватары: персонажи на градиентах, выбираются одним касанием. */
+.presets {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+
+.preset {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.preset:hover {
+  transform: scale(1.06);
+}
+
+.preset:active {
+  transform: scale(0.94);
+}
+
+.preset img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin-top: 3%;
+}

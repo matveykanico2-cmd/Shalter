@@ -63,7 +63,8 @@ export function renderSticker(s: Sticker | null | undefined, { size = 30, replay
     img.className = "sticker-image";
     img.src = s.url ?? "";
     img.alt = s.name || "стикер";
-    img.loading = "lazy";
+    // Без lazy: стикер на экране сразу, без пустого кадра (картинки паков подгружаются заранее).
+    img.decoding = "async";
     img.draggable = false;
     img.style.width = `${size}px`;
     img.style.height = `${size}px`;

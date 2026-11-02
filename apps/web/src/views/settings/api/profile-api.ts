@@ -15,7 +15,16 @@ export const profileQueries = {
 };
 
 type StatusChange = z.infer<typeof statusChangeBody>;
-export const addStatus = (entry: { image: string } | { catalogId: string }) => http.post<StatusChange>("/api/status/me", entry);
+/** Свои стикерпаки (добавленные и созданные) — стикер статусом у Premium. */
+export type StatusStickerPack = { id: string; name: string; isAdded: boolean; stickers: { id: string; url: string; emoji: string }[] };
+export const myStickerPacksQuery = () =>
+  queryOptions({
+    queryKey: ["stickers", "packs", "status"],
+    queryFn: async ({ signal }) => (await http.get<{ packs: StatusStickerPack[] }>("/api/stickers/packs", signal)).packs.filter((p) => p.isAdded && p.stickers.length),
+    staleTime: 60_000,
+  });
+
+export const addStatus = (entry: { image: string } | { catalogId: string } | { sticker: string; name?: string }) => http.post<StatusChange>("/api/status/me", entry);
 export const removeStatus = (id: string) => http.delete<StatusChange>(`/api/status/me/${encodeURIComponent(id)}`);
 export const setActiveStatus = (id: string | null) => http.post<z.infer<typeof statusActiveBody>>("/api/status/me/active", { id });
 

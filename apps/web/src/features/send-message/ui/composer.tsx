@@ -16,6 +16,7 @@ import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/record
 import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
 import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
+import { fitTextarea } from "../lib/autosize";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
@@ -190,12 +191,50 @@ export function Composer(props: Props) {
   const lastTyping = useRef(0);
   const draftTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Поле пропадает на время записи голосового — после неё наблюдаем заново.
+  const isRecording = !!recording;
   useLayoutEffect(() => {
     const el = textarea.current;
+    if (el) fitTextarea(el, MAX_ROWS_HEIGHT);
+  }, [text, isRecording]);
+  // Поворот экрана и другая ширина поля — высота заново, раз в кадр и только при новой ширине
+  // (своя смена высоты наблюдателя не будит).
+  useEffect(() => {
+    const el = textarea.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_HEIGHT)}px`;
-  }, [text]);
+    let frame = 0;
+    let width = el.clientWidth;
+    const refit = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (textarea.current) fitTextarea(textarea.current, MAX_ROWS_HEIGHT);
+      });
+    };
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (el.clientWidth === width) return;
+            width = el.clientWidth;
+            refit();
+          });
+    observer?.observe(el);
+    // iOS докладывает размеры после поворота с задержкой — ещё раз, когда всё улеглось.
+    let late: ReturnType<typeof setTimeout> | undefined;
+    const onOrientation = () => {
+      refit();
+      clearTimeout(late);
+      late = setTimeout(refit, 350);
+    };
+    window.addEventListener("orientationchange", onOrientation);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("orientationchange", onOrientation);
+      clearTimeout(late);
+      cancelAnimationFrame(frame);
+    };
+  }, [isRecording]);
 
   // Выбрали «Ответить» или «Изменить» — сразу печатаем; ветку открыли — тоже.
   useEffect(() => {

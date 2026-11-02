@@ -12,7 +12,7 @@ type Tab = "emoji" | "stickers";
 
 type Pick = { kind: "emoji"; emoji: string } | { kind: "sticker"; sticker: Sticker; packId: string | null };
 
-type PackSticker = { id: string; packId: string; file: string; emoji: string; position: number; createdAt: string };
+type PackSticker = { id: string; packId: string; url: string; emoji: string; position: number; createdAt: string };
 
 type Pack = {
   id: string;
@@ -54,7 +54,7 @@ export function AvatarChoice({ onPick, onClose }: Props) {
   };
 
   const pickSticker = (s: PackSticker) => {
-    const sticker: Sticker = { id: s.id, kind: "image", url: s.file, emoji: s.emoji, name: s.emoji };
+    const sticker: Sticker = { id: s.id, kind: "image", url: s.url, emoji: s.emoji, name: s.emoji };
     setSelected({ kind: "sticker", sticker, packId: pack?.id ?? null });
     onPick({ kind: "sticker", sticker, packId: pack?.id ?? null });
   };
@@ -140,7 +140,7 @@ function StickersTab({
           {pack ? (
             <div className={styles.emojiGrid}>
               {pack.stickers.map((s) => {
-                const active = selected ? selected.url === s.file && selected.emoji === s.emoji : false;
+                const active = selected ? selected.url === s.url && selected.emoji === s.emoji : false;
                 return (
                   <button
                     key={s.id}
@@ -150,7 +150,7 @@ function StickersTab({
                     aria-label={s.emoji}
                     onClick={() => onPick(s)}
                   >
-                    <DomNode create={() => renderSticker({ id: s.id, kind: "image", url: s.file, emoji: s.emoji, name: s.emoji }, { size: 44 })} />
+                    <DomNode create={() => renderSticker({ id: s.id, kind: "image", url: s.url, emoji: s.emoji, name: s.emoji }, { size: 44 })} />
                   </button>
                 );
               })}

@@ -135,6 +135,11 @@ fn bridge_script(origin: &str, version: &str) -> String {
     openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }},
     // без .catch: ошибку установки обновления показываем человеку
     installUpdate: function (url) {{ var ipc = window.__TAURI_INTERNALS__; return ipc ? ipc.invoke("install_update", {{ url: String(url) }}) : Promise.reject(new Error("нет моста")); }},
+    // Прокси приложения: url — «http|socks5://[логин:пароль@]хост:порт» или null (без прокси).
+    // Ошибку проверки адреса показываем человеку, поэтому без .catch.
+    setProxy: function (url) {{ var ipc = window.__TAURI_INTERNALS__; return ipc ? ipc.invoke("set_proxy", {{ url: url ? String(url) : null }}) : Promise.reject(new Error("нет моста")); }},
+    getProxy: function () {{ return inv("get_proxy"); }},
+    restart: function () {{ return inv("restart_app"); }},
     canSelfUpdate: true,
     packaging: {packaging:?}
   }};
@@ -223,8 +228,14 @@ fn startup_target(shell: State<Shell>) -> String {
 // страницы: у части пользователей WebKit отклонял такой запрос (страница на схеме
 // tauri://), и приложение висело на «Ожидание сети…» при работающем интернете.
 #[tauri::command]
-async fn server_reachable(shell: State<'_, Shell>) -> Result<bool, ()> {
-    let Ok(url) = Url::parse(&shell.app_url) else { return Ok(false) };
+async fn server_reachable(app: AppHandle, shell: State<'_, Shell>) -> Result<bool, ()> {
+    // С прокси сервер напрямую может быть недоступен (ради этого прокси и ставят) —
+    // проверяем связь с прокси.
+    #[cfg(not(target_os = "macos"))]
+    let target = read_proxy(&app).map(|p| p.to_string()).unwrap_or_else(|| shell.app_url.clone());
+    #[cfg(target_os = "macos")]
+    let target = { let _ = &app; shell.app_url.clone() };
+    let Ok(url) = Url::parse(&target) else { return Ok(false) };
     let Some(host) = url.host_str().map(str::to_owned) else { return Ok(false) };
     let port = url.port_or_known_default().unwrap_or(443);
     Ok(tauri::async_runtime::spawn_blocking(move || {
@@ -302,6 +313,12 @@ fn apply_app_icon(app: &AppHandle, id: &str) -> bool {
     true
 }
 
+// Прокси приложения: весь трафик окна (страницы, /ws, файлы) идёт через него. Хранится в
+// proxy.txt как URL «http|socks5://[логин:пароль@]хост:порт» и применяется при создании
+// окна, поэтому после смены страница вызывает restart_app.
+// Логин и пароль: на Linux (WebKitGTK) передаются движку вместе с адресом (apply_proxy_auth);
+// WebView2 (Windows) и WKWebView (macOS) прокси с паролем через wry не принимают — там
+// работает прокси без пароля (или с доступом по IP).
 #[tauri::command]
 fn set_proxy(app: AppHandle, url: Option<String>) -> Result<(), String> {
     let path = proxy_file(&app)?;
@@ -309,12 +326,33 @@ fn set_proxy(app: AppHandle, url: Option<String>) -> Result<(), String> {
         let _ = std::fs::create_dir_all(dir);
     }
     match url {
-        Some(u) if !u.trim().is_empty() => std::fs::write(&path, u.trim()).map_err(|e| e.to_string()),
+        Some(u) if !u.trim().is_empty() => {
+            let parsed = parse_proxy(u.trim()).ok_or_else(|| "Адрес прокси: http://хост:порт или socks5://хост:порт".to_string())?;
+            std::fs::write(&path, parsed.as_str()).map_err(|e| e.to_string())
+        }
         _ => {
             let _ = std::fs::remove_file(&path);
             Ok(())
         }
     }
+}
+
+#[tauri::command]
+fn get_proxy(app: AppHandle) -> Option<String> {
+    read_proxy(&app).map(|u| u.to_string())
+}
+
+// Применить новый прокси: окно получает его только при создании.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
+fn parse_proxy(s: &str) -> Option<Url> {
+    let u = Url::parse(s).ok()?;
+    if !matches!(u.scheme(), "http" | "socks5") { return None; }
+    if u.host_str().map_or(true, str::is_empty) || u.port().is_none() { return None; }
+    Some(u)
 }
 
 fn proxy_file(app: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -325,9 +363,46 @@ fn proxy_file(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn read_proxy(app: &AppHandle) -> Option<Url> {
     let path = proxy_file(app).ok()?;
     let s = std::fs::read_to_string(path).ok()?;
-    let s = s.trim();
-    if s.is_empty() { return None; }
-    Url::parse(s).ok()
+    parse_proxy(s.trim())
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+// Без логина и пароля — так адрес принимает wry (proxy_url берёт только хост и порт).
+fn proxy_endpoint(proxy: &Url) -> Url {
+    let mut u = proxy.clone();
+    let _ = u.set_username("");
+    let _ = u.set_password(None);
+    u
+}
+
+// WebKitGTK понимает логин и пароль прямо в адресе прокси (GLib: GProxyAddress) — и для
+// HTTP CONNECT, и для SOCKS5 — поэтому на Linux ставим полный адрес поверх того, что дал wry.
+#[cfg(target_os = "linux")]
+fn apply_proxy_auth(window: &WebviewWindow, proxy: &Url) {
+    if proxy.username().is_empty() { return; }
+    let uri = proxy.to_string();
+    let _ = window.with_webview(move |wv| {
+        use webkit2gtk::{NetworkProxyMode, NetworkProxySettings, WebContextExt, WebViewExt, WebsiteDataManagerExt};
+        if let Some(ctx) = WebViewExt::context(&wv.inner()) {
+            if let Some(manager) = ctx.website_data_manager() {
+                let mut settings = NetworkProxySettings::new(Some(uri.as_str()), &["localhost", "127.0.0.1"]);
+                manager.set_network_proxy_settings(NetworkProxyMode::Custom, Some(&mut settings));
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn apply_proxy_auth(_window: &WebviewWindow, _proxy: &Url) {}
+
+#[cfg(not(target_os = "macos"))]
+fn with_proxy<'a>(builder: WebviewWindowBuilder<'a, Wry, AppHandle>, proxy: &Url) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
+    builder.proxy_url(proxy_endpoint(proxy))
+}
+
+#[cfg(target_os = "macos")]
+fn with_proxy<'a>(builder: WebviewWindowBuilder<'a, Wry, AppHandle>, _proxy: &Url) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
+    builder
 }
 
 #[tauri::command]
@@ -525,10 +600,16 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             false
         })
         ;
-    if let Some(proxy) = read_proxy(app) {
-        window = window.proxy_url(proxy);
+    let proxy = read_proxy(app);
+    // proxy_url на macOS есть только с функцией tauri «macos-proxy» (macOS 14+), а сборка
+    // поддерживает 10.15 — там прокси не применяется.
+    if let Some(p) = &proxy {
+        window = with_proxy(window, p);
     }
     let window = window.build()?;
+    if let Some(p) = &proxy {
+        apply_proxy_auth(&window, p);
+    }
     enable_media(&window);
     Ok(window)
 }
@@ -687,7 +768,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon, set_proxy])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon, set_proxy, get_proxy, restart_app])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -704,6 +785,9 @@ fn main() {
                     .permission("allow-open-browser")
                     .permission("allow-install-update")
                     .permission("allow-set-app-icon")
+                    .permission("allow-set-proxy")
+                    .permission("allow-get-proxy")
+                    .permission("allow-restart-app")
                     .permission("notification:default"),
             )?;
 

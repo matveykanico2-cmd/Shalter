@@ -71,6 +71,8 @@ export const viewerUser = z.strictObject({
   inContacts: z.literal(true).optional(),
   mutualContact: z.literal(true).optional(),
   profileName: z.string().optional(),
+  /** Своё фото контакта заменило avatarImage — здесь фото из профиля. */
+  profileAvatarImage: z.string().nullable().optional(),
 });
 
 export const selfUser = z.strictObject({

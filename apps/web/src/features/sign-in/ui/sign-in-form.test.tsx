@@ -132,6 +132,18 @@ describe("гостевой вход", () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: user.id, isGuest: true })));
   });
 
+  it("имя гостя уходит на сервер", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ name: "Вася" });
+      return new Response(JSON.stringify({ user: { ...user, name: "Вася", isGuest: true }, alreadyLinked: false }), { headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { onSignedIn } = renderForm();
+    fireEvent.change(screen.getByRole("textbox", { name: "Имя гостя" }), { target: { value: "  Вася " } });
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ name: "Вася", isGuest: true })));
+  });
+
   it("гостевой режим отключён — ошибка сервера, как у остальных способов входа", async () => {
     fakeApi({ "POST /api/auth/guest": { status: 404, body: { error: "Гостевой режим отключён" } } });
     const { onSignedIn } = renderForm();

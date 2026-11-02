@@ -70,7 +70,7 @@ describe("звонок", () => {
     await placeCall("c_1", "video", ME);
     // 720p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
     expect(getUserMedia).toHaveBeenCalledWith({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } },
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
     });
     const peer = FakePeer.instances[0]!;

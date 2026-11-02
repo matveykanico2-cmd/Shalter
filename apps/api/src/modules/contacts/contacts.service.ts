@@ -9,9 +9,19 @@ import { UserSettingsService } from "../users/user-settings.service.js";
 import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { indexUsersByPhone, phoneKey } from "./lib/phone-match.js";
-import type { AddContactDto, ContactNoteDto, MatchContactsDto, RemoveContactDto, RenameContactDto } from "./model/schemas/contact.schema.js";
+import type { AddContactDto, ContactNoteDto, ContactPhotoDto, MatchContactsDto, RemoveContactDto, RenameContactDto } from "./model/schemas/contact.schema.js";
 
 const MAX_PHONES_PER_REQUEST = 1000;
+
+/** Строка контакта для ответа: своё фото — только если поставлено (иначе ответ как раньше). */
+function withPhoto<T extends { localAvatar?: string | null }>(row: T): Omit<T, "localAvatar"> & { localAvatar?: string } {
+  const { localAvatar, ...rest } = row;
+  return localAvatar ? { ...rest, localAvatar } : rest;
+}
+
+/** Своё фото контакта — только загруженный файл, ссылка как у аватарок (lib/avatars.ts). */
+const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
+const isOwnUploadUrl = (url: string) => UPLOAD_URL_RE.test(url);
 
 // Контакты (/api/contacts) — как server/routes/contacts.js.
 @Injectable()
@@ -36,7 +46,7 @@ export class ContactsService {
         // Заблокировавший вас номер не показывает — как и в профиле.
         const blockedMe = (user.blockedUserIds ?? []).includes(uid);
         if (!blockedMe && this.privacy.allowsUser(user.id, "phone", uid)) visible.phone = user.phone;
-        return { ...c, localName: c.localName ?? null, note: contactNote(c), user: visible };
+        return { ...withPhoto(c), localName: c.localName ?? null, note: contactNote(c), user: visible };
       })
     );
     return { contacts: resolved.filter((c) => c !== null) };
@@ -61,7 +71,7 @@ export class ContactsService {
     // даже если в приватности он скрыт (исключение «Всегда показывать»).
     if (sharePhone) this.sharePhoneWith(uid, target.id);
     // Уже существующий контакт приходит строкой из базы — заметку расшифровываем, как в /rename.
-    return { contact: "note" in contact ? { ...contact, note: contactNote(contact) } : contact };
+    return { contact: "note" in contact ? { ...withPhoto(contact), note: contactNote(contact) } : contact };
   }
 
   public setNote(uid: string, { userId, note }: ContactNoteDto) {
@@ -74,7 +84,14 @@ export class ContactsService {
   public rename(uid: string, { userId, localName }: RenameContactDto) {
     const contact = this.contacts.rename(uid, userId, localName);
     if (!contact) throw new ApiError(404, "Контакт не найден");
-    return { contact: { ...contact, note: contactNote(contact) } };
+    return { contact: { ...withPhoto(contact), note: contactNote(contact) } };
+  }
+
+  /** Своё фото контакта — видите только вы (как «Установить фото» в Telegram). Пусто — убрать. */
+  public setPhoto(uid: string, { userId, url }: ContactPhotoDto) {
+    if (url && !isOwnUploadUrl(url)) throw new ApiError(400, "Некорректное фото");
+    if (!this.contacts.setPhoto(uid, userId, url || null)) throw new ApiError(404, "Сначала добавьте человека в контакты");
+    return { localAvatar: url || null };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {

@@ -67,6 +67,28 @@ describe("«Мои стикерпаки» (stickerPackDialog.js)", () => {
     await waitFor(() => expect(screen.queryByText("Котики")).toBeNull());
   });
 
+  it("«Популярные»: чужой пак добавляется в коллекцию кнопкой «Добавить»", async () => {
+    const foreign = { ...pack, id: "sp_9", name: "Чужие", ownerId: "u_2", isOwner: false, addedCount: 5 };
+    let packs: (typeof foreign)[] = [];
+    const { calls } = fakeApi({
+      "GET /api/stickers/packs": () => ({ body: { packs, maxStickers: 30 } }),
+      "GET /api/stickers/packs/popular": () => ({ body: { packs: packs.length ? [{ ...foreign, isAdded: true }] : [foreign] } }),
+      "POST /api/stickers/packs/sp_9/collection": () => {
+        packs = [{ ...foreign, isAdded: true }];
+        return { body: { ok: true } };
+      },
+    });
+    renderPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Стикеры" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Мои стикерпаки" }));
+    expect(await screen.findByText("Популярные")).toBeTruthy();
+    expect(screen.getByText(/добавили 5/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Добавить «Чужие»" }));
+    expect(await screen.findByText("Добавленные")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Популярные")).toBeNull());
+    expect(calls.some((c) => c.key === "POST /api/stickers/packs/sp_9/collection")).toBe(true);
+  });
+
   it("пустой список — показывает заглушку и кнопку создания", async () => {
     fakeApi({ "GET /api/stickers/packs": { body: { packs: [], maxStickers: 30 } } });
     renderPicker();

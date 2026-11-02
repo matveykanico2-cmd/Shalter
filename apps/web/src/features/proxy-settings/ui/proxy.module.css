@@ -105,3 +105,38 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* «Прокси приложения» в нативной оболочке: тип, адрес, порт, логин, пароль. */
+.nativeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.nativeForm > .error {
+  padding: 0 4px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+}
+
+.field > select {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border, currentColor);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.nativeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

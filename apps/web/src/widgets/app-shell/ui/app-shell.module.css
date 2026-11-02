@@ -10,14 +10,11 @@
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
 }
 
-/* Android: когда клавиатура открыта, 100dvh оставляет белую зону — переключаемся на 100%
-   (layout viewport учитывает клавиатуру) и убираем фиксированную высоту媒абара. */
+/* Клавиатура открыта: высота — видимая часть окна (--vvh из visualViewport, useKeyboardViewport).
+   100dvh на Android оставлял пустую зону, а iOS Safari прокручивал страницу под клавиатуру. */
 html.keyboard-open .shell {
-  height: 100% !important;
+  height: var(--vvh, 100dvh);
   overflow: hidden;
-}
-html.keyboard-open .shell .media {
-  position: static;
 }
 
 /* Полоска «сейчас играет» во всю ширину над приложением (.shell-media-bar). */

@@ -9,6 +9,7 @@ import { proxyQueries } from "../api/proxy-info";
 import { parseProxyLink, type ProxyLink } from "../lib/proxy-link";
 import { savedProxies, useSavedProxies } from "../model/saved-proxies";
 
+import { NativeProxySection } from "./native-proxy-section";
 import styles from "./proxy.module.css";
 import { NativeProxyDialog, ProxyQr, ProxyShareDialog } from "./proxy-dialogs";
 
@@ -67,6 +68,8 @@ export function ProxySection() {
           <SettingsRow icon="Globe" color="blue" title="Прямое подключение" subtitle="Без прокси" />
         )}
       </SettingsSection>
+
+      <NativeProxySection />
 
       <SettingsSection title="Добавить прокси" caption="Вставьте ссылку, которой с вами поделились, — вида https://адрес/?proxy=секрет.">
         <form className={styles.form} onSubmit={add}>

@@ -11,6 +11,7 @@ import {
   logoutSchema,
   qrConfirmSchema,
   qrPollQuerySchema,
+  guestSchema,
   registerEmailSchema,
   switchAccountSchema,
   usernameQuerySchema,
@@ -20,6 +21,7 @@ import {
   type LogoutDto,
   type QrConfirmDto,
   type QrPollQuery,
+  type GuestDto,
   type RegisterEmailDto,
   type SwitchAccountDto,
   type UsernameQuery,
@@ -48,8 +50,8 @@ export class AuthController {
 
   @Post("guest")
   @HttpCode(200)
-  public guest(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.account.guest(req, res);
+  public guest(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body(new ZodValidationPipe(guestSchema)) dto: GuestDto) {
+    return this.account.guest(req, res, dto.name);
   }
 
   @Get("username-available")

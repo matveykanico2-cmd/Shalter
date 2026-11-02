@@ -7,7 +7,7 @@ import { expectError, expectOk } from "../../support/expect";
 import { createDm, registerUser, registerUsers, sendText, type TestUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { download } from "../uploads/helpers";
-import { packBody, packsListBody } from "../../schemas/stickers";
+import { packBody, packsListBody, popularPacksBody } from "../../schemas/stickers";
 import { uploadedUrl } from "../users/helpers";
 
 const server = useServer();
@@ -33,6 +33,7 @@ describe("без сессии", () => {
     ["DELETE", `${PACKS}/sp_x_y`],
     ["POST", `${PACKS}/sp_x_y/stickers`],
     ["POST", `${PACKS}/sp_x_y/collection`],
+    ["GET", `${PACKS}/popular`],
   ])("%s %s → 401", async (method, path) => {
     expectError(await new Api(server().baseUrl).request(method, path, method === "GET" ? {} : { json: {} }), 401, "unauthorized");
   });
@@ -114,5 +115,62 @@ describe("чужой пак: окно и коллекция", () => {
     const sent = await sendText(owner, chat.id, "", { sticker: { kind: "image", url: file, emoji: "🐱", packId: pack.id } });
     expect(sent.sticker).toMatchObject({ kind: "image", url: file, packId: pack.id });
     expect(expectOk(await other.api.get(`${PACKS}/${sent.sticker.packId}`), packBody).pack.id).toBe(pack.id);
+  });
+});
+
+describe("обложка пака", () => {
+  test("по умолчанию — первый стикер; владелец выбирает другой; удалённый стикер — снова первый", async () => {
+    const [me, other] = await registerUsers(server().baseUrl, 2);
+    const pack = await newPack(me);
+    expect(pack).toMatchObject({ coverStickerId: null, cover: null });
+    const first = await addSticker(me, pack.id, "🐱");
+    const second = await addSticker(me, pack.id, "🐶");
+    expect(expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack).toMatchObject({ coverStickerId: null, cover: first.file });
+
+    const patched = expectOk(await me.api.patch(`${PACKS}/${pack.id}`, { coverStickerId: second.sticker.id }), packBody).pack;
+    expect(patched).toMatchObject({ coverStickerId: second.sticker.id, cover: second.file, name: "Коты" });
+    expect(expectOk(await other.api.get(`${PACKS}/${pack.id}`), packBody).pack.cover).toBe(second.file);
+    expect(expectOk(await me.api.get(PACKS), packsListBody).packs.find((p) => p.id === pack.id)?.cover).toBe(second.file);
+
+    // Стикер не из этого пака, чужой владелец
+    const otherPack = await newPack(other);
+    const foreign = await addSticker(other, otherPack.id);
+    expectError(await me.api.patch(`${PACKS}/${pack.id}`, { coverStickerId: foreign.sticker.id }), 400, "Такого стикера нет в паке");
+    expectError(await other.api.patch(`${PACKS}/${pack.id}`, { coverStickerId: first.sticker.id }), 404, "Пак не найден");
+
+    expect((await me.api.delete(`${PACKS}/${pack.id}/stickers/${second.sticker.id}`)).status).toBe(200);
+    expect(expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack).toMatchObject({ coverStickerId: null, cover: first.file });
+
+    expect(expectOk(await me.api.patch(`${PACKS}/${pack.id}`, { coverStickerId: null }), packBody).pack.cover).toBe(first.file);
+  });
+});
+
+describe("популярные паки", () => {
+  test("чужие непустые паки по числу добавивших, свои и пустые не показываются", async () => {
+    const [me, a, b, c, d] = await registerUsers(server().baseUrl, 5);
+    const popular = await newPack(a, { name: "Популярный" });
+    await addSticker(a, popular.id);
+    const lessPopular = await newPack(b, { name: "Пореже" });
+    await addSticker(b, lessPopular.id);
+    const empty = await newPack(b, { name: "Пустой" });
+    const mine = await newPack(me, { name: "Мой" });
+    await addSticker(me, mine.id);
+    for (const u of [c, d, me]) expect((await u.api.post(`${PACKS}/${popular.id}/collection`)).status).toBe(200);
+    expect((await c.api.post(`${PACKS}/${lessPopular.id}/collection`)).status).toBe(200);
+    expect((await c.api.post(`${PACKS}/${mine.id}/collection`)).status).toBe(200);
+    expect((await c.api.post(`${PACKS}/${empty.id}/collection`)).status).toBe(200);
+
+    const packs = expectOk(await me.api.get(`${PACKS}/popular`), popularPacksBody).packs;
+    expect(packs.length).toBeLessThanOrEqual(20);
+    const ids = packs.map((p) => p.id);
+    expect(ids).not.toContain(mine.id);
+    expect(ids).not.toContain(empty.id);
+    expect(ids.indexOf(popular.id)).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf(popular.id)).toBeLessThan(ids.indexOf(lessPopular.id));
+    expect(packs.find((p) => p.id === popular.id)).toMatchObject({ addedCount: 3, isAdded: true, isOwner: false, stickerCount: 1 });
+    expect(packs.find((p) => p.id === lessPopular.id)).toMatchObject({ addedCount: 1, isAdded: false });
+
+    // Для владельца его пак в популярных не показывается
+    expect(expectOk(await a.api.get(`${PACKS}/popular`), popularPacksBody).packs.map((p) => p.id)).not.toContain(popular.id);
   });
 });

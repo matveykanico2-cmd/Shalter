@@ -13,6 +13,8 @@ const contactBase = {
   userId: z.string(),
   addedAt: isoDate,
   localName: z.string().nullable(),
+  /** Своё фото контакта — только если поставлено. */
+  localAvatar: z.string().optional(),
 };
 
 /** Контакт с расшифрованной заметкой: GET /api/contacts (без user) и POST /rename. */
@@ -34,6 +36,8 @@ export const contactUser = publicUser.extend({
   inContacts: z.literal(true).optional(),
   mutualContact: z.literal(true).optional(),
   profileName: z.string().optional(),
+  /** Своё фото контакта заменило avatarImage — здесь фото из профиля. */
+  profileAvatarImage: z.string().nullable().optional(),
 });
 
 export const contactListItem = z.strictObject({ ...contactBase, note: z.string().nullable(), user: contactUser });

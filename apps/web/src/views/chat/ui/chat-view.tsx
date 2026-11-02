@@ -219,7 +219,9 @@ function Bottom({ chat, me, topicClosed, composer, onUnblock }: BottomProps) {
       </div>
     );
   }
-  if (chat.type === "channel" && !isChatAdmin(chat, me.id)) return <SubscribeBar chat={chat} />;
+  if (chat.type === "channel" && !isChatAdmin(chat, me.id)) return <SubscribeBar chat={chat} meId={me.id} />;
+  // Вышли из группы, а чат ещё открыт: вместо поля ввода (сервер всё равно не примет) — «Вступить».
+  if (chat.type === "group" && !chat.memberIds.includes(me.id)) return <SubscribeBar chat={chat} meId={me.id} />;
   if (chat.otherUser?.isServiceBot) return <p className={styles.hint}>Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя</p>;
   if (topicClosed) return <p className={styles.hint}>Тема закрыта — писать в неё могут только администраторы</p>;
   const restrictedUntil = chat.restrictions?.[me.id];

@@ -57,6 +57,11 @@ export class ContactsRepository {
     return this.db.select().from(contacts).where(where).get();
   }
 
+  /** Своё фото контакта (видит только владелец); false — такого контакта нет. */
+  public setPhoto(ownerId: string, userId: string, url: string | null): boolean {
+    return this.db.update(contacts).set({ localAvatar: url }).where(and(eq(contacts.ownerId, ownerId), eq(contacts.userId, userId))).run().changes > 0;
+  }
+
   /** false — такого контакта нет. */
   public setNote(ownerId: string, userId: string, sealedNote: string | null): boolean {
     return this.db.update(contacts).set({ note: sealedNote }).where(and(eq(contacts.ownerId, ownerId), eq(contacts.userId, userId))).run().changes > 0;

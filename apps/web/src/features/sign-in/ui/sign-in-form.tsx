@@ -122,6 +122,7 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
   const [error, setError] = useState<string | null>(message);
   const [pending, setPending] = useState(false);
   const [guestPending, setGuestPending] = useState(false);
+  const [guestName, setGuestName] = useState("");
 
   const run = async (action: () => Promise<void>, setBusy = setPending) => {
     setError(null);
@@ -220,10 +221,22 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
           <button type="button" className={`${styles.link} ${styles.muted}`} onClick={() => onMode("recover")}>
             Забыли пароль?
           </button>
+          <TextField
+            placeholder="Имя гостя (необязательно)"
+            aria-label="Имя гостя"
+            maxLength={64}
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              if (!pending && !guestPending) void run(async () => onResult(await loginAsGuest(guestName)), setGuestPending);
+            }}
+          />
           <Button
             variant="secondary"
             disabled={pending || guestPending}
-            onClick={() => void run(async () => onResult(await loginAsGuest()), setGuestPending)}
+            onClick={() => void run(async () => onResult(await loginAsGuest(guestName)), setGuestPending)}
           >
             {guestPending ? "Входим…" : "Продолжить как гость"}
           </Button>

@@ -29,7 +29,7 @@ describe("качество звонков", () => {
   it("камера 720p/30 и моно-голос везде; потолок видео 2,5 Мбит/с на ПК и 1,2 Мбит/с на телефоне", () => {
     const pc = mediaQuality(false);
     expect(pc.video).toEqual({ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } });
-    expect(pc.audio).toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 });
+    expect(pc.audio).toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } });
     expect(pc).toMatchObject({ videoBitrate: 3_500_000, videoFramerate: 30, opusBitrate: 96_000 });
     const phone = mediaQuality(true);
     expect(phone.video).toEqual(pc.video);

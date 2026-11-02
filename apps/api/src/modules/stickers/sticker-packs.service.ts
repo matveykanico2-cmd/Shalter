@@ -23,6 +23,11 @@ export class StickerPacksService {
     return { packs: this.packs.listForViewer(userId), maxStickers: MAX_STICKERS_PER_PACK };
   }
 
+  /** «Популярные»: чужие паки по числу добавивших, до 20. */
+  public popular(userId: string) {
+    return { packs: this.packs.popular(userId, 20) };
+  }
+
   public get(userId: string, id: string) {
     const pack = this.packs.findPack(id, userId);
     if (!pack) throw new ApiError(404, "Пак не найден");
@@ -36,16 +41,22 @@ export class StickerPacksService {
       ownerId: userId,
       name: name.trim().slice(0, MAX_PACK_NAME),
       description: description ?? null,
+      coverStickerId: null,
       stickers: "[]",
       createdAt: new Date().toISOString(),
     });
     return { pack };
   }
 
-  /** Меняет название и/или описание. Только владелец. */
-  public update(userId: string, id: string, { name, description }: PatchPackDto) {
-    this.ownerPack(id, userId);
-    return { pack: this.packs.updatePack(id, { name: name ?? undefined, description: description ?? undefined }) };
+  /** Меняет название, описание и/или обложку (id стикера этого пака или null). Только владелец. */
+  public update(userId: string, id: string, { name, description, coverStickerId }: PatchPackDto) {
+    const pack = this.ownerPack(id, userId);
+    if (coverStickerId && !pack.stickers.some((st) => st.id === coverStickerId)) {
+      throw new ApiError(400, "Такого стикера нет в паке");
+    }
+    return {
+      pack: this.packs.updatePack(id, { name: name ?? undefined, description: description ?? undefined, coverStickerId }),
+    };
   }
 
   /** Удаляет пак (стикеры и записи коллекции уходят каскадом). Только владелец. */
@@ -60,6 +71,9 @@ export class StickerPacksService {
     const pack = this.ownerPack(packId, userId);
     // Файл стикера становится виден всем, кто открыл пак: только свой или уже доступный.
     if (usesForeignUpload(userId, file)) throw new ApiError(400, "Некорректная ссылка на файл");
+    // Тот же файл второй раз не добавляем: повторный запрос (двойной клик, повтор сети) получает уже добавленный стикер.
+    const existing = this.packs.findStickerByFile(packId, file);
+    if (existing) return { sticker: existing };
     if (pack.stickerCount >= MAX_STICKERS_PER_PACK) {
       throw new ApiError(400, `В паке уже максимум ${MAX_STICKERS_PER_PACK} стикеров`);
     }

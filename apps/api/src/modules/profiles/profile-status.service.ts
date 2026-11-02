@@ -3,7 +3,7 @@ import { ApiError } from "../../common/errors/api-error.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { StatusEntry } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { slotsFor, validateImage } from "./lib/profile-status.js";
+import { slotsFor, validateImage, validateSticker } from "./lib/profile-status.js";
 import type { ActiveStatusDto, AddStatusDto } from "./model/schemas/profile-media.schema.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 import { ProfileStatusesRepository } from "./profile-statuses.repository.js";
@@ -46,6 +46,12 @@ export class ProfileStatusService {
       image = found.image;
       name = found.name;
       catalogId = found.id;
+    } else if (dto.sticker !== undefined) {
+      if (!me.isPremium) throw new ApiError(403, "Стикер в статусе — только с Shalter Premium");
+      const checked = validateSticker(dto.sticker);
+      if (checked.error !== undefined) throw new ApiError(400, checked.error);
+      image = checked.image;
+      name = dto.name;
     } else {
       const checked = validateImage(dto.image);
       if (checked.error !== undefined) throw new ApiError(400, checked.error);

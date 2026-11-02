@@ -22,38 +22,46 @@
 .pad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 12px;
+  padding: 12px 16px 16px;
 }
 
 .hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 16px 16px;
+  margin: 8px 8px 4px;
+  padding: 24px 16px 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--color-success) 22%, transparent), transparent 70%),
+    var(--color-surface);
   text-align: center;
 }
 
 .heroIcon {
   display: flex;
-  width: 100px;
-  height: 100px;
+  width: 88px;
+  height: 88px;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: #4caf50;
+  border-radius: 28px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 80%, #fff), var(--color-success));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-success) 35%, transparent);
   color: #fff;
 }
 
 .heroTitle {
-  margin: 12px 0 6px;
-  font-size: 20px;
-  font-weight: 500;
+  margin: 16px 0 6px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .heroSubtitle {
   margin: 0;
+  max-width: 360px;
   font-size: 15px;
+  line-height: 1.4;
   color: var(--color-muted);
 }
 
@@ -71,17 +79,18 @@
 }
 
 .bar {
-  height: 6px;
-  margin-top: 4px;
+  height: 8px;
+  margin-top: 6px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 999px;
   background: var(--color-surface-alt);
 }
 
 .bar > span {
   display: block;
   height: 100%;
-  background: #4caf50;
+  border-radius: inherit;
+  background: var(--color-success);
 }
 
 .barWarn > span {
@@ -91,20 +100,30 @@
 .footer {
   position: sticky;
   bottom: 0;
-  padding: 12px 8px;
-  background: var(--color-bg);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(transparent, var(--color-bg) 30%);
 }
 
 .confirm {
   width: 100%;
-  padding: 12px 16px;
+  padding: 14px 16px;
   border: none;
-  border-radius: 16px;
-  background: #4caf50;
+  border-radius: var(--radius-control);
+  background: var(--color-success);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-success) 30%, transparent);
   font: inherit;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+
+.confirm:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.confirm:not(:disabled):active {
+  transform: scale(0.99);
 }
 
 .confirm:disabled {
@@ -113,12 +132,18 @@
 }
 
 .status {
-  margin: 0 0 4px;
-  font-weight: 500;
+  align-self: flex-start;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  font-size: 14px;
+  font-weight: 600;
   color: var(--color-danger);
 }
 
 .statusOpen {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
   color: var(--color-success);
 }
 
@@ -126,12 +151,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dayRow:last-of-type {
+  border-bottom: none;
 }
 
 .dayName {
   width: 110px;
   flex-shrink: 0;
+  font-weight: 500;
 }
 
 .dayHours {
@@ -144,10 +175,10 @@
 }
 
 .time {
-  padding: 4px 6px;
+  padding: 5px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-bg);
+  border-radius: 10px;
+  background: var(--color-surface-alt);
   font-family: var(--font-mono);
   color: var(--color-text);
 }
@@ -179,14 +210,20 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: none;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
   font: inherit;
   font-size: 14px;
-  color: var(--color-text);
+  font-weight: 500;
+  color: var(--color-accent);
   cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.chip:hover {
+  filter: brightness(0.96);
 }
 
 .optionRow {
@@ -203,6 +240,7 @@
 
 .optionTitle {
   margin: 0;
+  font-weight: 500;
 }
 
 .select {
@@ -226,6 +264,16 @@
   font: inherit;
   color: var(--color-text);
   resize: vertical;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.textarea:focus,
+.input:focus,
+.select:focus,
+.time:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .recordBar {
@@ -266,6 +314,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
 }
 
 .replyBody {
@@ -289,4 +340,8 @@
   border-radius: 50%;
   background: none;
   cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--tw-hover);
 }

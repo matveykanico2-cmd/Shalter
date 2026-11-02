@@ -72,6 +72,12 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
   useEffect(() => {
     if (focusOnOpen.current) ref.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     const onClose = () => closeRef.current();
+    // Клавиатура телефона меняет только высоту окна — от этого меню не закрываем.
+    let width = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth !== width) onClose();
+      width = window.innerWidth;
+    };
     const onPointerDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
@@ -81,13 +87,13 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
     // Нажатие, открывшее меню, ещё летит — ловим только следующие.
     const t = setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onClose);
+    window.addEventListener("resize", onResize);
     window.addEventListener("blur", onClose);
     return () => {
       clearTimeout(t);
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onClose);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("blur", onClose);
     };
   }, []);

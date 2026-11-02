@@ -12,6 +12,9 @@ fn main() {
         "open_browser",
         "install_update",
         "set_app_icon",
+        "set_proxy",
+        "get_proxy",
+        "restart_app",
     ])))
     .expect("failed to run tauri-build");
 }

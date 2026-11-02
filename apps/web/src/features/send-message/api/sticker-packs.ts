@@ -1,5 +1,5 @@
 // Свои стикерпаки (/api/stickers/packs) — окно «Стикерпаки» и выбор стикера в поле ввода.
-import type { packBody,packsListBody } from "@shalter/shared/schemas/stickers";
+import type { packBody, packsListBody, popularPacksBody } from "@shalter/shared/schemas/stickers";
 import type { Sticker } from "@shalter/shared/schemas/stickers";
 import { stickerPack } from "@shalter/shared/schemas/stickers";
 import { queryOptions } from "@tanstack/react-query";
@@ -21,6 +21,13 @@ export const stickerPackQueries = {
       queryFn: async ({ signal }) => (await http.get<z.infer<typeof packsListBody>>(packsPath, signal)).packs,
       staleTime: 60_000,
     }),
+  /** «Популярные»: чужие паки по числу добавивших (до 20). */
+  popular: () =>
+    queryOptions({
+      queryKey: ["stickers", "packs", "popular"],
+      queryFn: async ({ signal }) => (await http.get<z.infer<typeof popularPacksBody>>(`${packsPath}/popular`, signal)).packs,
+      staleTime: 60_000,
+    }),
   /** Один пак со стикерами, sticker_count и is_added. */
   get: (id: string) =>
     queryOptions({
@@ -31,7 +38,7 @@ export const stickerPackQueries = {
 };
 
 export const createStickerPack = (pack: PackDraft) => http.post<z.infer<typeof packBody>>(packsPath, pack);
-export const updateStickerPack = (id: string, patch: { name?: string; description?: string | null }) =>
+export const updateStickerPack = (id: string, patch: { name?: string; description?: string | null; coverStickerId?: string | null }) =>
   http.patch<z.infer<typeof packBody>>(`${packsPath}/${encodeURIComponent(id)}`, patch);
 export const deleteStickerPack = (id: string) => http.delete<{ ok: boolean }>(`${packsPath}/${encodeURIComponent(id)}`);
 

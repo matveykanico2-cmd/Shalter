@@ -203,3 +203,46 @@
   opacity: 0.6;
   cursor: default;
 }
+.stickerPanel {
+  width: min(88vw, 320px);
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px;
+}
+.stickerPackName {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 2px 4px 6px;
+}
+.stickerGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.stickerGrid button {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  padding: 4px;
+  cursor: pointer;
+}
+.stickerGrid button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.stickerGrid img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.stickerEmpty {
+  margin: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  text-align: center;
+}

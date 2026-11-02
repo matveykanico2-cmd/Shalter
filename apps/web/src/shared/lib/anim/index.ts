@@ -19,4 +19,6 @@ export {
   sceneSummaryEmoji,
 } from "./custom-scene";
 export { emojiArtName, lottieNameFor, type LottieOptions, renderEmojiArt, renderLottie } from "./lottie";
+export { AVATAR_PRESETS, type AvatarPreset, type BuiltinStickerPack, MASCOT_PACKS } from "./mascot-packs";
+export { renderShopGiftArt, SHOP_GIFT_ART_IDS } from "./shop-gift-art";
 export { DRAWN_STICKERS, getSticker, renderSticker, type Sticker, STICKERS } from "./stickers";

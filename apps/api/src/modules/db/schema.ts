@@ -177,6 +177,7 @@ export const contacts = sqliteTable("contacts", {
   addedAt: text().notNull(),
   localName: text(),
   note: text(),
+  localAvatar: text(),
 });
 
 export const folders = sqliteTable("folders", {
@@ -427,6 +428,7 @@ export const stickerPacks = sqliteTable("sticker_packs", {
   description: text(),
   stickers: text().default("[]").notNull(),
   createdAt: text().notNull(),
+  coverStickerId: text(),
 });
 
 export const stickers = sqliteTable("stickers", {

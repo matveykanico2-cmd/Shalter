@@ -94,7 +94,7 @@ export function privacyAllowsLazy(privacy: Privacy, key: string, viewerId: strin
  * Как в Telegram: у себя в контактах человек подписан вашим именем для него — везде.
  * Имя из профиля — в profileName. inContacts — он у вас в контактах, mutualContact — и вы у него.
  */
-export function applyContactName<T extends { name?: unknown; inContacts?: boolean; mutualContact?: boolean; profileName?: unknown }>(
+export function applyContactName<T extends { name?: unknown; inContacts?: boolean; mutualContact?: boolean; profileName?: unknown; avatarImage?: unknown; profileAvatarImage?: unknown }>(
   visible: T,
   myContact: ContactRow | null | undefined,
   theyHaveMe: boolean
@@ -105,6 +105,12 @@ export function applyContactName<T extends { name?: unknown; inContacts?: boolea
   if (localName && localName !== visible.name) {
     visible.profileName = visible.name;
     visible.name = localName;
+  }
+  // Своё фото контакта — его видит только владелец, вместо фото из профиля.
+  const localAvatar = myContact?.localAvatar;
+  if (localAvatar) {
+    visible.profileAvatarImage = visible.avatarImage ?? null;
+    visible.avatarImage = localAvatar;
   }
   return visible;
 }

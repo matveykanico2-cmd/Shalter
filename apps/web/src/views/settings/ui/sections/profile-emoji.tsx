@@ -32,11 +32,11 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
   };
 
   return (
-    <SettingsSection title="Смайл на аватарке" caption="Анимированный смайл вместо фото профиля — его видят все, кому видно ваше фото.">
+    <SettingsSection title="Смайл на аватарке" caption="Анимированный смайл или стикер из ваших паков вместо фото профиля — его видят все, кому видно ваше фото.">
       <div className={styles.inline}>
         <Avatar name={me.name || "?"} color={me.avatarColor} emoji={me.avatarEmoji} size={48} />
         <div className={styles.grow}>
-          <p className={profileStyles.rowTitle}>{me.avatarEmoji ? "Смайл выбран" : "Без смайла"}</p>
+          <p className={profileStyles.rowTitle}>{me.avatarEmoji ? (me.avatarEmoji.startsWith("sticker:") ? "Стикер выбран" : "Смайл выбран") : "Без смайла"}</p>
         </div>
         <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => setOpen((v) => !v)}>
           {me.avatarEmoji ? "Сменить смайл" : "Выбрать смайл"}
@@ -47,7 +47,7 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
           </Button>
         ) : null}
       </div>
-      {open ? <EmojiAvatarPicker onPick={(e) => void save(e)} /> : null}
+      {open ? <EmojiAvatarPicker withStickers onPick={(e) => void save(e)} /> : null}
     </SettingsSection>
   );
 }

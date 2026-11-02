@@ -93,4 +93,17 @@ describe("renderGiftArt", () => {
     expect(observed).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("рисованный подарок витрины (sg_*) — свой SVG сразу, без запросов; id градиентов у копий разные", async () => {
+    const { renderGiftArt } = await load();
+    const a = renderGiftArt({ id: "sg_crown", emoji: "👑" }, { size: 80 }) as SVGSVGElement;
+    const b = renderGiftArt({ giftId: "sg_crown", emoji: "👑" }, { size: 80 }) as SVGSVGElement;
+    expect(a.tagName.toLowerCase()).toBe("svg");
+    expect(a.style.width).toBe("80px");
+    const ids = (el: Element) => [...el.querySelectorAll("[id]")].map((n) => n.id);
+    expect(ids(a).length).toBeGreaterThan(0);
+    expect(ids(a).some((id) => ids(b).includes(id))).toBe(false);
+    expect(observed).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

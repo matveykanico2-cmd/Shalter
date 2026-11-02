@@ -1,251 +1,577 @@
 import type { Sticker } from "@shalter/shared/schemas/stickers";
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import { renderSticker, type Sticker as AnimSticker } from "@/shared/lib/anim";
+import { errorText } from "@/shared/lib/error-text";
 import { Button, DomNode, Icon } from "@/shared/ui";
 
-import { addSticker, deleteStickerPack, removeSticker, type StickerPack, updateStickerPack } from "../api/sticker-packs";
+import {
+  addSticker,
+  deleteStickerPack,
+  removeSticker,
+  type StickerPack,
+  stickerPackQueries,
+  updateSticker,
+  updateStickerPack,
+} from "../api/sticker-packs";
+import { prepareStickerImage } from "../lib/sticker-image";
+import {
+  packSticker,
+  preloadStickers,
+  uniqueStickers,
+} from "../lib/sticker-outgoing";
 
+import { PaintDialog } from "./paint-dialog";
 import styles from "./sticker-picker.module.css";
 
-export function StickerPackDetail({ pack, onClose, onStickerPick, onRefresh }: { pack?: StickerPack | null; onClose: () => void; onStickerPick: (s: Sticker) => void; onRefresh: () => void }) {
-  const [view, setView] = useState<{ kind: "detail"; pack: StickerPack } | { kind: "edit"; pack: StickerPack } | null>(pack ? { kind: "detail", pack } : null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+const stickerWord = (n: number) => {
+  const word =
+    n % 100 >= 11 && n % 100 <= 14
+      ? "стикеров"
+      : n % 10 === 1
+        ? "стикер"
+        : n % 10 >= 2 && n % 10 <= 4
+          ? "стикера"
+          : "стикеров";
+  return `${n} ${word}`;
+};
+
+/** Стикер-обложка: выбранный владельцем, иначе первый. */
+const coverSticker = (pack: StickerPack) =>
+  (pack.coverStickerId
+    ? pack.stickers.find((s) => s.id === pack.coverStickerId)
+    : undefined) ?? pack.stickers[0];
+
+/** Обложка пака — выбранный стикер, иначе первый (или буква названия, пока стикеров нет). */
+export function PackCover({
+  pack,
+  size = 44,
+}: {
+  pack: StickerPack;
+  size?: number;
+}) {
+  const cover = coverSticker(pack);
+  return (
+    <span
+      className={styles.cover}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      {cover ? (
+        <DomNode
+          key={cover.url}
+          create={() => renderSticker(packSticker(cover), { size: size - 6 })}
+        />
+      ) : (
+        <span className={styles.coverLetter}>
+          {pack.name.slice(0, 1).toUpperCase() || "?"}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Нажатый в чате стикер — крупно, на своём фоне (фон сцены или подложка в цвет чата). */
+function StickerStage({ sticker }: { sticker: AnimSticker }) {
+  const s = packSticker(sticker);
+  const scene = s.scene as { bg?: string | null } | undefined;
+  const bg =
+    s.kind === "custom" && scene && typeof scene === "object" && scene.bg
+      ? scene.bg
+      : undefined;
+  return (
+    <div
+      className={styles.stage}
+      style={bg ? { background: bg } : undefined}
+      data-testid="sticker-stage"
+    >
+      <DomNode
+        key={s.url || s.emoji}
+        create={() => renderSticker(s, { size: 180, replay: true })}
+        label={s.emoji || "Стикер"}
+      />
+    </div>
+  );
+}
+
+/**
+ * Редактор стикеров пака (только владелец): у каждого стикера свой эмодзи (для поиска и подсказок),
+ * порядок, удаление; добавление картинкой (PNG/WebP/JPEG → WebP/PNG до 512 px) или рисунком.
+ */
+export function StickerGridEditor({
+  pack,
+  onChange,
+}: {
+  pack: StickerPack;
+  onChange: (pack: StickerPack) => void;
+}) {
+  const [uploading, setUploading] = useState(0);
+  const [painting, setPainting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  // Загрузки идут по одной: так стикеры встают по порядку и один файл не уходит дважды.
+  const latest = useRef(pack);
+  useEffect(() => {
+    latest.current = pack;
+  }, [pack]);
+  const queue = useRef(Promise.resolve());
+
+  const commit = (stickers: Sticker[]) => {
+    const list = uniqueStickers(stickers);
+    const next = {
+      ...latest.current,
+      stickers: list,
+      stickerCount: list.length,
+    };
+    latest.current = next;
+    onChange(next);
+  };
+
+  const addFiles = (files: File[]) => {
+    for (const raw of files) {
+      setUploading((n) => n + 1);
+      queue.current = queue.current.then(async () => {
+        try {
+          const { file } = await prepareStickerImage(raw);
+          const { url } = await uploadFile(file, "image");
+          const { sticker } = await addSticker(latest.current.id, {
+            file: url,
+            emoji: "🙂",
+          });
+          commit([...latest.current.stickers, sticker]);
+        } catch (err) {
+          setError(errorText(err, "Не удалось добавить стикер"));
+        } finally {
+          setUploading((n) => n - 1);
+        }
+      });
+    }
+  };
+
+  const setEmoji = async (s: Sticker, emoji: string) => {
+    const value = emoji.trim();
+    if (!value || value === s.emoji) return;
+    try {
+      const { sticker } = await updateSticker(latest.current.id, s.id, {
+        emoji: value,
+      });
+      commit(latest.current.stickers.map((x) => (x.id === s.id ? sticker : x)));
+    } catch (err) {
+      setError(errorText(err, "Не удалось сменить эмодзи"));
+    }
+  };
+
+  const remove = async (s: Sticker) => {
+    try {
+      await removeSticker(latest.current.id, s.id);
+      commit(latest.current.stickers.filter((x) => x.id !== s.id));
+    } catch (err) {
+      setError(errorText(err, "Не удалось убрать стикер"));
+    }
+  };
+
+  const makeCover = async (s: Sticker) => {
+    try {
+      const { pack: saved } = await updateStickerPack(latest.current.id, {
+        coverStickerId: s.id,
+      });
+      const next = { ...latest.current, coverStickerId: saved.coverStickerId ?? s.id, cover: saved.cover ?? s.url };
+      latest.current = next;
+      onChange(next);
+    } catch (err) {
+      setError(errorText(err, "Не удалось сменить обложку"));
+    }
+  };
+
+  const move = async (s: Sticker, delta: number) => {
+    const list = [...latest.current.stickers];
+    const idx = list.findIndex((x) => x.id === s.id);
+    const target = Math.min(Math.max(0, idx + delta), list.length - 1);
+    if (idx < 0 || target === idx) return;
+    const [moved] = list.splice(idx, 1);
+    if (!moved) return;
+    list.splice(target, 0, moved);
+    commit(list.map((x, i) => ({ ...x, position: i })));
+    try {
+      await Promise.all(
+        list.map((x, i) =>
+          x.position === i
+            ? null
+            : updateSticker(latest.current.id, x.id, { position: i }),
+        ),
+      );
+    } catch (err) {
+      setError(errorText(err, "Не удалось сохранить порядок"));
+    }
+  };
+
+  return (
+    <div className={styles.editor}>
+      <p className={styles.hint}>
+        У каждого стикера свой эмодзи — по нему стикер находится в поиске и
+        подсказках. Обложка пака — отмеченный звездой стикер (по умолчанию
+        первый).
+      </p>
+      <div className={styles.editGrid}>
+        {pack.stickers.map((s, i) => (
+          <div key={s.id} className={styles.stickerCell}>
+            <DomNode
+              key={s.url}
+              create={() => renderSticker(packSticker(s), { size: 56 })}
+            />
+            <input
+              className={styles.emojiInput}
+              aria-label="Эмодзи стикера"
+              defaultValue={s.emoji}
+              maxLength={8}
+              onBlur={(e) => void setEmoji(s, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+            />
+            <div className={styles.cellControls}>
+              <button
+                type="button"
+                className={styles.moveBtn}
+                title="Раньше"
+                aria-label="Раньше"
+                disabled={i === 0}
+                onClick={() => void move(s, -1)}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className={styles.moveBtn}
+                title="Позже"
+                aria-label="Позже"
+                disabled={i === pack.stickers.length - 1}
+                onClick={() => void move(s, 1)}
+              >
+                →
+              </button>
+              <button
+                type="button"
+                className={styles.moveBtn}
+                title="Сделать обложкой"
+                aria-label="Сделать обложкой"
+                aria-pressed={coverSticker(pack)?.id === s.id}
+                disabled={coverSticker(pack)?.id === s.id}
+                onClick={() => void makeCover(s)}
+              >
+                <Icon name="Star" size={11} />
+              </button>
+              <button
+                type="button"
+                className={styles.removeBtn}
+                title="Убрать из пака"
+                aria-label={`Убрать «${s.emoji || "стикер"}»`}
+                onClick={() => void remove(s)}
+              >
+                <Icon name="X" size={11} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {error ? (
+        <p className={styles.errorText} role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className={styles.addRow}>
+        <button
+          type="button"
+          className={styles.addBtn}
+          disabled={uploading > 0}
+          onClick={() => input.current?.click()}
+        >
+          {uploading > 0 ? `Загружаем… (${uploading})` : "Добавить картинку"}
+        </button>
+        <button
+          type="button"
+          className={styles.addBtn}
+          disabled={uploading > 0}
+          onClick={() => setPainting(true)}
+        >
+          Нарисовать стикер
+        </button>
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/webp,image/jpeg,image/gif"
+        multiple
+        hidden
+        data-testid="sticker-pack-images"
+        onChange={(e) => {
+          addFiles([...(e.target.files ?? [])]);
+          e.target.value = "";
+        }}
+      />
+      {painting ? (
+        <PaintDialog
+          title="Новый стикер"
+          onClose={() => setPainting(false)}
+          onDone={(file) => {
+            setPainting(false);
+            addFiles([file]);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type Props = {
+  pack?: StickerPack | null;
+  /** Стикер, по которому открыли пак из чата: показывается крупно на своём фоне. */
+  focus?: AnimSticker | null;
+  /** Пака по ссылке нет (удалён или ссылка неверная). */
+  missing?: boolean;
+  onClose: () => void;
+  onStickerPick: (s: Sticker) => void;
+  onRefresh: () => void;
+  /** Поверх чата: затемнение, закрытие по клику мимо и Escape. */
+  overlay?: boolean;
+};
+
+export function StickerPackDetail({ overlay, ...props }: Props) {
+  const { onClose } = props;
+  useEffect(() => {
+    if (!overlay) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [overlay, onClose]);
+  // Другой пак — новое состояние листа (key), без синхронизации через эффект.
+  const sheetKey = props.pack?.id ?? "none";
+  if (!overlay) return <PackSheet key={sheetKey} {...props} />;
+  return (
+    <div className={styles.backdrop} onClick={onClose}>
+      <div className={styles.backdropBody} onClick={(e) => e.stopPropagation()}>
+        <PackSheet key={sheetKey} {...props} />
+      </div>
+    </div>
+  );
+}
+
+/** Пак, открытый из чата или панели: обложка, название, стикеры; владельцу — правка. */
+function PackSheet({
+  pack,
+  focus,
+  missing,
+  onClose,
+  onStickerPick,
+  onRefresh,
+}: Omit<Props, "overlay">) {
+  const client = useQueryClient();
+  // Списки паков обновляются в фоне; лист не закрывается (onRefresh закрывает его — только после удаления).
+  const reload = () =>
+    void client.invalidateQueries({ queryKey: stickerPackQueries.baseKey });
+  const [current, setCurrent] = useState<StickerPack | null>(pack ?? null);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(pack?.name ?? "");
+  const [description, setDescription] = useState(pack?.description ?? "");
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const current = view?.kind === "detail" || view?.kind === "edit" ? view.pack : null;
+  useEffect(
+    () => preloadStickers((pack?.stickers ?? []).map((s) => s.url)),
+    [pack],
+  );
 
-  const stickerWord = (n: number) => {
-    const ru = n % 100 >= 11 && n % 100 <= 14 ? "стикеров" : n % 10 === 1 ? "стикер" : n % 10 >= 2 && n % 10 <= 4 ? "стикера" : "стикеров";
-    return n === 1 ? "1 стикер" : `${n} ${ru}`;
-  };
+  if (!current) {
+    return (
+      <div
+        className={styles.packSheet}
+        role="dialog"
+        aria-label={missing ? "Стикерпак не найден" : "Стикер"}
+      >
+        {focus ? <StickerStage sticker={focus} /> : null}
+        {missing ? (
+          <div className={styles.notFound}>
+            <h2 className={styles.sheetTitle}>Стикерпак не найден</h2>
+            <p className={styles.hint}>Набор удалён или ссылка неверная.</p>
+          </div>
+        ) : null}
+        <button type="button" className={styles.closeBtn} onClick={onClose}>
+          Закрыть
+        </button>
+      </div>
+    );
+  }
 
-  const removePackConfirmed = async () => {
-    if (!current || busy) return;
+  const stickers = uniqueStickers(current.stickers);
+  const count = stickers.length;
+
+  const removePack = async () => {
     setConfirmRemove(false);
     setBusy(true);
     setError(null);
     try {
       await deleteStickerPack(current.id);
-      setView(null);
       onRefresh();
       onClose();
-    } catch {
-      setBusy(false);
-      setError("Не удалось удалить пак");
+    } catch (err) {
+      setError(errorText(err, "Не удалось удалить пак"));
     } finally {
       setBusy(false);
     }
   };
 
   const saveEdit = async () => {
-    if (!current || busy) return;
     if (!name.trim()) return setError("Назовите пак");
     setBusy(true);
     setError(null);
     try {
-      await updateStickerPack(current.id, { name: name.trim(), description: description === "" ? null : description });
-      setView({ kind: "detail", pack: { ...current, name: name.trim(), description: description === "" ? null : description } });
-    } catch {
-      setBusy(false);
-      setError("Не удалось сохранить");
+      const desc = description === "" ? null : description;
+      await updateStickerPack(current.id, {
+        name: name.trim(),
+        description: desc,
+      });
+      setCurrent({ ...current, name: name.trim(), description: desc });
+      setEditing(false);
+      reload();
+    } catch (err) {
+      setError(errorText(err, "Не удалось сохранить"));
     } finally {
       setBusy(false);
     }
   };
 
-  const addStickerImage = async (file: File) => {
-    if (!current || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const { url } = await uploadFile(file, "image");
-      const { sticker } = await addSticker(current.id, { file: url, emoji: "✨" });
-      setView({ kind: "edit", pack: { ...current, stickers: [...current.stickers, sticker], stickerCount: current.stickerCount + 1 } });
-    } catch {
-      setBusy(false);
-      setError("Не удалось добавить стикер");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeStickerFromPack = async (stickerId: string) => {
-    if (!current || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await removeSticker(current.id, stickerId);
-      const next = current.stickers.filter((s) => s.id !== stickerId);
-      setView({ kind: "edit", pack: { ...current, stickers: next, stickerCount: next.length } });
-      onRefresh();
-    } catch {
-      setBusy(false);
-      setError("Не удалось убрать стикер");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const moveSticker = (stickerId: string, delta: number) => {
-    if (!current || view?.kind !== "edit") return;
-    const list = [...current.stickers];
-    const idx = list.findIndex((s) => s.id === stickerId);
-    if (idx < 0) return;
-    const target = Math.min(Math.max(0, idx + delta), list.length - 1);
-    if (target === idx) return;
-    const [moved] = list.splice(idx, 1);
-    if (!moved) return;
-    list.splice(target, 0, moved);
-    list.forEach((s, i) => (s.position = i));
-    setView({ kind: "edit", pack: { ...current, stickers: list } });
-  };
-
-  if (!current) return null;
-
-  const packName = current.name;
-  const isOwner = current.isOwner;
-  const count = current.stickerCount;
-
-  const pickSticker = (s: Sticker) => {
-    onStickerPick(s);
-    onClose();
-  };
+  const confirm = confirmRemove ? (
+    <div className={styles.confirm}>
+      <p>Удалить стикерпак? Отправленные стикеры останутся в чатах.</p>
+      <div className={styles.confirmButtons}>
+        <Button variant="danger" onClick={() => void removePack()}>
+          Удалить
+        </Button>
+        <Button variant="secondary" onClick={() => setConfirmRemove(false)}>
+          Отмена
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <div className={styles.packSheet}>
-      {view?.kind === "edit" ? (
-        <>
-          <div className={styles.sheetHeader}>
-            <button type="button" className={styles.iconButton} title="Назад" onClick={() => setView({ kind: "detail", pack: current })}>
-              <Icon name="ChevronLeft" size={18} />
-            </button>
-            <h2 className={styles.sheetTitle}>Редактирование пака</h2>
-            <Button variant="danger" onClick={() => setConfirmRemove(true)}>Удалить пак</Button>
+    <div className={styles.packSheet} role="dialog" aria-label={current.name}>
+      {focus && !editing ? <StickerStage sticker={focus} /> : null}
+      <div className={styles.packHero}>
+        {editing ? (
+          <button
+            type="button"
+            className={styles.iconButton}
+            title="Назад"
+            aria-label="Назад"
+            onClick={() => setEditing(false)}
+          >
+            <Icon name="ChevronLeft" size={18} />
+          </button>
+        ) : null}
+        <PackCover pack={current} size={56} />
+        <div className={styles.heroText}>
+          <h2 className={styles.sheetTitle}>
+            {editing ? "Редактирование пака" : current.name}
+          </h2>
+          <span className={styles.sheetMeta}>{stickerWord(count)}</span>
+        </div>
+      </div>
+      {editing ? (
+        <div className={styles.editForm}>
+          <input
+            className={styles.editInput}
+            placeholder="Название пака"
+            aria-label="Название пака"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+          />
+          <textarea
+            className={styles.editDesc}
+            placeholder="Описание пака (необязательно)"
+            aria-label="Описание"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <StickerGridEditor
+            pack={current}
+            onChange={(next) => {
+              setCurrent(next);
+              reload();
+            }}
+          />
+          {error ? (
+            <p className={styles.errorText} role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className={styles.sheetActions}>
+            <Button variant="danger" onClick={() => setConfirmRemove(true)}>
+              Удалить пак
+            </Button>
+            <Button disabled={busy} onClick={() => void saveEdit()}>
+              {busy ? "Сохраняем…" : "Сохранить"}
+            </Button>
           </div>
-          <div className={styles.editForm}>
-            <input
-              className={styles.editInput}
-              placeholder="Название пака"
-              aria-label="Название пака"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={60}
-            />
-            <textarea
-              className={styles.editDesc}
-              placeholder="Описание пака (необязательно)"
-              aria-label="Описание"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <p className={styles.hint}>Стикеров: {count}. Добавьте картинку (PNG/WebP) с эмодзи.</p>
-            <div className={styles.stickerGrid}>
-              {current.stickers.map((s, i) => (
-                <div key={s.id} className={styles.stickerCell}>
-                  <DomNode create={() => renderSticker({ ...s, kind: s.url ? "image" : undefined } as AnimSticker, { size: 40 })} />
-                  <div className={styles.cellControls}>
-                    <button type="button" className={styles.moveBtn} title="Наверх" aria-label="Наверх" disabled={i === 0} onClick={() => void moveSticker(s.id, -1)}>
-                      ↑
-                    </button>
-                    <button type="button" className={styles.moveBtn} title="Вниз" aria-label="Вниз" disabled={i === current.stickers.length - 1} onClick={() => void moveSticker(s.id, 1)}>
-                      ↓
-                    </button>
-                    <button type="button" className={styles.removeBtn} title="Убрать из пака" aria-label={`Убрать «${s.emoji || "стикер"}»`} onClick={() => void removeStickerFromPack(s.id)}>
-                      <Icon name="X" size={11} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {error ? <p className={styles.errorText} role="alert">{error}</p> : null}
-            <button type="button" className={styles.addBtn} disabled={busy} onClick={() => document.getElementById("pack-detail-image")?.click()}>
-              {busy ? "Загружаем…" : "Добавить стикер (PNG/WebP)"}
-            </button>
-            <input id="pack-detail-image" type="file" accept="image/*" multiple hidden data-testid="pack-detail-images" onChange={(e) => [...(e.target.files ?? [])].forEach((f) => void addStickerImage(f))} />
-            <div className={styles.sheetActions}>
-              <Button variant="secondary" onClick={() => setView({ kind: "detail", pack: current })}>
-                Отмена
-              </Button>
-              <Button disabled={busy} onClick={saveEdit}>
-                {busy ? "Сохраняем…" : "Сохранить"}
-              </Button>
-            </div>
-            {confirmRemove ? (
-              <div className={styles.confirm}>
-                <p>Удалить стикерпак? Сам пак и отправленные им стикеры останутся.</p>
-                <div className={styles.confirmButtons}>
-                  <Button variant="danger" onClick={removePackConfirmed}>
-                    Удалить
-                  </Button>
-                  <Button variant="secondary" onClick={() => setConfirmRemove(false)}>
-                    Отмена
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </>
+          {confirm}
+        </div>
       ) : (
         <>
-          <div className={styles.sheetHeader}>
-            <h2 className={styles.sheetTitle}>{packName}</h2>
-            {current.description && <p className={styles.sheetDesc}>{current.description}</p>}
-            <span className={styles.sheetMeta}>{count} {stickerWord(count)}</span>
-          </div>
-          <p className={styles.hint}>Нажмите на стикер, чтобы отправить его в чат.</p>
-          <div className={styles.stickerGrid}>
-            {current.stickers.map((s) => (
-              <button
-                key={s.id || s.url || s.emoji}
-                type="button"
-                className={styles.stickerItem}
-                title={s.emoji || "Стикер"}
-                aria-label={s.emoji || "Стикер"}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  pickSticker(s);
+          {current.description ? (
+            <p className={styles.sheetDesc}>{current.description}</p>
+          ) : null}
+          {count ? (
+            <div className={styles.stickerGrid}>
+              {stickers.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={styles.stickerItem}
+                  title={s.emoji || "Стикер"}
+                  aria-label={s.emoji || "Стикер"}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStickerPick(s);
+                    onClose();
+                  }}
+                >
+                  <DomNode
+                    key={s.url}
+                    create={() => renderSticker(packSticker(s), { size: 64 })}
+                  />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.hint}>В паке пока нет стикеров.</p>
+          )}
+          {error ? (
+            <p className={styles.errorText} role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className={styles.sheetActions}>
+            {current.isOwner ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setName(current.name);
+                  setDescription(current.description ?? "");
+                  setEditing(true);
                 }}
               >
-                <DomNode create={() => renderSticker({ ...s, kind: s.url ? "image" : undefined } as AnimSticker, { size: 48 })} />
-              </button>
-            ))}
-          </div>
-          {isOwner ? (
-            <div className={styles.sheetActions}>
-              <Button variant="secondary" onClick={() => {
-                setName(current.name);
-                setDescription(current.description ?? "");
-                setView({ kind: "edit", pack: current });
-              }}>
                 Редактировать пак
               </Button>
-              <Button variant="danger" onClick={() => setConfirmRemove(true)}>
-                Удалить пак
-              </Button>
-              {confirmRemove ? (
-                <div className={styles.confirm}>
-                  <p>Удалить стикерпак? Сам пак и отправленные им стикеры останутся.</p>
-                  <div className={styles.confirmButtons}>
-                    <Button variant="danger" onClick={removePackConfirmed}>
-                      Удалить
-                    </Button>
-                    <Button variant="secondary" onClick={() => setConfirmRemove(false)}>
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <button type="button" className={styles.closeBtn} onClick={onClose}>
-            Закрыть
-          </button>
+            ) : null}
+            <button type="button" className={styles.closeBtn} onClick={onClose}>
+              Закрыть
+            </button>
+          </div>
         </>
       )}
     </div>

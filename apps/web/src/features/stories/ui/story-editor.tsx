@@ -1,8 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "@/shared/ui";
 
+import { storyStickerPacks } from "../api/sticker-packs";
 import { bakeStory, baseFontFraction, IMAGE_WIDTH_FRACTION, type Layer, loadImage } from "../lib/story-canvas";
 
 import styles from "./story-editor.module.css";
@@ -34,6 +36,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
   const [selectedId, setSelectedId] = useState<number | null>(initialText?.id ?? null);
   const [editingId, setEditingId] = useState<number | null>(initialText?.id ?? null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [stickersOpen, setStickersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState({ width: 320, height: 568 });
   const urls = useRef<string[]>([]);
@@ -161,8 +164,23 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             <button type="button" className={styles.tool} title="Текст" onClick={addText}>
               Aa
             </button>
-            <button type="button" className={styles.tool} title="Эмодзи" aria-label="Эмодзи" onClick={() => setEmojiOpen((o) => !o)}>
+            <button type="button" className={styles.tool} title="Эмодзи" aria-label="Эмодзи" onClick={() => {
+                setStickersOpen(false);
+                setEmojiOpen((o) => !o);
+              }}>
               <Icon name="Smile" size={18} />
+            </button>
+            <button
+              type="button"
+              className={styles.tool}
+              title="Стикеры"
+              aria-label="Стикеры"
+              onClick={() => {
+                setEmojiOpen(false);
+                setStickersOpen((o) => !o);
+              }}
+            >
+              <Icon name="Sticker" size={18} />
             </button>
             <button type="button" className={styles.tool} title="Картинка" aria-label="Картинка" onClick={() => imgInputRef.current?.click()}>
               <Icon name="Image" size={18} />
@@ -213,6 +231,16 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             ))}
           </div>
         ) : null}
+        {stickersOpen ? (
+          <StickerPanel
+            onPick={async (url) => {
+              setStickersOpen(false);
+              // Стикеры лежат в /uploads того же сайта — холст при сборке не «пачкается».
+              const img = await loadImage(url).catch(() => null);
+              if (img) addLayer({ type: "image", img, ratio: img.naturalHeight / img.naturalWidth || 1, x: 0.5, y: 0.4, scale: 0.75, rotation: 0 });
+            }}
+          />
+        ) : null}
         {selected?.type === "text" ? (
           <div className={styles.colors}>
             {TEXT_COLORS.map((color) => (
@@ -239,6 +267,34 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
       </div>
     </div>,
     document.body
+  );
+}
+
+/** Стикеры из своих паков — те же, что в панели стикеров чата; клик кладёт стикер слоем на кадр. */
+function StickerPanel({ onPick }: { onPick: (url: string) => void }) {
+  const packs = useQuery(storyStickerPacks());
+  const list = (packs.data ?? []).filter((p) => p.stickers.length);
+  return (
+    <div className={styles.stickerPanel} aria-label="Стикеры">
+      {packs.isPending ? (
+        <p className={styles.stickerEmpty}>Загружаем…</p>
+      ) : list.length === 0 ? (
+        <p className={styles.stickerEmpty}>У вас пока нет стикерпаков</p>
+      ) : (
+        list.map((pack) => (
+          <section key={pack.id} aria-label={pack.name}>
+            <div className={styles.stickerPackName}>{pack.name}</div>
+            <div className={styles.stickerGrid}>
+              {pack.stickers.map((s) => (
+                <button key={s.id} type="button" title={s.emoji} aria-label={s.emoji} onClick={() => onPick(s.url)}>
+                  <img src={s.url} alt="" loading="lazy" draggable={false} />
+                </button>
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </div>
   );
 }
 

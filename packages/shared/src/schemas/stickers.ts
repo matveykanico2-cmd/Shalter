@@ -46,6 +46,12 @@ export const stickerPack = z.strictObject({
   stickerCount: z.number().int().nonnegative(),
   isAdded: z.boolean(),
   isOwner: z.boolean(),
+  /** Выбранная владельцем обложка (id стикера пака) или null. */
+  coverStickerId: z.string().nullable().optional(),
+  /** URL обложки: выбранный стикер, иначе первый стикер, иначе null. */
+  cover: z.string().nullable().optional(),
+  /** Сколько пользователей добавили пак (только в «Популярных»). */
+  addedCount: z.number().int().nonnegative().optional(),
   createdAt: isoDate,
 });
 export type StickerPack = z.infer<typeof stickerPack>;
@@ -54,6 +60,9 @@ export const packsListBody = z.strictObject({ packs: z.array(stickerPack), maxSt
 export type PacksListBody = z.infer<typeof packsListBody>;
 export const packBody = z.strictObject({ pack: stickerPack });
 export type PackBody = z.infer<typeof packBody>;
+/** «Популярные»: чужие паки по числу добавивших, до 20. */
+export const popularPacksBody = z.strictObject({ packs: z.array(stickerPack) });
+export type PopularPacksBody = z.infer<typeof popularPacksBody>;
 
 /** Создание пака: название (обязательное) и описание (опциональное). */
 export const createPackBody = z.strictObject({
@@ -66,6 +75,7 @@ export type CreatePackBody = z.infer<typeof createPackBody>;
 export const patchPackBody = z.strictObject({
   name: z.string().optional(),
   description: z.string().nullable().optional(),
+  coverStickerId: z.string().nullable().optional(),
 });
 export type PatchPackBody = z.infer<typeof patchPackBody>;
 

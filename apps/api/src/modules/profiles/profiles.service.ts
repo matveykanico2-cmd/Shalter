@@ -131,6 +131,7 @@ export class ProfilesService {
       inContacts: !!myContact,
       contactName: myContact?.localName ?? null,
       contactNote: contactNote(myContact),
+      ...(myContact?.localAvatar ? { contactPhoto: myContact.localAvatar } : {}),
       commonGroupsCount,
       pinnedChannels: await this.pinnedChannelsOf(id, uid),
     };

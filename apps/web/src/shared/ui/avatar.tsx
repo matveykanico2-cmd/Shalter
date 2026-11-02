@@ -29,8 +29,15 @@ const initials = (name: string) =>
  * Аватар: смайл (анимированный, как эмодзи-аватарки в Telegram), стикер, фото или инициалы на
  * цвете профиля. Смайл выбран вместо фото, поэтому он важнее: у профиля фото остаются в галерее.
  */
-export function Avatar({ name, color, image, emoji, sticker = false, size = 44, online = false }: Props) {
+/** Стикер из пака на аватарке хранится в поле смайла как «sticker:/uploads/…». */
+export const AVATAR_STICKER_PREFIX = "sticker:";
+
+export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: stickerProp = false, size = 44, online = false }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
+  const stickerUrl = rawEmoji?.startsWith(AVATAR_STICKER_PREFIX) ? rawEmoji.slice(AVATAR_STICKER_PREFIX.length) : null;
+  const emoji = stickerUrl ? null : rawEmoji;
+  const image = stickerUrl ?? photo;
+  const sticker = stickerUrl ? true : stickerProp;
   const showImage = !emoji && !!image && !sticker && broken !== image;
   const showSticker = !emoji && !!image && sticker && broken !== image;
   return (

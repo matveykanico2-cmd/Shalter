@@ -29,6 +29,79 @@ type Props = {
   mainOpen: boolean;
 };
 
+/** Поле, у которого открывается экранная клавиатура. */
+function isEditable(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el instanceof HTMLTextAreaElement) return !el.readOnly;
+  if (el instanceof HTMLInputElement) return !el.readOnly && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/.test(el.type);
+  return el.isContentEditable;
+}
+
+/**
+ * Клавиатура на телефоне: пока в фокусе поле ввода, высота оболочки — видимая часть окна
+ * (visualViewport): 100dvh на Android с клавиатурой оставлял пустую зону, а iOS Safari прокручивал
+ * страницу под клавиатуру. Высоту пишем в --vvh раз в кадр и только когда она изменилась, класс
+ * снимаем не сразу: переход фокуса между полями и кнопками панели не перестраивает оболочку
+ * (на iPhone это мигало при наборе).
+ */
+function useKeyboardViewport() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const vv = window.visualViewport;
+    let frame = 0;
+    let blurTimer: ReturnType<typeof setTimeout> | undefined;
+    let last = "";
+    const apply = () => {
+      frame = 0;
+      if (!vv) return;
+      const next = `${Math.round(vv.height)}px`;
+      if (next !== last) {
+        last = next;
+        root.style.setProperty("--vvh", next);
+      }
+      // iOS Safari сдвигает layout viewport под клавиатуру — возвращаем страницу на место.
+      if (vv.offsetTop > 0 && window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    const open = () => {
+      if (root.classList.contains("keyboard-open")) return;
+      root.classList.add("keyboard-open");
+      vv?.addEventListener("resize", schedule);
+      vv?.addEventListener("scroll", schedule);
+      apply();
+    };
+    const close = () => {
+      if (!root.classList.contains("keyboard-open")) return;
+      root.classList.remove("keyboard-open");
+      vv?.removeEventListener("resize", schedule);
+      vv?.removeEventListener("scroll", schedule);
+      root.style.removeProperty("--vvh");
+      last = "";
+    };
+    const onFocus = (e: FocusEvent) => {
+      clearTimeout(blurTimer);
+      if (isEditable(e.target)) open();
+    };
+    const onBlur = () => {
+      clearTimeout(blurTimer);
+      blurTimer = setTimeout(() => {
+        if (!isEditable(document.activeElement)) close();
+      }, 100);
+    };
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onBlur);
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onBlur);
+      clearTimeout(blurTimer);
+      cancelAnimationFrame(frame);
+      close();
+    };
+  }, []);
+}
+
 const LINKS: { to: string; icon: IconName; label: string; active: (path: string) => boolean }[] = [
   { to: "/", icon: "Send", label: "Чаты", active: (p) => p === "/" || p.startsWith("/chat") },
   { to: "/contacts", icon: "Users", label: "Контакты", active: (p) => p === "/contacts" },
@@ -45,18 +118,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const linkClass = (active: boolean) => (active ? `${styles.railButton} ${styles.railActive}` : styles.railButton);
 
-  // Android: при открытии клавиатуры 100dvh может оставить белую зону вверху.
-  // Переключаем shell на 100% (layout viewport) во время фокуса инпута.
-  useEffect(() => {
-    const onFocus = () => document.documentElement.classList.add("keyboard-open");
-    const onBlur = () => document.documentElement.classList.remove("keyboard-open");
-    document.addEventListener("focusin", onFocus);
-    document.addEventListener("focusout", onBlur);
-    return () => {
-      document.removeEventListener("focusin", onFocus);
-      document.removeEventListener("focusout", onBlur);
-    };
-  }, []);
+  useKeyboardViewport();
 
   return (
     <div className={mainOpen ? `${styles.shell} ${styles.mainOpen}` : styles.shell}>

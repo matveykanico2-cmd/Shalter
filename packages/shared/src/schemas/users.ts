@@ -51,6 +51,8 @@ const profileBodyShape = {
   inContacts: z.boolean(),
   contactName: z.string().nullable(),
   contactNote: z.string().nullable(),
+  /** Своё фото контакта — только если поставлено. */
+  contactPhoto: z.string().optional(),
   commonGroupsCount: z.number().int().nonnegative(),
   pinnedChannels: z.array(channelCard),
 };

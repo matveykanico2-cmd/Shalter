@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, openStickerPack, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerPackView } from "@/features/send-message";
+import { closeStickerPack, Composer, openStickerPack, openStickerPreview, outgoingSticker, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator, type Typing } from "@/entities/chat";
@@ -37,18 +37,14 @@ import { type ReportInfo, ReportMessage } from "@/entities/report";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
-import type { Sticker } from "@/shared/lib/anim";
+import { DRAWN_STICKERS, renderSticker, type Sticker } from "@/shared/lib/anim";
 
-function outgoing(s: Sticker): Sticker {
-  const packId = s.packId;
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}) };
-  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
-}
+const HELLO_STICKER: Sticker = DRAWN_STICKERS.find((s) => s.id === "art_hello") ?? { emoji: "👋", name: "Привет", scene: "hello" };
+
 
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
-import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
+import { DomNode, Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
 import { type FeedRow, feedRows, lastEditable } from "../lib/feed-rows";
 import { buildGallery, galleryIndex } from "../lib/gallery";
@@ -108,27 +104,26 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
-  const viewingPack = useStickerPackView();
+  const stickerView = useStickerView();
   const openPackBySticker = (sticker: Sticker) => {
+    // Стикер без пака (старые сообщения) — только крупно на своём фоне.
+    if (!sticker.packId) return openStickerPreview(sticker);
+    const packId = sticker.packId;
     void (async () => {
-      // 1) По packId из стикера — открываем настоящий пак.
-      if (sticker.packId) {
-        try {
-          const { http } = await import("@/shared/api");
-          const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(sticker.packId)}`);
-          if (res?.pack) { openStickerPack(res.pack); return; }
-          return;
-        } catch {
-          return;
-        }
+      try {
+        const { http } = await import("@/shared/api");
+        const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(packId)}`);
+        if (res?.pack) openStickerPack(res.pack, sticker);
+        else openStickerPreview(sticker, true);
+      } catch {
+        // Пак удалён или ссылка неверная — «Стикерпак не найден».
+        openStickerPreview(sticker, true);
       }
-      // packId нет — стикер не относится ни к какому паку (старые сообщения).
-      return;
     })();
   };
   const sendOne = useSendMessage(chat.id, meId, chat.type === "channel", topic);
   const sendSticker = useCallback((s: Sticker) => {
-    void sendOne("", null, [], outgoing(s)).catch(() => {});
+    void sendOne("", null, [], outgoingSticker(s)).catch(() => {});
     closeStickerPack();
   }, [sendOne]);
   const refreshPacks = useCallback(() => {
@@ -437,8 +432,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         ) : null}
         {rows.length === 0 ? (
           <div className={styles.empty}>
-            <p>Сообщений пока нет — напишите первым</p>
-            <p className={styles.emptyHint}>Поздоровайтесь с кем-нибудь и предложите стикер</p>
+            {/* Приветственный стикер, как в Telegram: касание отправляет его в чат. */}
+            {chat.type === "channel" ? (
+              <DomNode className={styles.emptySticker} label="Привет" create={() => renderSticker(HELLO_STICKER, { size: 120 })} />
+            ) : (
+              <button type="button" className={styles.emptyStickerButton} title="Отправить приветствие" aria-label="Отправить приветствие" onClick={() => sendSticker(HELLO_STICKER)}>
+                <DomNode className={styles.emptySticker} create={() => renderSticker(HELLO_STICKER, { size: 120 })} />
+              </button>
+            )}
+            <div className={styles.emptyCard}>
+              <p>Сообщений пока нет — напишите первым</p>
+              {chat.type === "channel" ? null : <p className={styles.emptyHint}>Или нажмите на стикер, чтобы поздороваться</p>}
+            </div>
           </div>
         ) : (
           <div className={styles.rows} style={{ height: totalSize }}>
@@ -570,9 +575,12 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         />
       ) : null}
       {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
-      {viewingPack ? (
+      {stickerView.pack || stickerView.focus || stickerView.missing ? (
         <StickerPackDetail
-          pack={viewingPack}
+          overlay
+          pack={stickerView.pack}
+          focus={stickerView.focus}
+          missing={stickerView.missing}
           onClose={closeStickerPack}
           onStickerPick={sendSticker}
           onRefresh={refreshPacks}

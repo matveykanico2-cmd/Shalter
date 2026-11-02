@@ -1,26 +1,30 @@
+import type { Sticker as PackStickerT } from "@shalter/shared/schemas/stickers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { renderSticker, type Sticker } from "@/shared/lib/anim";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
 import { type StickerPack, stickerPackQueries } from "../api/sticker-packs";
-import { closeStickerPack, useStickerPackView } from "../lib/sticker-pack-store";
+import {
+  outgoingSticker,
+  packSticker,
+  preloadStickers,
+  uniquePacks,
+  uniqueStickers,
+} from "../lib/sticker-outgoing";
+import {
+  closeStickerPack,
+  useStickerPackView,
+} from "../lib/sticker-pack-store";
 
-import { StickerPackDetail } from "./sticker-pack-detail";
+import { BuiltinStickerPacks } from "./builtin-sticker-packs";
+import { PackCover, StickerPackDetail } from "./sticker-pack-detail";
 import { StickerPackDialog } from "./sticker-pack-dialog";
 import styles from "./sticker-picker.module.css";
 
 const ACTION_PING_MS = 2500;
-
-/** Что уходит в сообщение — без служебных полей пака. */
-function outgoing(s: Sticker): Sticker {
-  const packId = s.packId;
-  if (s.kind === "image") return { kind: "image", url: s.url, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...((s as { animated?: true }).animated ? { animated: true } : {}) } as Sticker;
-  if (s.kind === "custom") return { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}) };
-  return { emoji: s.emoji, name: s.name, uid: s.uid, ...(packId ? { packId } : {}), ...(s.anim ? { anim: s.anim } : {}), ...(s.scene ? { scene: s.scene } : {}) };
-}
 
 type Props = { chatId: string; onSend: (sticker: Sticker) => void };
 
@@ -59,7 +63,7 @@ export function StickerButton({ chatId, onSend }: Props) {
               chatId={chatId}
               onPick={(s) => {
                 setAt(null);
-                onSend(outgoing(s));
+                onSend(outgoingSticker(s));
               }}
               onManage={() => {
                 setAt(null);
@@ -69,12 +73,22 @@ export function StickerButton({ chatId, onSend }: Props) {
           }
         />
       ) : null}
-      {managing ? <StickerPackDialog onClose={() => setManaging(false)} /> : null}
+      {managing ? (
+        <StickerPackDialog onClose={() => setManaging(false)} />
+      ) : null}
     </>
   );
 }
 
-function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s: Sticker) => void; onManage: () => void }) {
+function StickerPanel({
+  chatId,
+  onPick,
+  onManage,
+}: {
+  chatId: string;
+  onPick: (s: Sticker | PackStickerT) => void;
+  onManage: () => void;
+}) {
   const client = useQueryClient();
   const packs = useQuery(stickerPackQueries.list());
   const viewingPack = useStickerPackView();
@@ -85,15 +99,36 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
 
   useEffect(() => {
     sendTyping(chatId, "choose_sticker").catch(() => {});
-    const ping = setInterval(() => sendTyping(chatId, "choose_sticker").catch(() => {}), ACTION_PING_MS);
+    const ping = setInterval(
+      () => sendTyping(chatId, "choose_sticker").catch(() => {}),
+      ACTION_PING_MS,
+    );
     return () => {
       clearInterval(ping);
       sendTyping(chatId, "cancel").catch(() => {});
     };
   }, [chatId]);
 
-  const pick = (s: Sticker) => {
-    onPick(outgoing(s));
+  const list = useMemo(
+    () =>
+      uniquePacks(packs.data ?? [])
+        .map((p: StickerPack) => ({
+          ...p,
+          stickers: uniqueStickers(p.stickers),
+        }))
+        .filter((p) => p.stickers.length)
+        // Сначала свои наборы, потом добавленные.
+        .sort((a, b) => Number(b.isOwner) - Number(a.isOwner)),
+    [packs.data],
+  );
+  // Картинки всех паков — заранее, чтобы при прокрутке не было пустых клеток.
+  useEffect(
+    () => preloadStickers(list.flatMap((p) => p.stickers.map((s) => s.url))),
+    [list],
+  );
+
+  const pick = (s: Sticker | PackStickerT) => {
+    onPick(outgoingSticker(s));
     closeStickerPack();
   };
 
@@ -110,42 +145,59 @@ function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s
     );
   }
 
-  const list = (packs.data ?? []).filter((p: StickerPack) => p.stickers.length);
   return (
     <div className={styles.panel}>
       {list.length === 0 ? (
-        <p className={styles.empty}>У вас пока нет стикерпаков</p>
+        null
       ) : (
         <>
-          {list.map((pack: StickerPack) => (
-            <section key={pack.id} className={styles.packSection} aria-label={pack.name}>
-              <div className={styles.packHeader}>
-                <span className={styles.packName}>{pack.name}</span>
-                {pack.description && <span className={styles.packDesc}>{pack.description}</span>}
-                <span className={styles.packMeta}>{pack.stickerCount} шт.</span>
-              </div>
-              <div className={styles.items}>
-                {pack.stickers.map((s) => (
-                  <button
-                    key={s.id || s.url || s.emoji}
-                    type="button"
-                    className={styles.item}
-                    title={s.emoji || "Стикер"}
-                    aria-label={s.emoji || "Стикер"}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      pick(s);
-                    }}
-                  >
-                    <DomNode create={() => renderSticker(s, { size: 52 })} />
-                  </button>
-                ))}
-              </div>
-            </section>
+          {list.map((pack: StickerPack, i) => (
+            <Fragment key={pack.id}>
+              {i === 0 || list[i - 1]!.isOwner !== pack.isOwner ? (
+                <h3 className={styles.heading}>
+                  {pack.isOwner ? "Мои наборы" : "Добавленные"}
+                </h3>
+              ) : null}
+              <section className={styles.packSection} aria-label={pack.name}>
+                <div className={styles.packHeader}>
+                  <PackCover pack={pack} size={28} />
+                  <span className={styles.packName}>{pack.name}</span>
+                  {pack.description && (
+                    <span className={styles.packDesc}>{pack.description}</span>
+                  )}
+                  <span className={styles.packMeta}>
+                    {pack.stickers.length} шт.
+                  </span>
+                </div>
+                <div className={styles.items}>
+                  {pack.stickers.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={styles.item}
+                      title={s.emoji || "Стикер"}
+                      aria-label={s.emoji || "Стикер"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        pick(s);
+                      }}
+                    >
+                      <DomNode
+                        key={s.url}
+                        create={() =>
+                          renderSticker(packSticker(s), { size: 52 })
+                        }
+                      />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </Fragment>
           ))}
         </>
       )}
+      <BuiltinStickerPacks onPick={pick} />
       <button type="button" className={styles.manage} onClick={onManage}>
         Мои стикерпаки
       </button>

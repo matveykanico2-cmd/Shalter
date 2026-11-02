@@ -6,11 +6,13 @@ import { ContactsService } from "./contacts.service.js";
 import {
   addContactSchema,
   contactNoteSchema,
+  contactPhotoSchema,
   matchContactsSchema,
   removeContactSchema,
   renameContactSchema,
   type AddContactDto,
   type ContactNoteDto,
+  type ContactPhotoDto,
   type MatchContactsDto,
   type RemoveContactDto,
   type RenameContactDto,
@@ -42,6 +44,12 @@ export class ContactsController {
   @HttpCode(200)
   public setNote(@Req() req: Request, @Body(new ZodValidationPipe(contactNoteSchema)) dto: ContactNoteDto) {
     return this.contacts.setNote(req.uid!, dto);
+  }
+
+  @Post("photo")
+  @HttpCode(200)
+  public setPhoto(@Req() req: Request, @Body(new ZodValidationPipe(contactPhotoSchema)) dto: ContactPhotoDto) {
+    return this.contacts.setPhoto(req.uid!, dto);
   }
 
   @Post("rename")

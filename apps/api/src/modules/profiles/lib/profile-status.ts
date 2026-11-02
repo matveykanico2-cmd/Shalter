@@ -17,3 +17,12 @@ export function validateImage(raw: unknown): { image: string; error?: undefined 
   if (image.length > MAX_IMAGE_BYTES) return { error: "Картинка слишком большая" };
   return { image };
 }
+
+/** Стикер статусом (только Premium): путь к файлу стикера в /uploads, можно с «sticker:» впереди. */
+const STICKER_RE = /^\/uploads\/[A-Za-z0-9._/-]{1,200}$/;
+
+export function validateSticker(raw: string): { image: string; error?: undefined } | { error: string } {
+  const url = raw.startsWith("sticker:") ? raw.slice("sticker:".length) : raw;
+  if (!STICKER_RE.test(url) || url.includes("..")) return { error: "Некорректный стикер" };
+  return { image: url };
+}

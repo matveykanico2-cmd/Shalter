@@ -1,0 +1,75 @@
+/* Рисованные подарки витрины (shop-gift-art.ts): спокойные зацикленные движения. */
+.sg-art {
+  overflow: visible;
+  display: block;
+}
+.sg-art [class^="sg-"],
+.sg-art [class*=" sg-"] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.sg-d1 { animation-delay: -0.4s !important; }
+.sg-d2 { animation-delay: -1.1s !important; }
+.sg-d3 { animation-delay: -1.7s !important; }
+.sg-d4 { animation-delay: -2.3s !important; }
+
+@keyframes sg-glow { 0%, 100% { opacity: 0.75; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.06); } }
+.sg-glow { animation: sg-glow 3.2s ease-in-out infinite; }
+
+@keyframes sg-twinkle { 0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); } 40%, 60% { opacity: 1; transform: scale(1) rotate(45deg); } }
+.sg-twinkle { animation: sg-twinkle 2.4s ease-in-out infinite; }
+
+@keyframes sg-float { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-4px); } }
+.sg-float { animation: sg-float 3s ease-in-out infinite; }
+
+@keyframes sg-beat { 0%, 40%, 100% { transform: scale(1); } 15% { transform: scale(1.1); } 28% { transform: scale(0.97); } }
+.sg-beat { animation: sg-beat 1.4s ease-in-out infinite; }
+
+@keyframes sg-sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.sg-art .sg-sway { transform-origin: 50% 100%; animation: sg-sway 3.4s ease-in-out infinite; }
+
+@keyframes sg-wobble { 0%, 100% { transform: rotate(0) scale(1, 1); } 25% { transform: rotate(-3deg) scale(1.02, 0.98); } 75% { transform: rotate(3deg) scale(0.98, 1.02); } }
+.sg-art .sg-wobble { transform-origin: 50% 95%; animation: sg-wobble 3.6s ease-in-out infinite; }
+
+@keyframes sg-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+.sg-blink { animation: sg-blink 4s ease-in-out infinite; }
+
+@keyframes sg-ear { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(6deg); } }
+.sg-art .sg-ear { transform-origin: 50% 100%; animation: sg-ear 2.6s ease-in-out infinite; }
+
+@keyframes sg-flame { 0%, 100% { transform: scale(1, 1); } 33% { transform: scale(0.9, 1.12); } 66% { transform: scale(1.08, 0.92); } }
+.sg-art .sg-flame { transform-origin: 50% 100%; animation: sg-flame 0.6s ease-in-out infinite; }
+.sg-art .sg-launch .sg-flame { transform-origin: 50% 0; }
+
+@keyframes sg-launch { 0%, 100% { transform: translate(-2px, 3px); } 50% { transform: translate(3px, -4px); } }
+.sg-launch { animation: sg-launch 1.8s ease-in-out infinite; }
+
+@keyframes sg-shine { 0%, 55% { transform: translateX(0); } 100% { transform: translateX(150px); } }
+.sg-shine { animation: sg-shine 3.4s ease-in-out infinite; }
+
+@keyframes sg-bubble { 0% { opacity: 0; transform: translateY(8px) scale(0.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px) scale(1); } }
+.sg-bubble { animation: sg-bubble 2.2s ease-out infinite; }
+
+@keyframes sg-shake { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(-5deg); } 80% { transform: rotate(5deg); } 85% { transform: rotate(-4deg); } 90% { transform: rotate(3deg); } }
+.sg-art .sg-shake { transform-origin: 50% 100%; animation: sg-shake 2.8s ease-in-out infinite; }
+
+@keyframes sg-lid { 0%, 70%, 100% { transform: translateY(0); } 80% { transform: translateY(-6px) rotate(-4deg); } 90% { transform: translateY(-3px) rotate(3deg); } }
+.sg-lid { animation: sg-lid 2.8s ease-in-out infinite; }
+
+@keyframes sg-spin { to { transform: rotate(360deg); } }
+.sg-spin { animation: sg-spin 6s linear infinite; }
+
+@keyframes sg-spin-soft { 0%, 100% { transform: rotate(-8deg) scale(1); } 50% { transform: rotate(8deg) scale(1.05); } }
+.sg-spin-soft { animation: sg-spin-soft 3.2s ease-in-out infinite; }
+
+@keyframes sg-zz { 0% { opacity: 0; transform: translate(0, 4px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(6px, -10px); } }
+.sg-zz { animation: sg-zz 2.6s ease-out infinite; }
+
+@keyframes sg-liquid { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-18px); } }
+.sg-liquid { animation: sg-liquid 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-art * {
+    animation: none !important;
+  }
+}

@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AvatarViewer } from "@/widgets/user-profile";
@@ -20,6 +20,9 @@ import { StatusDialog } from "../status-dialog";
 import { ProfileEmojiAvatar } from "./profile-emoji";
 import profileStyles from "./profile-section.module.css";
 import styles from "./sections.module.css";
+
+// Конструктор аватара грузится только по кнопке «Собрать аватар».
+const AvatarConstructorDialog = lazy(() => import("@/features/avatar-constructor").then((m) => ({ default: m.AvatarConstructorDialog })));
 
 const PHONE_NEEDS_PASSWORD = "Чтобы сменить номер, введите пароль от аккаунта";
 const MAX_TRACKS = 20;
@@ -47,6 +50,7 @@ function Profile({ me }: { me: SelfUser }) {
   const [phoneAsk, setPhoneAsk] = useState<Fields | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [constructorOpen, setConstructorOpen] = useState(false);
 
   useEffect(() => {
     if (!saved) return;
@@ -124,6 +128,9 @@ function Profile({ me }: { me: SelfUser }) {
           <ProfileStatusBadge user={me} size={18} />
         </p>
         <p className={`${profileStyles.sub} ${styles.mono}`}>{me.phone || me.email}</p>
+        <Button variant="link" onClick={() => setConstructorOpen(true)}>
+          Собрать аватар
+        </Button>
       </div>
 
       <ProfileEmojiAvatar me={me} />
@@ -228,6 +235,11 @@ function Profile({ me }: { me: SelfUser }) {
       </Button>
 
       {statusOpen ? <StatusDialog onClose={() => setStatusOpen(false)} /> : null}
+      {constructorOpen ? (
+        <Suspense fallback={null}>
+          <AvatarConstructorDialog onDone={(u) => updateSelf(u as Partial<SelfUser>)} onClose={() => setConstructorOpen(false)} />
+        </Suspense>
+      ) : null}
       {avatarOpen ? <AvatarViewer user={me} canEdit onChange={(u) => updateSelf({ ...(u as Partial<SelfUser>), avatarEmoji: (u as Partial<SelfUser>).avatarEmoji })} onClose={() => setAvatarOpen(false)} /> : null}
       {phoneAsk ? (
         <PhonePasswordDialog

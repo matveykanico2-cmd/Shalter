@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { http } from "../api";
 import { hasAnimatedEmoji } from "../lib/anim";
 import { ALL_EMOJI } from "../lib/emoji-list";
 import { graphemes, isSingleEmoji } from "../lib/graphemes";
@@ -15,10 +17,20 @@ type Props = {
   label?: string;
   /** false — в своё поле можно ввести и букву или цифру (заставка группы/канала). */
   emojiOnly?: boolean;
+  /** Показать и стикеры из своих паков: выбор приходит как «sticker:/uploads/…». */
+  withStickers?: boolean;
+};
+
+type PackLite = { id: string; name: string; isAdded: boolean; stickers: { id: string; url: string; emoji: string }[] };
+
+const myPacksQuery = {
+  queryKey: ["stickers", "packs", "avatar"] as const,
+  queryFn: async ({ signal }: { signal: AbortSignal }) => (await http.get<{ packs: PackLite[] }>("/api/stickers/packs", signal)).packs,
+  staleTime: 60_000,
 };
 
 /** Выбор смайла на аватарку: сетка анимированных смайлов и поле для своего. */
-export function EmojiAvatarPicker({ onPick, label = "Смайл на аватарке", emojiOnly = true }: Props) {
+export function EmojiAvatarPicker({ onPick, label = "Смайл на аватарке", emojiOnly = true, withStickers = false }: Props) {
   const [custom, setCustom] = useState("");
   const pick = (value: string) => {
     const text = value.trim();
@@ -42,6 +54,27 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
           Установить
         </button>
       </div>
+      {withStickers ? <StickerAvatarList onPick={onPick} /> : null}
     </div>
+  );
+}
+
+/** Стикеры из своих паков (добавленных и созданных) — на аватарку вместо смайла. */
+function StickerAvatarList({ onPick }: { onPick: (value: string) => void }) {
+  const packs = useQuery(myPacksQuery).data?.filter((p) => p.isAdded && p.stickers.length) ?? [];
+  if (!packs.length) return null;
+  return (
+    <>
+      <p className={styles.label}>Стикер на аватарке</p>
+      <div className={styles.row}>
+        {packs.flatMap((p) =>
+          p.stickers.map((s) => (
+            <button key={`${p.id}:${s.id}`} type="button" className={styles.emoji} title={s.emoji} aria-label={`Стикер ${s.emoji}`} onClick={() => onPick(`sticker:${s.url}`)}>
+              <img className={styles.sticker} src={s.url} alt="" loading="lazy" decoding="async" />
+            </button>
+          ))
+        )}
+      </div>
+    </>
   );
 }

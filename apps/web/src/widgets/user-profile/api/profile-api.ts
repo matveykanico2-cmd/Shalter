@@ -3,7 +3,7 @@ import type { blockBody, channelCard, commonChatsBody, pinnableChannelsBody, pin
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
-import { http } from "@/shared/api";
+import { http, type Uploaded } from "@/shared/api";
 
 export type SharedMedia = z.infer<typeof sharedMediaBody>;
 export type CommonChat = z.infer<typeof commonChatsBody>["chats"][number];
@@ -42,6 +42,12 @@ export const profileApi = {
   addContact: (userId: string, sharePhone: boolean) => http.post<unknown>("/api/contacts", { userId, localName: null, sharePhone }),
   removeContact: (userId: string) => http.delete<unknown>("/api/contacts", { userId }),
   setNote: (userId: string, note: string) => http.post<{ note?: string | null }>("/api/contacts/note", { userId, note }),
+  renameContact: (userId: string, localName: string) => http.post<unknown>("/api/contacts/rename", { userId, localName }),
+  /** Своё фото контакта — видите только вы; пустая ссылка — убрать. */
+  setContactPhoto: (userId: string, url: string) => http.post<{ localAvatar: string | null }>("/api/contacts/photo", { userId, url }),
+  /** «Предложить фото» — фото уходит сообщением в личный чат. */
+  suggestPhoto: (chatId: string, image: Uploaded) =>
+    http.post<unknown>(`/api/chats/${id(chatId)}/messages`, { text: "📷 Предлагаю это фото для вашего профиля", attachments: [image] }),
   startSecretChat: (userId: string) => http.post<z.infer<typeof chatBody>>("/api/chats/secret", { userId }),
   sendContact: (chatId: string, contact: { userId: string; name: string; phone?: string }) =>
     http.post<unknown>(`/api/chats/${id(chatId)}/messages`, { text: "", attachments: [{ kind: "contact", meta: contact }] }),

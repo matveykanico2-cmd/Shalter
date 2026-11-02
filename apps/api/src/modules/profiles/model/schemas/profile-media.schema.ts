@@ -22,6 +22,11 @@ export const addStatusSchema = requestBody({
     .optional()
     .transform((v) => (v ? String(v) : undefined)),
   image: text(),
+  // Premium: стикер из пака статусом — путь к файлу стикера «/uploads/…».
+  sticker: z
+    .unknown()
+    .optional()
+    .transform((v) => (v ? String(v) : undefined)),
   name: z
     .unknown()
     .optional()

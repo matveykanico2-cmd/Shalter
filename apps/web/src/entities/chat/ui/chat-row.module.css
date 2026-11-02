@@ -50,6 +50,21 @@
   background: var(--color-accent-contrast);
 }
 
+/* Выбранная строка: галочка «подтверждён» и счётчик — белый круг с акцентной галочкой/цифрой,
+   иначе на акцентном фоне выходило белое на белом. */
+.active .verified {
+  --verified-tick: var(--color-accent);
+}
+
+.active .unread {
+  background: var(--color-accent-contrast);
+  color: var(--color-accent);
+}
+
+.active .premium {
+  color: var(--color-accent-contrast);
+}
+
 .saved {
   display: flex;
   flex-shrink: 0;

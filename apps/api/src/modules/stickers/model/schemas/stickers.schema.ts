@@ -40,6 +40,9 @@ export type CreatePackDto = z.infer<typeof createPackSchema>;
 export const patchPackSchema = requestBody({
   name: ifPresent((v) => (v == null ? undefined : String(v).trim().slice(0, MAX_PACK_NAME) || undefined)),
   description: ifPresent((v) => (v == null || v === "" ? null : String(v).slice(0, MAX_PACK_DESCRIPTION))),
+  coverStickerId: z
+    .union([z.string().regex(STICKER_ID_RE, { error: "Некорректный стикер" }), z.null()])
+    .optional(),
 });
 export type PatchPackDto = z.infer<typeof patchPackSchema>;
 
@@ -54,7 +57,7 @@ export const addStickerSchema = requestBody({
 export type AddStickerDto = z.infer<typeof addStickerSchema>;
 
 export const updateStickerSchema = requestBody({
-  emoji: ifPresent((v) => (v == null ? undefined : String(v).slice(0, MAX_EMOJI))),
+  emoji: ifPresent((v) => (v == null ? undefined : String(v).trim().slice(0, MAX_EMOJI) || undefined)),
   position: z.unknown().optional().transform((v) => (v == null ? undefined : Number(v))),
 });
 export type UpdateStickerDto = z.infer<typeof updateStickerSchema>;

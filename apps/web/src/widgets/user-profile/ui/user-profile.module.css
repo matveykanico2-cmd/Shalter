@@ -810,3 +810,48 @@
   text-transform: uppercase;
   color: var(--color-muted);
 }
+
+/* «Изменить контакт» */
+.editContact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editContactHead {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 6px;
+}
+
+.editContactField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.editContactNote {
+  font: inherit;
+  font-size: 15px;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.editContactButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* «О себе»: @имя и ссылки — кнопки, открывают профиль, канал, группу или сообщество. */
+.bioLinks {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

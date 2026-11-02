@@ -19,10 +19,12 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: transform 0.1s ease, background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease;
 }
+/* Без квадрата подсветки при наведении и нажатии — только лёгкое сжатие. */
 .sticker-message:hover {
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  background: none;
 }
 .sticker-message:active {
   transform: scale(0.95);

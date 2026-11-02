@@ -1,7 +1,7 @@
 // Признаки подарка и его картинка — перенос public/js/lib/giftTraits.js. Встроенные сцены лежат
 // по файлу на подарок в /gift-scenes/<id>.json (scripts/gift-scenes.js) и грузятся только для
 // подарков у экрана; какие сцены есть — в /gift-scenes/index.json (25 тыс. id, ~110 КБ gzip).
-import { emojiArtName, lottieNameFor, renderCustomScene, renderEmojiArt, renderLottie, renderScene } from "@/shared/lib/anim";
+import { emojiArtName, lottieNameFor, renderCustomScene, renderEmojiArt, renderLottie, renderScene, renderShopGiftArt } from "@/shared/lib/anim";
 
 import type { GiftLike } from "../model/types";
 
@@ -137,6 +137,9 @@ export function renderGiftArt(gift: GiftLike | null | undefined, opts: GiftArtOp
   const size = opts.size ?? 84;
   if (gift?.scene) return renderCustomScene(gift.scene, { size, replay: opts.replay ?? true });
   if (gift?.mediaUrl) return renderWithScene(null, gift, opts);
+  // Рисованный подарок витрины (sg_*) — свой SVG, без запросов.
+  const drawn = renderShopGiftArt(gift?.giftId ?? gift?.id, { size });
+  if (drawn) return drawn;
 
   const host = document.createElement("span");
   host.className = "gift-art-host";

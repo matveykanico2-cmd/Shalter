@@ -28,6 +28,12 @@ export interface StickerPack {
   isAdded: boolean;
   /** Запрос от владельца пака. */
   isOwner: boolean;
+  /** Выбранная обложка (id стикера) или null. */
+  coverStickerId: string | null;
+  /** URL обложки: выбранный стикер, иначе первый, иначе null. */
+  cover: string | null;
+  /** Сколько пользователей добавили пак (только в «Популярных»). */
+  addedCount?: number;
   createdAt: string;
 }
 

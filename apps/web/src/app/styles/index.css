@@ -15,3 +15,9 @@ body {
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Галочки и переключатели — цветом акцента: системные белые терялись на белом фоне. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-accent);
+}

@@ -1,8 +1,67 @@
 .splash {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   min-height: 100dvh;
   color: var(--color-accent);
-  font-size: 28px;
+}
+.logo {
+  width: 72px;
+  height: 72px;
+  overflow: visible;
+}
+.shield {
+  fill: var(--color-accent);
+}
+.halo {
+  fill: var(--color-accent-soft);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: halo 2s ease-out infinite;
+}
+.dot {
+  fill: var(--color-accent-contrast);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: type 1.2s ease-in-out infinite;
+}
+.dot:nth-of-type(2) {
+  animation-delay: 0.15s;
+}
+.dot:nth-of-type(3) {
+  animation-delay: 0.3s;
+}
+.word {
+  font-size: 24px;
   font-weight: 700;
+}
+@keyframes halo {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+@keyframes type {
+  0%,
+  60%,
+  100% {
+    opacity: 0.5;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .halo,
+  .dot {
+    animation: none;
+  }
 }

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, eq, isNotNull, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { stickerPacks, stickers, userStickerPacks } from "../db/schema.js";
 import type { Sticker, StickerPack, StickerPackRow, StickerRow } from "./model/domain.js";
@@ -16,6 +16,7 @@ export class StickerPacksRepository {
         ownerId: stickerPacks.ownerId,
         name: stickerPacks.name,
         description: stickerPacks.description,
+        coverStickerId: stickerPacks.coverStickerId,
         createdAt: stickerPacks.createdAt,
         addedUserId: userStickerPacks.userId,
       })
@@ -28,10 +29,13 @@ export class StickerPacksRepository {
       .orderBy(asc(stickerPacks.createdAt))
       .all();
 
-    const packIds = [...new Set(rows.map((row) => row.id))];
+    // Один пак — одна строка, даже если join вернул его дважды.
+    const seen = new Set<string>();
+    const unique = rows.filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true)));
+    const packIds = unique.map((row) => row.id);
     const stickersByPack = packIds.length ? this.stickersFor(packIds) : {};
 
-    return rows.map((row) => {
+    return unique.map((row) => {
       const packStickers = stickersByPack[row.id] ?? [];
       return {
         id: row.id,
@@ -43,6 +47,7 @@ export class StickerPacksRepository {
         stickerCount: packStickers.length,
         isAdded: row.addedUserId != null,
         isOwner: row.ownerId === viewerId,
+        ...coverOf(row.coverStickerId, packStickers),
       };
     });
   }
@@ -69,6 +74,7 @@ export class StickerPacksRepository {
       stickerCount: packStickers.length,
       isAdded: added,
       isOwner: row.ownerId === (viewerId ?? ""),
+      ...coverOf(row.coverStickerId, packStickers),
     };
   }
 
@@ -79,8 +85,32 @@ export class StickerPacksRepository {
     return pack;
   }
 
-  public updatePack(id: string, set: { name?: string; description?: string | null }): StickerPack {
+  /**
+   * «Популярные»: чужие непустые паки по числу пользователей, добавивших их в коллекцию
+   * (при равенстве — новее выше), не больше limit.
+   */
+  public popular(viewerId: string, limit: number): StickerPack[] {
+    const added = count(userStickerPacks.userId);
+    const rows = this.db
+      .select({ id: stickerPacks.id, added })
+      .from(stickerPacks)
+      .leftJoin(userStickerPacks, eq(userStickerPacks.packId, stickerPacks.id))
+      .where(ne(stickerPacks.ownerId, viewerId))
+      .groupBy(stickerPacks.id)
+      .orderBy(desc(added), desc(stickerPacks.createdAt))
+      .all();
+    const out: StickerPack[] = [];
+    for (const row of rows) {
+      if (out.length >= limit) break;
+      const pack = this.findPack(row.id, viewerId);
+      if (pack && pack.stickerCount > 0) out.push({ ...pack, addedCount: row.added });
+    }
+    return out;
+  }
+
+  public updatePack(id: string, set: { name?: string; description?: string | null; coverStickerId?: string | null }): StickerPack {
     const update: Record<string, unknown> = {};
+    if (set.coverStickerId !== undefined) update.coverStickerId = set.coverStickerId;
     if (set.name !== undefined) update.name = set.name;
     if (set.description !== undefined) update.description = set.description;
     this.db.update(stickerPacks).set(update).where(eq(stickerPacks.id, id)).run();
@@ -110,6 +140,12 @@ export class StickerPacksRepository {
     return toSticker(row);
   }
 
+  /** Стикер пака с этим файлом, если он уже добавлен. */
+  public findStickerByFile(packId: string, file: string): Sticker | undefined {
+    const row = this.db.select().from(stickers).where(and(eq(stickers.packId, packId), eq(stickers.file, file))).get();
+    return row ? toSticker(row) : undefined;
+  }
+
   /** Удалить стикер из пака (только владелец пака). */
   public deleteSticker(stickerId: string, packId: string): boolean {
     return this.db.delete(stickers).where(and(eq(stickers.id, stickerId), eq(stickers.packId, packId))).run().changes > 0;
@@ -135,15 +171,26 @@ export class StickerPacksRepository {
     const rows = this.db
       .select()
       .from(stickers)
-      .where(and(...packIds.map((id) => eq(stickers.packId, id))))
+      .where(inArray(stickers.packId, packIds))
       .orderBy(asc(stickers.position))
       .all();
     const out: Record<string, StickerRow[]> = {};
+    // Один и тот же файл в паке — один стикер (старые дубли не показываем).
+    const files = new Set<string>();
     for (const row of rows) {
+      const key = `${row.packId}\n${row.file}`;
+      if (files.has(key)) continue;
+      files.add(key);
       (out[row.packId] ??= []).push(row);
     }
     return out;
   }
+}
+
+/** Обложка пака: выбранный стикер (если он ещё в паке), иначе первый, иначе нет. */
+function coverOf(coverStickerId: string | null, packStickers: StickerRow[]): { coverStickerId: string | null; cover: string | null } {
+  const chosen = coverStickerId ? packStickers.find((st) => st.id === coverStickerId) : undefined;
+  return { coverStickerId: chosen ? chosen.id : null, cover: (chosen ?? packStickers[0])?.file ?? null };
 }
 
 function toSticker(row: StickerRow): Sticker {

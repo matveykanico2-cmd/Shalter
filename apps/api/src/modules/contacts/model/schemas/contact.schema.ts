@@ -39,6 +39,15 @@ export const contactNoteSchema = requestBody({
 });
 export type ContactNoteDto = z.infer<typeof contactNoteSchema>;
 
+export const contactPhotoSchema = requestBody({
+  userId: contactId(),
+  url: z
+    .unknown()
+    .optional()
+    .transform((v) => (typeof v === "string" ? v.trim().slice(0, 500) : "")),
+});
+export type ContactPhotoDto = z.infer<typeof contactPhotoSchema>;
+
 export const renameContactSchema = requestBody({ userId: contactId(), localName: localName() });
 export type RenameContactDto = z.infer<typeof renameContactSchema>;
 

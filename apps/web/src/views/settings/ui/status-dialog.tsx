@@ -7,7 +7,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { Button, Dialog, Icon } from "@/shared/ui";
 
-import { addStatus, profileQueries, removeStatus, setActiveStatus } from "../api/profile-api";
+import { addStatus, myStickerPacksQuery, profileQueries, removeStatus, setActiveStatus } from "../api/profile-api";
 
 import styles from "./status-dialog.module.css";
 
@@ -25,6 +25,9 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
   const activeId = mine.data?.activeId ?? null;
   const max = mine.data?.max ?? 1;
   const full = items.length >= max;
+  // Слотов больше одного только у Premium — ему же доступны стикеры статусом.
+  const premium = max > 1;
+  const packs = useQuery({ ...myStickerPacksQuery(), enabled: premium }).data ?? [];
   const loadError = mine.isError ? errorText(mine.error, "Не удалось загрузить статусы") : null;
 
   const run = async (fn: () => Promise<{ user: Parameters<typeof updateSelf>[0]; items?: typeof items; activeId: string | null }>) => {
@@ -98,6 +101,32 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
           <p className={styles.hint}>Пока пусто</p>
         )}
       </div>
+      <p className={styles.heading}>Стикеры из ваших паков</p>
+      {premium ? (
+        <div className={styles.grid}>
+          {packs.length ? (
+            packs.flatMap((p) =>
+              p.stickers.map((st) => (
+                <button
+                  key={`${p.id}:${st.id}`}
+                  type="button"
+                  className={styles.cell}
+                  title={st.emoji}
+                  aria-label={`Стикер ${st.emoji}`}
+                  disabled={busy || full}
+                  onClick={() => void run(() => addStatus({ sticker: st.url, name: st.emoji }))}
+                >
+                  <img className={styles.image} src={st.url} alt="" />
+                </button>
+              ))
+            )
+          ) : (
+            <p className={styles.hint}>Стикерпаков пока нет</p>
+          )}
+        </div>
+      ) : (
+        <p className={styles.hint}>Стикер статусом — с Shalter Premium.</p>
+      )}
       <Button variant="secondary" onClick={onClose}>
         Закрыть
       </Button>

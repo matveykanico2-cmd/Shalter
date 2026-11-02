@@ -7,6 +7,7 @@ import { ProfileQrDialog } from "@/features/profile-qr";
 
 import { ChatPickerDialog, chatQueries, openDm, useChats } from "@/entities/chat";
 import { openGiftShop } from "@/entities/gift";
+import { internalRoute, MessageLinks, MessageText } from "@/entities/message";
 import { ReportDialog } from "@/entities/report";
 import { SafetyBadge, useSafetyLabel } from "@/entities/safety-label";
 import { isServerModerator, type SelfUser, sessionQueries } from "@/entities/session";
@@ -25,16 +26,17 @@ import { type TabId,TABS } from "../lib/tabs";
 
 import { AvatarViewer } from "./avatar-viewer";
 import { BusinessHoursRow } from "./business-hours-row";
+import { EditContactDialog } from "./edit-contact-dialog";
 import { PinnedChannelsDialog } from "./pinned-channels-dialog";
 import { ProfileTabContent } from "./profile-tabs";
 import styles from "./user-profile.module.css";
 
 type Props = { userId: string; me: SelfUser };
-type Overlay = "avatars" | "qr" | "share" | "report" | "channels" | "admin" | null;
+type Overlay = "avatars" | "qr" | "share" | "report" | "channels" | "admin" | "edit-contact" | null;
 
 // Карточка модератора — отдельным чанком: она нужна только админам.
 const AdminUserCard = lazy(() => import("@/features/admin").then((m) => ({ default: m.UserCard })));
-type ProfileUser = UserProfile["user"] & { inContacts?: true; mutualContact?: true; profileName?: string };
+type ProfileUser = UserProfile["user"] & { inContacts?: true; mutualContact?: true; profileName?: string; profileAvatarImage?: string | null };
 
 /**
  * Профиль человека — панель справа поверх всего, как openProfileDialog в
@@ -308,6 +310,7 @@ export function UserProfilePanel({ userId, me }: Props) {
         {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Video" label="Видео" onClick={() => void call("video")} /> : null}
         {u.username ? <QuickAction icon="Copy" label="Ссылка" onClick={() => void copyText(profileLink(), "Ссылка на профиль скопирована")} /> : null}
         {u.username ? <QuickAction icon="Qrcode" label="QR-код" onClick={() => setOverlay("qr")} /> : null}
+        {inContacts && !isSelf ? <QuickAction icon="Edit" label="Изменить" onClick={() => setOverlay("edit-contact")} /> : null}
         {isSelf ? (
           <QuickAction
             icon="Edit"
@@ -335,7 +338,7 @@ export function UserProfilePanel({ userId, me }: Props) {
             copy={`@${u.username}`}
           />
         ) : null}
-        {u.bio ? <InfoRow icon="Info" value={u.bio} label={u.isBot ? "Описание" : "О себе"} multiline /> : null}
+        {u.bio ? <InfoRow icon="Info" value={<ProfileLinks text={u.bio} onOpen={close} />} label={u.isBot ? "Описание" : "О себе"} multiline /> : null}
         {inContacts && !isSelf ? (
           <InfoRow icon="Edit" value={data.contactNote || "Добавить заметку"} label="Заметка · видите только вы" accent={!data.contactNote} multiline={!!data.contactNote} onClick={() => void editNote()} />
         ) : null}
@@ -373,7 +376,20 @@ export function UserProfilePanel({ userId, me }: Props) {
           <span className={styles.adLabel}>Реклама</span>
           <p className={styles.adText}>{u.adText}</p>
           {u.adUrl ? (
-            <a className={styles.adLink} href={u.adUrl} target="_blank" rel="noreferrer">
+            <a
+              className={styles.adLink}
+              href={u.adUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => {
+                // Ссылка на свой канал, группу или профиль — открываем внутри приложения.
+                const internal = internalRoute(u.adUrl ?? "", window.location.origin);
+                if (!internal) return;
+                e.preventDefault();
+                close();
+                void navigate(internal);
+              }}
+            >
               Перейти →
             </a>
           ) : null}
@@ -530,6 +546,26 @@ export function UserProfilePanel({ userId, me }: Props) {
           onClose={() => setOverlay(null)}
         />
       ) : null}
+      {overlay === "edit-contact" ? (
+        <EditContactDialog
+          user={u}
+          contactName={data.contactName}
+          note={data.contactNote}
+          photo={data.contactPhoto ?? null}
+          openDm={async () => {
+            const { chat } = await openDm(userId, u.name, u.avatarColor);
+            return chat.id;
+          }}
+          onSaved={({ note }) => {
+            patchProfile({ contactNote: note });
+            // Имя и фото контакта сервер подставляет везде — перечитываем профиль, контакты и чаты.
+            void client.invalidateQueries({ queryKey: userQueries.profile(userId).queryKey });
+            void client.invalidateQueries({ queryKey: userQueries.contacts().queryKey });
+            void client.invalidateQueries({ queryKey: chatQueries.list().queryKey });
+          }}
+          onClose={() => setOverlay(null)}
+        />
+      ) : null}
       {overlay === "qr" ? <ProfileQrDialog user={u} onClose={() => setOverlay(null)} /> : null}
       {overlay === "admin" ? (
         <Suspense fallback={null}>
@@ -561,6 +597,34 @@ export function UserProfilePanel({ userId, me }: Props) {
         />
       ) : null}
     </Shell>
+  );
+}
+
+/**
+ * «О себе» с кнопками-ссылками: @имя, ссылка на свой профиль, канал, группу или
+ * сообщество открываются внутри приложения (профиль при этом закрывается).
+ */
+function ProfileLinks({ text, onOpen }: { text: string; onOpen: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <MessageLinks
+      value={{
+        onMention: (handle) => {
+          onOpen();
+          void navigate(`/${handle.replace(/^@/, "")}`);
+        },
+      }}
+    >
+      <span
+        className={styles.bioLinks}
+        onClickCapture={(e) => {
+          const a = (e.target as HTMLElement).closest("a");
+          if (a && internalRoute(a.href, window.location.origin)) onOpen();
+        }}
+      >
+        <MessageText text={text} />
+      </span>
+    </MessageLinks>
   );
 }
 
