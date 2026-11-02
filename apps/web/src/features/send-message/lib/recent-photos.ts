@@ -4,8 +4,10 @@
 export type RecentPhoto = { id: string; uri: string; thumb: string; mime: string; name: string };
 
 type Plugin = {
-  list: (o: { limit: number }) => Promise<{ photos?: RecentPhoto[]; denied?: boolean }>;
-  read: (o: { id: string }) => Promise<{ data: string; mime?: string; name?: string }>;
+  /** prompt — спросить разрешение, даже если раньше отказали (кнопка «Разрешить доступ»). */
+  list: (o: { limit: number; prompt?: true }) => Promise<{ photos?: RecentPhoto[]; denied?: boolean }>;
+  /** Кусок оригинала с offset (по умолчанию 0); done: false — есть ещё. */
+  read: (o: { id: string; offset?: number }) => Promise<{ data: string; mime?: string; name?: string; done?: boolean }>;
 };
 
 type NativeWindow = Window & {
@@ -21,16 +23,23 @@ export function hasRecentPhotos(): boolean {
   return plugin() !== null;
 }
 
-/** Новые сначала; без плагина, без разрешения или при ошибке — пустой список. */
-export async function listRecentPhotos(limit = 30): Promise<RecentPhoto[]> {
+/**
+ * Новые сначала; denied — доступа к фото нет (система не спрашивает снова сама: после
+ * отказа плагин ждёт prompt). Без плагина или при ошибке — пустой список.
+ */
+export async function loadRecentPhotos(limit = 30, prompt = false): Promise<{ photos: RecentPhoto[]; denied: boolean }> {
   const p = plugin();
-  if (!p) return [];
+  if (!p) return { photos: [], denied: false };
   try {
-    const res = await p.list({ limit });
-    return (res?.photos ?? []).filter((photo) => photo && photo.id && photo.thumb);
+    const res = await p.list(prompt ? { limit, prompt: true } : { limit });
+    return { photos: (res?.photos ?? []).filter((photo) => photo && photo.id && photo.thumb), denied: res?.denied === true };
   } catch {
-    return [];
+    return { photos: [], denied: false };
   }
+}
+
+export async function listRecentPhotos(limit = 30): Promise<RecentPhoto[]> {
+  return (await loadRecentPhotos(limit)).photos;
 }
 
 export function thumbSrc(photo: RecentPhoto): string {
@@ -48,7 +57,17 @@ function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
 export async function readRecentPhoto(photo: RecentPhoto): Promise<File> {
   const p = plugin();
   if (!p) throw new Error("Галерея недоступна");
-  const res = await p.read({ id: photo.id });
+  // По кускам (~2 МБ): большой снимок одной base64-строкой не помещался бы в память.
+  const parts: Uint8Array<ArrayBuffer>[] = [];
+  let offset = 0;
+  let res = await p.read({ id: photo.id });
+  for (;;) {
+    const bytes = base64Bytes(res.data);
+    parts.push(bytes);
+    offset += bytes.length;
+    if (res.done !== false || !bytes.length) break;
+    res = { ...res, ...(await p.read({ id: photo.id, offset })) };
+  }
   const type = res.mime || photo.mime || "image/jpeg";
-  return new File([base64Bytes(res.data)], res.name || photo.name || `photo-${photo.id}.jpg`, { type });
+  return new File(parts, res.name || photo.name || `photo-${photo.id}.jpg`, { type });
 }

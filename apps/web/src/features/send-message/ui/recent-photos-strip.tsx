@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { listRecentPhotos, readRecentPhoto, type RecentPhoto, thumbSrc } from "../lib/recent-photos";
+import { loadRecentPhotos, readRecentPhoto, type RecentPhoto, thumbSrc } from "../lib/recent-photos";
 
 import styles from "./composer.module.css";
 
@@ -16,17 +16,36 @@ export function RecentPhotosStrip({ onSend }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [denied, setDenied] = useState(false);
+
   useEffect(() => {
     let alive = true;
-    void listRecentPhotos().then((list) => {
-      if (alive) setPhotos(list);
+    void loadRecentPhotos().then((res) => {
+      if (!alive) return;
+      setPhotos(res.photos);
+      setDenied(res.denied);
     });
     return () => {
       alive = false;
     };
   }, []);
 
-  if (!photos.length) return null;
+  // Отказ запоминается — без нажатия система больше не спрашивает.
+  const allow = async () => {
+    const res = await loadRecentPhotos(30, true);
+    setPhotos(res.photos);
+    setDenied(res.denied);
+  };
+
+  if (!photos.length) {
+    return denied ? (
+      <div className={styles.recentPhotos}>
+        <button type="button" className={styles.recentPhotosSend} onClick={() => void allow()}>
+          Разрешить доступ к фото
+        </button>
+      </div>
+    ) : null;
+  }
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -35,7 +54,9 @@ export function RecentPhotosStrip({ onSend }: Props) {
     setError("");
     try {
       const byId = new Map(photos.map((p) => [p.id, p]));
-      const files = await Promise.all(picked.map((id) => readRecentPhoto(byId.get(id)!)));
+      // По одному: несколько больших снимков разом не поместились бы в память.
+      const files: File[] = [];
+      for (const id of picked) files.push(await readRecentPhoto(byId.get(id)!));
       onSend(files);
     } catch {
       setError("Не удалось открыть фото");

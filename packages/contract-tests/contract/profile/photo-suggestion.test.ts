@@ -43,6 +43,24 @@ describe("предложить фото профиля", () => {
     expect((await download(carol.api, entry!.url)).status).toBe(200);
   });
 
+  test("повторное нажатие не дублирует аватарку — та же копия становится главной", async () => {
+    const [alice, bob] = await registerUsers(server().baseUrl, 2);
+    const dm = await createDm(alice, bob);
+    const message = await suggest(alice, dm.id);
+    const first = expectOk(await bob.api.post("/api/avatars/from-suggestion", { messageId: message.id, poster: POSTER }), avatarsChangeBody);
+    const again = expectOk(await bob.api.post("/api/avatars/from-suggestion", { messageId: message.id, poster: POSTER }), avatarsChangeBody);
+    expect(again.avatars).toHaveLength(1);
+    expect(again.avatars[0]!.url).toBe(first.avatars[0]!.url);
+  });
+
+  test("в секретном чате флаг не ставится", async () => {
+    const [alice, bob] = await registerUsers(server().baseUrl, 2);
+    const secret = (await alice.api.post("/api/chats/secret", { userId: bob.id })).body.chat;
+    const message = await suggest(alice, secret.id);
+    expect(message.photoSuggestion).toBeUndefined();
+    expectError(await bob.api.post("/api/avatars/from-suggestion", { messageId: message.id, poster: POSTER }), 400, "Это не предложенное фото профиля");
+  });
+
   test("отправитель сам поставить не может", async () => {
     const [alice, bob] = await registerUsers(server().baseUrl, 2);
     const dm = await createDm(alice, bob);

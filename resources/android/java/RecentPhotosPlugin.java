@@ -28,7 +28,8 @@ import java.util.concurrent.Executors;
 // Последние фото галереи — лента над кнопками в шторке скрепки (apps/web
 // features/send-message/lib/recent-photos.ts, ui/recent-photos-strip.tsx), как в Telegram.
 // JS: Capacitor.Plugins.RecentPhotos.list({ limit: 30 }) → { photos: [{ id, uri, thumb, mime, name }] }
-// (thumb — JPEG ~256px в base64), read({ id }) → { data (base64 оригинала), mime, name }.
+// (thumb — JPEG ~256px в base64), read({ id, offset }) → { data (base64 куска оригинала до 2 МБ),
+// mime, name, done }.
 // Без разрешения на фото list отдаёт { photos: [], denied: true } — лента не показывается.
 // Файл копирует scripts/apply-native-resources.js — android/ генерируется заново.
 @CapacitorPlugin(
@@ -46,6 +47,7 @@ public class RecentPhotosPlugin extends Plugin {
     static final String STORAGE = "storage";
     private static final int THUMB = 256;
     private static final int MAX_LIMIT = 100;
+    private static final int CHUNK = 2 * 1024 * 1024;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -68,10 +70,28 @@ public class RecentPhotosPlugin extends Plugin {
         return granted(Manifest.permission.READ_EXTERNAL_STORAGE);
     }
 
+    // Отказ запоминаем: иначе системный вопрос всплывал бы на каждом открытии скрепки.
+    // Спросить снова — list({ prompt: true }) по кнопке «Разрешить доступ к фото».
+    private static final String PREFS = "shalter_recent_photos";
+    private static final String DENIED = "denied";
+
+    private boolean refusedBefore() {
+        return getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).getBoolean(DENIED, false);
+    }
+
+    private void rememberRefusal(boolean refused) {
+        getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit().putBoolean(DENIED, refused).apply();
+    }
+
     @PluginMethod
     public void list(PluginCall call) {
         if (canRead()) {
+            rememberRefusal(false);
             listAsync(call);
+            return;
+        }
+        if (refusedBefore() && !call.getBoolean("prompt", false)) {
+            resolveDenied(call);
             return;
         }
         requestPermissionForAlias(alias(), call, "photosPermission");
@@ -80,9 +100,15 @@ public class RecentPhotosPlugin extends Plugin {
     @PermissionCallback
     private void photosPermission(PluginCall call) {
         if (canRead()) {
+            rememberRefusal(false);
             listAsync(call);
             return;
         }
+        rememberRefusal(true);
+        resolveDenied(call);
+    }
+
+    private void resolveDenied(PluginCall call) {
         JSObject result = new JSObject();
         result.put("photos", new JSArray());
         result.put("denied", true);
@@ -170,19 +196,37 @@ public class RecentPhotosPlugin extends Plugin {
             } catch (Exception ignored) {
                 // имя по умолчанию
             }
+            // Кусок с offset, не больше CHUNK: весь снимок одной base64-строкой — это
+            // десятки мегабайт в памяти Java и WebView разом. done: false — читать дальше.
+            long offset = Math.max(0, call.getLong("offset", 0L));
             try (InputStream in = cr.openInputStream(uri)) {
                 if (in == null) {
                     call.reject("not found");
                     return;
                 }
+                long skipped = 0;
+                while (skipped < offset) {
+                    long n = in.skip(offset - skipped);
+                    if (n <= 0) break;
+                    skipped += n;
+                }
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 byte[] buf = new byte[64 * 1024];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                boolean done = false;
+                while (out.size() < CHUNK) {
+                    int n = in.read(buf, 0, Math.min(buf.length, CHUNK - out.size()));
+                    if (n < 0) {
+                        done = true;
+                        break;
+                    }
+                    out.write(buf, 0, n);
+                }
+                if (!done && in.read() < 0) done = true;
                 JSObject result = new JSObject();
                 result.put("data", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
                 result.put("mime", mime == null ? "image/jpeg" : mime);
                 result.put("name", name);
+                result.put("done", done);
                 call.resolve(result);
             } catch (Exception e) {
                 call.reject("read failed: " + e.getMessage());

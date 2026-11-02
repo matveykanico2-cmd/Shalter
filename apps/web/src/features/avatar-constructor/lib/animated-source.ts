@@ -2,6 +2,8 @@
 // (.webm/.mp4). В предпросмотре они играют, на холст 640×640 ложится один неподвижный кадр.
 // Плеер lottie — тот же, что у shared/lib/anim/lottie.ts (/js/vendor/lottie_light.min.js, только SVG).
 
+import { loadLottiePlayer as loadSharedLottiePlayer } from "@/shared/lib/anim";
+
 export type StickerFormat = "image" | "lottie" | "video";
 
 export function stickerFormat(url: string): StickerFormat {
@@ -12,7 +14,6 @@ export function stickerFormat(url: string): StickerFormat {
 }
 
 const FRAME_TIMEOUT_MS = 8000;
-const PLAYER_SRC = "/js/vendor/lottie_light.min.js";
 
 export type LottieAnim = {
   totalFrames: number;
@@ -22,24 +23,10 @@ export type LottieAnim = {
   destroy(): void;
 };
 type LottiePlayer = { loadAnimation(opts: Record<string, unknown>): LottieAnim };
-type WithLottie = Window & { lottie?: LottiePlayer };
 
-let playerPromise: Promise<LottiePlayer> | null = null;
+/** Общий плеер из shared/lib/anim: один <script> на приложение, а не свой второй. */
 export function loadLottiePlayer(): Promise<LottiePlayer> {
-  const w = window as WithLottie;
-  if (w.lottie) return Promise.resolve(w.lottie);
-  playerPromise ??= new Promise<LottiePlayer>((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = PLAYER_SRC;
-    s.async = true;
-    s.onload = () => (w.lottie ? resolve(w.lottie) : reject(new Error("lottie")));
-    s.onerror = () => {
-      playerPromise = null;
-      reject(new Error("lottie"));
-    };
-    document.head.appendChild(s);
-  });
-  return playerPromise;
+  return loadSharedLottiePlayer() as unknown as Promise<LottiePlayer>;
 }
 
 async function inflate(bytes: Uint8Array, format: "gzip" | "deflate-raw"): Promise<Uint8Array> {

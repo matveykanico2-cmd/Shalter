@@ -143,7 +143,8 @@ export function emojiArtName(emoji: string | null | undefined) {
 }
 
 let playerPromise: Promise<LottiePlayer> | null = null;
-function loadPlayer(): Promise<LottiePlayer> {
+/** Плеер lottie — один на всё приложение (один <script>, даже если просят разом). */
+export function loadPlayer(): Promise<LottiePlayer> {
   const w = window as WithLottie;
   if (w.lottie) return Promise.resolve(w.lottie);
   playerPromise ??= new Promise<LottiePlayer>((resolve, reject) => {

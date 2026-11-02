@@ -75,6 +75,15 @@ describe("recent photos bridge", () => {
     expect(file.type).toBe("image/png");
     expect(await file.text()).toBe("hi12");
   });
+
+  it("большой снимок читается по кускам, пока done: false", async () => {
+    const chunks: Record<number, { data: string; done: boolean }> = { 0: { data: btoa("abc"), done: false }, 3: { data: btoa("def"), done: true } };
+    const plugin = installPlugin({ read: vi.fn(async ({ offset = 0 }: { id: string; offset?: number }) => ({ ...chunks[offset]!, mime: "image/jpeg", name: "big.jpg" })) });
+    const file = await readRecentPhoto(PHOTOS[0]!);
+    expect(plugin.read).toHaveBeenNthCalledWith(1, { id: "11" });
+    expect(plugin.read).toHaveBeenNthCalledWith(2, { id: "11", offset: 3 });
+    expect(await file.text()).toBe("abcdef");
+  });
 });
 
 describe("лента последних фото в шторке скрепки", () => {
@@ -107,6 +116,17 @@ describe("лента последних фото в шторке скрепки"
     expect(files.map((f) => f.name)).toEqual(["13.bin", "11.bin"]);
     // Шторка закрылась.
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("после отказа — кнопка «Разрешить доступ к фото», она спрашивает снова", async () => {
+    phone(true);
+    const plugin = installPlugin({
+      list: vi.fn(async (o: { prompt?: true }) => (o.prompt ? { photos: PHOTOS } : { photos: [], denied: true })),
+    });
+    renderAttach();
+    fireEvent.click(await screen.findByRole("button", { name: "Разрешить доступ к фото" }));
+    await screen.findByRole("group", { name: "Последние фото" });
+    expect(plugin.list).toHaveBeenLastCalledWith({ limit: 30, prompt: true });
   });
 
   it("на широком экране ленты нет даже с плагином", () => {

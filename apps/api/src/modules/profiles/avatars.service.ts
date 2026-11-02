@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
@@ -44,36 +45,40 @@ export class AvatarsService {
    * своя копия: фото перекодируется (без EXIF) и записывается новым файлом получателя.
    */
   public async fromSuggestion(userId: string, dto: SuggestedAvatarDto) {
-    const me = this.users.findById(userId);
-    if (!me) throw new ApiError(404, "not found");
+    if (!this.users.findById(userId)) throw new ApiError(404, "not found");
     const message = dto.messageId ? this.messages.findById(dto.messageId) : undefined;
     const chat = message ? this.chats.findById(message.chatId) : undefined;
     if (!message || !chat || !chat.memberIds.includes(userId) || message.deletedForIds.includes(userId)) throw new ApiError(404, "Сообщение не найдено");
-    if (!message.photoSuggestion || chat.type !== "dm") throw new ApiError(400, "Это не предложенное фото профиля");
+    if (!message.photoSuggestion || chat.type !== "dm" || chat.secret || chat.protectedBy?.length) throw new ApiError(400, "Это не предложенное фото профиля");
     if (message.senderId === userId) throw new ApiError(403, "Предложенное вами фото может установить только собеседник");
     const source = /^\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)$/.exec(String(message.attachments?.[0]?.url ?? ""))?.[1];
     if (!source) throw new ApiError(400, "Это не предложенное фото профиля");
-    const list = avatarList(me);
-    if (list.length >= MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
+    // Обложку проверяем до перекодирования: неверный запрос не оставляет файлов.
+    const poster = validateEntry({ url: `/uploads/${source}`, kind: "image", poster: dto.poster });
+    if (poster.error !== undefined) throw new ApiError(400, poster.error);
+    if (avatarList(this.users.findById(userId)).length >= MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
 
-    const url = await this.copyAsOwn(userId, source, message.attachments ?? []);
-    const checked = validateEntry({ url, kind: "image", poster: dto.poster });
-    if (checked.error !== undefined) throw new ApiError(400, checked.error);
-    return this.save(userId, [checked.entry, ...list], true);
+    const url = await this.copyAsOwn(userId, source);
+    // Список — заново после перекодирования: за эти секунды аватарки могли измениться.
+    // Та же копия уже стоит (нажали второй раз) — делаем её главной, а не дублируем.
+    const list = avatarList(this.users.findById(userId)).filter((a) => a.url !== url);
+    if (list.length >= MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
+    return this.save(userId, [{ ...poster.entry, url }, ...list], true);
   }
 
-  // Своя копия фото. Два прохода: один проход даёт ровно превью сообщения (тот же sharp,
-  // те же байты — то же имя sha_…), а оно прикреплено к чату и чужим не откроется.
-  private async copyAsOwn(userId: string, filename: string, attachments: { url?: string; previewUrl?: string; thumbUrl?: string }[]): Promise<string> {
+  // Своя копия фото: перекодирование (без EXIF) и метка-комментарий JPEG с номером копии.
+  // Файлы именуются по содержимому (sha_…), и без метки копия совпала бы с превью
+  // сообщения — а оно прикреплено к личке и чужим не откроется. Метка одна на пару
+  // «получатель + сообщение», поэтому повторное нажатие даёт тот же файл.
+  private async copyAsOwn(userId: string, filename: string): Promise<string> {
     const transfer = uploadTransfer();
     const temps: string[] = [];
     try {
       temps.push(await transfer.fetchUploadToTemp(filename));
       temps.push(await mediaPreview().generateImagePreview(temps[0]!));
-      temps.push(await mediaPreview().generateImagePreview(temps[1]!));
-      const url = await transfer.storeGeneratedFile(temps[2]!);
-      const taken = new Set(attachments.flatMap((a) => [a.url, a.previewUrl, a.thumbUrl]));
-      if (taken.has(url)) throw new ApiError(500, "Не удалось установить фото");
+      const jpeg = await fs.promises.readFile(temps[1]!);
+      await fs.promises.writeFile(temps[1]!, withJpegComment(jpeg, `shalter-avatar:${createHash("sha256").update(`${userId}:${filename}`).digest("hex").slice(0, 32)}`));
+      const url = await transfer.storeGeneratedFile(temps[1]!);
       uploadAccess().recordUploader(url.slice("/uploads/".length), userId);
       return url;
     } catch (err) {
@@ -113,6 +118,14 @@ export class AvatarsService {
     this.notify.profileChanged(userId, updated);
     return { user: publicUser(updated), avatars: updated.avatarImages };
   }
+}
+
+/** JPEG с сегментом-комментарием (COM) сразу после SOI: картинка та же, байты — другие. */
+function withJpegComment(jpeg: Buffer, text: string): Buffer {
+  if (jpeg.length < 2 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new ApiError(500, "Не удалось установить фото");
+  const body = Buffer.from(text, "utf8").subarray(0, 60_000);
+  const head = Buffer.from([0xff, 0xfe, (body.length + 2) >> 8, (body.length + 2) & 0xff]);
+  return Buffer.concat([jpeg.subarray(0, 2), head, body, jpeg.subarray(2)]);
 }
 
 // У старых профилей есть только avatarImage — он становится единственной аватаркой.

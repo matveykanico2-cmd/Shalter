@@ -290,9 +290,10 @@ export class MessageSendService {
     const threadRootId = inThisChat(body.threadRootId) ? body.threadRootId : null;
     const clean = sanitizers();
     const attachments = paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments));
-    // «Предложить фото профиля» — только одно фото в личке, как в Telegram.
+    // «Предложить фото профиля» — только одно фото в обычной личке, как в Telegram: не в
+    // секретном и не в защищённом от пересылки чате (копия-аватарка открыта всем).
     const photoSuggestion =
-      body.photoSuggestion === true && chat.type === "dm" && !paid && !body.sticker && attachments?.length === 1 && attachments[0]?.kind === "image" && !!attachments[0].url;
+      body.photoSuggestion === true && chat.type === "dm" && !chat.secret && !chat.protectedBy?.length && !paid && !body.sticker && attachments?.length === 1 && attachments[0]?.kind === "image" && !!attachments[0].url;
 
     const message = this.messages.create({
       id: genId("m"),
