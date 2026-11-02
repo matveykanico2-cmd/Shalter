@@ -10,7 +10,7 @@ import { isUsernameConflict, normalizeUsername } from "../users/lib/username.js"
 import type { AvatarEntry, ProfilePatch, User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserPrivacyService } from "../users/user-privacy.service.js";
-import type { BlockDto, PatchProfileDto } from "./model/schemas/profile.schema.js";
+import { type BlockDto, type PatchProfileDto, profileLinksSchema } from "./model/schemas/profile.schema.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 
 const MAX_NAME = 64;
@@ -36,6 +36,7 @@ const EDITABLE_FIELDS = [
   "businessLng",
   "nameColor",
   "profileBanner",
+  "profileLinks",
 ] as const;
 const STRING_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "birthday", "businessAddress"] as const;
 // Встроенные баннеры профиля (public/js/lib/profileBanners.js) и своё фото из загрузок.
@@ -88,6 +89,11 @@ export class ProfileEditService {
       if (patch.nameColor != null && !this.users.findById(uid)?.isPremium) throw new ApiError(403, "Цвет имени доступен с Shalter Premium");
     }
     if ("profileBanner" in patch) patch.profileBanner = await this.checkBanner(uid, patch.profileBanner);
+    if ("profileLinks" in patch) {
+      const parsed = profileLinksSchema.safeParse(patch.profileLinks);
+      if (!parsed.success) throw new ApiError(400, parsed.error.issues[0]?.message ?? "Некорректные кнопки");
+      patch.profileLinks = parsed.data ?? [];
+    }
     for (const key of ["businessLat", "businessLng"]) {
       if (key in patch && patch[key] != null && !Number.isFinite(Number(patch[key]))) throw new ApiError(400, "Некорректные координаты");
     }

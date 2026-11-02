@@ -24,7 +24,8 @@ type Props = {
 type PackLite = { id: string; name: string; isAdded: boolean; stickers: { id: string; url: string; emoji: string }[] };
 
 const myPacksQuery = {
-  queryKey: ["stickers", "packs", "avatar"] as const,
+  // Тот же ключ и ответ, что у панели стикеров: один запрос и один кэш на все экраны.
+  queryKey: ["stickers", "packs"] as const,
   queryFn: async ({ signal }: { signal: AbortSignal }) => (await http.get<{ packs: PackLite[] }>("/api/stickers/packs", signal)).packs,
   staleTime: 60_000,
 };

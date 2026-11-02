@@ -1185,6 +1185,8 @@ if (!existingAdminSectionCols.has("adminSections"))
 if (!existingAdminSectionCols.has("profileTrack")) db.exec("ALTER TABLE users ADD COLUMN profileTrack TEXT");
 // Смайл вместо аватарки (анимированный, если есть) — как avatarEmoji у чатов.
 if (!existingAdminSectionCols.has("avatarEmoji")) db.exec("ALTER TABLE users ADD COLUMN avatarEmoji TEXT");
+// Кнопки в профиле (как в Telegram): до трёх { title, target }, target — «@ник» или https-ссылка.
+if (!existingAdminSectionCols.has("profileLinks")) db.exec("ALTER TABLE users ADD COLUMN profileLinks TEXT");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS short_links (

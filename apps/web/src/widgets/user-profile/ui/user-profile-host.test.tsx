@@ -50,6 +50,7 @@ function renderHost(me = ME) {
         children: [
           { path: "/", element: <p>Список чатов</p> },
           { path: "/chat/:chatId", element: <p>Открытый чат</p> },
+          { path: "/u/:username", element: <p>Профиль по нику</p> },
         ],
       },
     ],
@@ -90,6 +91,21 @@ describe("профиль человека", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Написать" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_dm"));
     expect(calls.find((c) => c.key === "POST /api/chats")?.body).toMatchObject({ userId: BORIS.id, title: "Борис" });
+    expect(screen.queryByRole("complementary", { name: "Профиль" })).toBeNull();
+  });
+
+  it("кнопки в профиле: @ник открывается внутри приложения, сайт — не уводит со страницы", async () => {
+    fakeApi({
+      "GET /api/users/u_boris0000": {
+        body: profile({ user: { ...BORIS, profileLinks: [{ title: "Мой канал", target: "@kanal" }, { title: "Сайт", target: "https://example.com" }] } }),
+      },
+    });
+    const { router } = renderHost();
+    act(() => openUserProfile(BORIS.id));
+    const panel = await screen.findByRole("complementary", { name: "Профиль" });
+    expect(await within(panel).findByRole("button", { name: "Сайт" })).toBeTruthy();
+    fireEvent.click(within(panel).getByRole("button", { name: "Мой канал" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/u/kanal"));
     expect(screen.queryByRole("complementary", { name: "Профиль" })).toBeNull();
   });
 

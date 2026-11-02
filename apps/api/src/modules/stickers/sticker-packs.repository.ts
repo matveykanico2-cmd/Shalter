@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { stickerPacks, stickers, userStickerPacks } from "../db/schema.js";
 import type { Sticker, StickerPack, StickerPackRow, StickerRow } from "./model/domain.js";
@@ -95,9 +95,11 @@ export class StickerPacksRepository {
       .select({ id: stickerPacks.id, added })
       .from(stickerPacks)
       .leftJoin(userStickerPacks, eq(userStickerPacks.packId, stickerPacks.id))
-      .where(ne(stickerPacks.ownerId, viewerId))
+      // Пустые паки отсекаем в SQL и берём не больше limit — без прохода по всей таблице.
+      .where(and(ne(stickerPacks.ownerId, viewerId), exists(this.db.select({ one: sql`1` }).from(stickers).where(eq(stickers.packId, stickerPacks.id)))))
       .groupBy(stickerPacks.id)
       .orderBy(desc(added), desc(stickerPacks.createdAt))
+      .limit(limit)
       .all();
     const out: StickerPack[] = [];
     for (const row of rows) {
@@ -144,6 +146,11 @@ export class StickerPacksRepository {
   public findStickerByFile(packId: string, file: string): Sticker | undefined {
     const row = this.db.select().from(stickers).where(and(eq(stickers.packId, packId), eq(stickers.file, file))).get();
     return row ? toSticker(row) : undefined;
+  }
+
+  /** Файл лежит в каком-нибудь паке — значит, он и так открыт всем (uploadAccess, stickers.file). */
+  public isStickerFile(file: string): boolean {
+    return !!this.db.select({ id: stickers.id }).from(stickers).where(eq(stickers.file, file)).get();
   }
 
   /** Удалить стикер из пака (только владелец пака). */

@@ -1,3 +1,4 @@
+import { StickersModule } from "../stickers/stickers.module.js";
 import { Module } from "@nestjs/common";
 import { ChatsModule } from "../chats/chats.module.js";
 import { GiftsModule } from "../gifts/gifts.module.js";
@@ -16,7 +17,7 @@ import { ProfilesService } from "./profiles.service.js";
 // Профили (/api/users) и аватарки, статусы, музыка своего профиля: маршруты отдельно от модуля users, которым как слоем данных
 // пользуются chats и messages, — профилю нужны и они.
 @Module({
-  imports: [UsersModule, ChatsModule, MessagesModule, GiftsModule],
+  imports: [UsersModule, ChatsModule, MessagesModule, GiftsModule, StickersModule],
   controllers: [ProfilesController, AvatarsController, ProfileStatusController, StatusCatalogController, ProfileTrackController],
   providers: [
     ProfilesService,

@@ -163,12 +163,13 @@ export class UsersRepository {
    */
   public updateProfile(id: string, patch: ProfilePatch): User | undefined {
     if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
-    const { profileBanner, businessLat, businessLng, ...columns } = patch;
+    const { profileBanner, profileLinks, businessLat, businessLng, ...columns } = patch;
     const set: Partial<NewUserRow> = { ...columns };
     if ("username" in patch) set.usernameAuctionId = null;
     if ("businessLat" in patch) set.businessLat = (businessLat ?? null) as number | null;
     if ("businessLng" in patch) set.businessLng = (businessLng ?? null) as number | null;
     if ("profileBanner" in patch) set.profileBanner = profileBanner ? JSON.stringify(profileBanner) : null;
+    if ("profileLinks" in patch) set.profileLinks = profileLinks?.length ? JSON.stringify(profileLinks) : null;
     if (Object.keys(set).length > 0) this.db.update(users).set(set).where(eq(users.id, id)).run();
     return this.findById(id);
   }

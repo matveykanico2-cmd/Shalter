@@ -111,6 +111,8 @@ export function applyContactName<T extends { name?: unknown; inContacts?: boolea
   if (localAvatar) {
     visible.profileAvatarImage = visible.avatarImage ?? null;
     visible.avatarImage = localAvatar;
+    // Смайл или стикер на аватарке рисуется поверх фото — своё фото должно быть видно.
+    delete (visible as Record<string, unknown>).avatarEmoji;
   }
   return visible;
 }

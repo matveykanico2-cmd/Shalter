@@ -103,6 +103,8 @@ function applyContactName(visible, myContact, theyHaveMe) {
   if (localAvatar) {
     visible.profileAvatarImage = visible.avatarImage ?? null;
     visible.avatarImage = localAvatar;
+    // Смайл или стикер на аватарке рисуется поверх фото — своё фото должно быть видно.
+    delete visible.avatarEmoji;
   }
   return visible;
 }
@@ -115,7 +117,6 @@ async function publicUserFor(user, viewerId) {
   if (!user || user.id === viewerId) return visible;
   const { privacy } = await getSettings(user.id);
   const isContact = (await listContactsFor(user.id)).some((c) => c.userId === viewerId);
-  applyContactName(visible, (await listContactsFor(viewerId)).find((c) => c.userId === user.id), isContact);
   const canSee = (key) => privacyAllows(privacy, key, viewerId, isContact);
   const blocked = (user.blockedUserIds ?? []).includes(viewerId);
   if (blocked || !canSee("lastSeen")) {
@@ -129,6 +130,8 @@ async function publicUserFor(user, viewerId) {
   }
   if (blocked || !canSee("bio")) delete visible.bio;
   if (blocked || !canSee("birthday")) delete visible.birthday;
+  // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
+  applyContactName(visible, (await listContactsFor(viewerId)).find((c) => c.userId === user.id), isContact);
   return visible;
 }
 

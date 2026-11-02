@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { isOwnUploadUrl } from "../../legacy/legacy.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
 import { exceptionsFor, normalizePrivacy } from "../users/lib/privacy-rules.js";
 import { contactNote, sealContactNote } from "../users/lib/contact-note.js";
@@ -18,10 +19,6 @@ function withPhoto<T extends { localAvatar?: string | null }>(row: T): Omit<T, "
   const { localAvatar, ...rest } = row;
   return localAvatar ? { ...rest, localAvatar } : rest;
 }
-
-/** Своё фото контакта — только загруженный файл, ссылка как у аватарок (lib/avatars.ts). */
-const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
-const isOwnUploadUrl = (url: string) => UPLOAD_URL_RE.test(url);
 
 // Контакты (/api/contacts) — как server/routes/contacts.js.
 @Injectable()
@@ -88,8 +85,9 @@ export class ContactsService {
   }
 
   /** Своё фото контакта — видите только вы (как «Установить фото» в Telegram). Пусто — убрать. */
-  public setPhoto(uid: string, { userId, url }: ContactPhotoDto) {
-    if (url && !isOwnUploadUrl(url)) throw new ApiError(400, "Некорректное фото");
+  public async setPhoto(uid: string, { userId, url }: ContactPhotoDto) {
+    // Как у аватарок: только свой загруженный файл (общая проверка из server/lib/uploadAccess.js).
+    if (url && !(await isOwnUploadUrl(uid, url))) throw new ApiError(400, "Некорректное фото");
     if (!this.contacts.setPhoto(uid, userId, url || null)) throw new ApiError(404, "Сначала добавьте человека в контакты");
     return { localAvatar: url || null };
   }

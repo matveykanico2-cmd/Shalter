@@ -52,7 +52,8 @@ export function parseNativeProxyUrl(raw: string | null | undefined): NativeProxy
     const u = new URL(raw);
     const type = u.protocol.replace(/:$/, "");
     if (type !== "http" && type !== "socks5") return null;
-    const port = Number(u.port);
+    // new URL("http://h:80").port — пустая строка: порт по умолчанию не хранится.
+    const port = Number(u.port) || (type === "http" ? 80 : 0);
     if (!u.hostname || !port) return null;
     return {
       type,

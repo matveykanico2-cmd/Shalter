@@ -51,6 +51,7 @@ export interface ProfilePatch {
   businessLng?: unknown;
   nameColor?: string | null;
   profileBanner?: { id: string; url?: string } | null;
+  profileLinks?: { title: string; target: string }[];
 }
 
 /** Аватарка из списка профиля: url, вид и превью. */

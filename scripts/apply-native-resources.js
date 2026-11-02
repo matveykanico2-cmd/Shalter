@@ -35,6 +35,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
     wireAndroidDeepLinks();
+    wireAndroidWebkit();
     wireAndroidAppIcons();
   }
 }
@@ -91,6 +92,17 @@ function wireAndroidAppIcons() {
   manifest = manifest.replace(/(<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?<\/activity>)/, `$1\n\n${aliases}`);
   fs.writeFileSync(manifestPath, manifest);
   console.log(`android: иконок приложения — ${icons.length} (activity-alias)`);
+}
+
+// Прокси приложения (AppProxyPlugin) — ProxyController из androidx.webkit: Capacitor тянет
+// его только как implementation, в код приложения он не попадает — подключаем явно.
+function wireAndroidWebkit() {
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  let gradle = fs.readFileSync(gradlePath, "utf8");
+  if (gradle.includes("androidx.webkit:webkit")) return;
+  gradle = gradle.replace(/dependencies\s*\{/, (m) => `${m}\n    implementation "androidx.webkit:webkit:1.12.1"`);
+  fs.writeFileSync(gradlePath, gradle);
+  console.log("android: androidx.webkit для прокси приложения");
 }
 
 // Ссылки в приложение (MainActivity.pathFromIntent): shalter://chat/… — как у приложения для

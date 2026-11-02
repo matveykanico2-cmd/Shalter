@@ -69,6 +69,7 @@ export const users = sqliteTable("users", {
   adminSections: text().default("[]").notNull(),
   profileTrack: text(),
   avatarEmoji: text(),
+  profileLinks: text(),
 });
 
 export const chats = sqliteTable("chats", {

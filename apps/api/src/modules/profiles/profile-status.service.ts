@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { StatusEntry } from "../users/model/domain.js";
+import { StickerPacksRepository } from "../stickers/sticker-packs.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { slotsFor, validateImage, validateSticker } from "./lib/profile-status.js";
 import type { ActiveStatusDto, AddStatusDto } from "./model/schemas/profile-media.schema.js";
@@ -14,7 +15,8 @@ export class ProfileStatusService {
   public constructor(
     private readonly users: UsersRepository,
     private readonly catalog: ProfileStatusesRepository,
-    private readonly notify: ProfileNotifyService
+    private readonly notify: ProfileNotifyService,
+    private readonly stickerPacks: StickerPacksRepository
   ) {}
 
   /** Каталог статусов, из которого выбирают свой (GET /api/status-catalog). */
@@ -50,6 +52,8 @@ export class ProfileStatusService {
       if (!me.isPremium) throw new ApiError(403, "Стикер в статусе — только с Shalter Premium");
       const checked = validateSticker(dto.sticker);
       if (checked.error !== undefined) throw new ApiError(400, checked.error);
+      // Только стикер из пака: иначе ссылка в statusItems открыла бы всем чужой приватный файл.
+      if (!this.stickerPacks.isStickerFile(checked.image)) throw new ApiError(400, "Некорректный стикер");
       image = checked.image;
       name = dto.name;
     } else {

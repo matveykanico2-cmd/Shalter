@@ -2,6 +2,7 @@ package ru.shalter.app;
 
 import android.net.Uri;
 import android.os.Build;
+import android.webkit.HttpAuthHandler;
 import android.webkit.ServiceWorkerClient;
 import android.webkit.ServiceWorkerController;
 import android.webkit.WebResourceError;
@@ -80,6 +81,14 @@ final class OfflineShell extends BridgeWebViewClient {
     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
         super.onReceivedError(view, request, error);
         if (request.isForMainFrame() && isOurs(request.getUrl())) openBundled(view, request.getUrl().toString());
+    }
+
+    // Прокси приложения просит логин и пароль (AppProxyPlugin) — отдаём сохранённые.
+    @Override
+    public void onReceivedHttpAuthRequest(WebView view, HttpAuthHandler handler, String host, String realm) {
+        String[] creds = AppProxyPlugin.credentialsFor(view.getContext(), host);
+        if (creds != null) handler.proceed(creds[0], creds[1]);
+        else super.onReceivedHttpAuthRequest(view, handler, host, realm);
     }
 
     // Сервер лежит (502 от прокси и т. п.) — тоже открываем вшитую копию, а не страницу ошибки.

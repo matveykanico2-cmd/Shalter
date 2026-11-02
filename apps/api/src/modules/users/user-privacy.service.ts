@@ -40,11 +40,6 @@ export class UserPrivacyService {
     if (user.id === viewerId) return visible;
     const { privacy } = this.userSettings.get(user.id);
     const isContact = this.contacts.contactIdsOf(user.id).has(viewerId);
-    applyContactName(
-      visible,
-      this.contacts.findForOwner(viewerId).find((c) => c.userId === user.id),
-      isContact
-    );
     const canSee = (key: string) => privacyAllows(privacy, key, viewerId, isContact);
     const hidden: Record<string, unknown> = visible;
     const blocked = (user.blockedUserIds ?? []).includes(viewerId);
@@ -59,6 +54,12 @@ export class UserPrivacyService {
     }
     if (blocked || !canSee("bio")) delete hidden.bio;
     if (blocked || !canSee("birthday")) delete hidden.birthday;
+    // После скрытия: своё фото контакта не должно вытаскивать скрытое фото из профиля.
+    applyContactName(
+      visible,
+      this.contacts.findForOwner(viewerId).find((c) => c.userId === user.id),
+      isContact
+    );
     return visible;
   }
 

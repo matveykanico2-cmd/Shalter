@@ -19,8 +19,10 @@ type StatusChange = z.infer<typeof statusChangeBody>;
 export type StatusStickerPack = { id: string; name: string; isAdded: boolean; stickers: { id: string; url: string; emoji: string }[] };
 export const myStickerPacksQuery = () =>
   queryOptions({
-    queryKey: ["stickers", "packs", "status"],
-    queryFn: async ({ signal }) => (await http.get<{ packs: StatusStickerPack[] }>("/api/stickers/packs", signal)).packs.filter((p) => p.isAdded && p.stickers.length),
+    // Тот же ключ и ответ, что у панели стикеров: один запрос и один кэш на все экраны.
+    queryKey: ["stickers", "packs"],
+    queryFn: async ({ signal }) => (await http.get<{ packs: StatusStickerPack[] }>("/api/stickers/packs", signal)).packs,
+    select: (packs: StatusStickerPack[]) => packs.filter((p) => p.isAdded && p.stickers.length),
     staleTime: 60_000,
   });
 

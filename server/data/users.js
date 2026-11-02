@@ -99,6 +99,7 @@ function rowToUser(row) {
     // Колонка хранит список треков (раньше — один объект). Первый — основной: его
     // показывает профиль, остальные — в списке по нажатию (как музыка в профиле Telegram).
     ...profileTracksOf(row.profileTrack),
+    profileLinks: profileLinksOf(row.profileLinks),
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     developer: !!row.developer || undefined,
@@ -347,6 +348,20 @@ async function setAvatars(userId, list) {
     userId
   );
   return getUser(userId);
+}
+
+// Кнопки профиля: только { title, target } со строками, остальное отбрасывается.
+function profileLinksOf(raw) {
+  let list;
+  try {
+    list = raw ? JSON.parse(raw) : [];
+  } catch {
+    list = [];
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((l) => l && typeof l.title === "string" && typeof l.target === "string")
+    .map((l) => ({ title: l.title, target: l.target }));
 }
 
 function profileTracksOf(raw) {

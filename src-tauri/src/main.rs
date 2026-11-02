@@ -328,6 +328,14 @@ fn set_proxy(app: AppHandle, url: Option<String>) -> Result<(), String> {
     match url {
         Some(u) if !u.trim().is_empty() => {
             let parsed = parse_proxy(u.trim()).ok_or_else(|| "Адрес прокси: http://хост:порт или socks5://хост:порт".to_string())?;
+            // Не обещаем то, что не применится: WKWebView прокси не ставит (нужен macOS 14),
+            // WebView2 теряет логин и пароль.
+            if cfg!(target_os = "macos") {
+                return Err("На macOS прокси приложения пока не поддерживается — включите прокси в настройках системы".to_string());
+            }
+            if cfg!(target_os = "windows") && !parsed.username().is_empty() {
+                return Err("На Windows прокси с логином и паролем не поддерживается — используйте прокси без пароля".to_string());
+            }
             std::fs::write(&path, parsed.as_str()).map_err(|e| e.to_string())
         }
         _ => {
@@ -351,7 +359,8 @@ fn restart_app(app: AppHandle) {
 fn parse_proxy(s: &str) -> Option<Url> {
     let u = Url::parse(s).ok()?;
     if !matches!(u.scheme(), "http" | "socks5") { return None; }
-    if u.host_str().map_or(true, str::is_empty) || u.port().is_none() { return None; }
+    // port_or_known_default: http://хост:80 url хранит без порта.
+    if u.host_str().map_or(true, str::is_empty) || u.port_or_known_default().is_none() { return None; }
     Some(u)
 }
 

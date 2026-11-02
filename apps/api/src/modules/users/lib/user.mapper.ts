@@ -33,6 +33,25 @@ export function banActive(row: Pick<UserRow, "isBanned" | "bannedUntil">): boole
 }
 
 // Колонка хранит список треков (раньше — один объект). Первый — основной.
+export interface ProfileLink {
+  title: string;
+  target: string;
+}
+
+// Кнопки профиля — как profileLinksOf в server/data/users.js.
+function profileLinksOf(raw: string | null): ProfileLink[] {
+  let list: unknown;
+  try {
+    list = raw ? JSON.parse(raw) : [];
+  } catch {
+    list = [];
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((l): l is ProfileLink => !!l && typeof l.title === "string" && typeof l.target === "string")
+    .map((l) => ({ title: l.title, target: l.target }));
+}
+
 function profileTracksOf(raw: string | null): { profileTrack: unknown; profileTracks: unknown[] } {
   let parsed: unknown = null;
   try {
@@ -108,6 +127,7 @@ export function toUser(row: UserRow) {
     bannedUntil: banned ? row.bannedUntil ?? undefined : undefined,
     adminSections: safeParse<string[]>(row.adminSections, []),
     ...profileTracksOf(row.profileTrack),
+    profileLinks: profileLinksOf(row.profileLinks),
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     developer: !!row.developer || undefined,

@@ -19,9 +19,40 @@ export const patchProfileSchema = requestBody({
   businessLng: raw(),
   nameColor: raw(),
   profileBanner: raw(),
+  profileLinks: raw(),
   currentPassword: raw(),
 });
 export type PatchProfileDto = z.infer<typeof patchProfileSchema>;
+
+// Кнопки в профиле (как в Telegram). Сервис проверяет их после «чужого профиля» (403),
+// поэтому это отдельная схема, а не часть patchProfileSchema; null — убрать все.
+export const MAX_PROFILE_LINKS = 3;
+const PROFILE_LINK_USERNAME_RE = /^@[a-zA-Z0-9_]{3,32}$/;
+const profileLinkTarget = z
+  .string("Некорректная ссылка кнопки")
+  .trim()
+  .refine((v) => {
+    if (PROFILE_LINK_USERNAME_RE.test(v)) return true;
+    if (v.length > 512 || !v.startsWith("https://")) return false;
+    try {
+      return new URL(v).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Кнопка ведёт на @ник или https-ссылку");
+export const profileLinksSchema = z
+  .array(
+    z.strictObject(
+      {
+        title: z.string("Введите название кнопки").trim().min(1, "Введите название кнопки").max(32, "Название кнопки — не длиннее 32 символов"),
+        target: profileLinkTarget,
+      },
+      "Некорректная кнопка"
+    ),
+    "Некорректные кнопки"
+  )
+  .max(MAX_PROFILE_LINKS, `Не больше ${MAX_PROFILE_LINKS} кнопок`)
+  .nullable();
 
 // Не массив — пустой список; не строки отбрасываются.
 export const pinnedChannelsSchema = requestBody({

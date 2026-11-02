@@ -18,6 +18,7 @@ import { PhonePasswordDialog } from "../phone-password-dialog";
 import { StatusDialog } from "../status-dialog";
 
 import { ProfileEmojiAvatar } from "./profile-emoji";
+import { ProfileLinksEditor } from "./profile-links-editor";
 import profileStyles from "./profile-section.module.css";
 import styles from "./sections.module.css";
 
@@ -226,6 +227,8 @@ function Profile({ me }: { me: SelfUser }) {
           </Button>
         </div>
       </SettingsSection>
+
+      <ProfileLinksEditor me={me} />
 
       <ProfileTracks me={me} />
 

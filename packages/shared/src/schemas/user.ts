@@ -43,6 +43,8 @@ const publicUserShape = {
   statusName: z.string().nullable(),
   profileTrack: anyJson.nullable(),
   profileTracks: z.array(anyJson),
+  // Кнопки в профиле: до трёх, target — «@ник» или https-ссылка.
+  profileLinks: z.array(z.strictObject({ title: z.string(), target: z.string() })).optional(),
   safetyLabel: z.string().optional(),
   safetyLabelAt: isoDate.optional(),
   isVerified: z.literal(true).optional(),

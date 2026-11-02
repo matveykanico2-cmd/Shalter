@@ -39,6 +39,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SystemBarsPlugin.class);
         registerPlugin(AppIconPlugin.class);
         registerPlugin(IncomingCallPlugin.class);
+        registerPlugin(AppProxyPlugin.class);
+        // Прокси из «Настройки → Прокси» — до первой загрузки страницы.
+        AppProxyPlugin.apply(this);
         super.onCreate(savedInstanceState);
         showOverLockScreenIfCall(getIntent());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

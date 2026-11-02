@@ -19,7 +19,7 @@ import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { plural, statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
-import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, toast } from "@/shared/ui";
+import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openInAppBrowser, toast } from "@/shared/ui";
 
 import { type ChannelCard, profileApi, profileQueries, type SharedMedia } from "../api/profile-api";
 import { type TabId,TABS } from "../lib/tabs";
@@ -358,6 +358,8 @@ export function UserProfilePanel({ userId, me }: Props) {
         ) : null}
       </div>
 
+      {u.profileLinks?.length ? <ProfileButtons links={u.profileLinks} onOpen={close} /> : null}
+
       {tracks.length ? (
         <div className={styles.trackSlot}>
           <ProfileTrackCard tracks={tracks} />
@@ -625,6 +627,29 @@ function ProfileLinks({ text, onOpen }: { text: string; onOpen: () => void }) {
         <MessageText text={text} />
       </span>
     </MessageLinks>
+  );
+}
+
+/**
+ * Кнопки в профиле (как в Telegram): «@ник» и ссылка на свой сайт открываются внутри
+ * приложения (профиль закрывается), остальные ссылки — во встроенном браузере, как ссылки в «О себе».
+ */
+function ProfileButtons({ links, onOpen }: { links: { title: string; target: string }[]; onOpen: () => void }) {
+  const navigate = useNavigate();
+  const open = (target: string) => {
+    const internal = target.startsWith("@") ? `/u/${target.slice(1)}` : internalRoute(target, window.location.origin);
+    if (!internal) return openInAppBrowser(target);
+    onOpen();
+    void navigate(internal);
+  };
+  return (
+    <div className={styles.linkButtons}>
+      {links.map((link, i) => (
+        <button key={i} type="button" className={styles.linkButton} title={link.target} onClick={() => open(link.target)}>
+          <EmojiText text={link.title} />
+        </button>
+      ))}
+    </div>
   );
 }
 
