@@ -98,9 +98,14 @@ function applyContactName(visible, myContact, theyHaveMe) {
     visible.profileName = visible.name;
     visible.name = localName;
   }
-  // Своё фото контакта — его видит только владелец, вместо фото из профиля.
+  // Своё фото или смайл контакта — их видит только владелец, вместо аватарки из профиля.
+  // Смайл лежит в localAvatar как «emoji:😀» (или «emoji:sticker:/uploads/…»).
   const localAvatar = myContact?.localAvatar;
-  if (localAvatar) {
+  if (localAvatar) visible.profileAvatarEmoji = visible.avatarEmoji ?? null;
+  if (localAvatar?.startsWith("emoji:")) {
+    // Смайл рисуется поверх фото, фото из профиля остаётся как есть.
+    visible.avatarEmoji = localAvatar.slice("emoji:".length);
+  } else if (localAvatar) {
     visible.profileAvatarImage = visible.avatarImage ?? null;
     visible.avatarImage = localAvatar;
     // Смайл или стикер на аватарке рисуется поверх фото — своё фото должно быть видно.

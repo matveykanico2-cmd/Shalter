@@ -36,7 +36,7 @@ type Overlay = "avatars" | "qr" | "share" | "report" | "channels" | "admin" | "e
 
 // Карточка модератора — отдельным чанком: она нужна только админам.
 const AdminUserCard = lazy(() => import("@/features/admin").then((m) => ({ default: m.UserCard })));
-type ProfileUser = UserProfile["user"] & { inContacts?: true; mutualContact?: true; profileName?: string; profileAvatarImage?: string | null };
+type ProfileUser = UserProfile["user"] & { inContacts?: true; mutualContact?: true; profileName?: string; profileAvatarImage?: string | null; profileAvatarEmoji?: string | null };
 
 /**
  * Профиль человека — панель справа поверх всего, как openProfileDialog в

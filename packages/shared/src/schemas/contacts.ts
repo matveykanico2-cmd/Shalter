@@ -38,6 +38,8 @@ export const contactUser = publicUser.extend({
   profileName: z.string().optional(),
   /** Своё фото контакта заменило avatarImage — здесь фото из профиля. */
   profileAvatarImage: z.string().nullable().optional(),
+  /** У контакта своё фото или смайл — здесь смайл из профиля. */
+  profileAvatarEmoji: z.string().nullable().optional(),
 });
 
 export const contactListItem = z.strictObject({ ...contactBase, note: z.string().nullable(), user: contactUser });

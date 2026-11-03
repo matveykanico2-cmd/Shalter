@@ -2,16 +2,26 @@ import { useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { Avatar, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
 
 import { profileApi } from "../api/profile-api";
 
 import styles from "./user-profile.module.css";
 
 type Props = {
-  user: { id: string; name: string; profileName?: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; profileAvatarImage?: string | null };
+  user: {
+    id: string;
+    name: string;
+    profileName?: string;
+    avatarColor?: string | null;
+    avatarImage?: string | null;
+    avatarEmoji?: string | null;
+    profileAvatarImage?: string | null;
+    profileAvatarEmoji?: string | null;
+  };
   contactName: string | null;
   note: string | null;
+  /** Своё фото контакта — ссылка на файл, или смайл как «emoji:😀» (так его хранит сервер). */
   photo: string | null;
   /** Открыть личный чат (создать, если нет) — для «Предложить фото». */
   openDm: () => Promise<string>;
@@ -25,9 +35,11 @@ function splitName(name: string): [string, string] {
   return i < 0 ? [name, ""] : [name.slice(0, i), name.slice(i + 1)];
 }
 
+const EMOJI_PREFIX = "emoji:";
+
 /**
- * «Изменить контакт», как в Telegram: имя и фамилия для себя, заметка, своё фото
- * (видите только вы) и «Предложить фото» — фото уходит человеку в личку.
+ * «Изменить контакт», как в Telegram: имя и фамилия для себя, заметка, своё фото или
+ * анимированный смайл (видите только вы) и «Предложить фото» — фото уходит человеку в личку.
  */
 export function EditContactDialog({ user, contactName, note, photo, openDm, onSaved, onClose }: Props) {
   const [initialFirst, initialLast] = splitName(contactName ?? user.profileName ?? user.name);
@@ -36,10 +48,17 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
   const [text, setText] = useState(note ?? "");
   const [localPhoto, setLocalPhoto] = useState(photo);
   const [busy, setBusy] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const setInput = useRef<HTMLInputElement>(null);
   const suggestInput = useRef<HTMLInputElement>(null);
   const firstName = first.trim() || user.name;
-  const shownImage = localPhoto ?? (photo ? user.profileAvatarImage : user.avatarImage) ?? null;
+  const localEmoji = localPhoto?.startsWith(EMOJI_PREFIX) ? localPhoto.slice(EMOJI_PREFIX.length) : null;
+  // Аватарка из профиля: сервер уже подставил своё фото или смайл, исходные — в profileAvatar*.
+  const photoIsImage = !!photo && !photo.startsWith(EMOJI_PREFIX);
+  const profileImage = (photoIsImage ? user.profileAvatarImage : user.avatarImage) ?? null;
+  const profileEmoji = (photo ? user.profileAvatarEmoji : user.avatarEmoji) ?? null;
+  const shownImage = localPhoto ? (localEmoji ? null : localPhoto) : profileImage;
+  const shownEmoji = localPhoto ? localEmoji : profileEmoji;
 
   const save = async () => {
     setBusy(true);
@@ -47,7 +66,7 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
       const name = [first.trim(), last.trim()].filter(Boolean).join(" ");
       await profileApi.renameContact(user.id, name);
       const res = await profileApi.setNote(user.id, text);
-      if (localPhoto !== photo) await profileApi.setContactPhoto(user.id, localPhoto ?? "");
+      if (localPhoto !== photo) await profileApi.setContactPhoto(user.id, localEmoji ? { emoji: localEmoji } : { url: localPhoto ?? "" });
       onSaved({ contactName: name || null, note: res.note ?? null, photo: localPhoto });
       onClose();
     } catch (err) {
@@ -58,6 +77,8 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
 
   const pickLocal = async (file: File | undefined) => {
     if (!file) return;
+    // Пока фото грузится, смайл не выбрать: иначе загрузка молча перезапишет выбранный смайл.
+    setEmojiOpen(false);
     setBusy(true);
     try {
       setLocalPhoto((await uploadFile(file, "image")).url);
@@ -83,7 +104,7 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
   return (
     <Dialog title="Изменить контакт" onClose={onClose} className={styles.editContact}>
       <div className={styles.editContactHead}>
-        <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : user.avatarEmoji} />
+        <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />
       </div>
       <label className={styles.editContactField}>
         <span>Имя</span>
@@ -104,17 +125,30 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
         <Icon name="Camera" size={22} />
         Установить фото для {firstName}
       </button>
+      <button type="button" className={styles.actionButton} disabled={busy} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((v) => !v)}>
+        <Icon name="Smile" size={22} />
+        Установить смайл для {firstName}
+      </button>
+      {emojiOpen && !busy ? (
+        <EmojiAvatarPicker
+          withStickers
+          onPick={(e) => {
+            setLocalPhoto(EMOJI_PREFIX + e);
+            setEmojiOpen(false);
+          }}
+        />
+      ) : null}
       {localPhoto ? (
         <button type="button" className={`${styles.actionButton} ${styles.danger}`} disabled={busy} onClick={() => setLocalPhoto(null)}>
           <Icon name="Trash" size={22} />
-          Убрать своё фото
+          {localEmoji ? "Убрать свой смайл" : "Убрать своё фото"}
         </button>
       ) : null}
       <button type="button" className={styles.actionButton} disabled={busy} onClick={() => suggestInput.current?.click()}>
         <Icon name="Image" size={22} />
         Предложить фото для {firstName}
       </button>
-      <p className={styles.hint}>Своё фото и имя видите только вы. Предложенное фото придёт {user.name} сообщением.</p>
+      <p className={styles.hint}>Своё фото, смайл и имя видите только вы. Предложенное фото придёт {user.name} сообщением.</p>
 
       <div className={styles.editContactButtons}>
         <Button variant="secondary" onClick={onClose}>

@@ -1,7 +1,9 @@
 // Смайл вместо аватарки (avatarEmoji) у профиля, бота и сообщества: установка, снятие,
 // проверка значения («Некорректный эмодзи»), фото и смайл сменяют друг друга, другие
 // видят смайл в публичном пользователе и в сообществе; приватность «фото» прячет и смайл.
+// Свой смайл контакта (POST /api/contacts/photo { emoji }) видит только тот, кто его поставил.
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 import { botBody, botListBody } from "../../schemas/bots";
 import { communityBody, joinedBody, mineBody } from "../../schemas/communities";
 import { otherProfileBody, ownProfileBody, patchProfileBody } from "../../schemas/users";
@@ -10,8 +12,8 @@ import { registerUser, registerUsers } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { createBot } from "../bots/helpers";
 import { admit, createCommunity } from "../communities/helpers";
-import { setPrivacy } from "../ws/helpers";
-import { addAvatar, POSTER } from "./helpers";
+import { addContact, setPrivacy } from "../ws/helpers";
+import { addAvatar, POSTER, uploadedUrl } from "./helpers";
 
 const BAD_EMOJI = "Некорректный эмодзи";
 const BAD_VALUES: unknown[] = ["abc", "Ж", "1", "🔥🔥🔥🔥🔥🔥🔥🔥🔥", "🔥 x", 5, true, { e: "🔥" }, ["🔥"]];
@@ -157,5 +159,47 @@ describe("сообщество: avatarEmoji при создании и в PATCH 
     await admit(owner, created.id, [member]);
     expectError(await member.api.patch(`/api/communities/${created.id}`, { avatarEmoji: "🔥" }), 403, "Нет права менять информацию о сообществе");
     expect(expectOk(await owner.api.get(`/api/communities/${created.id}`), communityBody).community.avatarEmoji).toBeNull();
+  });
+});
+
+describe("контакт: POST /api/contacts/photo { emoji }", () => {
+  const photoBody = z.strictObject({ localAvatar: z.string().nullable() });
+
+  test("свой смайл контакта видит только владелец; фото из профиля остаётся, его смайл — в profileAvatarEmoji", async () => {
+    const { baseUrl } = server();
+    const [me, friend, stranger] = await registerUsers(baseUrl, 3);
+    await friend.api.patch(`/api/users/${friend.id}`, { avatarEmoji: "🦄" });
+    await addContact(me, friend);
+
+    expect(expectOk(await me.api.post("/api/contacts/photo", { userId: friend.id, emoji: " 🐱 " }), photoBody)).toEqual({ localAvatar: "emoji:🐱" });
+    const seen = expectOk(await me.api.get(`/api/users/${friend.id}`), otherProfileBody);
+    expect(seen.user).toMatchObject({ avatarEmoji: "🐱", profileAvatarEmoji: "🦄" });
+    expect(seen.user).not.toHaveProperty("profileAvatarImage");
+    expect(seen.contactPhoto).toBe("emoji:🐱");
+    expect((await me.api.get("/api/contacts")).body.contacts[0].user).toMatchObject({ avatarEmoji: "🐱", profileAvatarEmoji: "🦄" });
+
+    // Остальные видят смайл из профиля.
+    expect(expectOk(await stranger.api.get(`/api/users/${friend.id}`), otherProfileBody).user.avatarEmoji).toBe("🦄");
+    expect(expectOk(await friend.api.get(`/api/users/${friend.id}`), ownProfileBody).user.avatarEmoji).toBe("🦄");
+
+    // Смайл сменяется фото и снимается пустой ссылкой.
+    expect(expectOk(await me.api.post("/api/contacts/photo", { userId: friend.id, url: "" }), photoBody)).toEqual({ localAvatar: null });
+    const back = expectOk(await me.api.get(`/api/users/${friend.id}`), otherProfileBody);
+    expect(back.user.avatarEmoji).toBe("🦄");
+    expect(back.user).not.toHaveProperty("profileAvatarEmoji");
+    expect(back).not.toHaveProperty("contactPhoto");
+  });
+
+  test("не смайл — 400 «Некорректный эмодзи»; не контакт — 404; чужой закрытый файл стикером — 400", async () => {
+    const { baseUrl } = server();
+    const [me, friend, other] = await registerUsers(baseUrl, 3);
+    const photo = (body: Record<string, unknown>) => me.api.post("/api/contacts/photo", { userId: friend.id, ...body });
+    for (const value of BAD_VALUES) expectError(await photo({ emoji: value }), 400, BAD_EMOJI);
+    expectError(await photo({ emoji: "🐱" }), 404, "Сначала добавьте человека в контакты");
+
+    await addContact(me, friend);
+    // Файл, который other только загрузил, не открыт никому — стикером на аватарку его не поставить.
+    expectError(await photo({ emoji: `sticker:${await uploadedUrl(other)}` }), 400, "Некорректное изображение");
+    expect(expectOk(await photo({ emoji: "👨‍👩‍👧" }), photoBody)).toEqual({ localAvatar: "emoji:👨‍👩‍👧" });
   });
 });

@@ -33,6 +33,9 @@ const CONTACTS = [
   { localName: "  Мама " },
   { localName: "Профиль" },
   { localName: "   " },
+  { localName: null, localAvatar: "/uploads/u/photo.jpg" },
+  { localName: null, localAvatar: "emoji:🐱" },
+  { localName: null, localAvatar: "emoji:sticker:/uploads/s/cat.webp" },
 ];
 
 const SCRIPT = `
@@ -47,7 +50,7 @@ require("fs").writeFileSync(process.env.OUT, JSON.stringify({
   normalized: privacies.map((x) => p.normalizePrivacy(x) ?? null),
   exceptions: privacies.map((x) => p.PRIVACY_KEYS.map((k) => p.exceptionsFor(x, k))),
   allows,
-  names: contacts.flatMap((c) => [false, true].map((t) => p.applyContactName({ name: "Профиль" }, c, t))),
+  names: contacts.flatMap((c) => [false, true].map((t) => p.applyContactName({ name: "Профиль", avatarImage: "/uploads/p.jpg", avatarEmoji: "😀" }, c, t))),
 }));
 `;
 
@@ -88,7 +91,7 @@ describe("правила приватности совпадают с server/lib
 
   it("applyContactName", () => {
     const names = CONTACTS.flatMap((c) =>
-      [false, true].map((t) => JSON.parse(JSON.stringify(applyContactName({ name: "Профиль" }, c as never, t))))
+      [false, true].map((t) => JSON.parse(JSON.stringify(applyContactName({ name: "Профиль", avatarImage: "/uploads/p.jpg", avatarEmoji: "😀" }, c as never, t))))
     );
     expect(names).toEqual(legacy.names);
   });

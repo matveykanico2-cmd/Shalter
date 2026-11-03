@@ -75,6 +75,8 @@ export const viewerUser = z.strictObject({
   profileName: z.string().optional(),
   /** Своё фото контакта заменило avatarImage — здесь фото из профиля. */
   profileAvatarImage: z.string().nullable().optional(),
+  /** У контакта своё фото или смайл — здесь смайл из профиля. */
+  profileAvatarEmoji: z.string().nullable().optional(),
 });
 
 export const selfUser = z.strictObject({

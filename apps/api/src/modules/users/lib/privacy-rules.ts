@@ -104,7 +104,21 @@ export function hideFromBlocked(visible: Record<string, unknown>): void {
   visible.online = false;
 }
 
-export function applyContactName<T extends { name?: unknown; inContacts?: boolean; mutualContact?: boolean; profileName?: unknown; avatarImage?: unknown; profileAvatarImage?: unknown }>(
+/** Свой смайл контакта лежит в contacts.localAvatar как «emoji:😀» (или «emoji:sticker:/uploads/…»). */
+export const CONTACT_EMOJI_PREFIX = "emoji:";
+
+export function applyContactName<
+  T extends {
+    name?: unknown;
+    inContacts?: boolean;
+    mutualContact?: boolean;
+    profileName?: unknown;
+    avatarImage?: unknown;
+    profileAvatarImage?: unknown;
+    avatarEmoji?: unknown;
+    profileAvatarEmoji?: unknown;
+  },
+>(
   visible: T,
   myContact: ContactRow | null | undefined,
   theyHaveMe: boolean
@@ -116,13 +130,17 @@ export function applyContactName<T extends { name?: unknown; inContacts?: boolea
     visible.profileName = visible.name;
     visible.name = localName;
   }
-  // Своё фото контакта — его видит только владелец, вместо фото из профиля.
+  // Своё фото или смайл контакта — их видит только владелец, вместо аватарки из профиля.
   const localAvatar = myContact?.localAvatar;
-  if (localAvatar) {
+  if (localAvatar) visible.profileAvatarEmoji = visible.avatarEmoji ?? null;
+  if (localAvatar?.startsWith(CONTACT_EMOJI_PREFIX)) {
+    // Смайл рисуется поверх фото, фото из профиля остаётся как есть.
+    visible.avatarEmoji = localAvatar.slice(CONTACT_EMOJI_PREFIX.length);
+  } else if (localAvatar) {
     visible.profileAvatarImage = visible.avatarImage ?? null;
     visible.avatarImage = localAvatar;
     // Смайл или стикер на аватарке рисуется поверх фото — своё фото должно быть видно.
-    delete (visible as Record<string, unknown>).avatarEmoji;
+    delete visible.avatarEmoji;
   }
   return visible;
 }

@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { isOwnUploadUrl } from "../../legacy/legacy.js";
+import { AVATAR_EMOJI_ERROR, cleanAvatarEmoji } from "../../common/lib/avatar-emoji.js";
+import { isOwnUploadUrl, usesForeignUpload } from "../../legacy/legacy.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
-import { exceptionsFor, normalizePrivacy } from "../users/lib/privacy-rules.js";
+import { CONTACT_EMOJI_PREFIX, exceptionsFor, normalizePrivacy } from "../users/lib/privacy-rules.js";
 import { contactNote, sealContactNote } from "../users/lib/contact-note.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
@@ -84,12 +85,20 @@ export class ContactsService {
     return { contact: { ...withPhoto(contact), note: contactNote(contact) } };
   }
 
-  /** Своё фото контакта — видите только вы (как «Установить фото» в Telegram). Пусто — убрать. */
-  public async setPhoto(uid: string, { userId, url }: ContactPhotoDto) {
+  /**
+   * Своё фото или смайл контакта — видите только вы (как «Установить фото» в Telegram).
+   * Смайл сменяет фото и наоборот; пусто — убрать.
+   */
+  public async setPhoto(uid: string, { userId, url, emoji: rawEmoji }: ContactPhotoDto) {
+    const emoji = rawEmoji === undefined ? null : cleanAvatarEmoji(rawEmoji);
+    if (emoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+    // Стикер — ссылка на файл: чужой закрытый файл на аватарку не поставить (как у чатов).
+    if (emoji && usesForeignUpload(uid, emoji)) throw new ApiError(400, "Некорректное изображение");
     // Как у аватарок: только свой загруженный файл (общая проверка из server/lib/uploadAccess.js).
-    if (url && !(await isOwnUploadUrl(uid, url))) throw new ApiError(400, "Некорректное фото");
-    if (!this.contacts.setPhoto(uid, userId, url || null)) throw new ApiError(404, "Сначала добавьте человека в контакты");
-    return { localAvatar: url || null };
+    if (!emoji && url && !(await isOwnUploadUrl(uid, url))) throw new ApiError(400, "Некорректное фото");
+    const value = emoji ? `${CONTACT_EMOJI_PREFIX}${emoji}` : url || null;
+    if (!this.contacts.setPhoto(uid, userId, value)) throw new ApiError(404, "Сначала добавьте человека в контакты");
+    return { localAvatar: value };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {
