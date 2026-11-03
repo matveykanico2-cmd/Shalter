@@ -36,6 +36,12 @@ describe("SPA — index.html сборки", () => {
   test("/api/version — версия из build.json сборки", async () => {
     expect(expectOk(await anon().get("/api/version"), versionBody).version).toBe("test-build");
   });
+
+  test("страница знает свою версию — ту же, что /api/version (кнопка «Обновить» сравнивает их)", async () => {
+    const page = (await anon().get("/")).text;
+    const version = expectOk(await anon().get("/api/version"), versionBody).version;
+    expect(/<meta name="shalter-version" content="([^"]+)"/.exec(page)?.[1]).toBe(version);
+  });
 });
 
 describe("/assets — сжатые заранее файлы и вечный кэш", () => {

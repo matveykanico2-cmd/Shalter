@@ -25,7 +25,12 @@ function build() {
   for (const f of files) precompress(path.join(assets, f));
 
   // Версия — по index.html: он ссылается на файлы с хешем, значит, меняется с любым из них.
-  const version = crypto.createHash("sha256").update(fs.readFileSync(path.join(WEB_DIST, "index.html"))).digest("hex").slice(0, 10);
+  // Её же страница получает в <meta name="shalter-version">: по ней клиент видит, что на
+  // сервере сборка новее открытой, и показывает «Обновить» (apps/web shared/lib/app-update.ts).
+  const indexPath = path.join(WEB_DIST, "index.html");
+  const html = fs.readFileSync(indexPath, "utf8").replace(/\s*<meta name="shalter-version"[^>]*>/, "");
+  const version = crypto.createHash("sha256").update(html).digest("hex").slice(0, 10);
+  fs.writeFileSync(indexPath, html.replace("</head>", `  <meta name="shalter-version" content="${version}" />\n</head>`));
   // precache — для запуска без сети в Android-приложении: OfflineShell.java отдаёт эти файлы из APK.
   fs.writeFileSync(path.join(WEB_DIST, "build.json"), JSON.stringify({ version, builtAt: new Date().toISOString(), precache }));
 

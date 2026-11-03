@@ -1,25 +1,26 @@
-import type { latestBody, versionBody } from "@shalter/shared/schemas/misc";
+import type { latestBody } from "@shalter/shared/schemas/misc";
 import { useEffect } from "react";
 import type { z } from "zod";
 
 import { getCall } from "@/features/call";
 
 import { http } from "@/shared/api";
+import { applyUpdate, checkForUpdate, latestVersion } from "@/shared/lib/app-update";
 import { askConfirm, toast } from "@/shared/ui";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 const IDLE_BEFORE_RELOAD_MS = 30 * 1000;
+/** До какой версии уже обновлялись сами (sessionStorage — на эту вкладку). */
+const AUTO_RELOAD_KEY = "shalter.autoUpdate.target";
 
 const dialogOpen = () => !!document.querySelector('[role="dialog"], [role="alertdialog"]');
 
 /**
- * Новая версия на сервере — перезагрузка, как public/js/lib/appVersion.js, но только когда
- * человеку это не помешает: нет звонка, открытых окон, набранного текста и 30 с без действий.
+ * Новая версия на сервере — кнопка «Обновить» и перезагрузка, как public/js/lib/appVersion.js, но
+ * сама только когда человеку это не помешает: нет звонка, открытых окон, набранного текста и 30 с без действий.
  */
 export function useVersionWatch() {
   useEffect(() => {
-    let known: string | null = null;
-    let pending = false;
     let lastActivity = Date.now();
     const markActivity = () => (lastActivity = Date.now());
 
@@ -32,17 +33,19 @@ export function useVersionWatch() {
       return dialogOpen() || Date.now() - lastActivity < IDLE_BEFORE_RELOAD_MS;
     };
 
+    // Новая сборка — кнопка «Обновить» (список чатов, «О приложении»); в простое — обновляемся
+    // сами, но один раз на версию: если кэш (service worker без сети, прокси) снова отдал старую
+    // страницу, не перезагружаемся по кругу — остаётся кнопка.
     const check = async () => {
+      if (!(await checkForUpdate()) || isBusy()) return;
+      const target = latestVersion();
       try {
-        const { version } = await http.get<z.infer<typeof versionBody>>("/api/version");
-        if (version && version !== "dev") {
-          if (known === null) known = version;
-          else if (version !== known) pending = true;
-        }
+        if (!target || sessionStorage.getItem(AUTO_RELOAD_KEY) === target) return;
+        sessionStorage.setItem(AUTO_RELOAD_KEY, target);
       } catch {
-        // Нет сети — проверим в следующий раз.
+        return; // Хранилище недоступно — не рискуем петлёй, обновится кнопкой.
       }
-      if (pending && !isBusy()) window.location.replace(window.location.href);
+      void applyUpdate();
     };
     const onVisible = () => document.visibilityState === "visible" && void check();
 

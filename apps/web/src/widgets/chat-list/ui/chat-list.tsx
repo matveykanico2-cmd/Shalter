@@ -16,7 +16,8 @@ import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortC
 import { communityActivity, communityQueries, type JoinedCommunity, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
-import { http, useWsEvent } from "@/shared/api";
+import { useWsEvent } from "@/shared/api";
+import { applyUpdate, useAppUpdate } from "@/shared/lib/app-update";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
@@ -58,25 +59,7 @@ export function ChatList({ meId }: { meId: string }) {
   const listActions = useChatListActions();
   const [rowMenu, setRowMenu] = useState<{ chat: ChatSummary; at: { x: number; y: number } } | null>(null);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; at: { x: number; y: number } } | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
-  useEffect(() => {
-    if (!me) return;
-    let cancelled = false;
-    void http
-      .get<{ version?: string; currentVersion?: string; latestVersion?: string; latest?: string }>("/api/version")
-      .then((res) => {
-        if (cancelled) return;
-        const current = res.currentVersion ?? res.version ?? "";
-        const latest = res.latestVersion ?? res.latest ?? "";
-        if (current && latest && current !== latest) {
-          setUpdateInfo({ current, latest });
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [me]);
+  const appUpdate = useAppUpdate();
   // Закреплённые перетаскиваются мышью (makePinnedDraggable): кого тянем и куда встанет.
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
@@ -236,10 +219,12 @@ export function ChatList({ meId }: { meId: string }) {
           </button>
         </div>
         {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
-        {updateInfo ? (
-          <a className={styles.updatePill} href="https://github.com/Kilo-Org/kilocode/releases" target="_blank" rel="noreferrer" title={`Обновление: ${updateInfo.current} → ${updateInfo.latest}`}>
-            UPDATE
-          </a>
+        {/* Вышла новая версия — обновиться одним нажатием, без переустановки PWA. */}
+        {appUpdate.available ? (
+          <button type="button" className={styles.updatePill} disabled={appUpdate.updating} onClick={() => void applyUpdate()}>
+            <Icon name="RotateCw" size={14} />
+            {appUpdate.updating ? "Обновляем…" : "Обновить Shalter"}
+          </button>
         ) : null}
 
       {/* Полоса историй — между поиском и вкладками, как StoriesBar в chatList.js; пока ищут — скрыта. */}
