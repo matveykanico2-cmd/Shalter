@@ -11,12 +11,14 @@ const email = () =>
     .refine((v) => EMAIL_RE.test(v), { error: "Введите корректный адрес почты" });
 const phone = () => text().transform(normalizePhone);
 const fullPhone = () => phone().refine((v) => PHONE_RE.test(v), { error: "Введите номер телефона полностью" });
+/** Номер аккаунта; пусто — у аккаунта номера нет (регистрация только по почте). */
+const pairPhone = () => phone().refine((v) => v === "" || PHONE_RE.test(v), { error: "Введите номер телефона полностью" });
 const newPassword = () => text().refine((v) => v.length >= 6, { error: "Пароль — не короче 6 символов" });
 
-export const pairCheckSchema = requestBody({ email: email(), phone: fullPhone() });
+export const pairCheckSchema = requestBody({ email: email(), phone: pairPhone() });
 export type PairCheckDto = z.infer<typeof pairCheckSchema>;
 
-export const pairResetSchema = requestBody({ password: newPassword(), email: email(), phone: fullPhone(), code: text() });
+export const pairResetSchema = requestBody({ password: newPassword(), email: email(), phone: pairPhone(), code: text() });
 export type PairResetDto = z.infer<typeof pairResetSchema>;
 
 export const phoneStartSchema = requestBody({ phone: fullPhone() });

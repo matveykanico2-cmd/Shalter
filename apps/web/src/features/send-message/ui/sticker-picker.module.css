@@ -17,24 +17,76 @@
   color: var(--color-accent);
 }
 
-/* Панель в чате. */
+/* Панель в чате: вкладки паков сверху, ниже — прокручиваемые разделы. Невысокая, чтобы
+   над ней оставалось видно переписку. */
 .panel {
-  width: min(400px, calc(100vw - 16px));
-  max-height: min(70vh, 460px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  width: min(400px, calc(100vw - 16px));
+  height: min(52vh, 420px);
+  min-height: 260px;
 }
 
-.section + .section {
-  margin-top: 12px;
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.tab:hover,
+.tab:focus-visible {
+  background: var(--color-surface-alt);
+}
+
+.tabManage {
+  margin-left: auto;
+}
+
+/* Обложка встроенного пака: анимация не вылезает за клетку. */
+.tabCover {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  border-radius: 30%;
+  background: var(--color-surface-alt);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 12px 12px;
 }
 
 .heading {
-  margin: 0 0 8px;
+  margin: 12px 0 2px;
   color: var(--color-muted);
   font-size: 11px;
   font-weight: 600;
@@ -42,57 +94,53 @@
   text-transform: uppercase;
 }
 
-/* Сетка стикеров — только стикер, без рамок и кнопок. */
+/* Сетка стикеров — только стикер на мягкой подсветке при наведении. */
 .items {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 2px;
 }
 
 .item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  aspect-ratio: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
   border: none;
   border-radius: 14px;
-  background: transparent !important;
+  background: transparent;
   cursor: pointer;
-  position: relative;
-  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, background 0.12s ease;
+  outline: none;
 }
 
-.item:hover {
-  background: transparent !important;
+.item:hover,
+.item:focus-visible {
+  background: var(--color-surface-alt);
 }
+
 .item:active,
 .stickerItem:active {
   transform: scale(0.92);
 }
-.item,
+
 .stickerItem {
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s ease;
   outline: none;
 }
 
-.item:focus-visible {
-  outline: none;
-  transform: scale(1.04);
-}
-
-.item DomNode {
-  display: block;
-}
-
-/* Управление («Мои стикерпаки»). */
 .manage {
   width: 100%;
-  margin-top: 10px;
-  padding: 10px 0 0;
-  border: none;
-  border-top: none;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
   background: none;
   color: var(--color-accent);
   font: inherit;
@@ -108,41 +156,45 @@
   padding-top: 40px;
 }
 
-/* --- Раздел пака в панели (показ названия/описания) --- */
+/* --- Раздел пака в панели: строка «название · число», нажатие открывает пак. --- */
 .packSection {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  scroll-margin-top: 4px;
 }
 
 .packHeader {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  width: 100%;
+  margin: 8px 0 4px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .packName {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-  margin: 0;
-}
-
-.packDesc {
-  font-size: 12px;
-  color: var(--color-muted);
-  margin: 0;
-  white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
   text-overflow: ellipsis;
-  max-width: 200px;
+  white-space: nowrap;
 }
 
 .packMeta {
-  margin-left: auto;
-  font-size: 12px;
+  flex: none;
   color: var(--color-muted);
+  font-size: 12px;
+}
+
+.packHeader:hover .packName {
+  color: var(--color-accent);
 }
 
 /* --- Лист детального вида пака (Telegram-стиль) --- */
@@ -151,7 +203,8 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  max-width: min(440px, 92vw);
+  box-sizing: border-box;
+  width: min(440px, 92vw);
   background: var(--color-surface);
   border: none !important;
   box-shadow: none !important;
@@ -193,8 +246,8 @@
 /* Сетка стикеров в листе пака. */
 .stickerGrid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 4px;
   margin-bottom: 8px;
 }
 
@@ -202,8 +255,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
+  aspect-ratio: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
   border: none;
   border-radius: 12px;
   background: transparent !important;

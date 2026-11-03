@@ -1,25 +1,21 @@
-import { type BuiltinStickerPack, DRAWN_STICKERS, MASCOT_PACKS, renderSticker, type Sticker } from "@/shared/lib/anim";
+import { type BuiltinStickerPack, renderSticker, type Sticker } from "@/shared/lib/anim";
 import { DomNode } from "@/shared/ui";
+
+import { BUILTIN_STICKER_PACKS } from "../lib/builtin-packs";
 
 import styles from "./sticker-picker.module.css";
 
-/** Встроенные наборы: рисованные стикеры Shalter и персонажи (котик, лисёнок, утёнок, зайка). */
-const BUILTIN_STICKER_PACKS: readonly BuiltinStickerPack[] = [{ id: "builtin_classic", name: "Shalter", stickers: DRAWN_STICKERS }, ...MASCOT_PACKS];
-
-/** Встроенные стикерпаки в панели стикеров: есть у всех, добавлять не нужно. */
-export function BuiltinStickerPacks({ onPick }: { onPick: (s: Sticker) => void }) {
+/** Встроенные стикерпаки в панели стикеров: есть у всех, добавлять не нужно; заголовок открывает пак. */
+export function BuiltinStickerPacks({ onPick, onOpen }: { onPick: (s: Sticker) => void; onOpen: (pack: BuiltinStickerPack) => void }) {
   return (
     <>
       <h3 className={styles.heading}>Встроенные</h3>
       {BUILTIN_STICKER_PACKS.map((pack) => (
-        <section key={pack.id} className={styles.packSection} aria-label={pack.name}>
-          <div className={styles.packHeader}>
-            <span aria-hidden="true" style={{ display: "inline-flex", width: 28, height: 28 }}>
-              <DomNode create={() => renderSticker(pack.stickers[0], { size: 28 })} />
-            </span>
+        <section key={pack.id} className={styles.packSection} aria-label={pack.name} data-pack={pack.id}>
+          <button type="button" className={styles.packHeader} title="Открыть пак" aria-label={`Открыть пак «${pack.name}»`} onClick={() => onOpen(pack)}>
             <span className={styles.packName}>{pack.name}</span>
-            <span className={styles.packMeta}>{pack.stickers.length} шт.</span>
-          </div>
+            <span className={styles.packMeta}>{pack.stickers.length}</span>
+          </button>
           <div className={styles.items}>
             {pack.stickers.map((s) => (
               <button
@@ -34,7 +30,7 @@ export function BuiltinStickerPacks({ onPick }: { onPick: (s: Sticker) => void }
                   onPick(s);
                 }}
               >
-                <DomNode create={() => renderSticker(s, { size: 52 })} />
+                <DomNode create={() => renderSticker(s, { size: 56 })} />
               </button>
             ))}
           </div>

@@ -3,9 +3,18 @@ import type { z } from "zod";
 
 import { http } from "@/shared/api";
 
-export type NewChatFields = { title: string; avatarImage: string | null; memberIds: string[]; adminIds: string[]; description: string; isPublic: boolean; username: string | null };
+export type NewChatFields = { title: string; avatarImage: string | null; avatarEmoji?: string | null; memberIds: string[]; adminIds: string[]; description: string; isPublic: boolean; username: string | null };
 
-const body = ({ title, avatarImage, memberIds, adminIds, description, isPublic, username }: NewChatFields) => ({ title, avatarImage, memberIds, adminIds, description, isPublic, username });
+const body = ({ title, avatarImage, avatarEmoji, memberIds, adminIds, description, isPublic, username }: NewChatFields) => ({
+  title,
+  avatarImage,
+  ...(avatarEmoji ? { avatarEmoji } : {}),
+  memberIds,
+  adminIds,
+  description,
+  isPublic,
+  username,
+});
 
 export const createGroup = (fields: NewChatFields) => http.post<z.infer<typeof chatBody>>("/api/chats/groups", body(fields));
 

@@ -1,75 +1,99 @@
+/* Панель выбора смайла или стикера на аватарку. Всегда во всю ширину родителя: внутри
+   колонок с align-items: center она раньше растягивалась по самой длинной строке смайлов
+   и вылезала за края окна, а поле «свой смайл» налезало на кнопку. */
 .picker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
   background: var(--color-surface-alt);
-  margin-top: 8px;
 }
 
 .label {
   margin: 0;
-  font-size: 14px;
   color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 220px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+  max-height: 208px;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .emoji {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: none;
-  color: inherit;
-  font-size: 20px;
-  cursor: pointer;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  aspect-ratio: 1;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
-.emoji:hover {
-  border-color: var(--color-accent);
+.emoji:hover,
+.emoji:focus-visible {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.emoji:active {
+  transform: scale(0.92);
 }
 
 .inputWrap {
   display: flex;
-  gap: 6px;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .input {
   flex: 1;
-  min-width: 110px;
-  padding: 6px 10px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 20px;
+  font-size: 18px;
   text-align: center;
 }
 
 .apply {
-  padding: 6px 12px;
+  flex: none;
+  height: 40px;
+  padding: 0 14px;
   border: none;
   border-radius: var(--radius-control);
   background: var(--color-accent);
   color: #fff;
   font: inherit;
   font-size: 14px;
+  white-space: nowrap;
   cursor: pointer;
 }
 

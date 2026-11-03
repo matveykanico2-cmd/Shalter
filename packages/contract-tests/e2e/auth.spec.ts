@@ -4,8 +4,9 @@ import { uniq, uniqPhone } from "../support/seed";
 import { navLink, expectSignedIn } from "./support/ui";
 
 test("регистрация через форму, выход и вход по email и паролю", async ({ page }) => {
+  // Почта не совпадает с юзернеймом: юзернейм по почте сервер придумывает сам.
   const username = uniq("e2e");
-  const email = `${username}@test.invalid`;
+  const email = `${uniq("mail")}@test.invalid`;
   const password = "secret123";
 
   await page.goto("/");
@@ -13,15 +14,18 @@ test("регистрация через форму, выход и вход по 
   await expect(page.getByRole("button", { name: "Войти", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }).click();
 
-  await page.getByPlaceholder("Имя", { exact: true }).fill("Регина");
+  // Регистрация — почта и пароль, затем второй шаг с данными профиля.
   await page.getByPlaceholder("you@example.com").fill(email);
-  await page.getByPlaceholder("999 123 45 67").fill(uniqPhone().slice(2));
-  await page.getByPlaceholder("юзернейм").fill(username);
-  await expect(page.getByText("Свободен ✓")).toBeVisible();
   await page.getByPlaceholder("Пароль").fill(password);
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
+  await expect(page.getByText(/Аккаунт создан/)).toBeVisible();
+  await page.getByPlaceholder("Имя", { exact: true }).fill("Регина");
+  await page.getByPlaceholder("юзернейм").fill(username);
+  await expect(page.getByText("Свободен ✓")).toBeVisible();
+  await page.getByPlaceholder("Телефон (необязательно)").fill(uniqPhone().slice(2));
+  await page.getByRole("button", { name: "Готово" }).click();
 
-  // После регистрации — сразу в приложении.
+  // После второго шага — сразу в приложении.
   await expectSignedIn(page);
   await navLink(page, "Настройки").click();
   await expect(page.getByText("Регина", { exact: true })).toBeVisible();

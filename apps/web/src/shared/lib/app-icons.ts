@@ -1,8 +1,7 @@
 // Иконка приложения, как public/js/lib/appIcons.js: стандартная («Морская») и варианты, часть —
-// с Premium. Выбор — на этом устройстве (значок вкладки, заставка, значок на рабочем столе
-// в приложениях) и в настройках аккаунта, чтобы пережить переустановку.
-import { http } from "../api";
-
+// с Premium. Выбор — только на этом устройстве (значок вкладки, заставка, значок на рабочем
+// столе в приложениях): раньше он хранился и в аккаунте, и смена иконки на телефоне меняла её
+// на компьютере и в остальных приложениях.
 import { APP_ICONS, type AppIcon, appIconSvg, DEFAULT_APP_ICON, findAppIcon } from "./app-icons-catalog";
 
 export { APP_ICONS, type AppIcon, appIconSvg, DEFAULT_APP_ICON, findAppIcon };
@@ -49,19 +48,15 @@ const nativeAppIcon = () => (win().Capacitor?.isNativePlatform?.() ? (win().Capa
 /** Где иконку на рабочем столе можно сменить из приложения. */
 export const appIconScope = () => (nativeAppIcon() || win().shalterDesktop?.setIcon ? "native" : "web");
 
-/**
- * Сменить иконку везде, где умеет платформа. Ошибку нативной части пробрасываем — настройки
- * покажут её. remember — сохранить выбор в аккаунте.
- */
-export async function setAppIcon(id: string, { remember = true } = {}) {
+/** Сменить иконку на этом устройстве. Ошибку нативной части пробрасываем — настройки покажут её. */
+export async function setAppIcon(id: string) {
   const icon = findAppIcon(id);
-  if (remember) http.patch("/api/settings", { appIcon: icon.id }).catch(() => {});
   try {
     localStorage.setItem(STORE_KEY, icon.id);
     if (icon.id === DEFAULT_APP_ICON) localStorage.removeItem(SPLASH_KEY);
     else localStorage.setItem(SPLASH_KEY, appIconSvg(icon));
   } catch {
-    // Хранилище недоступно — выбор останется в аккаунте.
+    // Хранилище недоступно — выбор действует до перезапуска.
   }
   applyFavicon(icon.id);
   const native = nativeAppIcon();
@@ -77,20 +72,6 @@ export function syncAppIcon(user: { isPremium?: boolean }) {
   const id = getAppIconId();
   if (!canUseAppIcon(id, user)) return void setAppIcon(DEFAULT_APP_ICON).catch(() => {});
   if (id !== DEFAULT_APP_ICON) applyFavicon(id);
-}
-
-/**
- * Иконка из аккаунта: после переустановки (память пуста) — возвращаем выбранную; выбор,
- * сделанный до того, как иконка хранилась в аккаунте, сохраняем туда.
- */
-export function syncAppIconFromSettings(saved: string | undefined, user: { isPremium?: boolean }) {
-  const local = getAppIconId();
-  const known = saved && APP_ICONS.some((i) => i.id === saved) ? saved : null;
-  if (known && known !== local) {
-    if (canUseAppIcon(known, user)) setAppIcon(known, { remember: false }).catch(() => {});
-  } else if (!known && local !== DEFAULT_APP_ICON) {
-    http.patch("/api/settings", { appIcon: local }).catch(() => {});
-  }
 }
 
 let pulseTimer: ReturnType<typeof setTimeout> | undefined;

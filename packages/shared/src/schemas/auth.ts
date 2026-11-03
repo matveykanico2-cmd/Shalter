@@ -116,7 +116,8 @@ export const twoFactorLoginError = z.strictObject({ error: z.string(), attemptsL
 export const scheduleDeletionBody = z.strictObject({ deleteAt: isoDate });
 
 export const recoverSentBody = z.strictObject({ ok: z.literal(true), sent: z.literal(true) });
-export const pairCheckBody = z.strictObject({ ok: z.literal(true), name: z.string() });
+/** via — куда ушёл код: письмом или (письмо не ушло) в чат «Shalter» на открытых устройствах. */
+export const pairCheckBody = z.strictObject({ ok: z.literal(true), name: z.string(), via: z.enum(["email", "chat"]) });
 
 /** Запись в /api/sessions: deviceId — это id записи, настоящий device_id наружу не отдаётся. */
 export const sessionItem = z.strictObject({

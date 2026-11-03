@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { isInstalledApp } from "@/shared/lib/platform";
 import { isPushSupported, pushDiagnostics, requestPushPermission } from "@/shared/lib/push";
 import { Button, Dialog } from "@/shared/ui";
 
@@ -126,12 +127,15 @@ export function PermissionsDialog({ onClose }: { onClose: () => void }) {
             </div>
           );
         })}
-        <p className={styles.hint}>Показ поверх других приложений включается в настройках Android — в браузере такого разрешения нет.</p>
-        <div className={styles.actions}>
-          <Button variant="secondary" onClick={close}>
-            Готово
-          </Button>
-        </div>
+        {isInstalledApp() && /Android/i.test(navigator.userAgent) ? (
+          <p className={styles.hint}>Показ поверх других приложений включается в настройках Android.</p>
+        ) : null}
+      </div>
+      {/* Кнопка всегда видна: на телефоне список длиннее экрана, и «Готово» уезжало за прокрутку. */}
+      <div className={styles.actions}>
+        <Button variant="secondary" onClick={close}>
+          Готово
+        </Button>
       </div>
     </Dialog>
   );

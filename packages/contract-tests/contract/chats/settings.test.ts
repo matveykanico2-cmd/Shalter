@@ -156,6 +156,11 @@ describe("PATCH /:id", () => {
       expectError(await a.api.post("/api/chats/groups", { title: "Чужое", avatarImage }), 400, "Некорректное изображение");
       expectError(await a.api.post("/api/chats/channels", { title: "Чужое", avatarImage }), 400, "Некорректное изображение");
     }
+    // То же для стикера на аватарке: «sticker:/uploads/…» — тоже ссылка на файл.
+    for (const avatarEmoji of [`sticker:${theirs}`, `sticker:${fakeUploadUrl()}`]) {
+      expectError(await a.api.patch(`/api/chats/${group.id}`, { avatarEmoji }), 400, "Некорректное изображение");
+      expectError(await a.api.post("/api/chats/groups", { title: "Чужое", avatarEmoji }), 400, "Некорректное изображение");
+    }
     expect((await download(a.api, theirs)).status).toBe(404);
     expectError(await a.api.patch(`/api/chats/${group.id}`, { autoDeleteSeconds: -5 }), 400, "Некорректный срок автоудаления");
     expectError(await a.api.patch(`/api/chats/${group.id}`, { autoDeleteSeconds: 1.5 }), 400, "Некорректный срок автоудаления");
@@ -635,5 +640,27 @@ describe("POST /:id/public", () => {
     const other = await createGroup(b, []);
     expect(expectOk(await b.api.post(`/api/chats/${other.id}/public`, { isPublic: true, username: handle }), chatBody).chat.username).toBe(handle);
     expectError(await a.api.post(`/api/chats/${group.id}/public`, { isPublic: true, username: handle }), 409, "Этот юзернейм уже занят каналом");
+  });
+});
+
+describe("PATCH /api/chats/:id — смайл на аватарке группы", () => {
+  test("смайл как у профиля: null в stickerId/packId/avatarType принимаются, фото и смайл сменяют друг друга", async () => {
+    const { baseUrl } = server();
+    const a = await registerUser(baseUrl, { name: "Алиса" });
+    const group = await createGroup(a, [], { title: "Смайлы" });
+    const emoji = expectOk(
+      await a.api.patch(`/api/chats/${group.id}`, { avatarImage: null, avatarEmoji: "🐶", avatarType: "emoji", stickerId: null, packId: null }),
+      chatBody
+    ).chat;
+    expect(emoji).toMatchObject({ avatarEmoji: "🐶", avatarType: "emoji" });
+    // Многосимвольный смайл не обрезается (раньше оставались первые два символа).
+    expect(expectOk(await a.api.patch(`/api/chats/${group.id}`, { avatarEmoji: "👍🏽" }), chatBody).chat.avatarEmoji).toBe("👍🏽");
+    // Убрать аватар целиком.
+    const cleared = expectOk(await a.api.patch(`/api/chats/${group.id}`, { avatarImage: null, avatarEmoji: null, avatarType: null, stickerId: null, packId: null }), chatBody).chat;
+    expect(cleared.avatarEmoji ?? null).toBeNull();
+    expect(cleared.avatarType ?? null).toBeNull();
+    // Создание группы со смайлом сохраняет его.
+    const created = expectOk(await a.api.post("/api/chats/groups", { title: "Со смайлом", avatarEmoji: "🦊" }), chatBody).chat;
+    expect(created).toMatchObject({ avatarEmoji: "🦊", avatarType: "emoji" });
   });
 });

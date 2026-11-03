@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
@@ -32,6 +33,16 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         super.onPause();
         inForeground = false;
+        // WebView держит cookie в памяти и пишет на диск не сразу: если система выгрузит
+        // свёрнутое приложение раньше, пропадают и вход, и device_id — человек снова видит
+        // экран входа, а каждый новый вход заводит ещё один сеанс в «Устройствах».
+        CookieManager.getInstance().flush();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        CookieManager.getInstance().flush();
     }
 
     @Override

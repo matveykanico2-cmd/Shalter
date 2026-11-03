@@ -37,20 +37,14 @@ export const cancelDeletion = (ticket: string) => http.post<{ ok: true }>("/api/
 
 export const isTwoFactorChallenge = (res: LoginResult | TwoFactorChallenge): res is TwoFactorChallenge => "twoFactorRequired" in res;
 
-export type RegisterForm = {
-  name: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  username: string;
-  password: string;
-  birthday: string | null;
+/** Регистрация — только почта и пароль; имя, юзернейм и остальное — следующим шагом. */
+export const register = (email: string, password: string) => http.post<z.infer<typeof userBody>>("/api/auth/register-email", { email, password });
+
+/** Данные профиля со второго шага регистрации (сеанс уже есть). */
+export const updateNewProfile = async (userId: string, patch: Record<string, unknown>): Promise<SignedInUser> => {
+  const { user } = await http.patch<{ user: SignedInUser }>(`/api/users/${userId}`, patch);
+  return user;
 };
-
-export const register = (form: RegisterForm) => http.post<z.infer<typeof userBody>>("/api/auth/register-email", form);
-
-/** Фото профиля, выбранное при регистрации, — уже после входа. */
-export const uploadAvatar = (userId: string, avatarImage: string) => http.patch<unknown>(`/api/users/${userId}`, { avatarImage });
 
 export const checkUsername = (u: string) =>
   http.get<z.infer<typeof usernameAvailableBody>>(`/api/auth/username-available?u=${encodeURIComponent(u)}`);

@@ -1,23 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import type { SelfUser } from "@/entities/session";
-import type { Settings } from "@/entities/settings";
 
-import { syncAppIcon, syncAppIconFromSettings } from "@/shared/lib/app-icons";
+import { syncAppIcon } from "@/shared/lib/app-icons";
 
 /**
- * Иконка приложения при запуске (boot в public/js/app.js): значок вкладки по выбору, Premium-иконка
- * без Premium — обратно к стандартной (и когда Premium кончился на ходу); выбор из аккаунта — один
- * раз, когда пришли настройки.
+ * Иконка приложения при запуске (boot в public/js/app.js): значок вкладки по выбору этого
+ * устройства, Premium-иконка без Premium — обратно к стандартной (и когда Premium кончился на ходу).
  */
-export function useAppIcon(user: SelfUser, settings: Settings | undefined) {
+export function useAppIcon(user: SelfUser) {
   const premium = !!user.isPremium;
   useEffect(() => syncAppIcon({ isPremium: premium }), [premium]);
-
-  const restored = useRef(false);
-  useEffect(() => {
-    if (!settings || restored.current) return;
-    restored.current = true;
-    syncAppIconFromSettings(settings.appIcon, { isPremium: premium });
-  }, [settings, premium]);
 }

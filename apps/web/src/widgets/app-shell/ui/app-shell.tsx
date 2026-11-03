@@ -38,11 +38,13 @@ function isEditable(el: EventTarget | null): boolean {
 }
 
 /**
- * Клавиатура на телефоне: пока в фокусе поле ввода, высота оболочки — видимая часть окна
- * (visualViewport): 100dvh на Android с клавиатурой оставлял пустую зону, а iOS Safari прокручивал
- * страницу под клавиатуру. Высоту пишем в --vvh раз в кадр и только когда она изменилась, класс
- * снимаем не сразу: переход фокуса между полями и кнопками панели не перестраивает оболочку
- * (на iPhone это мигало при наборе).
+ * Клавиатура на телефоне: пока в фокусе поле ввода, оболочка закреплена ровно на видимой части
+ * окна (visualViewport): высота — в --vvh, сдвиг сверху — в --vvt. iOS Safari не ужимает страницу
+ * под клавиатуру, а сдвигает видимую область и двигает её за курсором при наборе; раньше мы
+ * в ответ прокручивали страницу обратно (scrollTo), iOS — снова к курсору, и экран дёргался на
+ * каждом символе, а поле ввода уезжало под клавиатуру. Теперь страницу не трогаем, а оболочка
+ * едет вместе с видимой областью. На Android окно ужимается само, там --vvt = 0.
+ * Класс снимаем не сразу: переход фокуса между полями и кнопками панели не перестраивает оболочку.
  */
 function useKeyboardViewport() {
   useEffect(() => {
@@ -50,27 +52,31 @@ function useKeyboardViewport() {
     const vv = window.visualViewport;
     let frame = 0;
     let blurTimer: ReturnType<typeof setTimeout> | undefined;
-    let last = "";
+    let lastHeight = "";
+    let lastTop = "";
     const apply = () => {
       frame = 0;
       if (!vv) return;
-      const next = `${Math.round(vv.height)}px`;
-      if (next !== last) {
-        last = next;
-        root.style.setProperty("--vvh", next);
+      const height = `${Math.round(vv.height)}px`;
+      const top = `${Math.max(0, Math.round(vv.offsetTop))}px`;
+      if (height !== lastHeight) {
+        lastHeight = height;
+        root.style.setProperty("--vvh", height);
       }
-      // iOS Safari сдвигает layout viewport под клавиатуру — возвращаем страницу на место.
-      if (vv.offsetTop > 0 && window.scrollY !== 0) window.scrollTo(0, 0);
+      if (top !== lastTop) {
+        lastTop = top;
+        root.style.setProperty("--vvt", top);
+      }
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(apply);
     };
     const open = () => {
       if (root.classList.contains("keyboard-open")) return;
+      apply();
       root.classList.add("keyboard-open");
       vv?.addEventListener("resize", schedule);
       vv?.addEventListener("scroll", schedule);
-      apply();
     };
     const close = () => {
       if (!root.classList.contains("keyboard-open")) return;
@@ -78,7 +84,11 @@ function useKeyboardViewport() {
       vv?.removeEventListener("resize", schedule);
       vv?.removeEventListener("scroll", schedule);
       root.style.removeProperty("--vvh");
-      last = "";
+      root.style.removeProperty("--vvt");
+      lastHeight = "";
+      lastTop = "";
+      // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной.
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
     };
     const onFocus = (e: FocusEvent) => {
       clearTimeout(blurTimer);
@@ -88,7 +98,7 @@ function useKeyboardViewport() {
       clearTimeout(blurTimer);
       blurTimer = setTimeout(() => {
         if (!isEditable(document.activeElement)) close();
-      }, 100);
+      }, 150);
     };
     document.addEventListener("focusin", onFocus);
     document.addEventListener("focusout", onBlur);

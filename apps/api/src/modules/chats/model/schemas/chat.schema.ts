@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cleanAvatarEmoji } from "../../../../common/lib/avatar-emoji.js";
 import { raw, requestBody, requestQuery } from "../../../../common/lib/zod.js";
 
 // Тексты ошибок — как в server/routes/chats.js. В схеме только проверки, которые там идут
@@ -12,6 +13,23 @@ const flag = () => z.unknown().optional().transform((v) => !!v);
 
 /** Строка — как есть, иначе undefined (`typeof x === "string"`). */
 const stringOr = <T>(fn: (value: string) => T) => z.unknown().optional().transform((v) => (typeof v === "string" ? fn(v) : undefined));
+
+/**
+ * Смайл на аватарке группы или канала — как у профиля (анимированный смайл или стикер из пака
+ * «sticker:/uploads/…»), или заставка из одной-двух букв или цифр, как раньше. Пусто или null —
+ * убрать (null раньше молча пропускался, и смайл нельзя было снять).
+ */
+const avatarEmoji = () =>
+  z.unknown().optional().transform((v) => {
+    if (v === null) return null;
+    if (typeof v !== "string") return undefined;
+    const value = v.trim();
+    if (!value) return null;
+    const emoji = cleanAvatarEmoji(value);
+    if (emoji) return emoji;
+    if (/^[\p{L}\p{N}]{1,2}$/u.test(value)) return value;
+    throw new Error("Заставкой может быть смайл, буква или цифра");
+  });
 
 const listError = { error: "Нужен список чатов" };
 export const pinnedOrderSchema = requestBody({ chatIds: z.array(z.string(listError), listError).max(500, listError) });
@@ -32,6 +50,7 @@ const communitySchema = (titleError: string) =>
       .refine((v) => v.trim() !== "", { error: titleError })
       .transform((v) => v.trim()),
     avatarImage: raw(),
+    avatarEmoji: avatarEmoji(),
     memberIds: z.unknown().optional().transform((v) => (Array.isArray(v) ? (v as unknown[]) : [])),
     adminIds: z.unknown().optional().transform((v) => (Array.isArray(v) ? (v as unknown[]) : [])),
     description: z.unknown().optional().transform((v) => (typeof v === "string" ? v.trim().slice(0, 500) : "")),
@@ -49,14 +68,11 @@ export const patchChatSchema = requestBody({
   // проверяется после изображения — обе проверки в сервисе.
   avatarImage: raw(),
   avatarColor: stringOr((v) => v.slice(0, 32)),
-  avatarEmoji: stringOr((v) => {
-    const e = v.slice(0, 2);
-    if (e && !/^[\p{Emoji}\p{L}\p{N}]+$/u.test(e)) throw new Error("Заставкой может быть смайл, буква или цифра");
-    return e || null;
-  }),
-  avatarType: z.enum(["image", "emoji", "sticker"]).optional(),
-  stickerId: z.string().optional(),
-  packId: z.string().optional(),
+  avatarEmoji: avatarEmoji(),
+  // null — снять (клиент шлёт null, когда аватар больше не стикер из пака или его убрали).
+  avatarType: z.enum(["image", "emoji", "sticker"]).nullable().optional(),
+  stickerId: z.string().nullable().optional(),
+  packId: z.string().nullable().optional(),
   autoDeleteSeconds: ifPresent((v) => Number(v) || 0),
   pinned: ifPresent((v) => !!v),
   archived: ifPresent((v) => !!v),

@@ -39,14 +39,20 @@ export class AccountService {
   ) {}
 
   public async register(req: Request, res: Response, dto: RegisterEmailDto) {
-    // Имя, почта и длина пароля проверены схемой.
-    const { name, lastName: cleanLast, email, password, phone: normalizedPhone, username: handle, referralCode, birthday } = dto;
+    // Почта и длина пароля проверены схемой. Имя, юзернейм и номер необязательны: без имени —
+    // первое слово из почты, без юзернейма — случайный «user_…» (не из почты: по нему адрес
+    // угадывался бы), без номера — пустой.
+    const { lastName: cleanLast, email, password, phone: normalizedPhone, referralCode, birthday } = dto;
+    const name = dto.name || nameFromEmail(email);
     const fullName = [name, cleanLast].filter(Boolean).join(" ");
-    const usernameProblem = await checkUsername(handle);
-    if (usernameProblem) throw new ApiError(usernameProblem.status, usernameProblem.error);
-    if (!PHONE_RE.test(normalizedPhone)) throw new ApiError(400, "Введите номер телефона в формате +79991234567");
+    const handle = dto.username;
+    if (handle) {
+      const usernameProblem = await checkUsername(handle);
+      if (usernameProblem) throw new ApiError(usernameProblem.status, usernameProblem.error);
+    }
+    if (normalizedPhone && !PHONE_RE.test(normalizedPhone)) throw new ApiError(400, "Введите номер телефона в формате +79991234567");
     if (this.usersRepository.findByEmail(email)) throw new ApiError(409, "Аккаунт с таким email уже существует");
-    if (this.usersRepository.findByPhone(normalizedPhone)) throw new ApiError(409, "Аккаунт с таким номером телефона уже существует");
+    if (normalizedPhone && this.usersRepository.findByPhone(normalizedPhone)) throw new ApiError(409, "Аккаунт с таким номером телефона уже существует");
     // Номер не подтверждается, а админ определяется по номеру: регистрация на
     // админский номер возможна, только если явно разрешена в окружении.
     if (isAdminPhone(normalizedPhone) && process.env.ALLOW_ADMIN_PHONE_SIGNUP !== "1") {
@@ -63,27 +69,32 @@ export class AccountService {
     }
 
     const { hash, salt } = hashPassword(password);
-    let user: User;
-    try {
-      user = this.usersRepository.create({
-        id: genId("u"),
-        name: fullName,
-        username: handle,
-        phone: normalizedPhone,
-        email: email.trim().toLowerCase(),
-        passwordHash: hash,
-        passwordSalt: salt,
-        avatarColor: "#2E56D9",
-        bio: "",
-        online: 1,
-        lastSeen: new Date().toISOString(),
-        referredBy: referrer?.id ?? null,
-        premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : null,
-        birthday: birthdayIso,
-      });
-    } catch (err) {
-      if (isUsernameConflict(err)) throw new ApiError(409, "Этот юзернейм уже занят");
-      throw err;
+    const row = (username: string) => ({
+      id: genId("u"),
+      name: fullName,
+      username,
+      phone: normalizedPhone,
+      email: email.trim().toLowerCase(),
+      passwordHash: hash,
+      passwordSalt: salt,
+      avatarColor: "#2E56D9",
+      bio: "",
+      online: 1,
+      lastSeen: new Date().toISOString(),
+      referredBy: referrer?.id ?? null,
+      premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : null,
+      birthday: birthdayIso,
+    });
+    // Свой юзернейм — одна попытка; придуманный — до пяти: проверка и запись не атомарны, и
+    // одновременная регистрация могла успеть занять тот же.
+    let user: User | undefined;
+    for (let attempt = 0; !user; attempt++) {
+      try {
+        user = this.usersRepository.create(row(handle || (await randomFreeUsername())));
+      } catch (err) {
+        if (!isUsernameConflict(err)) throw err;
+        if (handle || attempt >= 4) throw new ApiError(409, "Этот юзернейм уже занят");
+      }
     }
 
     if (cleanLast) user = this.usersRepository.update(user.id, { lastName: cleanLast })!;
@@ -236,4 +247,19 @@ export class AccountService {
       console.error("referral notification failed:", err);
     }
   }
+}
+
+/** Имя до второго шага регистрации: первое слово из почты («ivan.petrov@…» → «Ivan»), без цифр. */
+function nameFromEmail(email: string): string {
+  const word = (email.split("@")[0] ?? "").split(/[^\p{L}]+/u).find((w) => w.length >= 2) ?? "";
+  return word ? (word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).slice(0, 64) : "Пользователь";
+}
+
+/** Свободный случайный юзернейм «user_…»: не из почты, чтобы по нему нельзя было угадать адрес. */
+async function randomFreeUsername(): Promise<string> {
+  for (let i = 0; i < 10; i++) {
+    const candidate = `user_${randomBytes(4).toString("hex")}`;
+    if (!(await checkUsername(candidate))) return candidate;
+  }
+  return `user_${randomBytes(6).toString("hex")}`;
 }

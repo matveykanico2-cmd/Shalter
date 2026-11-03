@@ -20,9 +20,11 @@ export function RecoverPanel({ onSignedIn, onBack }: Props) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [via, setVia] = useState<"email" | "chat">("email");
   const check = useMutation({
     mutationFn: () => checkRecoveryPair(email.trim(), phone),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      setVia(res.via);
       setCode("");
       setStep("code");
     },
@@ -45,15 +47,17 @@ export function RecoverPanel({ onSignedIn, onBack }: Props) {
       <p className={styles.title}>Забыли пароль?</p>
       <p className={styles.instructions}>
         {step === "email"
-          ? "Введите адрес почты и номер телефона этого аккаунта."
-          : "Мы отправили код на вашу почту. Введите его и придумайте новый пароль."}
+          ? "Введите адрес почты и номер телефона этого аккаунта (если номер не указывали — только почту)."
+          : via === "chat"
+            ? "Письмо не дошло, поэтому код пришёл в чат «Shalter» на устройстве, где вы уже вошли. Введите его и придумайте новый пароль."
+            : "Мы отправили код на вашу почту. Введите его и придумайте новый пароль."}
       </p>
       <form className={styles.form} onSubmit={submit}>
         {step === "email" ? (
           <>
             <TextField type="email" placeholder="you@example.com" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
             <PhoneField initial={phone} onChange={setPhone} />
-            <p className={styles.hint}>Адрес почты и номер телефона — оба как указаны в аккаунте. На почту придёт код подтверждения.</p>
+            <p className={styles.hint}>Как указаны в аккаунте. На почту придёт код подтверждения.</p>
           </>
         ) : (
           <>
@@ -61,7 +65,7 @@ export function RecoverPanel({ onSignedIn, onBack }: Props) {
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              placeholder="Код из письма"
+              placeholder={via === "chat" ? "Код из чата Shalter" : "Код из письма"}
               autoFocus
               value={code}
               onChange={(e) => setCode(e.target.value)}

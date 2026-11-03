@@ -4,8 +4,14 @@
   flex-direction: column;
   gap: 6px;
   width: calc(100% - 2 * var(--composer-x, 10px));
-  margin: 0 auto 10px;
+  /* Снизу — над «домашней полоской» iPhone (приложение и PWA во весь экран); с открытой
+     клавиатурой полоски нет. */
+  margin: 0 auto calc(10px + env(safe-area-inset-bottom, 0px));
   padding: 0;
+}
+
+:global(html.keyboard-open) .composer {
+  margin-bottom: 8px;
 }
 
 .row {

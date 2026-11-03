@@ -4,10 +4,9 @@ import { type FormEvent, useCallback, useState } from "react";
 import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { fileToImageDataUrl } from "@/shared/lib/image";
 import { loginWithPasskey, NO_PASSKEY_HINT, passkeyLoginErrorText, passkeysSupported } from "@/shared/lib/passkey";
 import { isInstalledApp } from "@/shared/lib/platform";
-import { Button, DateField, Icon, PhoneField, TextField, toast } from "@/shared/ui";
+import { Button, Icon, TextField, toast } from "@/shared/ui";
 
 import {
   isTwoFactorChallenge,
@@ -17,18 +16,17 @@ import {
   register,
   type SignedInUser,
   type TwoFactorChallenge,
-  uploadAvatar,
 } from "../api/sign-in";
 import { playWelcome } from "../lib/welcome";
 
 import { CodePanel } from "./code-panel";
+import { ProfileSetup } from "./profile-setup";
 import { QrPanel } from "./qr-panel";
 import { RecoverPanel } from "./recover-panel";
 import styles from "./sign-in.module.css";
 import { TwoFactorStep } from "./two-factor-step";
-import { UsernameInput } from "./username-input";
 
-export type SignInMode = "login" | "register" | "qr" | "code" | "recover";
+export type SignInMode = "login" | "register" | "setup" | "qr" | "code" | "recover";
 
 type Props = {
   onSignedIn: (user: SignedInUser) => void;
@@ -50,6 +48,8 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
   // Сообщение для формы входа после другого шага (удаление аккаунта запрошено и т. п.).
   const [message, setMessage] = useState<string | null>(null);
+  // Только что зарегистрировались: второй шаг — данные профиля.
+  const [created, setCreated] = useState<{ user: SignedInUser; password: string } | null>(null);
 
   const setMode = (next: SignInMode) => {
     setModeState(next);
@@ -80,6 +80,7 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
       />
     );
   }
+  if (created) return <ProfileSetup user={created.user} password={created.password} onDone={(user) => void finish(user)} />;
   if (mode === "qr") return <QrPanel onSignedIn={(user) => void finish(user)} onBack={back} />;
   if (mode === "code") return <CodePanel onSignedIn={onResult} onChallenge={setChallenge} onBack={back} />;
   if (mode === "recover") return <RecoverPanel onSignedIn={(user) => void finish(user)} onBack={back} />;
@@ -92,7 +93,11 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
       onToggle={() => setMode(mode === "login" ? "register" : "login")}
       onMode={setMode}
       onResult={onResult}
-      onRegistered={(user) => void finish(user)}
+      onRegistered={(user, password) => {
+        setCreated({ user, password });
+        setModeState("setup");
+        onModeChange?.("setup");
+      }}
     />
   );
 }
@@ -105,22 +110,20 @@ type EmailFormProps = {
   onToggle: () => void;
   onMode: (mode: SignInMode) => void;
   onResult: (res: LoginResult | TwoFactorChallenge) => void;
-  onRegistered: (user: SignedInUser) => void;
+  onRegistered: (user: SignedInUser, password: string) => void;
 };
 
-/** Вход или регистрация по почте и паролю — основная карточка экрана входа. */
+/**
+ * Вход или регистрация по почте и паролю — основная карточка экрана входа. Регистрация — те же
+ * два поля, остальное спрашиваем после. Остальные способы входа (QR, ключ доступа, код, гость) —
+ * под «Другие способы входа», чтобы не загромождать карточку.
+ */
 function EmailForm({ register: isRegister, notice, message, embedded, onToggle, onMode, onResult, onRegistered }: EmailFormProps) {
-  const [name, setName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [birthday, setBirthday] = useState<string | null>(null);
-  const [birthdayError, setBirthdayError] = useState<string | null>(null);
-  const [avatar, setAvatar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(message);
   const [pending, setPending] = useState(false);
+  const [more, setMore] = useState(false);
   const [guestPending, setGuestPending] = useState(false);
   const [guestName, setGuestName] = useState("");
 
@@ -139,15 +142,16 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     // Пустые поля — подсказка сразу, без запроса (раньше пустой вход отвечал «Неверный email или пароль»).
-    const missing = isRegister && !name.trim() ? "Введите имя" : !email.trim() ? "Введите email" : !password ? "Введите пароль" : null;
+    const missing = !email.trim() ? "Введите email" : !password ? "Введите пароль" : isRegister && password.length < 6 ? "Пароль должен быть не короче 6 символов" : null;
     if (missing) return setError(missing);
     void run(async () => {
       if (!isRegister) return onResult(await loginByEmail(email.trim(), password));
-      const { user } = await register({ name, lastName, email, phone, username, password, birthday: birthday || null });
-      if (avatar) await uploadAvatar(user.id, avatar);
-      onRegistered(user);
+      const { user } = await register(email.trim(), password);
+      onRegistered(user, password);
     });
   };
+
+  const guest = () => void run(async () => onResult(await loginAsGuest(guestName)), setGuestPending);
 
   const passkey = () =>
     void run(async () => {
@@ -161,85 +165,69 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
 
   return (
     <form className={styles.form} onSubmit={submit}>
-      {isRegister && (
-        <>
-          <AvatarPicker image={avatar} onPick={setAvatar} />
-          <TextField placeholder="Имя" value={name} onChange={(e) => setName(e.target.value)} />
-          <TextField placeholder="Фамилия (необязательно)" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-        </>
-      )}
-      <TextField type="email" placeholder="you@example.com" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
-      {isRegister && (
-        <>
-          <PhoneField initial={phone} onChange={setPhone} />
-          <DateField
-            value={birthday}
-            aria-label="Дата рождения"
-            onChange={(iso, err) => {
-              setBirthday(iso);
-              setBirthdayError(err);
-            }}
-          />
-          {birthdayError && <p className={styles.error}>{birthdayError}</p>}
-          <UsernameInput value={username} onChange={setUsername} />
-        </>
-      )}
+      <TextField type="email" placeholder="you@example.com" aria-label="Почта" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
       <TextField
         type="password"
         placeholder="Пароль"
+        aria-label="Пароль"
         autoComplete={isRegister ? "new-password" : "current-password"}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      {isRegister && (
-        <>
-          <p className={styles.hint}>Пароль — не короче 6 символов, хранится только в виде хеша.</p>
-          <p className={styles.hint}>Дата рождения — необязательно, но друзья смогут поздравлять и предлагать подарки.</p>
-        </>
-      )}
+      {isRegister && <p className={styles.hint}>Не короче 6 символов. Имя, фото и юзернейм — на следующем шаге.</p>}
       {notice && !isRegister && !error && <p className={styles.notice}>{notice}</p>}
       {error && <p className={styles.error}>{error}</p>}
       <Button type="submit" disabled={pending}>
         {pending ? "Проверка…" : isRegister ? "Создать аккаунт" : "Войти"}
       </Button>
+      {!isRegister && !embedded && (
+        <button type="button" className={`${styles.link} ${styles.muted}`} onClick={() => onMode("recover")}>
+          Забыли пароль?
+        </button>
+      )}
       <button type="button" className={styles.link} onClick={onToggle}>
         {isRegister ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Зарегистрироваться"}
       </button>
       {!isRegister && !embedded && (
         <div className={styles.altMethods}>
-          <button type="button" className={`${styles.link} ${styles.entry}`} onClick={() => onMode("qr")}>
-            <Icon name="Qrcode" size={15} /> Войти по QR-коду
+          <button type="button" className={`${styles.link} ${styles.entry}`} aria-expanded={more} onClick={() => setMore((v) => !v)}>
+            Другие способы входа
+            <span className={more ? `${styles.chevron} ${styles.chevronOpen}` : styles.chevron}>
+              <Icon name="ChevronDown" size={15} />
+            </span>
           </button>
-          {passkeysSupported() && (
-            <button type="button" className={`${styles.link} ${styles.entry}`} disabled={pending} onClick={passkey}>
-              <Icon name="Lock" size={15} /> Войти по ключу доступа
-            </button>
+          {more && (
+            <>
+              <button type="button" className={`${styles.link} ${styles.entry}`} onClick={() => onMode("qr")}>
+                <Icon name="Qrcode" size={15} /> Войти по QR-коду
+              </button>
+              {passkeysSupported() && (
+                <button type="button" className={`${styles.link} ${styles.entry}`} disabled={pending} onClick={passkey}>
+                  <Icon name="Lock" size={15} /> Войти по ключу доступа
+                </button>
+              )}
+              <button type="button" className={`${styles.link} ${styles.entry}`} onClick={() => onMode("code")}>
+                <Icon name="MessageCircle" size={15} /> Войти по коду из сообщения
+              </button>
+              <div className={styles.guest}>
+                <TextField
+                  placeholder="Имя гостя (необязательно)"
+                  aria-label="Имя гостя"
+                  maxLength={64}
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    if (!pending && !guestPending) guest();
+                  }}
+                />
+                <Button variant="secondary" disabled={pending || guestPending} onClick={guest}>
+                  {guestPending ? "Входим…" : "Продолжить как гость"}
+                </Button>
+              </div>
+            </>
           )}
-          <button type="button" className={`${styles.link} ${styles.entry}`} onClick={() => onMode("code")}>
-            <Icon name="MessageCircle" size={15} /> Войти по коду из сообщения
-          </button>
-          <button type="button" className={`${styles.link} ${styles.muted}`} onClick={() => onMode("recover")}>
-            Забыли пароль?
-          </button>
-          <TextField
-            placeholder="Имя гостя (необязательно)"
-            aria-label="Имя гостя"
-            maxLength={64}
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter") return;
-              e.preventDefault();
-              if (!pending && !guestPending) void run(async () => onResult(await loginAsGuest(guestName)), setGuestPending);
-            }}
-          />
-          <Button
-            variant="secondary"
-            disabled={pending || guestPending}
-            onClick={() => void run(async () => onResult(await loginAsGuest(guestName)), setGuestPending)}
-          >
-            {guestPending ? "Входим…" : "Продолжить как гость"}
-          </Button>
         </div>
       )}
       {!embedded && !isInstalledApp() && (
@@ -248,24 +236,5 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
         </a>
       )}
     </form>
-  );
-}
-
-/** «Фото профиля (необязательно)» при регистрации: уменьшенная картинка уйдёт после входа. */
-function AvatarPicker({ image, onPick }: { image: string | null; onPick: (dataUrl: string) => void }) {
-  return (
-    <label className={styles.avatarButton}>
-      <span className={styles.avatarPreview}>{image ? <img src={image} alt="" /> : <Icon name="Users" size={22} />}</span>
-      <input
-        type="file"
-        accept="image/*"
-        className={styles.hiddenInput}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) fileToImageDataUrl(file, 256).then(onPick, () => toast("Не удалось прочитать изображение", { error: true }));
-        }}
-      />
-      <span className={styles.avatarLabel}>Фото профиля (необязательно)</span>
-    </label>
   );
 }

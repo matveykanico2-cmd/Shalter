@@ -125,7 +125,9 @@ export class ChatsService {
 
   public async createChannel(uid: string, body: CreateCommunityDto) {
     const { title, avatarImage, memberIds, adminIds } = body;
-    if (usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
+    // Стикер на аватарке («sticker:/uploads/…») — тоже ссылка на файл: чужой закрытый файл
+    // стал бы виден всем через аватар чата.
+    if (usesForeignUpload(uid, avatarImage) || usesForeignUpload(uid, body.avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
     const identity = await this.newChatIdentity(body);
     const now = new Date().toISOString();
     const members = new Set([uid, ...(await this.invitableIds(memberIds, uid))]);
@@ -148,7 +150,7 @@ export class ChatsService {
       title,
       ...identity,
       avatarColor: "#D9822E",
-      avatarImage: (avatarImage as string) || undefined,
+      ...newChatAvatar(avatarImage, body.avatarEmoji),
       memberIds: [...members],
       ownerId: uid,
       adminIds: staffOf(members, uid, adminIds),
@@ -167,7 +169,9 @@ export class ChatsService {
 
   public async createGroup(uid: string, body: CreateCommunityDto) {
     const { title, avatarImage, memberIds, adminIds } = body;
-    if (usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
+    // Стикер на аватарке («sticker:/uploads/…») — тоже ссылка на файл: чужой закрытый файл
+    // стал бы виден всем через аватар чата.
+    if (usesForeignUpload(uid, avatarImage) || usesForeignUpload(uid, body.avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
     const identity = await this.newChatIdentity(body);
     const members = new Set([uid, ...(await this.invitableIds(memberIds, uid))]);
     const chat = this.chats.create({
@@ -176,7 +180,7 @@ export class ChatsService {
       title,
       ...identity,
       avatarColor: "#2E56D9",
-      avatarImage: (avatarImage as string) || undefined,
+      ...newChatAvatar(avatarImage, body.avatarEmoji),
       memberIds: [...members],
       ownerId: uid,
       adminIds: staffOf(members, uid, adminIds),
@@ -239,8 +243,21 @@ export class ChatsService {
       patch.avatarImage = (body.avatarImage as string) || null;
     }
     if (body.avatarColor !== undefined) patch.avatarColor = body.avatarColor;
-    if (body.avatarEmoji !== undefined) patch.avatarEmoji = body.avatarEmoji;
+    if (body.avatarEmoji !== undefined) {
+      if (body.avatarEmoji && usesForeignUpload(uid, body.avatarEmoji, chat.avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
+      patch.avatarEmoji = body.avatarEmoji;
+    }
     if (body.avatarType !== undefined) patch.avatarType = body.avatarType;
+    // Фото и смайл сменяют друг друга, как у профиля: иначе смайл оставался поверх нового фото.
+    // Прислали оба — смайл важнее (как при создании), фото снимается.
+    if (patch.avatarEmoji) patch.avatarImage = null;
+    else if (patch.avatarImage && body.avatarEmoji === undefined) patch.avatarEmoji = null;
+    if (body.avatarType === undefined && (patch.avatarEmoji || patch.avatarImage)) patch.avatarType = patch.avatarEmoji ? "emoji" : "image";
+    // Не стикер из пака — старые stickerId/packId не нужны.
+    if (patch.avatarType && patch.avatarType !== "sticker") {
+      if (body.stickerId === undefined) patch.stickerId = null;
+      if (body.packId === undefined) patch.packId = null;
+    }
     if (body.stickerId !== undefined) patch.stickerId = body.stickerId;
     if (body.packId !== undefined) patch.packId = body.packId;
     if (body.autoDeleteSeconds !== undefined) {
@@ -502,7 +519,13 @@ export class ChatsService {
           : `${name} выключил(а) автоудаление сообщений`
       );
     }
-    if ("avatarImage" in patch && (patch.avatarImage ?? null) !== (chat.avatarImage ?? null)) {
+    // Одна строка на смену аватара: фото и смайл сменяют друг друга, и раньше при переходе
+    // от фото к смайлу в ленте было две строки — «удалил фото» и «установил смайл».
+    const typeChanged = "avatarType" in patch && (patch.avatarType ?? null) !== (chat.avatarType ?? null);
+    const imageChanged = "avatarImage" in patch && (patch.avatarImage ?? null) !== (chat.avatarImage ?? null);
+    const emojiChanged = "avatarEmoji" in patch && (patch.avatarEmoji ?? null) !== (chat.avatarEmoji ?? null);
+    const nextType = typeChanged ? (patch.avatarType ?? null) : (chat.avatarType ?? null);
+    if (imageChanged && (!typeChanged || nextType === "image" || (!nextType && !updated.avatarEmoji))) {
       await this.notes.note(updated, uid, (name) =>
         patch.avatarImage
           ? channel
@@ -512,18 +535,17 @@ export class ChatsService {
             ? `Фото ${where} удалено`
             : `${name} удалил(а) фото группы`
       );
-    }
-    if ("avatarType" in patch && (patch.avatarType ?? null) !== (chat.avatarType ?? null)) {
+    } else if (typeChanged || (emojiChanged && updated.avatarEmoji && nextType === "emoji")) {
       await this.notes.note(updated, uid, (name) =>
-        patch.avatarType === "sticker"
+        nextType === "sticker" || (nextType === "emoji" && updated.avatarEmoji?.startsWith("sticker:"))
           ? channel
             ? `Стикер установлен как заставка ${where}`
             : `${name} установил(а) стикер как заставку группы`
-          : patch.avatarType === "image"
+          : nextType === "image"
             ? channel
               ? `Фото ${where} установлено как заставка`
               : `${name} установил(а) фото как заставку группы`
-            : patch.avatarType === "emoji"
+            : nextType === "emoji"
               ? channel
                 ? `Заставка ${where} изменена на смайл`
                 : `${name} установил(а) смайл как заставку группы`
@@ -574,4 +596,10 @@ function hidesMembers(chat: Chat, uid: string): boolean {
 
 function blockedBetween(a: User | undefined, b: User | undefined): boolean {
   return !!a && !!b && ((a.blockedUserIds ?? []).includes(b.id) || (b.blockedUserIds ?? []).includes(a.id));
+}
+
+/** Аватар новой группы или канала: смайл (или стикер) важнее фото, как в редакторе. */
+function newChatAvatar(avatarImage: unknown, avatarEmoji: string | null | undefined) {
+  if (avatarEmoji) return { avatarEmoji, avatarType: "emoji" as const };
+  return { avatarImage: (avatarImage as string) || undefined };
 }

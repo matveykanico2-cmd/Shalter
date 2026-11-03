@@ -23,8 +23,14 @@ function banError(user: User): string {
 
 // Восстановление доступа без пароля: по паре «почта + телефон» с кодом из письма или по
 // номеру с кодом в чат «Shalter». С двухфакторной оба способа закрыты.
+/** Код в чат «Shalter» — не чаще раза в минуту на аккаунт: иначе по одной почте можно было бы
+ * засыпать человека сообщениями и уведомлениями с кодами. */
+const CHAT_CODE_COOLDOWN_MS = 60_000;
+
 @Injectable()
 export class RecoveryService {
+  private readonly chatCodeSentAt = new Map<string, number>();
+
   public constructor(
     private readonly usersRepository: UsersRepository,
     private readonly sessionsRepository: SessionsRepository,
@@ -35,6 +41,9 @@ export class RecoveryService {
 
   public async checkPair(dto: PairCheckDto) {
     const user = this.findByPair(dto);
+    // Проверка до нового кода: новый код погасил бы тот, что уже ждёт в чате.
+    const sentAt = this.chatCodeSentAt.get(user.id) ?? 0;
+    if (Date.now() - sentAt < CHAT_CODE_COOLDOWN_MS) throw new ApiError(429, "Код уже отправлен в чат «Shalter» — подождите минуту");
     // Почта и номер — не секреты: сбросить пароль можно только с кодом из письма на адрес аккаунта.
     const code = this.codes.pairRecovery.start(user.id, true);
     const mail = await sendMail({
@@ -44,8 +53,20 @@ export class RecoveryService {
         `Код для смены пароля в Shalter: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут.\n\n` +
         `Если вы не запрашивали восстановление доступа — просто проигнорируйте письмо, пароль останется прежним.`,
     }).catch((err: Error) => ({ delivered: false, reason: err.message }));
-    if (!mail.delivered) throw new ApiError(502, "Не удалось отправить письмо с кодом — попробуйте позже");
-    return { ok: true, name: user.name };
+    if (mail.delivered) return { ok: true, name: user.name, via: "email" as const };
+    // Письмо не ушло (на сервере нет SMTP или почта не принимает) — код в чат «Shalter», как при
+    // входе по коду: аккаунт может быть открыт на другом устройстве. Если открытых сеансов нет,
+    // доставить код некуда.
+    console.warn(`[recovery] письмо с кодом не ушло: ${mail.reason ?? "unknown"}`);
+    if (!this.sessionsRepository.list(user.id).length) {
+      throw new ApiError(502, "Не удалось отправить письмо с кодом — попробуйте позже или войдите по QR-коду с другого устройства");
+    }
+    this.chatCodeSentAt.set(user.id, Date.now());
+    await this.notices.send(
+      user.id,
+      `Код для смены пароля в Shalter: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут. Если вы не запрашивали восстановление доступа — просто проигнорируйте это сообщение.`
+    );
+    return { ok: true, name: user.name, via: "chat" as const };
   }
 
   public async resetByPair(req: Request, res: Response, dto: PairResetDto) {
@@ -113,7 +134,9 @@ export class RecoveryService {
   /** Почта и номер уже приведены и проверены схемой. */
   private findByPair({ email, phone }: { email: string; phone: string }): User {
     const user = this.usersRepository.findByEmail(email);
-    if (!user || !user.phone || normalizePhone(user.phone) !== phone) throw new ApiError(400, "Почта и телефон не совпадают ни с одним аккаунтом");
+    // У аккаунта без номера (зарегистрирован только по почте) номер не спрашиваем.
+    const accountPhone = user?.phone ? normalizePhone(user.phone) : "";
+    if (!user || accountPhone !== phone) throw new ApiError(400, "Почта и телефон не совпадают ни с одним аккаунтом");
     if (user.isBanned) throw new ApiError(403, banError(user));
     if (user.twoFactorEnabled) {
       throw new ApiError(

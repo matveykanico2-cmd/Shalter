@@ -212,8 +212,8 @@ const setMembers = db.transaction((chatId, memberIds, adminIds, moderatorIds, ow
 
 async function createChat(chat) {
   db.prepare(
-    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, avatarEmoji, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId, restrictions, points, votes)
-     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @avatarEmoji, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId, @restrictions, @points, @votes)`
+    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, avatarEmoji, avatarType, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId, restrictions, points, votes)
+     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @avatarEmoji, @avatarType, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId, @restrictions, @points, @votes)`
   ).run({
     id: chat.id,
     type: chat.type,
@@ -224,6 +224,7 @@ async function createChat(chat) {
     avatarColor: chat.avatarColor ?? null,
     avatarImage: chat.avatarImage ?? null,
     avatarEmoji: chat.avatarEmoji ?? null,
+    avatarType: chat.avatarType ?? null,
     ownerId: chat.ownerId ?? null,
     pinned: chat.pinned ? 1 : 0,
     muted: chat.muted ? 1 : 0,

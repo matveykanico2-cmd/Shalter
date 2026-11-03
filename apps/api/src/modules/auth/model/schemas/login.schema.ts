@@ -10,12 +10,11 @@ const handle = () => text().transform((v) => v.trim().replace(/^@/, ""));
 export const loginEmailSchema = requestBody({ email: text(), password: text() });
 export type LoginEmailDto = z.infer<typeof loginEmailSchema>;
 
-// Имя, почта и пароль проверяются до всего остального, как в server/routes/auth.js; юзернейм
-// (занятость — запрос в базу) и затем формат номера — в сервисе.
+// Регистрация — только почта и пароль, остальное (имя, фото, юзернейм, телефон) человек
+// заполняет следующим шагом или позже в профиле. Почта и пароль проверяются до всего
+// остального; присланные юзернейм (занятость — запрос в базу) и номер — в сервисе.
 export const registerEmailSchema = requestBody({
-  name: text()
-    .refine((v) => v.trim() !== "", { error: "Введите имя" })
-    .transform((v) => v.trim()),
+  name: text().transform((v) => v.trim().slice(0, 64)),
   lastName: text().transform((v) => v.trim().slice(0, 60)),
   email: text().refine((v) => EMAIL_RE.test(v), { error: "Некорректный email" }),
   password: text().refine((v) => v.length >= 6, { error: "Пароль должен быть не короче 6 символов" }),

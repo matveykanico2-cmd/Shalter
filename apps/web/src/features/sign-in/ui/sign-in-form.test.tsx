@@ -8,7 +8,7 @@ import { SignInForm } from "./sign-in-form";
 
 const user = { id: "u_test12345", name: "Аня" };
 
-function renderForm() {
+function renderForm({ more = false } = {}) {
   const onSignedIn = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -16,6 +16,7 @@ function renderForm() {
       <SignInForm onSignedIn={onSignedIn} />
     </QueryClientProvider>
   );
+  if (more) fireEvent.click(screen.getByRole("button", { name: /Другие способы входа/ }));
   return { onSignedIn };
 }
 
@@ -74,26 +75,48 @@ describe("вход по почте", () => {
 });
 
 describe("регистрация", () => {
-  it("имя, почта, телефон, свободный юзернейм и пароль — аккаунт создан, вошли", async () => {
+  it("почта и пароль — аккаунт создан, затем данные профиля, вошли", async () => {
+    const created = { ...user, name: "Regina", username: "regina_123" };
     const api = fakeApi({
+      "POST /api/auth/register-email": { body: { user: created } },
       "GET /api/auth/username-available?u=regina": { body: { username: "regina", available: true, error: null } },
-      "POST /api/auth/register-email": { body: { user } },
+      "PATCH /api/users/u_test12345": { body: { user: { ...created, name: "Регина", username: "regina" } } },
     });
     const { onSignedIn } = renderForm();
     fireEvent.click(screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }));
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: " regina@example.com " } });
+    fireEvent.change(screen.getByPlaceholderText("Пароль"), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать аккаунт" }));
+    expect(await screen.findByText(/Аккаунт создан/)).toBeTruthy();
+    expect(api.calls[0]).toEqual({ key: "POST /api/auth/register-email", body: { email: "regina@example.com", password: "secret123" } });
+    expect(onSignedIn).not.toHaveBeenCalled();
+
+    // Имя и юзернейм уже придуманы сервером — их можно поменять.
+    expect((screen.getByPlaceholderText("Имя") as HTMLInputElement).value).toBe("Regina");
+    expect((screen.getByPlaceholderText("юзернейм") as HTMLInputElement).value).toBe("regina_123");
     fireEvent.change(screen.getByPlaceholderText("Имя"), { target: { value: "Регина" } });
-    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "regina@example.com" } });
-    fireEvent.change(screen.getByPlaceholderText("999 123 45 67"), { target: { value: "+79991234567" } });
     fireEvent.change(screen.getByPlaceholderText("юзернейм"), { target: { value: "@regina!" } });
     expect((screen.getByPlaceholderText("юзернейм") as HTMLInputElement).value).toBe("regina");
     expect(await screen.findByText("Свободен ✓", {}, { timeout: 2000 })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Готово" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ name: "Регина", username: "regina" })));
+    expect(api.calls.at(-1)).toEqual({ key: "PATCH /api/users/u_test12345", body: { name: "Регина", username: "regina" } });
+  });
+
+  it("второй шаг можно пропустить", async () => {
+    const api = fakeApi({ "POST /api/auth/register-email": { body: { user } } });
+    const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }));
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "a@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Пароль"), { target: { value: "123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать аккаунт" }));
+    expect(await screen.findByText("Пароль должен быть не короче 6 символов")).toBeTruthy();
+    expect(api.calls).toEqual([]);
     fireEvent.change(screen.getByPlaceholderText("Пароль"), { target: { value: "secret123" } });
     fireEvent.click(screen.getByRole("button", { name: "Создать аккаунт" }));
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
-    expect(api.calls.at(-1)).toEqual({
-      key: "POST /api/auth/register-email",
-      body: { name: "Регина", lastName: "", email: "regina@example.com", phone: "+79991234567", username: "regina", password: "secret123", birthday: null },
-    });
+    fireEvent.click(await screen.findByRole("button", { name: "Пропустить" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: user.id })));
+    expect(api.calls).toHaveLength(1);
   });
 
   it("вход по коду: телефон → код из сообщения", async () => {
@@ -102,6 +125,7 @@ describe("регистрация", () => {
       "POST /api/auth/code/verify": { body: { user, alreadyLinked: false } },
     });
     const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: /Другие способы входа/ }));
     fireEvent.click(screen.getByRole("button", { name: /Войти по коду из сообщения/ }));
     fireEvent.change(screen.getByPlaceholderText("999 123 45 67"), { target: { value: "+79991234567" } });
     fireEvent.click(screen.getByRole("button", { name: "Отправить код" }));
@@ -125,7 +149,7 @@ describe("гостевой вход", () => {
       return new Response(JSON.stringify({ user: { ...user, isGuest: true }, alreadyLinked: false }), { headers: { "content-type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { onSignedIn } = renderForm();
+    const { onSignedIn } = renderForm({ more: true });
     fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
     expect(((await screen.findByRole("button", { name: "Входим…" })) as HTMLButtonElement).disabled).toBe(true);
     release();
@@ -138,7 +162,7 @@ describe("гостевой вход", () => {
       return new Response(JSON.stringify({ user: { ...user, name: "Вася", isGuest: true }, alreadyLinked: false }), { headers: { "content-type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { onSignedIn } = renderForm();
+    const { onSignedIn } = renderForm({ more: true });
     fireEvent.change(screen.getByRole("textbox", { name: "Имя гостя" }), { target: { value: "  Вася " } });
     fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ name: "Вася", isGuest: true })));
@@ -146,7 +170,7 @@ describe("гостевой вход", () => {
 
   it("гостевой режим отключён — ошибка сервера, как у остальных способов входа", async () => {
     fakeApi({ "POST /api/auth/guest": { status: 404, body: { error: "Гостевой режим отключён" } } });
-    const { onSignedIn } = renderForm();
+    const { onSignedIn } = renderForm({ more: true });
     fireEvent.click(screen.getByRole("button", { name: "Продолжить как гость" }));
     expect(await screen.findByText("Гостевой режим отключён")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Продолжить как гость" })).toBeTruthy();

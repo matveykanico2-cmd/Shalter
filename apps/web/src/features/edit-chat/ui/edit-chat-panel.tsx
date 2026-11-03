@@ -2,20 +2,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { chatQueries, type ChatSummary } from "@/entities/chat";
-import { graphemes } from "@/entities/message";
 
-import type { Sticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
-import { fileToImageDataUrl } from "@/shared/lib/image";
 import { useEscape } from "@/shared/lib/use-escape";
-import { Avatar, Button, Icon, TextField, toast } from "@/shared/ui";
+import { AvatarEditor, type AvatarValue, Button, Icon, TextField, toast } from "@/shared/ui";
 
 import { type ChatProfilePatch, editChatQueries, patchChatProfile, setChatDiscussion } from "../api/edit-chat";
 import { allowedReactions } from "../lib/chat-fields";
 import { useApplyChat } from "../model/use-apply-chat";
 import { useSaveSetting } from "../model/use-save-setting";
 
-import { AvatarChoice } from "./avatar-choice";
 import { AdminLogPage, DiscussionPage, ReactionsPage } from "./channel-pages";
 import styles from "./edit-chat.module.css";
 import { BannedPage, InvitePage, PermissionsPage, RequestsPage, TypePage, WelcomePage } from "./pages";
@@ -80,18 +76,11 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   const [title, setTitle] = useState(chat.title ?? "");
   const [description, setDescription] = useState(chat.description ?? "");
   const [avatarColor, setAvatarColor] = useState<string | null>(chat.avatarColor ?? null);
-  const [avatarType, setAvatarType] = useState<"image" | "emoji" | "sticker" | null>(
-    chat.avatarImage ? "image" : chat.avatarEmoji ? "emoji" : null
-  );
-  const [avatarImage, setAvatarImage] = useState<string | null>(chat.avatarImage ?? null);
-  const [avatarEmoji, setAvatarEmoji] = useState<string | null>(chat.avatarEmoji ?? null);
-  const [avatarSticker, setAvatarSticker] = useState<Sticker | null>(null);
-  const [avatarPackId, setAvatarPackId] = useState<string | null>(null);
-  const [openAvatar, setOpenAvatar] = useState(false);
+  const savedAvatar = chatAvatar(chat);
+  const [avatar, setAvatar] = useState<AvatarValue>(savedAvatar);
   const [titleError, setTitleError] = useState(false);
   const [busy, setBusy] = useState(false);
   const titleInput = useRef<HTMLInputElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const permissions = useQuery({ ...editChatQueries.permissions(chat.id), enabled: !isChannel }).data;
   const requests = useQuery(editChatQueries.joinRequests(chat.id)).data;
   const banned = useQuery(editChatQueries.banned(chat.id)).data;
@@ -112,47 +101,6 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
     if (await saveSetting({ commentsOff: !on })) toast(on ? "Комментарии включены" : "Комментарии отключены");
   };
 
-  const pickImage = async (file: File | undefined) => {
-    if (!file) return;
-    setAvatarType("image");
-    setAvatarEmoji(null);
-    setAvatarSticker(null);
-    setAvatarPackId(null);
-    try {
-      setAvatarImage(await fileToImageDataUrl(file, 512));
-    } catch (err) {
-      toast(errorText(err, "Не удалось прочитать изображение"), { error: true });
-    }
-  };
-
-  const pickEmoji = (e: string) => {
-    const g = graphemes(e.trim());
-    if (g.length !== 1) return toast("Один смайл", { error: true });
-    setAvatarType("emoji");
-    setAvatarImage(null);
-    setAvatarSticker(null);
-    setAvatarPackId(null);
-    setAvatarEmoji(g[0]!);
-    setOpenAvatar(false);
-  };
-
-  const pickSticker = (sticker: Sticker, packId: string | null) => {
-    setAvatarType("sticker");
-    setAvatarImage(null);
-    setAvatarEmoji(null);
-    setAvatarSticker(sticker);
-    setAvatarPackId(packId);
-    setOpenAvatar(false);
-  };
-
-  const clearAvatar = () => {
-    setAvatarType(null);
-    setAvatarImage(null);
-    setAvatarEmoji(null);
-    setAvatarSticker(null);
-    setAvatarPackId(null);
-  };
-
   const save = async () => {
     const t = title.trim();
     if (!t) {
@@ -163,26 +111,15 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
     const patch: ChatProfilePatch = {};
     if (t !== (chat.title ?? "")) patch.title = t;
     if (description.trim() !== (chat.description ?? "")) patch.description = description.trim();
-    const prevType = chat.avatarImage ? "image" : chat.avatarEmoji ? "emoji" : null;
-    const nextImage = avatarType === "image" ? avatarImage : avatarType === "sticker" ? (avatarSticker?.url ?? null) : null;
-    const nextEmoji = avatarType === "emoji" ? avatarEmoji : null;
-    if (nextImage !== (chat.avatarImage ?? null)) patch.avatarImage = nextImage;
-    if (nextEmoji !== (chat.avatarEmoji ?? null)) patch.avatarEmoji = nextEmoji;
-    if (avatarColor !== (chat.avatarColor ?? null)) patch.avatarColor = avatarColor;
-    const avatarChanged =
-      avatarType !== prevType ||
-      (avatarSticker?.id ?? null) !== (chat.stickerId ?? null) ||
-      avatarPackId !== (chat.packId ?? null);
-    if (avatarChanged) {
-      patch.avatarType = avatarType ?? null;
-      if (avatarType === "sticker") {
-        patch.stickerId = avatarSticker?.id ?? null;
-        patch.packId = avatarPackId ?? null;
-      } else {
-        patch.stickerId = null;
-        patch.packId = null;
-      }
+    if (avatar.image !== savedAvatar.image || avatar.emoji !== savedAvatar.emoji) {
+      // Фото и смайл (или стикер «sticker:/uploads/…», как у профиля) сменяют друг друга.
+      patch.avatarImage = avatar.image;
+      patch.avatarEmoji = avatar.emoji;
+      patch.avatarType = avatar.image ? "image" : avatar.emoji ? "emoji" : null;
+      patch.stickerId = null;
+      patch.packId = null;
     }
+    if (avatarColor !== (chat.avatarColor ?? null)) patch.avatarColor = avatarColor;
     if (!Object.keys(patch).length) return onDone();
     setBusy(true);
     try {
@@ -195,50 +132,10 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
     }
   };
 
-  const preview = (
-    <Avatar
-      size={120}
-      name={title || chat.title || ""}
-      color={avatarColor}
-      image={avatarType === "image" ? avatarImage : avatarType === "sticker" ? avatarSticker?.url ?? undefined : undefined}
-      emoji={avatarType === "emoji" ? avatarEmoji : undefined}
-      sticker={avatarType === "sticker"}
-    />
-  );
-
   return (
     <>
       <div className={styles.head}>
-        <div className={styles.avatarPick}>
-          <button type="button" className={styles.avatarEdit} title="Сменить аватар" onClick={() => setOpenAvatar(true)}>
-            {preview}
-            <span className={styles.avatarIcon}>
-              <Icon name="Image" size={40} />
-            </span>
-          </button>
-          {(avatarImage || avatarEmoji || avatarSticker) && (
-            <button type="button" className={styles.avatarClear} title="Убрать аватар" onClick={clearAvatar}>
-              <Icon name="X" size={20} />
-            </button>
-          )}
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          hidden
-          aria-label="Фото"
-          onChange={(e) => {
-            void pickImage(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        {openAvatar ? (
-          <AvatarChoice onPick={(p) => {
-            if (p.kind === "emoji") pickEmoji(p.emoji);
-            else pickSticker(p.sticker, p.packId);
-          }} onClose={() => setOpenAvatar(false)} />
-        ) : null}
+        <AvatarEditor name={title || chat.title || ""} color={avatarColor} image={avatar.image} emoji={avatar.emoji} size={120} onChange={setAvatar} />
       </div>
       <Section>
         <div className={styles.fields}>
@@ -321,4 +218,14 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
       </Button>
     </>
   );
+}
+
+/**
+ * Аватар чата для редактора: фото или смайл. Старый стикер-аватар (avatarType «sticker», файл
+ * стикера в avatarImage) показываем как стикер на аватарке — в том же виде его и сохраняем.
+ */
+function chatAvatar(chat: ChatSummary): AvatarValue {
+  if (chat.avatarType === "sticker" && chat.avatarImage) return { image: null, emoji: `sticker:${chat.avatarImage}` };
+  if (chat.avatarImage && chat.avatarType !== "emoji") return { image: chat.avatarImage, emoji: null };
+  return { image: null, emoji: chat.avatarEmoji ?? null };
 }

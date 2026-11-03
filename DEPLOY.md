@@ -308,6 +308,47 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Обновление 2026-11-03: регистрация по почте, письма с кодом, вход в приложении на Android
+
+Что изменилось для сервера:
+
+- Регистрация — только почта и пароль; имя, юзернейм, телефон и фото человек заполняет
+  следующим шагом (или пропускает). Схема базы не менялась.
+- «Забыли пароль?» шлёт код письмом. Если письмо не ушло, код теперь приходит в чат «Shalter»
+  на устройствах, где аккаунт открыт, а без открытых устройств — ошибка «Не удалось отправить
+  письмо с кодом». Чтобы письма доходили, на сервере должен быть настроен SMTP (раздел
+  «Sending e-mail» ниже): без него сервер шлёт письмо сам на порт 25 почты получателя, а
+  большинство хостингов этот порт закрывают.
+
+### Шаги (PM2)
+
+```bash
+cd /opt/shalter
+git pull && npm install && npm run build && npm run build:api && npm prune --omit=dev
+# Если SMTP ещё не настроен — ящик no-reply на Яндексе (пароль приложения, см. «Sending e-mail»):
+grep -q '^SMTP_URL=' .env || echo 'SMTP_URL=smtps://no-reply%40shalter.ru:APP_PASSWORD@smtp.yandex.ru:465' >> .env
+grep -q '^MAIL_FROM=' .env || echo 'MAIL_FROM=Shalter <no-reply@shalter.ru>' >> .env
+pm2 restart shalter --update-env
+# Проверка: в логе не должно быть «[mail] прямая доставка … не удалась» после запроса кода.
+pm2 logs shalter --lines 50 --nostream | grep -i mail
+```
+
+`APP_PASSWORD` замените на пароль приложения ящика. Docker / Dokploy: те же `SMTP_URL` и
+`MAIL_FROM` в переменные окружения сервиса и пересборка образа.
+
+### Приложение для Android
+
+Исправлено: приложение на Android выкидывало из аккаунта после того, как система выгружала его
+из памяти, и каждый новый вход добавлял ещё один сеанс в «Устройства» (cookie входа не
+успевали записаться на диск). Правка в `resources/android/java/MainActivity.java`, она попадает
+в приложение только с новой сборкой APK/AAB:
+
+```bash
+npm run cap:sync                               # сборка клиента и синхронизация Capacitor
+node scripts/apply-native-resources.js android  # копирует resources/android (MainActivity) в android/
+cd android && ./gradlew assembleRelease         # или bundleRelease для Google Play
+```
+
 ## Обновление 2026-11-01: прокси Shalter (`apps/proxy`)
 
 Новое: свой прокси, как MTProto-прокси у Telegram. Его поднимает кто угодно на любом

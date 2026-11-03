@@ -41,20 +41,16 @@ describe("POST /api/auth/register-email", () => {
     await createChannel(channelOwner, [], { username: channelHandle, isPublic: true });
 
     const cases: Array<[Record<string, unknown>, number, string]> = [
-      [{ name: undefined }, 400, "Введите имя"],
-      [{ name: "   " }, 400, "Введите имя"],
       [{ email: "not-an-email" }, 400, "Некорректный email"],
       [{ email: undefined }, 400, "Некорректный email"],
       [{ password: "12345" }, 400, "Пароль должен быть не короче 6 символов"],
       [{ password: undefined }, 400, "Пароль должен быть не короче 6 символов"],
       [{ username: "ab" }, 400, "Юзернейм: 3–32 символа, латинские буквы, цифры и _"],
       [{ username: "имя" }, 400, "Юзернейм: 3–32 символа, латинские буквы, цифры и _"],
-      [{ username: undefined }, 400, "Юзернейм: 3–32 символа, латинские буквы, цифры и _"],
       [{ username: "Admin" }, 409, "Этот юзернейм зарезервирован — выберите другой"],
       [{ username: taken.username }, 409, "Этот юзернейм уже занят"],
       [{ username: channelHandle }, 409, "Этот юзернейм уже занят каналом"],
       [{ phone: "123" }, 400, "Введите номер телефона в формате +79991234567"],
-      [{ phone: undefined }, 400, "Введите номер телефона в формате +79991234567"],
       [{ email: taken.email.toUpperCase() }, 409, "Аккаунт с таким email уже существует"],
       [{ phone: taken.phone }, 409, "Аккаунт с таким номером телефона уже существует"],
       [{ birthday: "31.02.2000" }, 400, "Введите корректную дату рождения (ДД.ММ.ГГГГ)"],
@@ -125,6 +121,28 @@ describe("POST /api/auth/register-email", () => {
     expect(session.user?.id).toBe(body.user.id);
     // Регистрация — первое устройство: оповещения о входе нет.
     expect(await countSystem(api, (t) => t.startsWith(LOGIN_ALERT))).toBe(0);
+  });
+
+  test("только почта и пароль: имя — первое слово почты, случайный юзернейм, без телефона", async () => {
+    const { baseUrl } = server();
+    const api = new Api(baseUrl);
+    const local = uniq("ivan.petrov").toLowerCase();
+    const res = await api.post("/api/auth/register-email", { email: `${local}@test.invalid`, password: "secret123" });
+    const body = expectOk(res, userBody);
+    expect(body.user.name).toBe("Ivan");
+    expect(body.user.phone).toBe("");
+    // Юзернейм не из почты: по публичному юзернейму адрес не угадать.
+    expect(body.user.username).toMatch(/^user_[0-9a-f]{8}$/);
+    // Придуманный юзернейм занят этим аккаунтом, второй такой же не выдаётся.
+    const check = expectOk(await api.get(`/api/auth/username-available?u=${body.user.username}`), usernameAvailableBody);
+    expect(check.available).toBe(false);
+    const second = expectOk(await new Api(baseUrl).post("/api/auth/register-email", { email: `${local}@other.invalid`, password: "secret123" }), userBody);
+    expect(second.user.username).not.toBe(body.user.username);
+    expect(second.user.phone).toBe("");
+    // Пустые поля — как отсутствующие; присланный неверный номер — по-прежнему ошибка.
+    const empty = await new Api(baseUrl).post("/api/auth/register-email", { name: " ", username: "", phone: "", email: `${uniq("e")}@test.invalid`, password: "secret123" });
+    expect(expectOk(empty, userBody).user.name).not.toBe("");
+    expectError(await new Api(baseUrl).post("/api/auth/register-email", { phone: "123", email: `${uniq("e")}@test.invalid`, password: "secret123" }), 400, "Введите номер телефона в формате +79991234567");
   });
 
   test("код друга: обоим Premium, пригласившему — сообщение от нового пользователя", async () => {

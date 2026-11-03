@@ -1,11 +1,10 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import type { Contact } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
-import { fileToImageDataUrl } from "@/shared/lib/image";
 import { plural } from "@/shared/lib/presence";
-import { Avatar, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, AvatarEditor, type AvatarValue, Button, Dialog, TextField, toast } from "@/shared/ui";
 
 import type { NewChatFields } from "../api/create-chat";
 
@@ -22,23 +21,14 @@ type Props = {
 export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
   const isChannel = kind === "channel";
   const what = isChannel ? "канала" : "группы";
-  const [avatarImage, setAvatarImage] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<AvatarValue>({ image: null, emoji: null });
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [username, setUsername] = useState("");
   const [error, setError] = useState<"title" | "username" | null>(null);
   const [busy, setBusy] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
-  const pickAvatar = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      setAvatarImage(await fileToImageDataUrl(file, 512));
-    } catch (err) {
-      toast(errorText(err, "Не удалось прочитать изображение"), { error: true });
-    }
-  };
   const submit = async () => {
     const t = title.trim();
     if (!t) return setError("title");
@@ -49,7 +39,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
     }
     setBusy(true);
     try {
-      await onSubmit({ title: t, avatarImage, description: description.trim(), isPublic, username: isPublic ? username.trim() : null });
+      await onSubmit({ title: t, avatarImage: avatar.image, avatarEmoji: avatar.emoji, description: description.trim(), isPublic, username: isPublic ? username.trim() : null });
     } catch (err) {
       setBusy(false);
       toast(errorText(err, "Не получилось"), { error: true });
@@ -58,23 +48,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
 
   return (
     <Dialog title={isChannel ? "Новый канал" : "Новая группа"} onClose={onClose}>
-      <button type="button" className={styles.avatarEdit} title="Выбрать фото" onClick={() => fileInput.current?.click()}>
-        <Avatar size={96} name={title || "?"} image={avatarImage} />
-        <span className={styles.avatarIcon}>
-          <Icon name="Camera" size={30} />
-        </span>
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/*"
-        hidden
-        aria-label="Фото"
-        onChange={(e) => {
-          void pickAvatar(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      <AvatarEditor name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
       <label className={styles.field}>
         <span>Название {what}</span>
         <TextField

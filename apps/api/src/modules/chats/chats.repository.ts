@@ -276,6 +276,8 @@ export class ChatsRepository {
         isPublic: chat.isPublic ? 1 : 0,
         avatarColor: chat.avatarColor ?? null,
         avatarImage: chat.avatarImage ?? null,
+        avatarEmoji: chat.avatarEmoji ?? null,
+        avatarType: chat.avatarType ?? null,
         ownerId: chat.ownerId ?? null,
         pinned: chat.pinned ? 1 : 0,
         muted: chat.muted ? 1 : 0,

@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, openStickerPack, openStickerPreview, outgoingSticker, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
+import { closeStickerPack, Composer, findBuiltinPack, openBuiltinStickerPack, openStickerPack, openStickerPreview, outgoingSticker, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
 import { useSuggestedPhoto } from "@/features/suggested-photo";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
@@ -107,8 +107,12 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const history = useQuery(messageQueries.history(chat.id, topic));
   const stickerView = useStickerView();
   const openPackBySticker = (sticker: Sticker) => {
-    // Стикер без пака (старые сообщения) — только крупно на своём фоне.
-    if (!sticker.packId) return openStickerPreview(sticker);
+    // Встроенные стикеры уходят без packId — их пак ищем по рисунку; стикер без пака (старые
+    // сообщения) — только крупно на своём фоне.
+    if (!sticker.packId) {
+      const builtin = findBuiltinPack(sticker);
+      return builtin ? openBuiltinStickerPack(builtin, sticker) : openStickerPreview(sticker);
+    }
     const packId = sticker.packId;
     void (async () => {
       try {
@@ -232,13 +236,20 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
 
   // Пока истории нет (грузится, ошибка), нет и области прокрутки.
   const hasScroller = !!data;
-  // Лента стала ниже (появились вкладки тем, плашка ответа над полем) — scrollTop прежний,
-  // события scroll нет, и прилипшая лента уехала бы от низа.
+  // Лента стала ниже (открылась клавиатура, появились вкладки тем, плашка ответа над полем) —
+  // scrollTop прежний, события scroll нет, и низ ленты уезжал под поле ввода: на Android с
+  // клавиатурой последние сообщения было не видно. Как в Telegram, держим нижний край: прилипшая
+  // лента остаётся внизу, остальная — на том же расстоянии от низа.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
+    let height = el.clientHeight;
     const observer = new ResizeObserver(() => {
+      const prev = height;
+      height = el.clientHeight;
       if (stuck.current) el.scrollTop = el.scrollHeight;
+      else if (height !== prev) el.scrollTop = el.scrollHeight - fromBottom.current + (prev - height);
+      fromBottom.current = el.scrollHeight - el.scrollTop;
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -578,10 +589,12 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         />
       ) : null}
       {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
-      {stickerView.pack || stickerView.focus || stickerView.missing ? (
+      {stickerView.pack || stickerView.builtin || stickerView.focus || stickerView.missing ? (
         <StickerPackDetail
           overlay
           pack={stickerView.pack}
+          builtin={stickerView.builtin}
+          onBuiltinPick={sendSticker}
           focus={stickerView.focus}
           missing={stickerView.missing}
           onClose={closeStickerPack}

@@ -64,62 +64,6 @@
         } catch (e) {}
       }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
     })();
-    (function () {
-      var root = document.documentElement;
-      var vv = window.visualViewport;
-      var last = {};
-      function setVar(name, value) {
-        if (last[name] === value) return;
-        last[name] = value;
-        root.style.setProperty(name, value);
-      }
-      function setAppMetrics() {
-        frame = 0;
-        var h = (vv && vv.height) || window.innerHeight;
-        var top = vv ? vv.offsetTop : 0;
-        // Сколько экрана снизу закрывает клавиатура. Отступ под «домашнюю полоску»
-        // у композера уменьшается вместе с ней плавно, а не скачком по классу —
-        // иначе при закрытии клавиатуры низ экрана дёргается.
-        var kb = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
-        setVar("--app-height", Math.round(h) + "px");
-        setVar("--app-top", Math.round(top) + "px");
-        setVar("--kb-inset", kb + "px");
-        // В приложении на Android клавиатура не наезжает на страницу, а ужимает само
-        // окно (MainActivity) — тогда kb = 0, и открытую клавиатуру узнаём по тому, что
-        // окно стало заметно ниже обычного при фокусе в поле ввода.
-        var key = window.innerWidth;
-        if (fullH.w !== key || !isTyping()) fullH = { w: key, h: Math.max(window.innerHeight, fullH.w === key ? fullH.h : 0) };
-        var shrunk = fullH.h - window.innerHeight;
-        root.classList.toggle("keyboard-open", kb > 120 || (shrunk > 120 && isTyping()));
-        // Высота клавиатуры — под неё подстраивается панель вложений (как в Telegram).
-        var kbNow = Math.max(kb, isTyping() ? shrunk : 0);
-        if (kbNow > 150 && kbNow !== kbSaved) {
-          kbSaved = kbNow;
-          try { localStorage.setItem("shalter.kbh", String(kbNow)); } catch (e) {}
-        }
-        // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной.
-        if (kb <= 120 && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
-      }
-      var fullH = { w: 0, h: 0 };
-      var kbSaved = 0;
-      function isTyping() {
-        var a = document.activeElement;
-        return !!a && (a.tagName === "TEXTAREA" || a.isContentEditable || (a.tagName === "INPUT" && !/^(checkbox|radio|button|submit|range|file|color)$/.test(a.type)));
-      }
-      var frame = 0;
-      function scheduleAppMetrics() {
-        if (!frame) frame = requestAnimationFrame(setAppMetrics);
-      }
-      setAppMetrics();
-      if (vv) {
-        vv.addEventListener("resize", scheduleAppMetrics);
-        vv.addEventListener("scroll", scheduleAppMetrics);
-      }
-      window.addEventListener("resize", scheduleAppMetrics);
-      window.addEventListener("orientationchange", scheduleAppMetrics);
-      document.addEventListener("focusin", scheduleAppMetrics);
-      document.addEventListener("focusout", function () { setTimeout(scheduleAppMetrics, 50); });
-    })();
   
   </script>
   <meta name="color-scheme" content="light dark" />

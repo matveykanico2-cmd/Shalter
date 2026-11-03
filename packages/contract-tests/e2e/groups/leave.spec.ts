@@ -81,7 +81,7 @@ test("подписчик отписывается от закрытого кан
   await expect(messageText(b, "Только для своих")).toBeVisible();
   await b.getByRole("button", { name: "ОТПИСАТЬСЯ" }).click();
   // Предупреждение: вернуться в закрытый канал можно только по приглашению.
-  await expect(b.getByRole("heading", { name: /^Канал закрытый — вернуться в него можно будет только по приглашению/ })).toBeVisible();
+  await expect(b.getByRole("heading", { name: /^Канал закрытый — вернуться можно будет только по приглашению/ })).toBeVisible();
   await b.getByRole("button", { name: "Отписаться", exact: true }).click();
 
   await expect(b).toHaveURL(/\/$/);

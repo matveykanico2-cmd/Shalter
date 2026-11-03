@@ -9,7 +9,7 @@ import styles from "./sign-in.module.css";
 type Status = { text: string; kind?: "ok" | "taken" };
 
 /** Юзернейм при регистрации: только латиница, цифры и _, проверка «Свободен ✓» через 0,4 с после ввода. */
-export function UsernameInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function UsernameInput({ value, own, onChange }: { value: string; /** Свой текущий юзернейм — его не проверяем. */ own?: string; onChange: (v: string) => void }) {
   const [status, setStatus] = useState<Status | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const asked = useRef("");
@@ -24,6 +24,10 @@ export function UsernameInput({ value, onChange }: { value: string; onChange: (v
     onChange(cleaned);
     clearTimeout(timer.current);
     asked.current = cleaned;
+    if (own && cleaned.toLowerCase() === own.toLowerCase()) {
+      setStatus({ text: "Ваш юзернейм — можно оставить", kind: "ok" });
+      return;
+    }
     if (cleaned.length < 3) {
       setStatus(cleaned.length === 0 ? null : { text: "Минимум 3 символа" });
       return;

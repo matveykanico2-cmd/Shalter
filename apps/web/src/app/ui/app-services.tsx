@@ -49,7 +49,7 @@ export function AppServices({ user, ready, children }: Props) {
   useNativeNotify(user.id);
   useDeviceBridges();
   useBackButton(locked);
-  useAppIcon(user, settings);
+  useAppIcon(user);
   useUiTranslation(settings?.uiLanguage);
 
   // Первый запуск — окно разрешений, чуть погодя (и не поверх экрана блокировки).

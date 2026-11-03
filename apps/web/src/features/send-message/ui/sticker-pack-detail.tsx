@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
-import { renderSticker, type Sticker as AnimSticker } from "@/shared/lib/anim";
+import { type BuiltinStickerPack, renderSticker, type Sticker as AnimSticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
 import { Button, DomNode, Icon } from "@/shared/ui";
 
@@ -327,6 +327,10 @@ export function StickerGridEditor({
 
 type Props = {
   pack?: StickerPack | null;
+  /** Встроенный пак (есть у всех, без правки и «добавить»). */
+  builtin?: BuiltinStickerPack | null;
+  /** Стикер встроенного пака выбран. */
+  onBuiltinPick?: (s: AnimSticker) => void;
   /** Стикер, по которому открыли пак из чата: показывается крупно на своём фоне. */
   focus?: AnimSticker | null;
   /** Пака по ссылке нет (удалён или ссылка неверная). */
@@ -347,7 +351,7 @@ export function StickerPackDetail({ overlay, ...props }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [overlay, onClose]);
   // Другой пак — новое состояние листа (key), без синхронизации через эффект.
-  const sheetKey = props.pack?.id ?? "none";
+  const sheetKey = props.pack?.id ?? props.builtin?.id ?? "none";
   if (!overlay) return <PackSheet key={sheetKey} {...props} />;
   return (
     <div className={styles.backdrop} onClick={onClose}>
@@ -361,6 +365,8 @@ export function StickerPackDetail({ overlay, ...props }: Props) {
 /** Пак, открытый из чата или панели: обложка, название, стикеры; владельцу — правка. */
 function PackSheet({
   pack,
+  builtin,
+  onBuiltinPick,
   focus,
   missing,
   onClose,
@@ -383,6 +389,10 @@ function PackSheet({
     () => preloadStickers((pack?.stickers ?? []).map((s) => s.url)),
     [pack],
   );
+
+  if (!current && builtin) {
+    return <BuiltinPackSheet pack={builtin} focus={focus ?? null} onPick={onBuiltinPick} onClose={onClose} />;
+  }
 
   if (!current) {
     return (
@@ -574,6 +584,60 @@ function PackSheet({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/** Встроенный пак, открытый по стикеру из чата: крупный стикер, название и все стикеры — нажатие отправляет. */
+function BuiltinPackSheet({
+  pack,
+  focus,
+  onPick,
+  onClose,
+}: {
+  pack: BuiltinStickerPack;
+  focus: AnimSticker | null;
+  onPick?: (s: AnimSticker) => void;
+  onClose: () => void;
+}) {
+  const first = pack.stickers[0];
+  return (
+    <div className={styles.packSheet} role="dialog" aria-label={pack.name}>
+      {focus ? <StickerStage sticker={focus} /> : null}
+      <div className={styles.packHero}>
+        <span className={styles.cover} style={{ width: 56, height: 56 }} aria-hidden="true">
+          {first ? <DomNode create={() => renderSticker(first, { size: 50 })} /> : null}
+        </span>
+        <div className={styles.heroText}>
+          <h2 className={styles.sheetTitle}>{pack.name}</h2>
+          <span className={styles.sheetMeta}>{stickerWord(pack.stickers.length)} · встроенный набор, есть у всех</span>
+        </div>
+      </div>
+      <div className={styles.stickerGrid}>
+        {pack.stickers.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={styles.stickerItem}
+            title={s.name}
+            aria-label={`${s.emoji} ${s.name}`}
+            disabled={!onPick}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onPick?.(s);
+              onClose();
+            }}
+          >
+            <DomNode create={() => renderSticker(s, { size: 64 })} />
+          </button>
+        ))}
+      </div>
+      <div className={styles.sheetActions}>
+        <button type="button" className={styles.closeBtn} onClick={onClose}>
+          Закрыть
+        </button>
+      </div>
     </div>
   );
 }

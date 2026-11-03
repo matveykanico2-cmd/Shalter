@@ -19,6 +19,8 @@ export interface NewChat {
   isPublic?: boolean;
   avatarColor?: string;
   avatarImage?: string;
+  avatarEmoji?: string | null;
+  avatarType?: "image" | "emoji" | "sticker" | null;
   ownerId?: string;
   memberIds: string[];
   adminIds?: string[];

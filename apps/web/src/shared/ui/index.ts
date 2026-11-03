@@ -2,6 +2,7 @@ export { AnimatorDialog } from "./animator-dialog";
 export { AskHost } from "./ask-host";
 export { askConfirm, askText } from "./ask-store";
 export { Avatar } from "./avatar";
+export { AvatarEditor, type AvatarValue } from "./avatar-editor";
 export { BrowserHost } from "./browser-host";
 export { openExternally, openInAppBrowser, openInstantView } from "./browser-store";
 export { Button } from "./button";

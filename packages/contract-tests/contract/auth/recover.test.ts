@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { loginBody, pairCheckBody, recoverSentBody, sessionBody, totpSetupBody, twoFactorEnabledBody, userBody } from "../../schemas/auth";
 import { Api } from "../../support/client";
 import { expectError, expectOk } from "../../support/expect";
-import { login, registerUser, type TestUser } from "../../support/seed";
+import { login, registerUser, type TestUser, uniq } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { countSystem, lastCode, lastMailCode, readOutbox, waitSystemMessage } from "./helpers";
 import { totp } from "./totp";
@@ -33,7 +33,13 @@ describe("POST /api/auth/recover/pair/check", () => {
     expectError(await api.post("/api/auth/recover/pair/check", { email: "nobody@test.invalid", phone: user.phone }), 400, "Почта и телефон не совпадают ни с одним аккаунтом");
 
     const ok = expectOk(await api.post("/api/auth/recover/pair/check", { email: ` ${user.email.toUpperCase()} `, phone: user.phone }), pairCheckBody);
-    expect(ok).toEqual({ ok: true, name: "Мария" });
+    expect(ok).toEqual({ ok: true, name: "Мария", via: "email" });
+    // С номером у аккаунта без номера не обойтись: пустой номер не подходит.
+    expectError(await api.post("/api/auth/recover/pair/check", { email: user.email, phone: "" }), 400, "Почта и телефон не совпадают ни с одним аккаунтом");
+    // Аккаунт без номера (регистрация только по почте) — достаточно почты.
+    const bare = `${uniq("bare")}@test.invalid`;
+    expectOk(await new Api(baseUrl).post("/api/auth/register-email", { email: bare, password: "secret123" }), userBody);
+    expect(expectOk(await api.post("/api/auth/recover/pair/check", { email: bare, phone: "" }), pairCheckBody).via).toBe("email");
     // Проверка сессию не создаёт, а шлёт код на адрес аккаунта — почта и номер не секреты.
     expect(api.cookies.has("session_uids")).toBe(false);
     const { dataDir } = server();

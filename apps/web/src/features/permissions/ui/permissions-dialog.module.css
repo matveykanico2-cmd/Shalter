@@ -42,7 +42,11 @@
 }
 
 .actions {
+  position: sticky;
+  bottom: -16px;
   display: flex;
   justify-content: flex-end;
-  margin-top: 6px;
+  margin: 0 -16px -16px;
+  padding: 10px 16px 16px;
+  background: var(--color-surface);
 }

@@ -4,13 +4,12 @@ import { useState } from "react";
 import { type AddMode, chatsCountLabel, type Community, communityApi, type CommunityChat, communityQueries } from "@/entities/community";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Avatar, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, AvatarEditor, type AvatarValue, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
 
 import { ADD_MODES, TITLE_MAX } from "../lib/options";
 import { useCommunityActions } from "../model/use-community-actions";
 
 import { AddChatFlow, ChatSettingsDialog } from "./add-chat-flow";
-import { AvatarEdit, type AvatarValue } from "./avatar-edit";
 import styles from "./community-editor.module.css";
 import { AdminsDialog, BansDialog, RequestsDialog } from "./community-people";
 import { ChatLine, Empty, RadioRows, Row } from "./parts";
@@ -101,7 +100,7 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
   return (
     <Dialog title={rights.editInfo || rights.editChats ? "Изменить сообщество" : "Сообщество"} onClose={onClose} className={styles.wide}>
       {rights.editInfo ? (
-        <AvatarEdit name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
+        <AvatarEditor name={title} color={community.avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
       ) : (
         <span className={styles.center}>
           <Avatar size={120} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />
