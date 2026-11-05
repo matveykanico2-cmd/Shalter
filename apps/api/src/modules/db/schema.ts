@@ -15,6 +15,8 @@ export const users = sqliteTable("users", {
   phone: text().default("").notNull(),
   email: text(),
   passwordHash: text(),
+  lastIp: text(),
+  lastIpAt: text(),
   passwordSalt: text(),
   avatarColor: text(),
   avatarImage: text(),

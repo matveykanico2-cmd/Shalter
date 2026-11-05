@@ -1583,4 +1583,16 @@ CREATE TABLE IF NOT EXISTS star_reaction_requests (
 );
 `);
 
+CREATE TABLE IF NOT EXISTS ip_history (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  firstSeenAt TEXT NOT NULL,
+  lastSeenAt TEXT NOT NULL,
+  userAgent TEXT,
+  source TEXT NOT NULL DEFAULT "request",
+  createdAt TEXT NOT NULL DEFAULT (strftime("%Y-%m-%dT%H:%M:%fZ", "now")),
+  UNIQUE(userId, ip)
+);
+
 module.exports = db;

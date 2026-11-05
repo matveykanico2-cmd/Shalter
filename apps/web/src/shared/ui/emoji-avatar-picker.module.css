@@ -117,8 +117,23 @@
   background: transparent;
 }
 
+.bgSwatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.bgSwatch[aria-checked="true"] {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .sticker {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
+

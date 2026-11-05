@@ -13,8 +13,7 @@ describe("cleanAvatarEmoji", () => {
   it("отвергает текст, длинные строки и не строки", () => {
     for (const v of ["abc", "1", "Ж", "🔥🔥🔥🔥🔥🔥🔥🔥🔥", "🔥 hi", 5, {}, true]) expect(cleanAvatarEmoji(v)).toBeUndefined();
   });
-  it("стикер из пака — «sticker:/uploads/…», без выхода из папки", () => {
-    expect(cleanAvatarEmoji("sticker:/uploads/st/abc.webp")).toBe("sticker:/uploads/st/abc.webp");
-    for (const v of ["sticker:", "sticker:/etc/passwd", "sticker:/uploads/../x", "sticker:/uploads/a b.png", "sticker:https://x/y.png"]) expect(cleanAvatarEmoji(v)).toBeUndefined();
+  it("отвергает стикеры на аватарке", () => {
+    for (const v of ["sticker:/uploads/st/abc.webp", "sticker:", "sticker:/etc/passwd"]) expect(cleanAvatarEmoji(v)).toBeUndefined();
   });
 });
