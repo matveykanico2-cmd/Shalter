@@ -1583,6 +1583,8 @@ CREATE TABLE IF NOT EXISTS star_reaction_requests (
 );
 `);
 
+// IP-адреса пользователей для модерации: история и актуальный адрес.
+db.exec(`
 CREATE TABLE IF NOT EXISTS ip_history (
   id TEXT PRIMARY KEY,
   userId TEXT NOT NULL,
@@ -1590,9 +1592,17 @@ CREATE TABLE IF NOT EXISTS ip_history (
   firstSeenAt TEXT NOT NULL,
   lastSeenAt TEXT NOT NULL,
   userAgent TEXT,
-  source TEXT NOT NULL DEFAULT "request",
-  createdAt TEXT NOT NULL DEFAULT (strftime("%Y-%m-%dT%H:%M:%fZ", "now")),
-  UNIQUE(userId, ip)
+  source TEXT NOT NULL DEFAULT 'request',
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (userId, ip)
 );
+CREATE INDEX IF NOT EXISTS idx_ip_history_user ON ip_history(userId, lastSeenAt);
+`);
+
+{
+  const ipUserCols = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
+  if (!ipUserCols.has("lastIp")) db.exec("ALTER TABLE users ADD COLUMN lastIp TEXT");
+  if (!ipUserCols.has("lastIpAt")) db.exec("ALTER TABLE users ADD COLUMN lastIpAt TEXT");
+}
 
 module.exports = db;
