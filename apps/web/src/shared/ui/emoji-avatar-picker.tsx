@@ -71,7 +71,7 @@ function StickerAvatarList({ onPick }: { onPick: (value: string) => void }) {
         {packs.flatMap((p) =>
           p.stickers.map((s) => (
             <button key={`${p.id}:${s.id}`} type="button" className={styles.emoji} title={s.emoji} aria-label={`Стикер ${s.emoji}`} onClick={() => onPick(`sticker:${s.url}`)}>
-              <DomNode create={() => renderSticker({ url: s.url, emoji: s.emoji, kind: "image" as const }, { size: 28 })} />
+              <DomNode className={styles.stickerNode} create={() => renderSticker({ url: s.url, emoji: s.emoji, kind: "image" as const }, { size: 28 })} />
             </button>
           ))
         )}
