@@ -33,7 +33,7 @@ import { CommunityPanel, CommunityRow } from "./community-panel";
 
 /** Высота строки чата (аватар 54 + отступы 7 + 7); точную меряет виртуализатор. */
 const ROW_HEIGHT = 68;
-const SCROLL_TO_TOP = true;
+const SCROLL_TO_TOP = false;
 
 const NO_FOLDERS: ChatFolder[] = [];
 
