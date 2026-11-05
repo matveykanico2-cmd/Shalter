@@ -156,7 +156,7 @@ export function ChatList({ meId }: { meId: string }) {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 40,
+    overscan: 20,
     getItemKey: (i) => {
       const row = rows[i]!;
       return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : "archive";
