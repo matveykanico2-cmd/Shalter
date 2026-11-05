@@ -33,6 +33,7 @@ import { CommunityPanel, CommunityRow } from "./community-panel";
 
 /** Высота строки чата (аватар 54 + отступы 7 + 7); точную меряет виртуализатор. */
 const ROW_HEIGHT = 68;
+const SCROLL_TO_TOP = true;
 
 const NO_FOLDERS: ChatFolder[] = [];
 
@@ -161,6 +162,14 @@ export function ChatList({ meId }: { meId: string }) {
       return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : "archive";
     },
   });
+
+  // При первой отрисовке или когда список изменился — прокручиваем к верхнему видимому элементу,
+  // чтобы пользователь видел начало списка, а не конец (виртуализатор при этом сам не ставит
+  // scrollTop в 0: без этого новое содержимое появлялось бы снизу при долгой загрузке).
+  useEffect(() => {
+    if (!SCROLL_TO_TOP || !scrollRef.current || rows.length === 0) return;
+    virtualizer.scrollToOffset(0, { align: "start" });
+  }, [virtualizer, rows.length]);
 
   const archivedCount = chats?.filter((c) => c.archived).length ?? 0;
 
