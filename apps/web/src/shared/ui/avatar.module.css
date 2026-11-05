@@ -18,6 +18,9 @@
 .stickerWrap {
   overflow: hidden;
   object-fit: contain;
+  background: var(--color-accent);
+  display: grid;
+  place-items: center;
 }
 
 .sticker {

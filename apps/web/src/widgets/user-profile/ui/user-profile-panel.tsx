@@ -260,9 +260,9 @@ export function UserProfilePanel({ userId, me }: Props) {
         <button
           type="button"
           className={styles.avatarButton}
-          title={isSelf || u.avatarImage ? "Открыть фото" : undefined}
+          title={isSelf || u.avatarImage || u.avatarEmoji ? "Открыть фото" : undefined}
           aria-label="Открыть фото"
-          onClick={() => (isSelf || u.avatarImage ? setOverlay("avatars") : undefined)}
+          onClick={() => (isSelf || u.avatarImage || u.avatarEmoji ? setOverlay("avatars") : undefined)}
         >
           <Avatar size={88} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={u.online} />
           {avatarCount > 1 ? <span className={styles.avatarCount}>{avatarCount}</span> : null}

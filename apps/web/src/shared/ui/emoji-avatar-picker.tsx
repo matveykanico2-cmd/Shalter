@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { http } from "../api";
-import { hasAnimatedEmoji } from "../lib/anim";
+import { hasAnimatedEmoji, renderSticker } from "../lib/anim";
+import { DomNode } from "@/shared/ui";
 import { ALL_EMOJI } from "../lib/emoji-list";
 import { graphemes, isSingleEmoji } from "../lib/graphemes";
-
 import styles from "./emoji-avatar-picker.module.css";
 import { toast } from "./toast-store";
 
@@ -71,7 +71,7 @@ function StickerAvatarList({ onPick }: { onPick: (value: string) => void }) {
         {packs.flatMap((p) =>
           p.stickers.map((s) => (
             <button key={`${p.id}:${s.id}`} type="button" className={styles.emoji} title={s.emoji} aria-label={`Стикер ${s.emoji}`} onClick={() => onPick(`sticker:${s.url}`)}>
-              <img className={styles.sticker} src={s.url} alt="" loading="lazy" decoding="async" />
+              <DomNode create={() => renderSticker({ url: s.url, emoji: s.emoji, kind: "image" as const }, { size: 28 })} />
             </button>
           ))
         )}

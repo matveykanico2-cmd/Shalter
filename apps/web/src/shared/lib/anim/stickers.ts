@@ -58,7 +58,8 @@ export function getSticker(id: string) {
 
 export function renderSticker(s: Sticker | null | undefined, { size = 30, replay = false } = {}): Node {
   if (s?.kind === "custom") return renderCustomScene(s.scene, { size, replay });
-  if (s?.kind === "image") {
+  // Свой стикер с картинкой (url) — показываем как изображение даже без явного kind.
+  if (s?.kind === "image" || (!s?.kind && s?.url)) {
     const img = document.createElement("img");
     img.className = "sticker-image";
     img.src = s.url ?? "";

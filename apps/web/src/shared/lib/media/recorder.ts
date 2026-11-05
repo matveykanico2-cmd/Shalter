@@ -1,34 +1,34 @@
-// Запись голосовых и кружков — как public/js/lib/recorder.js. Голос — Opus 128 кбит/с;
-// кружок — квадрат 640×640 из центра кадра (фронталка зеркально), 3,5 Мбит/с.
+// Запись голосовых и кружков — как public/js/lib/recorder.js.
+// Голос: Opus моно 48 кГц, 32 кбит/с — чистая речь, 48–64 кбит/с — почти студийно.
+// Кружок: 480×480, H.264, 800–1500 кбит/с для 480p, звук AAC 96 кбит/с или Opus 48 кбит/с.
 import { getFlippedTrack } from "./camera-switch";
 
 export const MAX_RECORD_SEC = 180;
 
 export type RecordMode = "voice" | "video-note" | "avatar-video";
 
-const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 3_500_000, audioBitsPerSecond: 128_000 };
-const VOICE_BITRATES = { audioBitsPerSecond: 128_000 };
-// Видеоаватар — тот же квадрат, чуть легче кружка (SQUARE_CAPTURE_MODES в recorder.js).
-const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 96_000 };
+// Голосовые сообщения: Opus 32 кбит/с — чистая речь (до 64 кбит/с для студийного качества).
+const VOICE_BITRATES = { audioBitsPerSecond: 32_000 };
+// Кружок 480×480: H.264 800 кбит/с видео + Opus 48 кбит/с звук.
+const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 800_000, audioBitsPerSecond: 48_000 };
+// Видеоаватар — тот же квадрат, чуть легче кружка.
+const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 600_000, audioBitsPerSecond: 48_000 };
 export const MAX_AVATAR_VIDEO_SEC = 180;
 const SQUARE_CAPTURE_MODES = {
   "video-note": { bitrates: VIDEO_NOTE_BITRATES, maxSec: MAX_RECORD_SEC },
   "avatar-video": { bitrates: AVATAR_VIDEO_BITRATES, maxSec: MAX_AVATAR_VIDEO_SEC },
 };
-const SQUARE_SIZE = 640;
+const SQUARE_SIZE = 480;
 // Из HD-кадра вырезается квадрат — запас по размеру нужен.
-const CAMERA_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" };
+const CAMERA_VIDEO = { width: { ideal: 640 }, height: { ideal: 640 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" };
 const MIC_CONSTRAINTS: MediaTrackConstraints = { channelCount: 1, sampleRate: 48_000, sampleSize: 16, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
 
-// На телефоне — H.264: его кодирует видеочип; VP9 там не успевает, кружки «мылились».
-const MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// H.264 — предпочтительный кодек для кружков (аппаратное кодирование на телефонах).
 function pickMime(kind: "audio" | "video") {
   const list =
     kind === "audio"
       ? ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm"]
-      : MOBILE
-        ? ["video/mp4;codecs=avc1.4d002a,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/webm;codecs=h264,opus", "video/webm;codecs=vp8,opus", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"]
-        : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
+      : ["video/mp4;codecs=avc1.4d002a,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/webm;codecs=h264,opus", "video/webm;codecs=vp8,opus", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
   return list.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? "";
 }
 

@@ -88,7 +88,7 @@ function StickerStage({ sticker }: { sticker: AnimSticker }) {
       data-testid="sticker-stage"
     >
       <DomNode
-        key={s.url || s.emoji}
+        key={`sticker:${s.url ?? s.emoji}`}
         create={() => renderSticker(s, { size: 180, replay: true })}
         label={s.emoji || "Стикер"}
       />
@@ -401,7 +401,7 @@ function PackSheet({
         role="dialog"
         aria-label={missing ? "Стикерпак не найден" : "Стикер"}
       >
-        {focus ? <StickerStage sticker={focus} /> : null}
+        {focus ? <StickerStage key={focus.url ?? focus.emoji} sticker={focus} /> : null}
         {missing ? (
           <div className={styles.notFound}>
             <h2 className={styles.sheetTitle}>Стикерпак не найден</h2>
@@ -469,7 +469,7 @@ function PackSheet({
 
   return (
     <div className={styles.packSheet} role="dialog" aria-label={current.name}>
-      {focus && !editing ? <StickerStage sticker={focus} /> : null}
+      {focus && !editing ? <StickerStage key={focus.url ?? focus.emoji} sticker={focus} /> : null}
       <div className={styles.packHero}>
         {editing ? (
           <button
@@ -603,7 +603,7 @@ function BuiltinPackSheet({
   const first = pack.stickers[0];
   return (
     <div className={styles.packSheet} role="dialog" aria-label={pack.name}>
-      {focus ? <StickerStage sticker={focus} /> : null}
+      {focus ? <StickerStage key={focus.url ?? focus.emoji} sticker={focus} /> : null}
       <div className={styles.packHero}>
         <span className={styles.cover} style={{ width: 56, height: 56 }} aria-hidden="true">
           {first ? <DomNode create={() => renderSticker(first, { size: 50 })} /> : null}

@@ -6,7 +6,7 @@ import { isInstalledApp } from "@/shared/lib/platform";
 import { Button, Icon, SettingsButton, SettingsPage, SettingsRow, SettingsSection, TextField, toast } from "@/shared/ui";
 
 import { proxyQueries } from "../api/proxy-info";
-import { parseProxyLink, type ProxyLink } from "../lib/proxy-link";
+import { parseDirectProxy, parseProxyLink, type ProxyLink } from "../lib/proxy-link";
 import { savedProxies, useSavedProxies } from "../model/saved-proxies";
 
 import { NativeProxySection } from "./native-proxy-section";
@@ -28,9 +28,9 @@ export function ProxySection() {
 
   const add = (e: FormEvent) => {
     e.preventDefault();
-    const proxy = parseProxyLink(input);
+    let proxy = parseProxyLink(input) ?? parseDirectProxy(input);
     if (!proxy) {
-      setError("Это не похоже на ссылку прокси. Пример: https://proxy.example.net/?proxy=…");
+      setError("Это не похоже на ссылку прокси. Пример: https://proxy.example.net/?proxy=… или IP:порт:логин:пароль");
       return;
     }
     savedProxies.add(proxy);
@@ -44,6 +44,13 @@ export function ProxySection() {
   };
 
   const connect = (proxy: ProxyLink) => {
+    // Прямой прокси (IP:порт:логин:пароль) работает только в нативном приложении;
+    // в браузере подключаться через него нельзя — только через ссылку Shalter-прокси.
+    if (proxy.direct) {
+      if (isInstalledApp()) setNativeHelp(proxy);
+      else setError("Прямой прокси (IP:порт) работает только в нативном приложении.");
+      return;
+    }
     if (isInstalledApp()) setNativeHelp(proxy);
     else window.location.assign(proxy.link);
   };
@@ -71,11 +78,11 @@ export function ProxySection() {
 
       <NativeProxySection />
 
-      <SettingsSection title="Добавить прокси" caption="Вставьте ссылку, которой с вами поделились, — вида https://адрес/?proxy=секрет.">
+      <SettingsSection title="Добавить прокси" caption="Вставьте ссылку прокси (https://адрес/?proxy=секрет) или укажите прямо: IP:порт[:логин[:пароль]].">
         <form className={styles.form} onSubmit={add}>
           <TextField
-            aria-label="Ссылка на прокси"
-            placeholder="https://proxy.example.net/?proxy=…"
+            aria-label="Ссылка или адрес прокси"
+            placeholder="https://proxy.example.net/?proxy=… или 192.168.1.1:3128:user:pass"
             value={input}
             inputMode="url"
             autoComplete="off"

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import { parseProxyLink, type ProxyLink } from "../lib/proxy-link";
+import { parseDirectProxy, parseProxyLink, type ProxyLink } from "../lib/proxy-link";
 
 // Сохранённые прокси — на этом устройстве (localStorage), как в Telegram.
 const KEY = "shalter.proxies";
@@ -16,7 +16,7 @@ function read(): ProxyLink[] {
     links = [];
   }
   cache = (Array.isArray(links) ? links : [])
-    .map((l) => (typeof l === "string" ? parseProxyLink(l) : null))
+    .map((l) => (typeof l === "string" ? parseProxyLink(l) ?? parseDirectProxy(l) : null))
     .filter((p): p is ProxyLink => !!p);
   return cache;
 }

@@ -6,6 +6,7 @@ import { HomeView } from "@/views/home";
 import { AppShell } from "@/widgets/app-shell";
 import { ChatList } from "@/widgets/chat-list";
 import { UserProfileHost } from "@/widgets/user-profile";
+import { Splash } from "../ui/splash";
 
 import { usePhoneBookSync } from "@/features/manage-contacts";
 import { ShareInboxHost, ShareRoute } from "@/features/share-inbox";
@@ -89,14 +90,16 @@ export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: bo
   // Нативное приложение тихо подтягивает новых людей из телефонной книги.
   usePhoneBookSync();
 
+  // Пока данные не прогрузились (первый вход без кэша) — показываем заставку,
+  // а не пустой экран.
+  if (!chatsReady) return <Splash />;
+
   return (
     <>
       <AppShell
         user={user}
         mainOpen={!side && location.pathname !== "/"}
-        // Список чатов остаётся смонтированным под боковой панелью (как .side-open): события
-        // сокета, прокрутка и вкладки не теряются, пока открыты настройки или контакты.
-        sidebar={chatsReady ? <ChatList meId={user.id} /> : null}
+        sidebar={<ChatList meId={user.id} />}
         side={side ? <Routes>{sideRoutes()}</Routes> : null}
         main={<Routes location={side ? shownMain : location}>{mainRoutes()}</Routes>}
       />

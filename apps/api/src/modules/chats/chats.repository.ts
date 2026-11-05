@@ -40,11 +40,12 @@ function parseDevices(json: string | null): Record<string, string> {
 
 // deviceId undefined — все чаты; иначе без секретных, привязанных у userId к другому
 // устройству (null — к любому).
-function visibleOnDevice<T extends Pick<ChatRow, "secret" | "secretDevices">>(rows: T[], userId: string, deviceId: string | null | undefined): T[] {
+function visibleOnDevice(rows: ChatRow[], userId: string, deviceId: string | null | undefined): ChatRow[] {
   if (deviceId === undefined) return rows;
   const hash = deviceId ? deviceHash(deviceId) : null;
   return rows.filter((r) => {
-    const bound = r.secret ? (parseDevices(r.secretDevices)[userId] ?? null) : null;
+    const devices = parseDevices(r.secretDevices);
+    const bound = devices[userId] ?? null;
     return !bound || bound === hash;
   });
 }
@@ -163,8 +164,9 @@ export class ChatsRepository {
       .from(chats)
       .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
       .where(eq(chatMembers.userId, userId))
-      .all();
-    const visible = visibleOnDevice(rows, userId, deviceId);
+      .all() as (typeof chats.$inferSelect & { myAdmin: number; myOwner: number })[];
+
+    const visible = visibleOnDevice(rows as ChatRow[], userId, deviceId) as (typeof rows)[number][];
     const hidesMembers = (r: (typeof rows)[number]) => r.type === "channel" && r.ownerId !== userId && !r.myOwner && !r.myAdmin;
     const full = visible.filter((r) => !hidesMembers(r)).map((r) => r.id);
     const reduced = visible.filter(hidesMembers).map((r) => r.id);
@@ -251,15 +253,15 @@ export class ChatsRepository {
    * доступен с этого устройства (или он не секретный).
    */
   public claimSecretDevice(chatId: string, userId: string, deviceId: string | undefined): boolean {
-    return this.db.transaction((tx) => {
-      const row = tx.select({ secret: chats.secret, secretDevices: chats.secretDevices }).from(chats).where(eq(chats.id, chatId)).get();
+    return this.db.transaction((tx: unknown) => {
+      const row = this.db.select({ secret: chats.secret, secretDevices: chats.secretDevices }).from(chats).where(eq(chats.id, chatId)).get();
       if (!row?.secret) return true;
       if (!deviceId) return false;
       const devices = parseDevices(row.secretDevices);
       const hash = deviceHash(deviceId);
       if (devices[userId]) return devices[userId] === hash;
       devices[userId] = hash;
-      tx.update(chats).set({ secretDevices: JSON.stringify(devices) }).where(eq(chats.id, chatId)).run();
+      this.db.update(chats).set({ secretDevices: JSON.stringify(devices) }).where(eq(chats.id, chatId)).run();
       return true;
     });
   }

@@ -5,16 +5,23 @@ import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { isRecordingSupported, type Recording, startRecording } from "@/shared/lib/media/recorder";
-import { askConfirm, Button, Icon } from "@/shared/ui";
+import { askConfirm, Button, DomNode, Icon } from "@/shared/ui";
+import { renderSticker } from "@/shared/lib/anim";
 
-import { avatarApi,type AvatarEntry } from "../api/profile-api";
+import { avatarApi, type AvatarEntry } from "../api/profile-api";
 import { videoDuration, videoPosterDataUrl } from "../lib/video-poster";
 
 import styles from "./avatar-viewer.module.css";
 
 const MAX_VIDEO_SECONDS = 180;
+const AVATAR_STICKER_PREFIX = "sticker:";
 
-type Owner = { name: string; avatarImage?: string | null; avatarImages?: readonly unknown[] };
+type Owner = {
+  name: string;
+  avatarImage?: string | null;
+  avatarEmoji?: string | null;
+  avatarImages?: readonly unknown[];
+};
 type Props = {
   user: Owner;
   canEdit: boolean;
@@ -32,8 +39,15 @@ const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" &
 export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
   const [avatars, setAvatars] = useState<AvatarEntry[]>(() => {
     const list = (user.avatarImages ?? []).filter(isEntry);
-    return list.length || !user.avatarImage ? list : [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
+    if (list.length) return list;
+    // Если текущий аватар — стикер (sticker:… в avatarEmoji), показываем его вместо старого фото
+    const stickerUrl = user.avatarEmoji?.startsWith(AVATAR_STICKER_PREFIX) ? user.avatarEmoji.slice(AVATAR_STICKER_PREFIX.length) : null;
+    if (stickerUrl) return [{ url: stickerUrl, kind: "image", sticker: true } as AvatarEntry];
+    if (!user.avatarImage) return [];
+    return [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
   });
+  // Текущий аватар — стикер, если единственная запись пришла из avatarEmoji
+  const currentIsSticker = avatars.length === 1 && avatars[0]!.kind === "image" && !!avatars[0]!.url;
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +191,12 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
             <p className={styles.muted}>{canEdit ? "Фото профиля пока нет" : "Нет фото профиля"}</p>
           ) : current.kind === "video" ? (
             <video key={current.url} className={styles.media} src={current.url} poster={current.poster} autoPlay loop muted playsInline controls />
+          ) : currentIsSticker ? (
+            <DomNode
+              key={current.url}
+              create={() => renderSticker({ url: current.url, kind: "image" }, { size: 560 })}
+              className={styles.media}
+            />
           ) : (
             <img
               className={styles.media}
