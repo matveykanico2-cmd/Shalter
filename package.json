@@ -3,6 +3,9 @@
   "version": "1.0.1",
   "description": "Shalter messenger",
   "author": "Shalter <mtvniko@gmail.com>",
+  "contributors": [
+    "Плушкина Семен"
+  ],
   "private": true,
   "engines": {
     "node": ">=22"
