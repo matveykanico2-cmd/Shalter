@@ -21,18 +21,35 @@ const looksBack = (label = "") => /back|rear|environment|задн/i.test(label);
 
 type Flip = { track: MediaStreamTrack; error?: undefined } | { track?: undefined; error: string };
 
-export async function getFlippedTrack({ currentTrack, wantBack, video = {} }: { currentTrack: MediaStreamTrack | null; wantBack: boolean; video?: MediaTrackConstraints }): Promise<Flip> {
-  const cameras = await listCameras();
+export async function getFlippedTrack({
+  currentTrack,
+  wantBack,
+  video = {},
+}: {
+  currentTrack: MediaStreamTrack | null;
+  wantBack: boolean;
+  video?: MediaTrackConstraints;
+}): Promise<Flip> {
   const currentId = currentTrack?.getSettings?.().deviceId;
   const attempts: MediaTrackConstraints[] = [];
-  if (cameras.length > 1) {
-    const byLabel = cameras.find((d) => (wantBack ? looksBack(d.label) : looksFront(d.label)) && d.deviceId !== currentId);
-    const nextInLine = cameras[(Math.max(0, cameras.findIndex((d) => d.deviceId === currentId)) + 1) % cameras.length];
-    const target = byLabel ?? (nextInLine?.deviceId !== currentId ? nextInLine : null);
-    if (target) attempts.push({ ...video, deviceId: { exact: target.deviceId } });
+
+  // Сначала пробуем сменить facingMode — это быстрее, чем枚举 устройств
+  const newFacing = wantBack ? "environment" : "user";
+  attempts.push({ ...video, facingMode: newFacing });
+
+  // Если нужно — перечисляем камеры для точного deviceId
+  if (currentTrack) {
+    const cameras = await listCameras();
+    const currentIdx = cameras.findIndex((d) => d.deviceId === currentId);
+    const nextIdx = (currentIdx + 1) % cameras.length;
+    const nextCam = cameras[nextIdx];
+    if (nextCam) {
+      attempts.push({
+        ...video,
+        deviceId: { exact: nextCam.deviceId },
+      });
+    }
   }
-  attempts.push({ ...video, facingMode: { exact: wantBack ? "environment" : "user" } });
-  attempts.push({ ...video, facingMode: wantBack ? "environment" : "user" });
 
   let lastError: unknown = null;
   for (const constraints of attempts) {
@@ -58,6 +75,7 @@ export async function getFlippedTrack({ currentTrack, wantBack, video = {} }: { 
       }
     }
   }
+
   if (cameras.length <= 1) return { error: "На этом устройстве только одна камера" };
   if (lastError === "same-device") return { error: "Вторую камеру переключить не удалось" };
   if (/NotAllowed|Permission/i.test((lastError as Error)?.name ?? "")) return { error: "Доступ к камере запрещён" };

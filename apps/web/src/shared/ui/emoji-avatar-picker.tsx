@@ -9,8 +9,8 @@ import { graphemes, isSingleEmoji } from "../lib/graphemes";
 import styles from "./emoji-avatar-picker.module.css";
 import { toast } from "./toast-store";
 
-/** Все смайлы, у которых есть анимация, — как эмодзи-аватарки в Telegram. */
-const EMOJIS = ALL_EMOJI.filter(hasAnimatedEmoji);
+/** Все смайлы для аватарки: анимированные и статические. */
+const EMOJIS = ALL_EMOJI;
 
 /** Фоны для эмодзи-аватарки: первый — «Без фона» (прозрачный). */
 const BACKGROUNDS: (string | null)[] = [
