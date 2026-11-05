@@ -12,6 +12,17 @@ export async function cameraCount() {
   }
 }
 
+/**
+ * Перечисляет все видеоустройства с их свойствами. */
+export async function listCameras() {
+  try {
+    return await navigator.mediaDevices.enumerateDevices();
+  } catch {
+    return [];
+  }
+}
+
+
 export type Flip = { track: MediaStreamTrack; error?: undefined } | { track?: undefined; error: string };
 
 /**
@@ -48,26 +59,26 @@ export async function getFlippedTrack({
     }
   }
 
-  let lastError: unknown = null;
+  let _lastError: unknown = null;
   for (const constraints of attempts) {
     try {
       const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
       if (!track) continue;
       if (currentId && track.getSettings?.().deviceId === currentId) {
         track.stop();
-        lastError = "same-device";
+        _lastError = "same-device";
         continue;
       }
       return { track };
     } catch (err) {
-      lastError = err;
+      _lastError = err;
       if (currentTrack && /NotReadable|Abort|TrackStart/i.test((err as Error)?.name ?? "")) {
         currentTrack.stop();
         try {
           const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
           if (track) return { track };
         } catch (err2) {
-          lastError = err2;
+          _lastError = err2;
         }
       }
     }
