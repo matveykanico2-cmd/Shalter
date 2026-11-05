@@ -2,25 +2,22 @@
 // очереди или через facingMode; занятую камеру на части телефонов надо сначала отпустить.
 import { getUserMediaSafe } from "./media-quality";
 
-async function listCameras() {
+/** Сколько камер видно — кнопка «Другая камера» в звонке только при двух и больше. */
+export async function cameraCount() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices.filter((d) => d.kind === "videoinput" && d.deviceId);
+    return devices.filter((d) => d.kind === "videoinput" && d.deviceId).length;
   } catch {
-    return [];
+    return 0;
   }
 }
 
-/** Сколько камер видно — кнопка «Другая камера» в звонке только при двух и больше. */
-export async function cameraCount() {
-  return (await listCameras()).length;
-}
+export type Flip = { track: MediaStreamTrack; error?: undefined } | { track?: undefined; error: string };
 
-const looksFront = (label = "") => /front|user|facetime|передн/i.test(label);
-const looksBack = (label = "") => /back|rear|environment|задн/i.test(label);
-
-type Flip = { track: MediaStreamTrack; error?: undefined } | { track?: undefined; error: string };
-
+/**
+ * Переключает камеру на другую (фронтальную/заднюю).
+ * Использует facingMode вместо枚举 устройств для скорости.
+ */
 export async function getFlippedTrack({
   currentTrack,
   wantBack,
@@ -76,8 +73,5 @@ export async function getFlippedTrack({
     }
   }
 
-  if (cameras.length <= 1) return { error: "На этом устройстве только одна камера" };
-  if (lastError === "same-device") return { error: "Вторую камеру переключить не удалось" };
-  if (/NotAllowed|Permission/i.test((lastError as Error)?.name ?? "")) return { error: "Доступ к камере запрещён" };
-  return { error: "Не удалось включить вторую камеру" };
+  return { error: "Не удалось переключить камеру" };
 }

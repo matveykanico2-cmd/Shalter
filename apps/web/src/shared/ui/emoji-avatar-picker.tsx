@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { http } from "../api";
-import { hasAnimatedEmoji, renderSticker } from "../lib/anim";
+import { renderSticker } from "../lib/anim";
 import { DomNode } from "@/shared/ui";
 import { ALL_EMOJI } from "../lib/emoji-list";
 import { graphemes, isSingleEmoji } from "../lib/graphemes";
