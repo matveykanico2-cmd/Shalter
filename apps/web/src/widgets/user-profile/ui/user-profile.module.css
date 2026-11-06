@@ -222,6 +222,65 @@
   white-space: nowrap;
 }
 
+.dotsMenu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dotsButton {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.dotsButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.dotsMenuPanel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 100;
+  min-width: max-content;
+  max-width: calc(100vw - 24px);
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 8px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dotsMenuPanel > * {
+  width: 100%;
+}
+
+.dotsMenuItem {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.dotsMenuItem:hover {
+  background: var(--color-surface-alt);
+}
+
 .infoCard {
   display: flex;
   width: 100%;
@@ -395,80 +454,7 @@
   color: var(--color-danger);
 }
 
-/* Three dots menu for profile actions */
-.dotsMenu {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dotsButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: 20px;
-  transition: background 0.15s;
-}
-
-.dotsButton:hover {
-  background: var(--color-surface-alt);
-}
-
-.dotsMenuPanel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  min-width: 180px;
-  margin-top: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: max-content;
-  max-height: 400px;
-  overflow-y: auto;
-  font-size: 13px;
-}
-
-.dotsMenuPanel[hidden] {
-  display: none !important;
-}
-
-/* Mobile: bottom sheet variant */
-@media (max-width: 640px) {
-  .dotsMenuPanel {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border-radius: 20px 20px 0 0;
-    padding: 20px 16px;
-    border-top: 1px solid var(--color-border);
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-  }
-
-  .dotsMenuPanel.open {
-    transform: translateY(0);
-  }
-}
-
-.section {
-  width: 100%;
-  margin-top: 16px;
-  text-align: left;
+.infoCard {
 }
 
 .sectionHead {

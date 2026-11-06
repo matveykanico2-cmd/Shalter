@@ -71,6 +71,30 @@ export function UserProfilePanel({ userId, me }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [close]);
 
+  // Добавляем использование showDotsMenu и dotsMenuRef
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (dotsMenuRef.current && dotsMenuRef.current.contains(e.target as Node)) {
+        setShowDotsMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [showDotsMenu, dotsMenuRef]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showDotsMenu) {
+        setShowDotsMenu(false);
+      } else {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showDotsMenu, close]);
+
   // Удалили сообщение в чате — оно пропадает из «Медиа», «Голосовых», «Файлов», «Ссылок».
   useWsEvent("message:deleted", (e) => {
     const data = client.getQueryData(profileQueries.sharedMedia(userId).queryKey);
