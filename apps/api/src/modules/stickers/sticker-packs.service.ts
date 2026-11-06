@@ -92,7 +92,7 @@ export class StickerPacksService {
   /** Меняет эмодзи и/или порядок стикера. Только владелец пака. */
   public updateSticker(userId: string, packId: string, stickerId: string, { emoji, position, background }: UpdateStickerDto) {
     this.ownerPack(packId, userId);
-    const sticker = this.packs.updateSticker(stickerId, packId, { emoji: emoji ?? undefined, position, background });
+    const sticker = this.packs.updateSticker(stickerId, packId, { emoji: emoji ?? undefined, position: position ?? undefined, background: background ?? undefined });
     return { sticker };
   }
 
