@@ -161,10 +161,11 @@ export class StickerPacksRepository {
   }
 
   /** Изменить эмодзи и/или позицию стикера (только владелец пака). */
-  public updateSticker(stickerId: string, packId: string, set: { emoji?: string; position?: number }): Sticker {
+  public updateSticker(stickerId: string, packId: string, set: { emoji?: string; position?: number; background?: string }): Sticker {
     const update: Record<string, unknown> = {};
     if (set.emoji !== undefined) update.emoji = set.emoji;
     if (set.position !== undefined) update.position = set.position;
+    if (set.background !== undefined) update.background = set.background;
     this.db.update(stickers).set(update).where(and(eq(stickers.id, stickerId), eq(stickers.packId, packId))).run();
     const row = this.db.select().from(stickers).where(eq(stickers.id, stickerId)).get();
     if (!row) throw new Error(`Стикер ${stickerId} не найден`);
@@ -230,5 +231,5 @@ function coverOf(coverStickerId: string | null, packStickers: StickerRow[]): { c
 }
 
 function toSticker(row: StickerRow): Sticker {
-  return { id: row.id, packId: row.packId, url: row.file, emoji: row.emoji, position: row.position, createdAt: row.createdAt };
+  return { id: row.id, packId: row.packId, url: row.file, emoji: row.emoji, position: row.position, background: row.background, createdAt: row.createdAt };
 }

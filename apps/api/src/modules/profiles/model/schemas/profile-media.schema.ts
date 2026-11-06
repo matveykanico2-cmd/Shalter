@@ -12,6 +12,10 @@ export const addAvatarSchema = requestBody({
     .optional()
     .transform((v) => (v === "video" ? "video" : "image")),
   poster: text(),
+  /** Цвет фона аватарки в формате HEX без #, или пусто для прозрачного */
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().transform((v) => (v === "" ? null : v) ?? null),
+  /** ID стикера из пака для использования как аватарка */
+  stickerId: z.string().optional().transform((v) => (v === "" ? undefined : v) ?? undefined),
 });
 export type AddAvatarDto = z.infer<typeof addAvatarSchema>;
 

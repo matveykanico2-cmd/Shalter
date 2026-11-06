@@ -13,6 +13,8 @@ export interface Sticker {
   url: string;
   emoji: string;
   position: number;
+  /** Фон стикера (цвет или null для прозрачного). Цвет в формате HEX без #, например "ff0000". */
+  background: string | null;
   createdAt: string;
 }
 

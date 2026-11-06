@@ -441,6 +441,7 @@ export const stickers = sqliteTable("stickers", {
   file: text().notNull(),
   emoji: text().notNull(),
   position: integer().notNull().default(0),
+  background: text().default(""),  // HEX color without #, or empty string for transparent
   createdAt: text().notNull(),
 });
 

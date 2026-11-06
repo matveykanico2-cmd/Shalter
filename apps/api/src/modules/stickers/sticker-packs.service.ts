@@ -67,7 +67,7 @@ export class StickerPacksService {
   }
 
   /** Добавляет стикер в пак (загруженный через /api/uploads файл + эмодзи). Только владелец. */
-  public addSticker(userId: string, packId: string, { file, emoji, position }: AddStickerDto) {
+  public addSticker(userId: string, packId: string, { file, emoji, position, background }: AddStickerDto) {
     const pack = this.ownerPack(packId, userId);
     // Файл стикера становится виден всем, кто открыл пак: только свой или уже доступный.
     if (usesForeignUpload(userId, file)) throw new ApiError(400, "Некорректная ссылка на файл");
@@ -83,15 +83,16 @@ export class StickerPacksService {
       file,
       emoji,
       position: position ?? pack.stickerCount,
+      background,
       createdAt: new Date().toISOString(),
     });
     return { sticker };
   }
 
   /** Меняет эмодзи и/или порядок стикера. Только владелец пака. */
-  public updateSticker(userId: string, packId: string, stickerId: string, { emoji, position }: UpdateStickerDto) {
+  public updateSticker(userId: string, packId: string, stickerId: string, { emoji, position, background }: UpdateStickerDto) {
     this.ownerPack(packId, userId);
-    const sticker = this.packs.updateSticker(stickerId, packId, { emoji: emoji ?? undefined, position });
+    const sticker = this.packs.updateSticker(stickerId, packId, { emoji: emoji ?? undefined, position, background });
     return { sticker };
   }
 

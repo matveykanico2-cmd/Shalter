@@ -34,7 +34,16 @@ export class AvatarsService {
     // Только свой загруженный файл: не чужая загрузка и не выдуманный адрес.
     if (!(await isOwnUploadUrl(userId, checked.entry.url))) throw new ApiError(400, "Некорректная ссылка на файл");
 
-    const list = [checked.entry, ...avatarList(me)];
+    // Обработка фона и стикера
+    const avatarEntry: AvatarEntry = {
+      url: checked.entry.url,
+      kind: checked.entry.kind,
+      poster: checked.entry.poster,
+      background: checked.entry.background,
+      stickerId: checked.entry.stickerId,
+    };
+
+    const list = [avatarEntry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
     return this.save(userId, list, true);
   }

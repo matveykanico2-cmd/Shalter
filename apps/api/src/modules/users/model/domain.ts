@@ -59,6 +59,8 @@ export interface AvatarEntry {
   url: string;
   kind?: string;
   poster?: string;
+  background?: string | null;
+  stickerId?: string | null;
   [key: string]: unknown;
 }
 

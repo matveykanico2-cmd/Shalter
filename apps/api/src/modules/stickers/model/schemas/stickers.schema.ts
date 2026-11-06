@@ -53,12 +53,14 @@ export const addStickerSchema = requestBody({
     .refine((v) => /\.(png|webp)$/i.test(v), { error: "Стикер должен быть PNG или WebP" }),
   emoji: z.string().min(1).max(MAX_EMOJI),
   position: z.unknown().optional().transform((v) => (v == null ? undefined : Number(v))),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().transform((v) => (v === "" ? null : v) ?? null),
 });
 export type AddStickerDto = z.infer<typeof addStickerSchema>;
 
 export const updateStickerSchema = requestBody({
   emoji: ifPresent((v) => (v == null ? undefined : String(v).trim().slice(0, MAX_EMOJI) || undefined)),
   position: z.unknown().optional().transform((v) => (v == null ? undefined : Number(v))),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().transform((v) => (v === "" ? null : v) ?? null),
 });
 export type UpdateStickerDto = z.infer<typeof updateStickerSchema>;
 

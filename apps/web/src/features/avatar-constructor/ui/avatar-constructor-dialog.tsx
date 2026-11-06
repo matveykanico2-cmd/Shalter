@@ -25,6 +25,13 @@ type Pinch = { id: string; ids: [number, number]; from: [Pt, Pt]; scale: number;
 let seq = 0;
 const newId = () => `l${++seq}`;
 
+/** Показать предыдущую аватарку в полном экране при клике на стикер */
+const showPreviousAvatarFullscreen = (stickerLayer: Layer) => {
+  // Здесь будет логика показа предыдущей аватары
+  // Показываем уведомление или переходим к профилю с аватаром
+  console.log('Показать предыдущую аватарку:', stickerLayer.src);
+};
+
 /** «Собрать аватар»: фон + слои (эмодзи, стикеры, фото) в выбранном порядке, как конструктор аватара в Telegram. */
 export function AvatarConstructorDialog({ onClose, onDone }: Props) {
   const [bg, setBg] = useState(BACKGROUNDS[5]!);
@@ -322,7 +329,7 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
               .reverse()
               .map(({ l, i }) => (
                 <li key={l.id} className={l.id === selected ? `${styles.layerRow} ${styles.layerRowActive}` : styles.layerRow}>
-                  <button type="button" className={styles.layerPick} onClick={() => setSelected(l.id)}>
+                  <button type="button" className={styles.layerPick} onClick={l.kind === "sticker" ? () => showPreviousAvatarFullscreen(l) : () => setSelected(l.id)}>
                     <LayerMedia url={layerImageUrl(l)} />
                     <span>{l.kind === "emoji" ? "Эмодзи" : l.kind === "sticker" ? "Стикер" : "Фото"}</span>
                   </button>
