@@ -60,47 +60,24 @@ export function UserProfilePanel({ userId, me }: Props) {
   const dotsMenuRef = useRef<HTMLDivElement>(null);
 
   const close = closeUserProfile;
-  const [showDotsMenu, setShowDotsMenu] = useState(false);
-  const [overlay, setOverlay] = useState<Overlay>(null);
-  const dotsMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      // Поверх профиля открыто окно (QR, вопрос, жалоба) — Escape закрывает его, а не профиль.
+      // Поверх профиля открыто диалоговое окно — Escape закрывает его, а не профиль.
       if (document.querySelector('[role="dialog"]')) return;
-      close();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [close]);
-
-  // Добавляем использование showDotsMenu и dotsMenuRef
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      if (dotsMenuRef.current && dotsMenuRef.current.contains(e.target as Node)) {
-        setShowDotsMenu(false);
-      }
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [showDotsMenu, dotsMenuRef]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
       if (showDotsMenu) {
         setShowDotsMenu(false);
       } else {
         close();
       }
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [showDotsMenu, close]);
 
   // Удалили сообщение в чате — оно пропадает из «Медиа», «Голосовых», «Файлов», «Ссылок».
   useWsEvent("message:deleted", (e) => {
-    const data = client.getQueryData(profileQueries.sharedMedia(userId).queryKey);
+    const data = client.getQueryData(profileQueries.sharedMedia(userId).queryKey) as SharedMedia | undefined;
     if (!data || data.chatId !== e.chatId) return;
     const keep = <T extends { messageId: string }>(list: T[]) => list.filter((x) => x.messageId !== e.id);
     client.setQueryData(profileQueries.sharedMedia(userId).queryKey, {
@@ -275,8 +252,10 @@ export function UserProfilePanel({ userId, me }: Props) {
   const showTabs = () => tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
+    <>
     <Shell
       onClose={close}
+      onMore={() => setShowDotsMenu(true)}
       fab={
         u && !isSelf && !u.isBot ? (
           <button type="button" className={styles.profileFab} title="Написать" aria-label="Написать" onClick={() => void startChat()}>
@@ -628,6 +607,54 @@ export function UserProfilePanel({ userId, me }: Props) {
         />
       ) : null}
     </Shell>
+    {showDotsMenu && (
+      <div
+        ref={dotsMenuRef}
+        className={styles.overlay}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) setShowDotsMenu(false);
+        }}
+      >
+        <div className={styles.panel} onPointerDown={(e) => e.stopPropagation()}>
+          <div className={styles.header}>
+            <h2>Дополнительные действия</h2>
+            <button
+              type="button"
+              className={styles.iconButton}
+              title="Закрыть"
+              aria-label="Закрыть меню"
+              onClick={() => setShowDotsMenu(false)}
+            >
+              <Icon name="X" size={18} />
+            </button>
+          </div>
+          <div className={styles.body}>
+            <p className={styles.muted}>Доступные действия:</p>
+            <div style={{ padding: "8px 16px" }}>
+              <button type="button" className={styles.actionButton} onClick={() => {
+                setShowDotsMenu(false);
+                navigate(isSelf ? "/settings/profile" : `/u/${u.username}`);
+              }}>
+                Редактировать профиль
+              </button>
+              <button type="button" className={styles.actionButton} onClick={() => {
+                setShowDotsMenu(false);
+                setOverlay("qr");
+              }}>
+                QR код
+              </button>
+              <button type="button" className={styles.actionButton} onClick={() => {
+                setShowDotsMenu(false);
+                setOverlay("report");
+              }}>
+                Сообщить о проблеме
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -682,7 +709,7 @@ function ProfileButtons({ links, onOpen }: { links: { title: string; target: str
   );
 }
 
-function Shell({ onClose, children, fab }: { onClose: () => void; children: ReactNode; fab?: ReactNode }) {
+function Shell({ onClose, children, fab, onMore }: { onClose: () => void; children: ReactNode; fab?: ReactNode; onMore?: () => void }) {
   return (
     <div
       className={styles.overlay}
@@ -696,64 +723,20 @@ function Shell({ onClose, children, fab }: { onClose: () => void; children: Reac
           <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть профиль" onClick={onClose}>
             <Icon name="X" size={18} />
           </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            title="Дополнительные действия"
-            aria-label="Дополнительные действия профиля"
-            onClick={() => setShowDotsMenu(true)}
-          >
-            <Icon name="MoreHorizontal" size={18} />
-          </button>
+          {onMore ? (
+            <button
+              type="button"
+              className={styles.iconButton}
+              title="Дополнительные действия"
+              aria-label="Дополнительные действия профиля"
+              onClick={onMore}
+            >
+              <Icon name="More" size={18} />
+            </button>
+          ) : null}
         </div>
         <div className={styles.body}>{children}</div>
       </aside>
-{showDotsMenu && (
-          <div
-            ref={dotsMenuRef}
-            className={styles.overlay}
-            onPointerDown={(e) => {
-              if (e.target === e.currentTarget) setShowDotsMenu(false);
-            }}
-          >
-            <div className={styles.panel} onPointerDown={(e) => e.stopPropagation()}>
-              <div className={styles.header}>
-                <h2>Дополнительные действия</h2>
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  title="Закрыть"
-                  aria-label="Закрыть меню"
-                  onClick={() => setShowDotsMenu(false)}
-                >
-                  <Icon name="X" size={18} />
-                </button>
-              </div>
-              <div className={styles.body}>
-                <p className={styles.muted}>Доступные действия:</p>
-                <div style={{ padding: "8px 16px" }}>
-                  <button type="button" className={styles.actionButton} onClick={() => {
-                    setShowDotsMenu(false);
-                    navigate(`/u/${profile.user.username}`);
-                  }}>
-                    Редактировать профиль
-                  </button>
-                  <button type="button" className={styles.actionButton} onClick={() => {
-                    setShowDotsMenu(false);
-                    openGiftShop();
-                  }}>
-                    QR код
-                  </button>
-                  <button type="button" className={styles.actionButton} onClick={() => {
-                    setShowDotsMenu(false);
-                  }}>
-                    Сообщить о проблеме
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       {fab}
     </div>
   );

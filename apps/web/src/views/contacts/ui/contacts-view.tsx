@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { AddContactPanel, type ContactItem, contactsQueries, ImportContactsDialog, useContactActions, useWriteTo, openProfileEditor } from "@/features/manage-contacts";
+import { AddContactPanel, type ContactItem, contactsQueries, ImportContactsDialog, useContactActions, useWriteTo } from "@/features/manage-contacts";
 
 import { useSession } from "@/entities/session";
 import { isBirthdayToday, openUserProfile, ProfileStatusBadge, userQueries } from "@/entities/user";
@@ -140,7 +140,7 @@ export function ContactsView() {
                 contact={c}
                 blocked={blocked.includes(c.userId)}
                 onOpen={() => openUserProfile(c.userId)}
-                onRename={() => void openProfileEditor(c)}
+                onRename={() => void actions.openProfileEditor(c)}
                 onWrite={() => write(c)}
                 onToggleBlock={() => void actions.toggleBlock(c.userId)}
                 onRemove={() => void actions.remove(c.userId)}

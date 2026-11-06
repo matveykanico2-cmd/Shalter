@@ -53,7 +53,7 @@ export function JumboEmoji({ messageId, text, count }: { messageId: string; text
 }
 
 /** Свой эмодзи сценой; jumbo — крупно, когда в сообщении только они. */
-export function CustomEmoji({ scene, jumbo = false }: { scene: unknown; jumbo?: boolean }) {
+export function CustomEmoji({ scene }: { scene: unknown; jumbo?: boolean }) {
   // Всегда используем обычный размер, jumbo убираем — эмодзи не должны занимать весь экран
   return <DomNode className="inline-custom-emoji" create={() => renderCustomScene(scene, { size: 30, replay: false })} />;
 }

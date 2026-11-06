@@ -33,7 +33,6 @@ export function useContactActions() {
   const openProfileEditor = async (c: ContactItem) => {
     // Open the profile editor with all fields
     // For now, just show a more complete rename dialog
-    const fields: { name?: string; } = {};
     const nextName = await askText(`Как записать ${c.user.name}?`, { initial: c.localName ?? c.user.name, okLabel: "Готово" });
     if (nextName == null) return;
     try {
@@ -74,5 +73,5 @@ export function useContactActions() {
     }
   };
 
-  return { add, rename, remove, toggleBlock, refresh };
+  return { add, rename, remove, toggleBlock, refresh, openProfileEditor };
 }
