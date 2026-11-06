@@ -60,6 +60,14 @@ function CommunityPage({ community }: { community: Community }) {
   const rights = community.rights;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
 
+  // Show members immediately when viewing the community
+  const members = useQuery({
+    queryKey: ["communities", "members", community.id],
+    queryFn: () => communityApi.members(community.id).then((r) => r.users),
+    staleTime: 0,
+  });
+  const membersList = members.data ?? [];
+
   const joinChat = async (chat: CommunityChat) => {
     setBusy(chat.id);
     try {
@@ -182,7 +190,6 @@ function CommunityPage({ community }: { community: Community }) {
         </div>
       ) : (
         <p className={styles.hint}>{community.addPolicy ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов"}</p>
-      )}
       <Button variant="link" onClick={() => void navigate("/")}>
         К чатам
       </Button>

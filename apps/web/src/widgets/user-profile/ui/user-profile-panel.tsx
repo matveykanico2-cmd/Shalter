@@ -60,6 +60,9 @@ export function UserProfilePanel({ userId, me }: Props) {
   const dotsMenuRef = useRef<HTMLDivElement>(null);
 
   const close = closeUserProfile;
+  const [showDotsMenu, setShowDotsMenu] = useState(false);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const dotsMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -693,9 +696,64 @@ function Shell({ onClose, children, fab }: { onClose: () => void; children: Reac
           <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть профиль" onClick={onClose}>
             <Icon name="X" size={18} />
           </button>
+          <button
+            type="button"
+            className={styles.iconButton}
+            title="Дополнительные действия"
+            aria-label="Дополнительные действия профиля"
+            onClick={() => setShowDotsMenu(true)}
+          >
+            <Icon name="MoreHorizontal" size={18} />
+          </button>
         </div>
         <div className={styles.body}>{children}</div>
       </aside>
+{showDotsMenu && (
+          <div
+            ref={dotsMenuRef}
+            className={styles.overlay}
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) setShowDotsMenu(false);
+            }}
+          >
+            <div className={styles.panel} onPointerDown={(e) => e.stopPropagation()}>
+              <div className={styles.header}>
+                <h2>Дополнительные действия</h2>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  title="Закрыть"
+                  aria-label="Закрыть меню"
+                  onClick={() => setShowDotsMenu(false)}
+                >
+                  <Icon name="X" size={18} />
+                </button>
+              </div>
+              <div className={styles.body}>
+                <p className={styles.muted}>Доступные действия:</p>
+                <div style={{ padding: "8px 16px" }}>
+                  <button type="button" className={styles.actionButton} onClick={() => {
+                    setShowDotsMenu(false);
+                    navigate(`/u/${profile.user.username}`);
+                  }}>
+                    Редактировать профиль
+                  </button>
+                  <button type="button" className={styles.actionButton} onClick={() => {
+                    setShowDotsMenu(false);
+                    openGiftShop();
+                  }}>
+                    QR код
+                  </button>
+                  <button type="button" className={styles.actionButton} onClick={() => {
+                    setShowDotsMenu(false);
+                  }}>
+                    Сообщить о проблеме
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       {fab}
     </div>
   );
