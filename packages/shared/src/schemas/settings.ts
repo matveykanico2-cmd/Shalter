@@ -79,6 +79,7 @@ export const settings = z.strictObject({
   chatFlags: z.record(z.string(), anyJson).optional(),
   pinnedOrder: anyJson.optional(),
   ai: anyJson.optional(),
+  greetingStickerId: z.string().nullable().optional(),
 });
 
 export const holidayCatalog = z.array(z.strictObject({ id: z.string(), title: z.string(), date: z.string() }));

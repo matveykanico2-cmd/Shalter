@@ -81,12 +81,25 @@
 
 .back {
   display: inline-flex;
-  padding: 6px;
-  border: 0;
+  padding: 12px;
+  border: none;
   border-radius: 50%;
-  background: none;
-  color: var(--color-muted);
+  background: var(--color-accent);
+  color: #fff;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.back:hover {
+  background: color-mix(in srgb, var(--color-accent) 85%, transparent);
+}
+
+/* Ensure the close button is far from the "Add" button in profile from contacts */
+.profile .action-button-group {
+  display: flex;
+  gap: 20px;
 }
 
 .previewTitles {

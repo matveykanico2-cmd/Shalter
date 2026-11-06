@@ -561,3 +561,77 @@
 .editGrid .removeBtn {
   opacity: 1;
 }
+
+/* Mobile: sticker pack detail sheet */
+@media (max-width: 640px) {
+  .packSheet {
+    margin: 16px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .sheetHeader {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .sheetTitle {
+    font-size: 15px;
+  }
+
+  .stickerGrid {
+    gap: 2px;
+  }
+
+  .stickerItem {
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  /* Bigger tap targets for mobile */
+  .stickerItem,
+  .manage,
+  .iconButton {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Ensure no overflow and scrollable content */
+  .panelBody {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Apply and Close buttons */
+  .sheetActions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .closeBtn,
+  .addBtn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .closeBtn {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+  }
+
+  .addBtn {
+    background: var(--color-accent);
+    color: #fff;
+  }
+
+  /* Preview stays visible */
+  .stage {
+    border-radius: 18px;
+    background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--color-accent) 22%, var(--color-surface)), var(--color-surface-alt));
+  }
+}

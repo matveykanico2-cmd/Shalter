@@ -54,8 +54,10 @@ export function UserProfilePanel({ userId, me }: Props) {
   const ad = useQuery(profileQueries.ad(userId)).data ?? null;
   const startCall = useStartCall(me);
   const [overlay, setOverlay] = useState<Overlay>(null);
+  const [showDotsMenu, setShowDotsMenu] = useState(false);
   const [tab, setTab] = useState<TabId>("media");
   const tabsRef = useRef<HTMLDivElement>(null);
+  const dotsMenuRef = useRef<HTMLDivElement>(null);
 
   const close = closeUserProfile;
   useEffect(() => {

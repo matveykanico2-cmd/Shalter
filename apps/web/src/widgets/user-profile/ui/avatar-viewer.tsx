@@ -19,6 +19,7 @@ type Owner = {
   avatarImage?: string | null;
   avatarEmoji?: string | null;
   avatarImages?: readonly unknown[];
+  avatarColor?: string | null;
 };
 type Props = {
   user: Owner;
@@ -28,7 +29,11 @@ type Props = {
   onClose: () => void;
 };
 
+const AVATAR_STICKER_PREFIX = "sticker:";
+
 const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" && typeof (a as AvatarEntry).url === "string";
+
+const isStickerAvatar = (emoji: string | null | unknown): boolean =>!!emoji && typeof emoji === "string" && emoji.startsWith(AVATAR_STICKER_PREFIX);
 
 /**
  * Аватары с листанием — как public/js/components/avatarViewer.js: стрелки, свайп, точки,
@@ -36,10 +41,20 @@ const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" &
  */
 export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
   const [avatars, setAvatars] = useState<AvatarEntry[]>(() => {
+    // Сначала проверяем avatarImages (загруженные аватарки).
     const list = (user.avatarImages ?? []).filter(isEntry);
     if (list.length) return list;
-    if (!user.avatarImage) return [];
-    return [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
+    
+    // Потом проверяем avatarImage (фото аватарка).
+    if (user.avatarImage) return [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
+    
+    // И наконец — avatarEmoji со стикером (sticker:/uploads/...).
+    if (user.avatarEmoji && isStickerAvatar(user.avatarEmoji)) {
+      const stickerUrl = user.avatarEmoji.slice(AVATAR_STICKER_PREFIX.length);
+      return [{ url: stickerUrl, kind: "image", poster: stickerUrl, background: user.avatarColor ?? undefined }];
+    }
+    
+    return [];
   });
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);

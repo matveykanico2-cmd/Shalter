@@ -6,7 +6,10 @@ import type { z } from "zod";
 import { http } from "@/shared/api";
 
 export type Session = z.infer<typeof sessionBody>;
-export type SelfUser = NonNullable<Session["user"]>;
+export type SelfUser = NonNullable<Session["user"]> & {
+  /** ID стикера приветствия для пустых чатов. */
+  greetingStickerId?: string | null;
+};
 export type GuestLanguage = z.infer<typeof geoLanguageBody>;
 
 const baseKey = ["session"] as const;

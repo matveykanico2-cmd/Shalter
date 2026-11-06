@@ -1,5 +1,8 @@
 // Вкладки над списком: системные и папки пользователя (public/js/views/chatList.js).
 import type { ChatFolder, ChatSummary } from "@/entities/chat";
+import { isMobileUa } from "@/shared/lib/media/media-quality";
+
+const IS_MOBILE = typeof navigator !== "undefined" && isMobileUa(navigator.userAgent);
 
 export const SYSTEM_TABS = [
   { id: "all", name: "Все" },
@@ -29,5 +32,5 @@ export function emptyTextFor(tabId: string, folders: readonly ChatFolder[]) {
   if (tabId === "personal") return "Личных переписок пока нет";
   if (tabId === "groups") return "Вы пока не состоите ни в одной группе";
   if (tabId === "channels") return "Вы пока не подписаны ни на один канал";
-  return "Чатов нет — начните новый кнопкой в правом нижнем углу";
+  return IS_MOBILE ? "" : "Чатов нет — начните новый кнопкой в правом нижнем углу";
 }

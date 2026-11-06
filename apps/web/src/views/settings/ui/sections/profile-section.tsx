@@ -34,7 +34,7 @@ export function ProfileSection() {
   return me ? <Profile me={me} /> : null;
 }
 
-type Fields = { name: string; lastName: string; username: string; phone: string; bio: string; birthday: string };
+type Fields = { name: string; lastName: string; username: string; phone: string; bio: string; birthday: string; greetingStickerId?: string };
 
 function Profile({ me }: { me: SelfUser }) {
   const navigate = useNavigate();
@@ -84,7 +84,7 @@ function Profile({ me }: { me: SelfUser }) {
       setProfileError(`Дата рождения: ${(birthday.error ?? "неверная дата").toLowerCase()}`);
       return;
     }
-    const fields: Fields = { name: [firstName.trim(), lastName.trim()].filter(Boolean).join(" "), lastName: lastName.trim(), username, phone, bio, birthday: birthday.iso };
+    const fields: Fields = { name: [firstName.trim(), lastName.trim()].filter(Boolean).join(" "), lastName: lastName.trim(), username, phone, bio, birthday: birthday.iso, greetingStickerId: me.greetingStickerId ?? "" };
     try {
       applySaved(await updateProfile(me.id, fields));
     } catch (err) {

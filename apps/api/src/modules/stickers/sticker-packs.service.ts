@@ -81,7 +81,7 @@ export class StickerPacksService {
       id: `st_${randomBytes(4).toString("hex")}`,
       packId,
       file,
-      emoji,
+      emoji: emoji ?? undefined,
       position: position ?? pack.stickerCount,
       background,
       createdAt: new Date().toISOString(),

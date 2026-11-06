@@ -319,6 +319,7 @@ export class MessageSendService {
       // Эффекты — только в личных чатах, как в Telegram.
       effect: chat.type === "dm" && MESSAGE_EFFECTS.includes(body.effect as string) ? (body.effect as string) : null,
       photoSuggestion,
+      buttons: body.buttons,
     });
 
     const { registerAttachments } = uploadAccess();

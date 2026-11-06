@@ -38,6 +38,8 @@ export interface ProfilePatch {
   lastName?: string | null;
   username?: string;
   phone?: string;
+  /** ID стикера приветствия для пустых чатов. */
+  greetingStickerId?: string | null;
   bio?: string;
   avatarColor?: string;
   /** Только у ботов (PATCH /api/bots/:id); у людей аватарки — setAvatars. */
