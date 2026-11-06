@@ -59,26 +59,23 @@ export async function getFlippedTrack({
     }
   }
 
-  let _lastError: unknown = null;
   for (const constraints of attempts) {
     try {
       const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
       if (!track) continue;
       if (currentId && track.getSettings?.().deviceId === currentId) {
         track.stop();
-        _lastError = "same-device";
         continue;
       }
       return { track };
     } catch (err) {
-      _lastError = err;
       if (currentTrack && /NotReadable|Abort|TrackStart/i.test((err as Error)?.name ?? "")) {
         currentTrack.stop();
         try {
           const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
           if (track) return { track };
         } catch (err2) {
-          _lastError = err2;
+          // ignored
         }
       }
     }
