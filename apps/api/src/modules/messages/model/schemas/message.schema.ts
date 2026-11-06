@@ -44,6 +44,7 @@ const messageFields = {
   paidMedia: raw(),
   article: raw(),
   photoSuggestion: raw(),
+  buttons: raw(),
 };
 
 // Общая форма отправки: ей же пишут комментарии к постам, где текст проверяется уже после

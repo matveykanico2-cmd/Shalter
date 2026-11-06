@@ -74,6 +74,7 @@ export interface NewMessage {
   forwardedFrom?: ForwardedFrom;
   attachments?: Attachment[];
   keyboard?: unknown;
+  buttons?: unknown;
   gift?: unknown;
   sticker?: unknown;
   customEmoji?: unknown;
