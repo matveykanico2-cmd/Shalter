@@ -68,7 +68,7 @@ describe("«Модерация»", () => {
     const api = fakeApi({
       "GET /api/admin/moderation": { body: { openReports: [REPORT], banned: [], labeled: [], labels: LABELS, statusCatalog: [] } },
       "GET /api/ads/review": { body: { campaigns: [], placements: { chats: "Список чатов", chat: "В каналах", discover: "Каталог каналов", profile: "Профиль" } } },
-      "GET /api/admin/lookup?q=%40boris": { body: { user: { id: USER.id, name: USER.name, username: "boris", phone: null, email: null } } },
+      "GET /api/admin/lookup?q=%40boris": { body: { user: { id: USER.id, name: USER.name, username: "boris", phone: null, email: null, lastIp: null, lastIpAt: null } } },
       "GET /api/admin/users/u_boris0001/reports": { body: { user: { ...USER, bannedAt: null, banReason: null, bannedUntil: null }, reports: [] } },
       "GET /api/labels": { body: { labels: LABELS } },
       "GET /api/gifts": { body: { gifts: [], balance: 0 } },

@@ -4,12 +4,12 @@ import { useNavigate } from "react-router";
 import { AvatarViewer } from "@/widgets/user-profile";
 
 import { type SelfUser, useSession, useUpdateSelf } from "@/entities/session";
-import { bannerBackground, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
+import { bannerBackground, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
 
 import { ApiError, uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageUpload, mediaDuration } from "@/shared/lib/image";
-import { Avatar, Button, DateField, Icon, PhoneField, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
+import { Avatar, BirthdayField, Button, Icon, PhoneField, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
 
 import { addProfileTrack, clearProfileTracks, removeProfileTrack, setMainProfileTrack } from "../../api/profile-api";
 import { updateProfile } from "../../api/settings-api";
@@ -121,11 +121,7 @@ function Profile({ me }: { me: SelfUser }) {
               <Icon name="Code" size={16} />
             </span>
           ) : null}
-          {me.isPremium ? (
-            <span className={profileStyles.premium} title="Shalter Premium">
-              <Icon name="Star" size={18} />
-            </span>
-          ) : null}
+          {me.isPremium ? <PremiumStar size={20} /> : null}
           <ProfileStatusBadge user={me} size={18} />
         </p>
         <p className={`${profileStyles.sub} ${styles.mono}`}>{me.phone || me.email}</p>
@@ -211,8 +207,8 @@ function Profile({ me }: { me: SelfUser }) {
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Дата рождения</span>
-          <DateField value={me.birthday ?? ""} onChange={(iso, error) => setBirthday({ iso, error })} />
-          {birthday.error ? <span className={styles.error}>{birthday.error}</span> : <span className={styles.hint}>Например: 25.12.1990</span>}
+          <BirthdayField value={me.birthday ?? ""} onChange={(iso, error) => setBirthday({ iso, error })} />
+          {birthday.error ? <span className={styles.error}>{birthday.error}</span> : <span className={styles.hint}>Друзья смогут поздравить вас, отправить подарок, звёзды или Premium.</span>}
         </label>
       </SettingsSection>
 

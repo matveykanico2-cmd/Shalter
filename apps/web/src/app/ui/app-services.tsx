@@ -62,7 +62,7 @@ export function AppServices({ user, ready, children }: Props) {
   return (
     <>
       <div className={locked ? styles.locked : styles.app} hidden={locked} inert={locked}>
-        <HolidayBanner />
+        <HolidayBanner settings={settings} />
         {children}
       </div>
       {lock.passcode ? (

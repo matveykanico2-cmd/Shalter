@@ -23,7 +23,18 @@ export class AdminLegalService {
       ? (this.users.findById(q) ?? this.users.findByUsername(q.replace(/^@/, "")) ?? this.users.findByPhone(q) ?? this.users.findByEmail(q))
       : undefined;
     if (!target) throw new ApiError(404, "Пользователь не найден");
-    return { user: { id: target.id, name: target.name, username: target.username || null, phone: target.phone || null, email: target.email || null } };
+    const activity = this.users.securityActivity(target.id);
+    return {
+      user: {
+        id: target.id,
+        name: target.name,
+        username: target.username || null,
+        phone: target.phone || null,
+        email: target.email || null,
+        lastIp: activity?.lastIp ?? null,
+        lastIpAt: activity?.lastIpAt ?? null,
+      },
+    };
   }
 
   public async export(uid: string, dto: ExportDto) {

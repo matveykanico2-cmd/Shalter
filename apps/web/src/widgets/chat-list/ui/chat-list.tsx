@@ -5,6 +5,7 @@ import { useLocation, useMatch } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
 import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
+import { chatAdsQueries, ChatListSponsoredAd, type ServedAd } from "@/features/chat-ads";
 import { CreateCommunityDialog } from "@/features/community-editor";
 import { NewChatButton } from "@/features/create-chat";
 import { DownloadsDialog } from "@/features/downloads";
@@ -37,7 +38,7 @@ const SCROLL_TO_TOP = false;
 
 const NO_FOLDERS: ChatFolder[] = [];
 
-type Row = { kind: "archive"; chats: ChatSummary[] } | { kind: "chat"; chat: ChatSummary } | { kind: "community"; community: JoinedCommunity };
+type Row = { kind: "archive"; chats: ChatSummary[] } | { kind: "chat"; chat: ChatSummary } | { kind: "community"; community: JoinedCommunity } | { kind: "ad"; ad: ServedAd };
 
 const NO_COMMUNITIES: JoinedCommunity[] = [];
 
@@ -57,6 +58,7 @@ export function ChatList({ meId }: { meId: string }) {
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [unreadOnly, toggleUnreadOnly] = useUnreadOnly();
   const me = useSession().data?.user;
+  const listAd = useQuery(chatAdsQueries.list()).data?.ad ?? null;
   const listActions = useChatListActions();
   const [rowMenu, setRowMenu] = useState<{ chat: ChatSummary; at: { x: number; y: number } } | null>(null);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; at: { x: number; y: number } } | null>(null);
@@ -147,8 +149,9 @@ export function ChatList({ meId }: { meId: string }) {
       out.push({ kind: "chat", chat });
     }
     flush(null);
+    if (listAd && activeTab === "all" && !showArchive && !unreadOnly) out.splice(Math.min(2, out.length), 0, { kind: "ad", ad: listAd });
     return out;
-  }, [chats, folders, activeTab, showArchive, unreadOnly, currentId, communities]);
+  }, [chats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
@@ -159,7 +162,7 @@ export function ChatList({ meId }: { meId: string }) {
     overscan: 20,
     getItemKey: (i) => {
       const row = rows[i]!;
-      return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : "archive";
+      return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : row.kind === "ad" ? `ad:${row.ad.id}` : "archive";
     },
   });
 
@@ -329,6 +332,8 @@ export function ChatList({ meId }: { meId: string }) {
                     <ArchiveRow chats={row.chats} onOpen={() => setShowArchive(true)} />
                   ) : row.kind === "community" ? (
                     <CommunityRow community={row.community} chats={chats ?? []} meId={meId} active={panelId === row.community.id} />
+                  ) : row.kind === "ad" ? (
+                    <ChatListSponsoredAd ad={row.ad} />
                   ) : (
                     <ChatRow
                       chat={row.chat}

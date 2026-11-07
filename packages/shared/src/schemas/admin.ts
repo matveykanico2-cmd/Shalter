@@ -16,6 +16,9 @@ export const lookupBody = z.strictObject({
     username: z.string().nullable(),
     phone: z.string().nullable(),
     email: z.string().nullable(),
+    /** Только раздел legal: последний адрес активности, не публичный профиль. */
+    lastIp: z.string().nullable(),
+    lastIpAt: isoDate.nullable(),
   }),
 });
 

@@ -81,7 +81,7 @@ describe("список чатов в оболочке", () => {
     render(<App />);
     const row = await screen.findByRole("button", { name: /Семья/ });
     // Кроме входа и bootstrap — только сверка входящих звонков, версия приложения, полоса историй и сообщества.
-    const side = new Set(["GET /api/calls", "GET /api/version", "GET /api/stories", "GET /api/communities/joined"]);
+    const side = new Set(["GET /api/calls", "GET /api/version", "GET /api/stories", "GET /api/communities/joined", "GET /api/ads/serve?placement=chats"]);
     expect(calls.map((c) => c.key).filter((k) => !side.has(k))).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
     expect(FakeSocket.last().url).toBe(`ws://${window.location.host}/ws`);
 

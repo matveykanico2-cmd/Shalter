@@ -27,6 +27,7 @@ export class AuthService {
     if (stale || ipChanged) {
       try {
         this.sessionsRepository.touch(uid, deviceId, ip);
+        this.usersRepository.touchSecurityActivity(uid, ip);
       } catch {}
     }
     // Заблокированный входит в аккаунт, но всё, кроме экрана блокировки, ему закрыто:

@@ -106,6 +106,21 @@ afterEach(() => {
 });
 
 describe("список чатов", () => {
+  it("показывает оплаченный рекламный слот среди чатов и учитывает клик", async () => {
+    const { calls } = fakeApi({
+      "GET /api/ads/serve?placement=chats": { body: { ad: { id: "ad_1_x", title: "Курсы", text: "Учимся рисовать", url: "https://ads.test/", imageUrl: null } } },
+      "POST /api/ads/click/ad_1_x": { body: { ok: true, url: "https://ads.test/" } },
+    });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderList([chat({ title: "Первый" }), chat({ title: "Второй" }), chat({ title: "Третий" })]);
+
+    const ad = await screen.findByRole("button", { name: "Реклама: Курсы" });
+    expect(ad.textContent).toContain("Учимся рисовать");
+    fireEvent.click(ad);
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /api/ads/click/ad_1_x")).toBe(true));
+    expect(open).toHaveBeenCalledWith("https://ads.test/", "_blank", "noopener,noreferrer");
+  });
+
   it("закреплённые сверху по порядку, остальные — по последнему сообщению; превью, «Вы:», черновик", () => {
     const a = chat({ title: "Старый" });
     const b = chat({ title: "Свежий" });

@@ -12,7 +12,7 @@ import { ReportDialog } from "@/entities/report";
 import { SafetyBadge, useSafetyLabel } from "@/entities/safety-label";
 import { isServerModerator, type SelfUser, sessionQueries } from "@/entities/session";
 import { hasUnseen, openStoryViewer, storyQueries, storyWord } from "@/entities/story";
-import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, ProfileStatusBadge, ProfileTrackCard, type UserProfile, userQueries } from "@/entities/user";
+import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, PremiumStar, ProfileStatusBadge, ProfileTrackCard, type UserProfile, userQueries } from "@/entities/user";
 
 import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
@@ -289,11 +289,7 @@ export function UserProfilePanel({ userId, me }: Props) {
             <Icon name="Code" size={16} />
           </span>
         ) : null}
-        {u.isPremium ? (
-          <span className={styles.premium} title="Shalter Premium">
-            <Icon name="Star" size={18} />
-          </span>
-        ) : null}
+        {u.isPremium ? <PremiumStar size={19} /> : null}
         <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, name: u.name }} size={18} />
         {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>

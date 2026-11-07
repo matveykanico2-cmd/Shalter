@@ -80,6 +80,7 @@ export function LegalSection() {
             <div className={styles.inline}>
               <span className={styles.boxTitle}>{`${target.name}${target.username ? ` · @${target.username}` : ""}`}</span>
               <span className={`${styles.hint} ${styles.mono}`}>{target.phone || target.id}</span>
+              <span className={`${styles.hint} ${styles.mono}`}>{target.lastIp ? `Последний IP: ${target.lastIp}${target.lastIpAt ? ` · ${dateTime(target.lastIpAt)}` : ""}` : "IP активности ещё не зафиксирован"}</span>
             </div>
           ) : null}
         </div>

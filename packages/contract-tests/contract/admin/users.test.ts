@@ -54,7 +54,7 @@ describe("GET /api/admin/lookup", () => {
     const { baseUrl } = server();
     const m = await moderator();
     const target = await registerUser(baseUrl, { name: "Искомый" });
-    const expected = { user: { id: target.id, name: "Искомый", username: target.username, phone: target.phone, email: target.email } };
+    const expected = { user: { id: target.id, name: "Искомый", username: target.username, phone: target.phone, email: target.email, lastIp: expect.any(String), lastIpAt: expect.any(String) } };
     for (const q of [target.id, `@${target.username}`, target.username, target.phone, target.email, `  ${target.id}  `]) {
       expect(expectOk(await m.api.get("/api/admin/lookup", { query: { q } }), lookupBody), q).toEqual(expected);
     }

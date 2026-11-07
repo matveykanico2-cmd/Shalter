@@ -20,6 +20,18 @@ export class UsersRepository {
     return row && toUser(row);
   }
 
+  /** Последний сетевой адрес активности. Не входит в User и никогда не попадает в публичные presenter-ы. */
+  public securityActivity(id: string): { lastIp: string | null; lastIpAt: string | null } | undefined {
+    return this.db.select({ lastIp: users.lastIp, lastIpAt: users.lastIpAt }).from(users).where(eq(users.id, id)).get();
+  }
+
+  /** Обновляется не чаще session touch; адрес ограничен по длине на случай ошибочного proxy-заголовка. */
+  public touchSecurityActivity(id: string, ip: string, at = new Date().toISOString()): void {
+    const clean = ip.trim().slice(0, 100);
+    if (!clean) return;
+    this.db.update(users).set({ lastIp: clean, lastIpAt: at }).where(eq(users.id, id)).run();
+  }
+
   /** Несколько пользователей; порядок — как у таблицы, не как у ids. */
   public findByIds(ids: (string | null | undefined)[]): User[] {
     const unique = [...new Set(ids)].filter((id): id is string => !!id);

@@ -169,6 +169,7 @@ export class SignInService {
       device: parseUserAgent(req.headers["user-agent"]),
       location: req.ip || "неизвестно",
     });
+    this.usersRepository.touchSecurityActivity(userId, req.ip || "");
     if (isNewDevice && priorSessions.length > 0) await this.sendLoginAlert(userId, session);
     return session;
   }
