@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { hasAnimatedEmoji,renderAnimatedEmoji } from "../lib/anim";
+import { hasAnimatedEmoji, renderAnimatedEmoji } from "../lib/anim";
 
 import styles from "./avatar.module.css";
 import { DomNode } from "./dom-node";
@@ -40,18 +40,21 @@ export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: st
   const sticker = stickerUrl ? true : stickerProp;
   const showImage = !emoji && !!image && !sticker && broken !== image;
   const showSticker = !emoji && !!image && sticker && broken !== image;
+  const background = color ?? "var(--color-accent)";
   return (
     <span className={styles.avatar} style={{ width: size, height: size }}>
       {emoji && hasAnimatedEmoji(emoji) ? (
-        <DomNode key={`animated:${emoji}`} create={() => renderAnimatedEmoji(emoji, { size, replay: true })} />
+        <span className={styles.emojiAvatar} style={{ background }}>
+          <DomNode key={`animated:${emoji}`} create={() => renderAnimatedEmoji(emoji, { size: size * 0.82, replay: true })} />
+        </span>
       ) : showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
       ) : showSticker ? (
-        <span className={styles.stickerWrap} style={{ background: color ?? undefined }}>
+        <span className={styles.stickerWrap} style={{ background }}>
           <img className={styles.sticker} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
         </span>
       ) : (
-        <span className={styles.fallback} translate="no" style={{ fontSize: size * 0.5 }}>
+        <span className={styles.fallback} translate="no" style={{ background, fontSize: size * 0.5 }}>
           {emoji ? <span className={styles.emojiBg}>{emoji}</span> : initials(name) || "?"}
         </span>
       )}

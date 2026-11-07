@@ -13,9 +13,8 @@ import { toast } from "./toast-store";
 /** Все смайлы для аватарки: анимированные и статические. */
 const EMOJIS = ALL_EMOJI;
 
-/** Фоны для эмодзи-аватарки: первый — «Без фона» (прозрачный). */
-const BACKGROUNDS: (string | null)[] = [
-  null,
+/** Фоны аватарки: сервер хранит единый HEX-цвет для смайла, стикера и инициалов. */
+const BACKGROUNDS = [
   "#e53935",
   "#fb8c00",
   "#fdd835",
@@ -23,9 +22,6 @@ const BACKGROUNDS: (string | null)[] = [
   "#1e88e5",
   "#5e35b1",
   "#8e24aa",
-  "linear-gradient(135deg, #ff9a9e, #fad0c4)",
-  "linear-gradient(135deg, #a18cd1, #fbc2eb)",
-  "linear-gradient(135deg, #fad0c4, #ffd1ff)",
 ];
 
 type Props = {
@@ -49,18 +45,16 @@ const myPacksQuery = {
   staleTime: 60_000,
 };
 
-/** Выбор смайла на аватарку: сетка анимированных смайлов и поле для своего. */
+/** Выбор смайла на аватарку из готовой сетки с единым цветным фоном. */
 export function EmojiAvatarPicker({ onPick, label = "Смайл на аватарке", emojiOnly = true, withStickers = false, color, onColor }: Props) {
-  const [custom, setCustom] = useState("");
-  const [background, setBackground] = useState<string | null>(color ?? null);
+  const [background, setBackground] = useState<string>(color && BACKGROUNDS.includes(color) ? color : BACKGROUNDS[4]!);
   const pick = (value: string) => {
     const text = value.trim();
     if (graphemes(text).length !== 1) return toast("Один смайл", { error: true });
     if (emojiOnly && !isSingleEmoji(text)) return toast("Некорректный эмодзи", { error: true });
-    if (background === null) onPick(text);
-    else onPick(text, background);
+    onPick(text, background);
   };
-  const pickBackground = (value: string | null) => {
+  const pickBackground = (value: string) => {
     setBackground(value);
     onColor?.(value);
   };
@@ -74,10 +68,9 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
             type="button"
             role="radio"
             aria-checked={background === bg}
-            aria-label={bg === null ? "Без фона" : `Фон ${i}`}
-            title={bg === null ? "Без фона" : undefined}
+            aria-label={`Фон ${i + 1}`}
             className={styles.bgSwatch}
-            style={{ background: bg ?? "transparent" }}
+            style={{ background: bg }}
             onClick={() => pickBackground(bg)}
           />
         ))}
@@ -89,13 +82,7 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
           </button>
         ))}
       </div>
-      <div className={styles.inputWrap}>
-        <input className={styles.input} maxLength={10} placeholder="свой смайл" aria-label="Свой смайл" value={custom} onChange={(e) => setCustom(e.target.value)} />
-        <button type="button" className={styles.apply} onClick={() => pick(custom)}>
-          Установить
-        </button>
-      </div>
-      {withStickers ? <StickerAvatarList onPick={(v) => (background === null ? onPick(v) : onPick(v, background))} /> : null}
+      {withStickers ? <StickerAvatarList onPick={(v) => onPick(v, background)} /> : null}
     </div>
   );
 }

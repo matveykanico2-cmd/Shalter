@@ -19,11 +19,11 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const save = async (avatarEmoji: string | null) => {
+  const save = async (avatarEmoji: string | null, avatarColor = me.avatarColor) => {
     setBusy(true);
     try {
-      const user = await updateProfile(me.id, { avatarEmoji });
-      updateSelf({ avatarEmoji: user.avatarEmoji });
+      const user = await updateProfile(me.id, { avatarEmoji, avatarColor });
+      updateSelf({ avatarEmoji: user.avatarEmoji, avatarColor: user.avatarColor });
       setOpen(false);
     } catch (err) {
       toast(errorText(err, "Не удалось сохранить смайл"), { error: true });
@@ -47,7 +47,7 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
           </Button>
         ) : null}
       </div>
-      {open ? <EmojiAvatarPicker withStickers onPick={(e) => void save(e)} /> : null}
+      {open ? <EmojiAvatarPicker withStickers color={me.avatarColor} onPick={(e, color) => void save(e, color ?? me.avatarColor)} /> : null}
     </SettingsSection>
   );
 }

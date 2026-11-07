@@ -64,6 +64,20 @@
   object-fit: contain;
 }
 
+.avatarPreview {
+  display: grid;
+  width: min(70vh, 420px);
+  max-width: calc(100vw - 48px);
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.06);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
 .nav {
   position: absolute;
   top: 50%;

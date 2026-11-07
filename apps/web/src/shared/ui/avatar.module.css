@@ -4,14 +4,10 @@
   flex-shrink: 0;
 }
 
-/* Transparent background for emoji avatars */
-.emoji-bg {
-  background: transparent !important;
-}
-
 .image,
 .fallback,
-.stickerWrap {
+.stickerWrap,
+.emojiAvatar {
   display: grid;
   place-items: center;
   width: 100%;
@@ -24,6 +20,15 @@
   overflow: hidden;
   object-fit: contain;
   background: var(--color-accent);
+  display: grid;
+  place-items: center;
+}
+
+.emojiAvatar {
+  overflow: hidden;
+}
+
+.emojiAvatar > span {
   display: grid;
   place-items: center;
 }

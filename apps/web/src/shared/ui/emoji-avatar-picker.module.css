@@ -51,6 +51,7 @@
   font-size: 28px;
   line-height: 1;
   cursor: pointer;
+  contain: layout paint;
   transition: background 0.12s ease, transform 0.12s ease;
 }
 
@@ -62,41 +63,6 @@
 
 .emoji:active {
   transform: scale(0.92);
-}
-
-.inputWrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.input {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 18px;
-  text-align: center;
-}
-
-.apply {
-  flex: none;
-  height: 40px;
-  padding: 0 14px;
-  border: none;
-  border-radius: var(--radius-control);
-  background: var(--color-accent);
-  color: #fff;
-  font: inherit;
-  font-size: 14px;
-  white-space: nowrap;
-  cursor: pointer;
 }
 
 .stickerNode {

@@ -5,7 +5,7 @@ import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { isRecordingSupported, type Recording, startRecording } from "@/shared/lib/media/recorder";
-import { askConfirm, Button, Icon } from "@/shared/ui";
+import { askConfirm, Avatar, Button, Icon } from "@/shared/ui";
 
 import { avatarApi, type AvatarEntry } from "../api/profile-api";
 import { videoDuration, videoPosterDataUrl } from "../lib/video-poster";
@@ -29,33 +29,32 @@ type Props = {
   onClose: () => void;
 };
 
-const AVATAR_STICKER_PREFIX = "sticker:";
-
 const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" && typeof (a as AvatarEntry).url === "string";
 
-const isStickerAvatar = (emoji: string | null | unknown): boolean =>!!emoji && typeof emoji === "string" && emoji.startsWith(AVATAR_STICKER_PREFIX);
+type DisplayEntry =
+  | (AvatarEntry & { id: string; sourceIndex?: number })
+  | { id: string; kind: "emoji"; emoji: string; background?: string | null }
+  | { id: string; kind: "initials"; background?: string | null };
+
+function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
+  const gallery = raw.filter(isEntry).map((entry, sourceIndex) => ({ ...entry, id: `gallery:${sourceIndex}:${entry.url}`, sourceIndex }));
+  // Активный смайл всегда открывается первым. Фото остаются дальше в истории.
+  if (user.avatarEmoji) return [{ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor }, ...gallery];
+  // Своя фотография контакта приходит как avatarImage только владельцу контакта и не входит
+  // в публичный avatarImages. Добавляем её в просмотр локально, перед профилем человека.
+  if (user.avatarImage && !gallery.some((entry) => entry.url === user.avatarImage || entry.poster === user.avatarImage)) {
+    return [{ id: `current:${user.avatarImage}`, kind: "image", url: user.avatarImage, poster: user.avatarImage }, ...gallery];
+  }
+  if (gallery.length) return gallery;
+  return [{ id: "initials", kind: "initials", background: user.avatarColor }];
+}
 
 /**
  * Аватары с листанием — как public/js/components/avatarViewer.js: стрелки, свайп, точки,
  * нажатие на половину фото; себе — добавить фото или видео, сделать основной, удалить.
  */
 export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
-  const [avatars, setAvatars] = useState<AvatarEntry[]>(() => {
-    // Сначала проверяем avatarImages (загруженные аватарки).
-    const list = (user.avatarImages ?? []).filter(isEntry);
-    if (list.length) return list;
-    
-    // Потом проверяем avatarImage (фото аватарка).
-    if (user.avatarImage) return [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
-    
-    // И наконец — avatarEmoji со стикером (sticker:/uploads/...).
-    if (user.avatarEmoji && isStickerAvatar(user.avatarEmoji)) {
-      const stickerUrl = user.avatarEmoji.slice(AVATAR_STICKER_PREFIX.length);
-      return [{ url: stickerUrl, kind: "image", poster: stickerUrl, background: user.avatarColor ?? undefined }];
-    }
-    
-    return [];
-  });
+  const [avatars, setAvatars] = useState<DisplayEntry[]>(() => displayEntries(user, user.avatarImages ?? []));
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,8 +95,9 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
   });
 
   const apply = (res: { avatars: AvatarEntry[]; user: Record<string, unknown> }, nextIndex?: number) => {
-    setAvatars(res.avatars);
-    setIndex((i) => (nextIndex !== undefined ? nextIndex : Math.min(i, Math.max(0, res.avatars.length - 1))));
+    const next = displayEntries({ ...user, ...res.user }, res.avatars);
+    setAvatars(next);
+    setIndex((i) => (nextIndex !== undefined ? nextIndex : Math.min(i, Math.max(0, next.length - 1))));
     onChange(res.user);
   };
 
@@ -162,7 +162,8 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
     if (file) void add(file);
   };
 
-  const current = avatars[index];
+  const current = avatars[index] ?? avatars[0]!;
+  const sourceIndex = "sourceIndex" in current ? current.sourceIndex : undefined;
   return createPortal(
     <div
       className={styles.overlay}
@@ -195,8 +196,14 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
         >
           {recording ? (
             <video ref={preview} className={styles.media} autoPlay muted playsInline />
-          ) : !current ? (
-            <p className={styles.muted}>{canEdit ? "Фото профиля пока нет" : "Нет фото профиля"}</p>
+          ) : current.kind === "emoji" ? (
+            <div className={styles.avatarPreview}>
+              <Avatar name={user.name} color={current.background} emoji={current.emoji} size={280} />
+            </div>
+          ) : current.kind === "initials" ? (
+            <div className={styles.avatarPreview}>
+              <Avatar name={user.name} color={current.background} size={280} />
+            </div>
           ) : current.kind === "video" ? (
             <video key={current.url} className={styles.media} src={current.url} poster={current.poster} autoPlay loop muted playsInline controls />
           ) : (
@@ -226,7 +233,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
           <div className={styles.dots}>
             {avatars.map((a, i) => (
               <button
-                key={a.url}
+                key={a.id}
                 type="button"
                 className={i === index ? `${styles.dot} ${styles.dotActive}` : styles.dot}
                 title={`${i + 1} из ${avatars.length}`}
@@ -256,18 +263,18 @@ export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
                   Записать видео
                 </button>
               ) : null}
-              {avatars.length > 1 && index !== 0 ? (
-                <button type="button" className={styles.barButton} onClick={() => void act(() => avatarApi.setMain(index), "Сохраняем…")}>
+              {sourceIndex !== undefined && sourceIndex !== 0 ? (
+                <button type="button" className={styles.barButton} onClick={() => void act(() => avatarApi.setMain(sourceIndex), "Сохраняем…")}>
                   Сделать основной
                 </button>
               ) : null}
-              {avatars.length ? (
+              {sourceIndex !== undefined ? (
                 <button
                   type="button"
                   className={`${styles.barButton} ${styles.barDanger}`}
                   onClick={() =>
                     void askConfirm("Удалить эту аватарку?").then((ok) => {
-                      if (ok) void act(() => avatarApi.remove(index), "Удаляем…");
+                      if (ok) void act(() => avatarApi.remove(sourceIndex), "Удаляем…");
                     })
                   }
                 >

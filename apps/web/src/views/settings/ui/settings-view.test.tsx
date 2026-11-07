@@ -137,11 +137,12 @@ describe("«Настройки»", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Выбрать смайл" }));
     fireEvent.click(screen.getByRole("button", { name: "🔥" }));
     await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarEmoji).toBe("🔥"));
-    expect(calls.find((c) => c.key === "PATCH /api/users/u_me0000000")?.body).toEqual({ avatarEmoji: "🔥" });
+    expect(calls.find((c) => c.key === "PATCH /api/users/u_me0000000")?.body).toEqual({ avatarEmoji: "🔥", avatarColor: "#1e88e5" });
+    expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarColor).toBe("#1e88e5");
     expect(screen.queryByRole("button", { name: "🔥" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Убрать смайл" }));
     await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarEmoji).toBeUndefined());
-    expect(calls.filter((c) => c.key === "PATCH /api/users/u_me0000000")[1]?.body).toEqual({ avatarEmoji: null });
+    expect(calls.filter((c) => c.key === "PATCH /api/users/u_me0000000")[1]?.body).toEqual({ avatarEmoji: null, avatarColor: "#1e88e5" });
   });
 });

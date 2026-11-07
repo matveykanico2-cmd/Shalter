@@ -9,6 +9,8 @@ export const avatarEntry = z.strictObject({
   url: z.string(),
   kind: z.enum(["image", "video"]),
   poster: z.string().regex(/^data:image\/(png|jpeg|webp);base64,/),
+  background: z.string().nullable().optional(),
+  stickerId: z.string().nullable().optional(),
 });
 
 /** Часы работы — только у бизнес-аккаунта с включённым показом (routes/users.js GET /:id). */

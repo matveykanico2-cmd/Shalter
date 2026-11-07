@@ -43,7 +43,8 @@ export function renderAnimatedEmoji(emoji: string, { size = 32, replay = false, 
     s.textContent = emoji;
     return s;
   };
-  const box = renderLottie(source, { size, replay, loop, fallback, rest: "first", playOnView });
+  // Обычный смайл остаётся виден, пока Lottie загружается или если сеть недоступна.
+  const box = renderLottie(source, { size, replay, loop, fallback, placeholder: fallback, rest: "first", playOnView });
   box.classList.add("animated-emoji");
   box.setAttribute("aria-label", emoji);
   return box;

@@ -55,7 +55,7 @@ export const profileApi = {
   clickAd: (adId: string) => http.post<unknown>(`/api/ads/click/${id(adId)}`, {}),
 };
 
-export type AvatarEntry = { url: string; kind: "image" | "video"; poster?: string };
+export type AvatarEntry = { url: string; kind: "image" | "video"; poster?: string; background?: string | null; stickerId?: string | null };
 type AvatarsResult = { avatars: AvatarEntry[]; user: Record<string, unknown> & { id: string } };
 
 export const avatarApi = {
