@@ -30,19 +30,6 @@ export function useContactActions() {
     await refresh();
   };
 
-  const openProfileEditor = async (c: ContactItem) => {
-    // Open the profile editor with all fields
-    // For now, just show a more complete rename dialog
-    const nextName = await askText(`Как записать ${c.user.name}?`, { initial: c.localName ?? c.user.name, okLabel: "Готово" });
-    if (nextName == null) return;
-    try {
-      await renameContact(c.userId, nextName.trim());
-    } catch (err) {
-      toast(errorText(err, "Не удалось переименовать контакт"), { error: true });
-    }
-    await refresh();
-  };
-
   const remove = async (userId: string) => {
     // Строка пропадает сразу, сервер — следом.
     client.setQueryData(contactsQueries.list().queryKey, (list) => list?.filter((c) => c.userId !== userId));
@@ -73,5 +60,5 @@ export function useContactActions() {
     }
   };
 
-  return { add, rename, remove, toggleBlock, refresh, openProfileEditor };
+  return { add, rename, remove, toggleBlock, refresh };
 }

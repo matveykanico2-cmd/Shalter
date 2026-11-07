@@ -74,7 +74,7 @@ export async function getFlippedTrack({
         try {
           const track = (await getUserMediaSafe({ video: constraints })).getVideoTracks()[0];
           if (track) return { track };
-        } catch (err2) {
+        } catch {
           // ignored
         }
       }

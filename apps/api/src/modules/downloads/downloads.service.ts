@@ -6,7 +6,7 @@ import { apkIsDebugSigned } from "./lib/apk-signature.js";
 import { ReleaseStore, type ReleaseAsset } from "./stores/release.store.js";
 
 // Сборки приложения для /download и обновление нативной оболочки — как server/routes/downloads.js.
-const DOWNLOAD_DIR = path.join(PUBLIC_DIR, "downloads");
+const DOWNLOAD_DIR = process.env.SHALTER_DOWNLOADS_DIR ? path.resolve(process.env.SHALTER_DOWNLOADS_DIR) : path.join(PUBLIC_DIR, "downloads");
 const PACKAGE_JSON = path.join(REPO_ROOT, "package.json");
 
 const ARTIFACTS = [

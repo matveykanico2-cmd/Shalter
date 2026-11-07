@@ -3,9 +3,10 @@ import { useState } from "react";
 
 import { http } from "../api";
 import { renderSticker } from "../lib/anim";
-import { DomNode } from "@/shared/ui";
 import { ALL_EMOJI } from "../lib/emoji-list";
 import { graphemes, isSingleEmoji } from "../lib/graphemes";
+
+import { DomNode } from "./dom-node";
 import styles from "./emoji-avatar-picker.module.css";
 import { toast } from "./toast-store";
 
@@ -56,7 +57,8 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
     const text = value.trim();
     if (graphemes(text).length !== 1) return toast("Один смайл", { error: true });
     if (emojiOnly && !isSingleEmoji(text)) return toast("Некорректный эмодзи", { error: true });
-    onPick(text, background);
+    if (background === null) onPick(text);
+    else onPick(text, background);
   };
   const pickBackground = (value: string | null) => {
     setBackground(value);
@@ -93,7 +95,7 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
           Установить
         </button>
       </div>
-      {withStickers ? <StickerAvatarList onPick={(v) => onPick(v, background)} /> : null}
+      {withStickers ? <StickerAvatarList onPick={(v) => (background === null ? onPick(v) : onPick(v, background))} /> : null}
     </div>
   );
 }

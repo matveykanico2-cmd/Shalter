@@ -32,6 +32,7 @@ export const sticker = z.strictObject({
   url: z.string().regex(/^\/uploads\//),
   emoji: z.string().min(1),
   position: z.number().int().nonnegative(),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).nullable(),
   createdAt: isoDate,
 });
 export type Sticker = z.infer<typeof sticker>;
@@ -84,6 +85,7 @@ export const addStickerBody = z.strictObject({
   file: z.string().regex(/^\/uploads\//),
   emoji: z.string().min(1),
   position: z.number().int().nonnegative().optional(),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional(),
 });
 export type AddStickerBody = z.infer<typeof addStickerBody>;
 
@@ -91,6 +93,7 @@ export type AddStickerBody = z.infer<typeof addStickerBody>;
 export const updateStickerBody = z.strictObject({
   emoji: z.string().min(1).optional(),
   position: z.number().int().nonnegative().optional(),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional(),
 });
 export type UpdateStickerBody = z.infer<typeof updateStickerBody>;
 

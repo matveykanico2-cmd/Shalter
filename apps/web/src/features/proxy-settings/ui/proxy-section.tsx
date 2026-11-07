@@ -28,7 +28,7 @@ export function ProxySection() {
 
   const add = (e: FormEvent) => {
     e.preventDefault();
-    let proxy = parseProxyLink(input) ?? parseDirectProxy(input);
+    const proxy = parseProxyLink(input) ?? parseDirectProxy(input);
     if (!proxy) {
       setError("Это не похоже на ссылку прокси. Пример: https://proxy.example.net/?proxy=… или IP:порт:логин:пароль");
       return;
@@ -81,7 +81,7 @@ export function ProxySection() {
       <SettingsSection title="Добавить прокси" caption="Вставьте ссылку прокси (https://адрес/?proxy=секрет) или укажите прямо: IP:порт[:логин[:пароль]].">
         <form className={styles.form} onSubmit={add}>
           <TextField
-            aria-label="Ссылка или адрес прокси"
+            aria-label="Ссылка на прокси"
             placeholder="https://proxy.example.net/?proxy=… или 192.168.1.1:3128:user:pass"
             value={input}
             inputMode="url"

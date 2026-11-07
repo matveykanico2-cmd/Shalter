@@ -231,5 +231,5 @@ function coverOf(coverStickerId: string | null, packStickers: StickerRow[]): { c
 }
 
 function toSticker(row: StickerRow): Sticker {
-  return { id: row.id, packId: row.packId, url: row.file, emoji: row.emoji, position: row.position, background: row.background, createdAt: row.createdAt };
+  return { id: row.id, packId: row.packId, url: row.file, emoji: row.emoji, position: row.position, background: row.background || null, createdAt: row.createdAt };
 }

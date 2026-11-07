@@ -97,7 +97,18 @@ export function ContactsView() {
       {adding ? <AddContactPanel contacts={contacts} onAdded={() => setAdding(false)} /> : null}
       {contacts.length ? <TextField type="search" className={styles.filter} placeholder="Поиск по имени или номеру" value={filter} onChange={(e) => setFilter(e.target.value)} /> : null}
       <div className={styles.list}>
-        {contactsQuery.isPending ? null : contacts.length === 0 ? (
+        {contactsQuery.isPending ? (
+          <p className={styles.emptyHint} role="status">
+            Загружаем контакты…
+          </p>
+        ) : contactsQuery.isError ? (
+          <div className={styles.empty} role="alert">
+            <p className={styles.emptyHint}>Не удалось загрузить контакты</p>
+            <button type="button" className={styles.accentButton} onClick={() => void contactsQuery.refetch()}>
+              Попробовать снова
+            </button>
+          </div>
+        ) : contacts.length === 0 ? (
           <div className={styles.empty}>
             <p className={styles.emptyHint}>Список контактов пуст</p>
             <button type="button" className={styles.accentButton} onClick={() => setImporting(true)}>
@@ -140,7 +151,7 @@ export function ContactsView() {
                 contact={c}
                 blocked={blocked.includes(c.userId)}
                 onOpen={() => openUserProfile(c.userId)}
-                onRename={() => void actions.openProfileEditor(c)}
+                onRename={() => void actions.rename(c)}
                 onWrite={() => write(c)}
                 onToggleBlock={() => void actions.toggleBlock(c.userId)}
                 onRemove={() => void actions.remove(c.userId)}

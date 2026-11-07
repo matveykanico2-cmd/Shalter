@@ -14,6 +14,7 @@ describe("cleanAvatarEmoji", () => {
     for (const v of ["abc", "1", "Ж", "🔥🔥🔥🔥🔥🔥🔥🔥🔥", "🔥 hi", 5, {}, true]) expect(cleanAvatarEmoji(v)).toBeUndefined();
   });
   it("отвергает стикеры на аватарке", () => {
-    for (const v of ["sticker:/uploads/st/abc.webp", "sticker:", "sticker:/etc/passwd"]) expect(cleanAvatarEmoji(v)).toBeUndefined();
+    expect(cleanAvatarEmoji("sticker:/uploads/sha_abc.webp")).toBe("sticker:/uploads/sha_abc.webp");
+    for (const v of ["sticker:/uploads/st/abc.webp", "sticker:", "sticker:/etc/passwd", "sticker:/uploads/../secret"]) expect(cleanAvatarEmoji(v)).toBeUndefined();
   });
 });

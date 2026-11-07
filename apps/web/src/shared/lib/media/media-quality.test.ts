@@ -41,11 +41,11 @@ describe("качество звонков", () => {
     expect(HD_VIDEO).toEqual(pc.video);
   });
 
-  it("Opus: моно, FEC, DTX, битрейт речи; чужие параметры fmtp сохраняются", () => {
+  it("Opus: моно, FEC, без DTX, битрейт речи; чужие параметры fmtp сохраняются", () => {
     const sdp = "v=0\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;usedtx=1;stereo=1\r\n";
     const tuned = tuneOpusSdp({ type: "offer", sdp }, mediaQuality(false)).sdp!;
-    expect(tuned).toContain("a=fmtp:111 minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=48000;stereo=0;sprop-stereo=0\r\n");
-    expect(tuned).toContain("usedtx");
+    expect(tuned).toContain("a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=48000;stereo=0;sprop-stereo=0\r\n");
+    expect(tuned).not.toContain("usedtx");
     expect(tuneOpusSdp({ type: "answer", sdp }, mediaQuality(true)).sdp).toContain("maxaveragebitrate=24000;stereo=0");
     // Строки fmtp нет — дописывается после rtpmap.
     expect(tuneOpusSdp({ type: "offer", sdp: "v=0\r\na=rtpmap:109 opus/48000/2\r\n" }).sdp).toMatch(/a=rtpmap:109 opus\/48000\/2\r\na=fmtp:109 useinbandfec=1;/);

@@ -5,7 +5,7 @@
 // кадр рассыпается и замирает), а стерео с эхоподавлением и DTX портит голос. Поэтому, как
 // в Meet/Telegram: камера 720p/30 (на телефоне тоже — аппаратный кодер тянет), потолок
 // видео 3,5 Мбит/с на ПК и 1,8 Мбит/с на телефоне, degradationPreference «balanced»;
-// голос — моно Opus с FEC и DTX.
+// голос — моно Opus с FEC, без DTX, который может обрезать тихую речь.
 
 export const isMobileUa = (ua: string) => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
 const IS_MOBILE = typeof navigator !== "undefined" && isMobileUa(navigator.userAgent);
@@ -16,7 +16,7 @@ export function mediaQuality(mobile: boolean) {
     video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } satisfies MediaTrackConstraints,
     // Голос: моно с шумо- и эхоподавлением (стерео-захват на ПК ломал эхоподавление).
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } } satisfies MediaTrackConstraints,
-    // Голос: Opus 24–48 кбит/с, моно, 48 кГц. FEC + DTX для устойчивости к потерям и экономии трафика.
+    // Голос: Opus 24–48 кбит/с, моно, 48 кГц. FEC помогает при потерях пакетов.
     opusBitrate: mobile ? 24_000 : 48_000,
     // Видео: потолок выше, чтобы на хорошем канале не мылилось; balanced degradation
     // плавно снижает качество при слабой сети вместо замираний.
@@ -47,13 +47,13 @@ export const cameraConstraints = (extra: MediaTrackConstraints = {}): MediaTrack
 const OPUS_KEYS = /^(useinbandfec|usedtx|maxaveragebitrate|stereo|sprop-stereo)=/;
 const VP9_PT_RE = /a=rtpmap:(\d+) VP9\/90000/i;
 
-// Opus — это то, что мы готовы принимать: моно, защита от потерь (FEC), DTX для экономии трафика,
-// битрейт речи.
+// Opus — это то, что мы готовы принимать: моно, защита от потерь (FEC), без DTX,
+// который может съедать начало тихих фраз, и с ограниченным битрейтом речи.
 export function tuneOpusSdp(desc: RTCSessionDescriptionInit, quality: MediaQuality = QUALITY): RTCSessionDescriptionInit {
   if (!desc?.sdp) return desc;
   const pt = /a=rtpmap:(\d+) opus\/48000/i.exec(desc.sdp)?.[1];
   if (!pt) return desc;
-  const params = `useinbandfec=1;usedtx=1;maxaveragebitrate=${quality.opusBitrate};stereo=0;sprop-stereo=0`;
+  const params = `useinbandfec=1;maxaveragebitrate=${quality.opusBitrate};stereo=0;sprop-stereo=0`;
   let sdp = desc.sdp;
   const fmtpRe = new RegExp(`a=fmtp:${pt} ([^\r\n]*)`);
   if (fmtpRe.test(sdp)) {

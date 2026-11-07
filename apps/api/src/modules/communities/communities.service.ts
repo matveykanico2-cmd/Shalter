@@ -100,6 +100,7 @@ export class CommunitiesService {
     if (avatarImage === undefined || usesForeignUpload(uid, avatarImage)) throw new ApiError(400, "Некорректное изображение");
     const avatarEmoji = dto.avatarEmoji === undefined ? null : cleanAvatarEmoji(dto.avatarEmoji);
     if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+    if (usesForeignUpload(uid, avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
     const community = this.communities.create({
       id: genId("cm"),
       ownerId: uid,
@@ -140,6 +141,7 @@ export class CommunitiesService {
     if (dto.avatarEmoji !== undefined) {
       const avatarEmoji = cleanAvatarEmoji(dto.avatarEmoji);
       if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+      if (usesForeignUpload(uid, avatarEmoji, community.avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
       patch.avatarEmoji = avatarEmoji;
     }
     // Фото и смайл на аватарке взаимоисключают друг друга: новое сменяет прежнее.

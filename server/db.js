@@ -453,6 +453,7 @@ CREATE TABLE IF NOT EXISTS stickers (
   file TEXT NOT NULL,
   emoji TEXT NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
+  background TEXT DEFAULT '',
   createdAt TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_stickers_pack ON stickers(pack_id);
@@ -1562,6 +1563,8 @@ CREATE INDEX IF NOT EXISTS idx_partner_profiles_username ON partner_profiles(use
 const existingStickerPackColumns = new Set(db.prepare("PRAGMA table_info(sticker_packs)").all().map((c) => c.name));
 if (!existingStickerPackColumns.has("description")) db.exec("ALTER TABLE sticker_packs ADD COLUMN description TEXT");
 if (!existingStickerPackColumns.has("coverStickerId")) db.exec("ALTER TABLE sticker_packs ADD COLUMN coverStickerId TEXT");
+const existingStickerColumns = new Set(db.prepare("PRAGMA table_info(stickers)").all().map((c) => c.name));
+if (!existingStickerColumns.has("background")) db.exec("ALTER TABLE stickers ADD COLUMN background TEXT DEFAULT ''");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS star_reactions (

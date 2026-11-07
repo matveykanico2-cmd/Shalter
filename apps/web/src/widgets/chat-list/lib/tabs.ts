@@ -1,5 +1,6 @@
 // Вкладки над списком: системные и папки пользователя (public/js/views/chatList.js).
 import type { ChatFolder, ChatSummary } from "@/entities/chat";
+
 import { isMobileUa } from "@/shared/lib/media/media-quality";
 
 const IS_MOBILE = typeof navigator !== "undefined" && isMobileUa(navigator.userAgent);

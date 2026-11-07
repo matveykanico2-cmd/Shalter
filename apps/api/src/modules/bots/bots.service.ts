@@ -140,7 +140,7 @@ export class BotsService {
     const before = this.users.findById(bot.userId);
     if (
       (typeof dto.avatarImage === "string" && dto.avatarImage !== before?.avatarImage && badAvatar(dto.avatarImage)) ||
-      usesForeignUpload(uid, [dto.avatarImage, dto.appCode, dto.appUrl], [before?.avatarImage, bot.appCode, bot.appUrl])
+      usesForeignUpload(uid, [dto.avatarImage, dto.avatarEmoji, dto.appCode, dto.appUrl], [before?.avatarImage, before?.avatarEmoji, bot.appCode, bot.appUrl])
     ) {
       throw new ApiError(400, "Некорректная ссылка на файл");
     }

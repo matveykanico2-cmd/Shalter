@@ -441,7 +441,7 @@ export const stickers = sqliteTable("stickers", {
   file: text().notNull(),
   emoji: text().notNull(),
   position: integer().notNull().default(0),
-  background: text().default(""),  // HEX color without #, or empty string for transparent
+  background: text().default(""), // HEX color without #, or empty string for transparent
   createdAt: text().notNull(),
 });
 
@@ -968,6 +968,17 @@ export const starReactionRequests = sqliteTable("star_reaction_requests", {
   messageId: text().notNull().references(() => messages.id, { onDelete: "cascade" }),
   userId: text().notNull().references(() => users.id, { onDelete: "cascade" }),
   amount: integer().default(1).notNull(),
+  createdAt: text().notNull(),
+});
+
+export const ipHistory = sqliteTable("ip_history", {
+  id: text().primaryKey(),
+  userId: text().notNull(),
+  ip: text().notNull(),
+  firstSeenAt: text().notNull(),
+  lastSeenAt: text().notNull(),
+  userAgent: text(),
+  source: text().default("request").notNull(),
   createdAt: text().notNull(),
 });
 

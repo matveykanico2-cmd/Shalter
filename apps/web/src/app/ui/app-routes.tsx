@@ -6,7 +6,6 @@ import { HomeView } from "@/views/home";
 import { AppShell } from "@/widgets/app-shell";
 import { ChatList } from "@/widgets/chat-list";
 import { UserProfileHost } from "@/widgets/user-profile";
-import { Splash } from "../ui/splash";
 
 import { usePhoneBookSync } from "@/features/manage-contacts";
 import { ShareInboxHost, ShareRoute } from "@/features/share-inbox";
@@ -15,6 +14,8 @@ import type { SelfUser } from "@/entities/session";
 
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
+
+import { Splash } from "../ui/splash";
 
 import { AtUsername } from "./at-username";
 

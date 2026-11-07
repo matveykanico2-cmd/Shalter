@@ -105,6 +105,11 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
   const dataDir = path.join(root, "data");
   if (opts.seedDataDir) fs.cpSync(opts.seedDataDir, dataDir, { recursive: true, preserveTimestamps: true });
   else fs.mkdirSync(dataDir);
+  // Локальные desktop-сборки разработчика лежат в ignored public/downloads и не должны
+  // менять результат тестов. Для API оставляем только APK, который хранится в git.
+  const downloadsDir = path.join(root, "downloads");
+  fs.mkdirSync(downloadsDir);
+  fs.copyFileSync(path.join(REPO_ROOT, "public", "downloads", "Shalter.apk"), path.join(downloadsDir, "Shalter.apk"));
 
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -139,6 +144,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     NODE_OPTIONS: `--require "${NET_GUARD}"`,
     SHALTER_NET_GUARD_LOG: netLogFile,
     SHALTER_WEB_DIST: opts.webDist ?? FIXTURE_WEB_DIST,
+    SHALTER_DOWNLOADS_DIR: downloadsDir,
     ...opts.env,
   };
 

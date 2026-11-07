@@ -106,6 +106,7 @@ export function staticFiles(): RequestHandler {
     ),
     mount("/.well-known", serveStatic(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }), notFound),
     pages(DOC_PAGES),
+    (req, res, next) => (req.path === "/gift-scenes" ? void res.redirect(301, "/gift-scenes/") : next()),
     assetPacks(),
     serveStatic(PUBLIC_DIR, { index: false, maxAge: "1h" }),
     // Сцены подарков (по файлу на подарок): нет такой сцены — 404, а не index.html приложения.
