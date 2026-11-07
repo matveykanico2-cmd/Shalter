@@ -767,6 +767,7 @@ export function Composer(props: Props) {
           onClose={() => setHugo(null)}
         />
       ) : null}
+      {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       {paid ? (
         <p className={styles.paidHint}>
@@ -943,7 +944,6 @@ export function Composer(props: Props) {
       {scheduling === "dialog" ? <ScheduleDialog allowWhenOnline={!!props.allowWhenOnline} onSchedule={(c) => void schedule(c)} onClose={() => setScheduling(null)} /> : null}
       {scheduling === "list" ? <ScheduledList chatId={chatId} onClose={() => setScheduling(null)} /> : null}
       {placePicker ? <LocationPicker reason={placePicker.reason} onDone={placePicker.resolve} /> : null}
-      {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );
 }

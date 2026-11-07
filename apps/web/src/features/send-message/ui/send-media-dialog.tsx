@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { videoPosterDataUrl } from "@/shared/lib/image";
 import { plural } from "@/shared/lib/presence";
 import { askText, Icon, Menu, type MenuItem } from "@/shared/ui";
 
@@ -30,7 +31,6 @@ const MAX_PAID_STARS = 10_000;
  */
 export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onSend, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
-  const [caption, setCaption] = useState(initialCaption);
   const [asFiles, setAsFiles] = useState(false);
   const [spoiler, setSpoiler] = useState(false);
   const [paidStars, setPaidStars] = useState(0);
@@ -69,7 +69,7 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
   const send = () => {
     if (!files.length) return;
     // «Без сжатия» — файлом: фото и видео уходят как есть, без превью и пережатия.
-    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars, caption });
+    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars, caption: initialCaption });
   };
 
   const moreItems: MenuItem[] = [
@@ -102,15 +102,18 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
     <>
       <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
       <div className={styles.header}>
-          <button type="button" className={styles.iconButton} title="Закрыть" onClick={onClose}>
-            <Icon name="X" size={22} />
-          </button>
           <h2 className={styles.title}>{title(files, isMedia)}</h2>
           {compressible ? (
             <button type="button" className={styles.iconButton} title="Ещё" onClick={(e) => setMenuAt({ x: e.clientX - 200, y: e.clientY + 8 })}>
               <Icon name="More" size={22} />
             </button>
           ) : null}
+          <button type="button" className={styles.iconButton} title="Убрать выбранные файлы" aria-label="Убрать выбранные файлы" onClick={onClose}>
+            <Icon name="X" size={20} />
+          </button>
+          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить выбранные файлы" onClick={send}>
+            <Icon name="Send" size={19} />
+          </button>
         </div>
         <div className={(spoiler || paidStars) && !asFiles ? `${styles.preview} ${styles.blurred}` : styles.preview}>
           {media.length ? (
@@ -161,25 +164,6 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
             </button>
           </div>
         ) : null}
-        <div className={styles.footer}>
-          <textarea
-            className={styles.caption}
-            placeholder="Подпись"
-            aria-label="Подпись"
-            rows={1}
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                send();
-              }
-            }}
-          />
-          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" onClick={send}>
-            <Icon name="Send" size={22} />
-          </button>
-        </div>
       </div>
       {menuAt ? <Menu at={menuAt} items={moreItems} onClose={() => setMenuAt(null)} /> : null}
     </>
@@ -192,7 +176,13 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
  */
 function FilePreview({ file, as, className }: { file: File; as: "img" | "video" | "thumb"; className?: string }) {
   const ref = useRef<HTMLImageElement & HTMLVideoElement & HTMLSpanElement>(null);
+  const [videoPoster, setVideoPoster] = useState<string | null>(null);
   useEffect(() => {
+    if (as === "video") {
+      let active = true;
+      void videoPosterDataUrl(file, 192).then((poster) => active && setVideoPoster(poster)).catch(() => {});
+      return () => { active = false; };
+    }
     const el = ref.current;
     if (!el) return;
     const url = URL.createObjectURL(file);
@@ -200,7 +190,7 @@ function FilePreview({ file, as, className }: { file: File; as: "img" | "video" 
     else el.src = url;
     return () => URL.revokeObjectURL(url);
   }, [file, as]);
-  if (as === "video") return <video ref={ref} muted playsInline preload="metadata" />;
+  if (as === "video") return videoPoster ? <img src={videoPoster} alt="" /> : <span className={styles.videoFallback}><Icon name="Video" size={22} /></span>;
   if (as === "img") return <img ref={ref} alt="" />;
   return <span ref={ref} className={className} />;
 }
