@@ -4,6 +4,7 @@
   grid-template-columns: 360px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
+  height: 100vh;
   height: 100dvh;
   /* Вырез и строка состояния: в приложении для iPhone (Capacitor, страница во весь экран) и в
      горизонтальной ориентации с viewport-fit=cover. В браузере и на Android отступы нулевые. */
@@ -19,6 +20,7 @@
   top: var(--vvt, 0px);
   right: 0;
   left: 0;
+  height: var(--vvh, 100vh);
   height: var(--vvh, 100dvh);
   overflow: hidden;
 }

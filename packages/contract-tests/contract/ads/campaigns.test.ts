@@ -258,6 +258,26 @@ describe("модерация /api/ads/review", () => {
 });
 
 describe("показ и клики", () => {
+  test("POST /report: зритель жалуется модератору; повтор не создаёт второе уведомление", async () => {
+    const admin = await getAdmin();
+    const owner = await newUser();
+    const viewer = await registerUser(server().baseUrl, { name: "Зритель" });
+    const adminWs = await open(admin.api);
+    const c = await createCampaign(owner, { title: "Подозрительное", text: "Очень выгодно" });
+    // Уведомление о создании кампании к этому сценарию не относится.
+    adminWs.clear();
+
+    expect(expectOk(await viewer.api.post(`/api/ads/report/${c.id}`, { reason: "Похоже на обман" }), okBody)).toEqual({ ok: true });
+    const e = await adminWs.waitFor("message:new", (x) => typeof x.message?.text === "string" && x.message.text.startsWith("🚩 Жалоба на рекламу от Зритель"), 10_000);
+    expectShape(wsMessageNew, e);
+    expect(e.message.text).toContain("«Подозрительное»\nОчень выгодно\nПричина: Похоже на обман");
+
+    adminWs.clear();
+    expect(expectOk(await viewer.api.post(`/api/ads/report/${c.id}`, { reason: "Ещё раз" }), okBody)).toEqual({ ok: true });
+    await adminWs.expectNone("message:new", (x) => typeof x.message?.text === "string" && x.message.text.startsWith("🚩 Жалоба на рекламу"));
+    expectError(await viewer.api.post("/api/ads/report/ad_1_none"), 404, "Объявление не найдено");
+  });
+
   test("GET /serve: чужая активная кампания, свою не показывают, Premium — без рекламы; показы и клики в статистике", async () => {
     const admin = await getAdmin();
     const owner = await newUser();

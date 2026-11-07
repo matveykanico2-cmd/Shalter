@@ -25,9 +25,9 @@ type Props = {
 const MAX_PAID_STARS = 10_000;
 
 /**
- * Окно отправки вложений — как public/js/components/mediaSendPopup.js (tweb popups/newMedia):
- * фото и видео альбомом, остальное списком; «Отправить без сжатия» и спойлер в «Ещё».
- * Подпись — поле «Подпись» в самом окне (как в Telegram); набранное в поле ввода переходит в неё.
+ * Компактная полоса отправки вложений над полем сообщения: фото и видео миниатюрами,
+ * остальное списком; «Отправить без сжатия» и спойлер находятся в «Ещё».
+ * Набранный текст остаётся в основном поле и уходит как подпись.
  */
 export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onSend, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
@@ -43,7 +43,6 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
     if (stars) setSpoiler(false);
   };
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -101,7 +100,7 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
   return (
     <>
       <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
-      <div className={styles.header}>
+        <div className={styles.header}>
           <h2 className={styles.title}>{title(files, isMedia)}</h2>
           {compressible ? (
             <button type="button" className={styles.iconButton} title="Ещё" onClick={(e) => setMenuAt({ x: e.clientX - 200, y: e.clientY + 8 })}>
@@ -111,7 +110,7 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
           <button type="button" className={styles.iconButton} title="Убрать выбранные файлы" aria-label="Убрать выбранные файлы" onClick={onClose}>
             <Icon name="X" size={20} />
           </button>
-          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить выбранные файлы" onClick={send}>
+          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" onClick={send}>
             <Icon name="Send" size={19} />
           </button>
         </div>

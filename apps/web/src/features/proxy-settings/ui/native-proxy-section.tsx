@@ -16,6 +16,7 @@ export function NativeProxySection() {
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [ping, setPing] = useState<number | "checking" | null>(null);
 
   useEffect(() => {
     if (!bridge) return;
@@ -46,6 +47,7 @@ export function NativeProxySection() {
       return;
     }
     setActive(!!url);
+    setPing(null);
     setNeedsRestart(true);
     toast(url ? "Прокси сохранён — перезапустите приложение" : "Прокси выключен — перезапустите приложение");
   };
@@ -58,12 +60,40 @@ export function NativeProxySection() {
     void apply(nativeProxyUrl(proxy));
   };
 
+  const toggle = () => {
+    if (active) return void apply(null);
+    const proxy = { ...form, port: Number(port) };
+    const problem = validateNativeProxy(proxy);
+    if (problem) return setError(problem);
+    void apply(nativeProxyUrl(proxy));
+  };
+
+  const checkPing = async () => {
+    setPing("checking");
+    const started = performance.now();
+    try {
+      const response = await fetch(`/api/proxy-info?ping=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) throw new Error();
+      setPing(Math.max(1, Math.round(performance.now() - started)));
+    } catch {
+      setPing(null);
+      setError("Прокси не отвечает. Проверьте адрес, порт и перезапустите приложение.");
+    }
+  };
+
   return (
     <SettingsSection
       title="Прокси приложения"
       caption="Свой HTTP- или SOCKS5-прокси: через него пойдёт весь трафик приложения — страницы, сообщения, файлы и звонки через сервер. Действует после перезапуска."
     >
       <form className={styles.nativeForm} onSubmit={save}>
+        <label className={styles.proxyToggle}>
+          <span>
+            <strong>Использовать прокси</strong>
+            <small>{active ? "Включён для приложения" : "Выключен"}</small>
+          </span>
+          <input type="checkbox" role="switch" checked={active} onChange={toggle} />
+        </label>
         <label className={styles.field}>
           <span>Тип</span>
           <select aria-label="Тип прокси" value={form.type} onChange={(e) => set({ type: e.target.value as NativeProxyType })}>
@@ -97,8 +127,8 @@ export function NativeProxySection() {
             Сохранить
           </Button>
           {active ? (
-            <Button variant="secondary" onClick={() => void apply(null)}>
-              Выключить прокси
+            <Button variant="secondary" disabled={ping === "checking"} onClick={() => void checkPing()}>
+              {ping === "checking" ? "Проверяем…" : ping === null ? "Проверить пинг" : `Пинг ${ping} мс`}
             </Button>
           ) : null}
           {needsRestart && bridge.restart ? (

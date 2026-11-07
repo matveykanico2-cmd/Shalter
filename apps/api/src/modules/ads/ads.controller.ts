@@ -13,6 +13,7 @@ import {
   grantAdsSchema,
   patchCampaignSchema,
   reviewSchema,
+  reportAdSchema,
   serveQuerySchema,
   type AdContentDto,
   type BudgetDto,
@@ -21,6 +22,7 @@ import {
   type GrantAdsDto,
   type PatchCampaignDto,
   type ReviewDto,
+  type ReportAdDto,
   type ServeQuery,
 } from "./model/schemas/ads.schema.js";
 
@@ -102,6 +104,12 @@ export class AdsController {
   @HttpCode(200)
   public click(@Req() req: Request, @Param("id") id: string) {
     return this.campaigns.click(req.uid!, id);
+  }
+
+  @Post("report/:id")
+  @HttpCode(200)
+  public report(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(reportAdSchema)) dto: ReportAdDto) {
+    return this.review.report(req.uid!, id, dto);
   }
 
   @Get("review")

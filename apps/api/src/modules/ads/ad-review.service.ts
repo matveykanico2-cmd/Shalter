@@ -7,12 +7,14 @@ import { UsersRepository } from "../users/users.repository.js";
 import { AdCampaignsRepository } from "./ad-campaigns.repository.js";
 import { PLACEMENTS } from "./lib/ad-campaign.mapper.js";
 import type { AdCampaign } from "./model/domain.js";
-import type { ReviewDto } from "./model/schemas/ads.schema.js";
+import type { ReportAdDto, ReviewDto } from "./model/schemas/ads.schema.js";
 
 // Модерация объявлений (раздел «moderation»): список на проверке, одобрение и отказ, и
 // уведомление главного админа о новом объявлении (server/lib/adReview.js).
 @Injectable()
 export class AdReviewService {
+  private readonly reported = new Set<string>();
+
   public constructor(
     private readonly campaigns: AdCampaignsRepository,
     private readonly users: UsersRepository,
@@ -68,6 +70,33 @@ export class AdReviewService {
     } catch (err) {
       console.error("ad review notice failed:", err);
     }
+  }
+
+  /** Жалоба зрителя не удаляет объявление автоматически: модератор получает её и решает. */
+  public async report(uid: string, id: string, dto: ReportAdDto) {
+    const campaign = this.campaigns.findById(id);
+    if (!campaign) throw new ApiError(404, "Объявление не найдено");
+    const key = `${uid}:${id}`;
+    if (this.reported.has(key)) return { ok: true };
+    const admin = this.users.findByPhone(ADMIN_PHONE);
+    if (!admin) return { ok: true };
+    this.reported.add(key);
+    const reporter = this.users.findById(uid);
+    try {
+      const chat = await findOrCreateDm(SYSTEM_BOT_ID, admin.id);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        `🚩 Жалоба на рекламу от ${reporter?.name ?? "пользователя"}\n«${campaign.title || "Без названия"}»\n${campaign.text}` +
+          (dto.reason ? `\nПричина: ${dto.reason}` : "") +
+          "\n\nПроверить: Настройки → Модерация → Реклама на проверке.",
+      );
+    } catch (err) {
+      // При временной ошибке разрешаем повторить отправку позже.
+      this.reported.delete(key);
+      console.error("ad report notice failed:", err);
+    }
+    return { ok: true };
   }
 
   private requireModerator(uid: string): void {

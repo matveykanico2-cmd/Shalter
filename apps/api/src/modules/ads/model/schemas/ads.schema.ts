@@ -75,6 +75,11 @@ export const reviewSchema = requestBody({
 });
 export type ReviewDto = z.infer<typeof reviewSchema>;
 
+export const reportAdSchema = requestBody({
+  reason: raw().transform((v) => (typeof v === "string" ? v.trim().slice(0, 300) : "")),
+});
+export type ReportAdDto = z.infer<typeof reportAdSchema>;
+
 export const serveQuerySchema = requestQuery({
   placement: raw().transform((v) => (isPlacement(v) ? v : "discover")),
   /** Владелец страницы — только для места profile. */

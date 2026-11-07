@@ -716,9 +716,6 @@ function Shell({ onClose, children, fab, onMore }: { onClose: () => void; childr
       <aside className={styles.panel} aria-label="Профиль">
         <div className={styles.header}>
           <h2>Профиль</h2>
-          <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть профиль" onClick={onClose}>
-            <Icon name="X" size={18} />
-          </button>
           {onMore ? (
             <button
               type="button"
@@ -730,6 +727,9 @@ function Shell({ onClose, children, fab, onMore }: { onClose: () => void; childr
               <Icon name="More" size={18} />
             </button>
           ) : null}
+          <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть профиль" onClick={onClose}>
+            <Icon name="X" size={18} />
+          </button>
         </div>
         <div className={styles.body}>{children}</div>
       </aside>

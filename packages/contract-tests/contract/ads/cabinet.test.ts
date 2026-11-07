@@ -31,6 +31,7 @@ describe("без сессии", () => {
     ["GET", "/api/ads/campaigns/ad_1_x/stats"],
     ["GET", "/api/ads/serve"],
     ["POST", "/api/ads/click/ad_1_x"],
+    ["POST", "/api/ads/report/ad_1_x"],
     ["GET", "/api/ads/review"],
     ["POST", "/api/ads/review/ad_1_x"],
   ];

@@ -15,7 +15,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 0 90px;
+  /* Поле ввода находится следующим flex-элементом, а не поверх ленты. Старый запас 90px
+     создавал пустой экран под последним сообщением, особенно заметный на iPhone. */
+  padding: 12px 0;
 }
 
 .rows {

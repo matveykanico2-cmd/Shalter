@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { Icon, Menu, toast } from "@/shared/ui";
+import { askText, Icon, Menu, toast } from "@/shared/ui";
 
-import { chatAdsQueries, clickAd, type ServedAd } from "../api/chat-ads";
+import { chatAdsQueries, clickAd, reportAd, type ServedAd } from "../api/chat-ads";
 
 import styles from "./sponsored-message.module.css";
 
@@ -54,6 +54,21 @@ export function SponsoredMessage({ chatId, premium }: { chatId: string; premium:
           at={menuAt}
           items={[
             { icon: "Info", label: "Что это за реклама?", onClick: () => toast(ABOUT, { durationMs: 8000 }) },
+            {
+              icon: "Bug",
+              label: "Пожаловаться",
+              danger: true,
+              onClick: () =>
+                void askText("Почему вы жалуетесь на эту рекламу?", { placeholder: "Обман, запрещённый товар, оскорбление…", okLabel: "Отправить" }).then((reason) => {
+                  if (reason === null) return;
+                  void reportAd(ad.id, reason)
+                    .then(() => {
+                    setHidden(true);
+                    toast("Жалоба отправлена модератору");
+                    })
+                    .catch(() => toast("Не удалось отправить жалобу", { error: true }));
+                }),
+            },
             {
               icon: "X",
               label: "Скрыть рекламу",

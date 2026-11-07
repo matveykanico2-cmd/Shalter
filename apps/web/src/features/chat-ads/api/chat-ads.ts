@@ -24,3 +24,4 @@ export const chatAdsQueries = {
 };
 
 export const clickAd = (adId: string) => http.post<unknown>(`/api/ads/click/${encodeURIComponent(adId)}`, {});
+export const reportAd = (adId: string, reason = "") => http.post<{ ok: true }>(`/api/ads/report/${encodeURIComponent(adId)}`, { reason });

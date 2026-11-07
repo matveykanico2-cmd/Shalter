@@ -140,3 +140,28 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.proxyToggle {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.proxyToggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proxyToggle small {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.proxyToggle input {
+  width: 42px;
+  height: 24px;
+  accent-color: var(--color-accent);
+}
