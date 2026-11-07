@@ -59,7 +59,7 @@ export function SponsoredMessage({ chatId, premium }: { chatId: string; premium:
               label: "Пожаловаться",
               danger: true,
               onClick: () =>
-                void askText("Почему вы жалуетесь на эту рекламу?", { placeholder: "Обман, запрещённый товар, оскорбление…", okLabel: "Отправить" }).then((reason) => {
+void askText("Почему вы жалуетесь на эту рекламу?", { placeholder: "Обман, запрещённый товар, оскорбление…", okLabel: "Отправить" }).then((reason) => {
                   if (reason === null) return;
                   void reportAd(ad.id, reason)
                     .then(() => {

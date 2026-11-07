@@ -2,7 +2,7 @@
 // который ответит окно <AskHost />. Одно окно за раз; новое закрывает прежнее с «нет».
 export type Ask =
   | { id: number; kind: "confirm"; text: string; detail: string | null; okLabel: string; cancelLabel: string; danger: boolean; resolve: (ok: boolean) => void }
-  | { id: number; kind: "text"; text: string; okLabel: string; initial: string; resolve: (value: string | null) => void };
+  | { id: number; kind: "text"; text: string; okLabel: string; initial: string; placeholder: string; resolve: (value: string | null) => void };
 
 let current: Ask | null = null;
 let seq = 0;
@@ -41,8 +41,8 @@ export function askConfirm(message: string, { okLabel, cancelLabel = "Отмен
 }
 
 /** Текст или null — передумали. */
-export function askText(text: string, { okLabel = "Готово", initial = "" } = {}) {
-  return new Promise<string | null>((resolve) => open({ id: ++seq, kind: "text", text, okLabel, initial, resolve }));
+export function askText(text: string, { okLabel = "Готово", initial = "", placeholder = "" }: { okLabel?: string; initial?: string; placeholder?: string } = {}) {
+  return new Promise<string | null>((resolve) => open({ id: ++seq, kind: "text", text, okLabel, initial, placeholder, resolve }));
 }
 
 export const askStore = {
