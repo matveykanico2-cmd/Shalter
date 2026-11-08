@@ -17,12 +17,32 @@
   width: 194px;
   height: 110px;
   object-fit: contain;
+  transform-style: preserve-3d;
+  animation: purchase-float 4.2s ease-in-out infinite;
 }
 
 .heroStar {
   width: 100px;
   height: 100px;
   object-fit: contain;
+  filter: drop-shadow(0 12px 18px rgba(113, 75, 220, 0.34));
+  transform-style: preserve-3d;
+  animation: premium-star-3d 5s ease-in-out infinite;
+}
+
+@keyframes premium-star-3d {
+  0%, 100% { transform: perspective(320px) rotateX(-8deg) rotateY(-18deg) translateY(0); }
+  50% { transform: perspective(320px) rotateX(10deg) rotateY(18deg) translateY(-7px); }
+}
+
+@keyframes purchase-float {
+  0%, 100% { transform: perspective(360px) rotateY(-5deg) translateY(0); }
+  50% { transform: perspective(360px) rotateY(5deg) translateY(-6px); }
+}
+
+:global(html[data-power-saving-motion]) .heroStar,
+:global(html[data-power-saving-motion]) .introImage {
+  transform: none;
 }
 
 .mediaTitle {

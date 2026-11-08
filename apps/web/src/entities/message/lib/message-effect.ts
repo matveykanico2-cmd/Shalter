@@ -1,12 +1,14 @@
 // Эффект сообщения — как playMessageEffect в public/js/components/messageBubble.js:
 // 14 эмодзи разлетаются из пузыря. Свежее сообщение проигрывает его один раз.
+import { powerSavingBlocks } from "@/shared/lib/power-saving";
+
 import styles from "../ui/message-bubble.module.css";
 
 const played = new Set<string>();
 const FRESH_MS = 10_000;
 
 export function playMessageEffect(emoji: string, anchor: Element | null) {
-  if (!anchor || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (!anchor || powerSavingBlocks("effects") || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const r = anchor.getBoundingClientRect();
   const layer = document.createElement("div");
   layer.className = styles.effectLayer!;

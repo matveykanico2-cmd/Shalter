@@ -31,6 +31,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "notifications", label: "Уведомления", icon: "Bell", color: "red", group: "main", load: () => import("../ui/sections/notifications-section").then((m) => ({ default: m.NotificationsSection })) },
   { id: "holidays", label: "Праздники", icon: "Gift", color: "orange", group: "main", load: () => import("../ui/sections/holidays-section").then((m) => ({ default: m.HolidaysSection })) },
   { id: "data", label: "Данные и память", icon: "Download", color: "green", group: "main", load: () => import("../ui/sections/data-section").then((m) => ({ default: m.DataSection })) },
+  { id: "power-saving", label: "Энергосбережение", icon: "Zap", color: "green", group: "main", load: () => import("@/features/power-saving").then((m) => ({ default: m.PowerSavingSection })) },
   // privacy, appearance, folders — агент settings-security.
   { id: "privacy", label: "Конфиденциальность", icon: "Lock", color: "grey", group: "main", load: () => import("@/features/privacy-settings").then((m) => ({ default: m.PrivacySection })) },
   { id: "appearance", label: "Внешний вид", icon: "Palette", color: "orange", group: "main", load: () => import("@/features/appearance-settings").then((m) => ({ default: m.AppearanceSection })) },

@@ -40,6 +40,7 @@
 }
 
 .heroIcon {
+  position: relative;
   display: flex;
   width: 88px;
   height: 88px;
@@ -49,6 +50,34 @@
   background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 80%, #fff), var(--color-success));
   box-shadow: 0 10px 24px color-mix(in srgb, var(--color-success) 35%, transparent);
   color: #fff;
+  transform-style: preserve-3d;
+  animation: business-bag-3d 4.6s ease-in-out infinite;
+}
+
+.heroIcon::before,
+.heroIcon::after {
+  position: absolute;
+  inset: 7px;
+  z-index: -1;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--color-success) 76%, #fff);
+  content: "";
+  transform: translateZ(-5px);
+}
+
+.heroIcon::after {
+  inset: 12px;
+  opacity: 0.55;
+  transform: translateZ(-10px);
+}
+
+@keyframes business-bag-3d {
+  0%, 100% { transform: perspective(300px) rotateX(-5deg) rotateY(-12deg) translateY(0); }
+  50% { transform: perspective(300px) rotateX(8deg) rotateY(12deg) translateY(-6px); }
+}
+
+:global(html[data-power-saving-motion]) .heroIcon {
+  transform: none;
 }
 
 .heroTitle {

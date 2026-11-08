@@ -1,0 +1,23 @@
+.select {
+  max-width: 132px;
+  padding: 7px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.rangeRow {
+  display: flex;
+  min-height: 62px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.rangeRow input {
+  width: 100%;
+  accent-color: var(--color-accent);
+}

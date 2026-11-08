@@ -6,6 +6,8 @@ import { permissionsAlreadyAsked,PermissionsDialog } from "@/features/permission
 import type { SelfUser } from "@/entities/session";
 import { settingsQueries } from "@/entities/settings";
 
+import { usePowerSavingRuntime } from "@/shared/lib/power-saving";
+
 import { useAppIcon } from "../model/use-app-icon";
 import { useAppLock } from "../model/use-app-lock";
 import { useBackButton } from "../model/use-back-button";
@@ -51,6 +53,7 @@ export function AppServices({ user, ready, children }: Props) {
   useBackButton(locked);
   useAppIcon(user);
   useUiTranslation(settings?.uiLanguage);
+  usePowerSavingRuntime();
 
   // Первый запуск — окно разрешений, чуть погодя (и не поверх экрана блокировки).
   useEffect(() => {

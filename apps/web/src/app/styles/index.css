@@ -21,3 +21,13 @@ input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--color-accent);
 }
+
+/* Режим энергосбережения сильнее отдельных анимаций компонентов. */
+html[data-power-saving-motion] *,
+html[data-power-saving-motion] *::before,
+html[data-power-saving-motion] *::after {
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
