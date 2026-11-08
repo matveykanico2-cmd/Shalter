@@ -14,6 +14,42 @@ body {
   font-family: var(--font-sans);
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 12% -10%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 32rem),
+    radial-gradient(circle at 92% 110%, color-mix(in srgb, #8a7cf0 9%, transparent), transparent 36rem);
+  background-attachment: fixed;
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  outline-offset: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 72%, white);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+
+* {
+  scrollbar-color: color-mix(in srgb, var(--color-muted) 38%, transparent) transparent;
+  scrollbar-width: thin;
 }
 
 /* Галочки и переключатели — цветом акцента: системные белые терялись на белом фоне. */
@@ -30,4 +66,13 @@ html[data-power-saving-motion] *::after {
   transition-duration: 0.001ms !important;
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
+}
+
+html[data-power-saving-effects] body {
+  background-image: none;
+}
+
+html[data-power-saving-effects] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }

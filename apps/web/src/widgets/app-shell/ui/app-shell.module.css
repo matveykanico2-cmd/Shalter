@@ -1,7 +1,7 @@
 /* Оболочка: сверху «список | экран», снизу панель навигации на всю ширину (как .shell в public/styles). */
 .shell {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 376px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
   height: 100vh;
@@ -44,7 +44,6 @@
   grid-area: list;
   min-height: 0;
   overflow: hidden;
-  border-right: 1px solid var(--color-border);
 }
 
 .side {
@@ -53,7 +52,13 @@
   /* Выше кнопки «новое сообщение» списка чатов (z-index 5), который остаётся под панелью. */
   z-index: 6;
   overflow: auto;
-  background: var(--color-surface);
+  margin: var(--panel-y) 0 var(--panel-y) var(--panel-x);
+  overflow: hidden auto;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(18px) saturate(140%);
 }
 
 .main {
@@ -61,6 +66,11 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  margin: var(--panel-y) var(--panel-x) var(--panel-y) 0;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  background: var(--color-surface);
+  box-shadow: var(--panel-shadow);
 }
 
 .rail {
@@ -69,10 +79,12 @@
   align-items: center;
   justify-content: center;
   gap: clamp(16px, 4vw, 56px);
-  min-height: 54px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
+  min-height: 60px;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  box-shadow: 0 -8px 28px rgba(15, 35, 52, 0.06);
+  backdrop-filter: blur(20px) saturate(150%);
 }
 
 .account {
@@ -85,6 +97,12 @@
   border-radius: 16px;
   background: none;
   cursor: pointer;
+  transition: transform 0.16s ease, background-color 0.16s ease;
+}
+
+.account:hover {
+  background: var(--color-surface-alt);
+  transform: translateY(-1px);
 }
 
 .railButton {
@@ -92,20 +110,22 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 16px;
+  border-radius: 15px;
   color: var(--color-muted);
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.16s, color 0.16s, transform 0.16s;
 }
 
 .railButton:hover {
   background: var(--color-surface-alt);
   color: var(--color-text);
+  transform: translateY(-1px);
 }
 
 .railActive,
 .railActive:hover {
   background: var(--color-accent-soft);
   color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .spacer {
@@ -123,6 +143,20 @@
     border-right: 0;
   }
 
+  .side {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .main {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
   .main {
     display: none;
   }
@@ -130,8 +164,29 @@
   .rail {
     justify-content: space-around;
     gap: 0;
-    min-height: 56px;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    min-height: 66px;
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .railButton,
+  .account {
+    display: flex;
+    width: min(58px, 16vw);
+    height: 52px;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 18px;
+    font-size: 10px;
+    text-decoration: none;
+  }
+
+  .railButton::after,
+  .account::after {
+    max-width: 100%;
+    overflow: hidden;
+    content: attr(aria-label);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mainOpen {

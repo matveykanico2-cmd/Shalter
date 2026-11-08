@@ -1,6 +1,6 @@
 /* Как .settings-page / .tw-section / .tw-row в public/styles/components.css (вид tweb). */
 .page {
-  padding: 8px 8px 40px;
+  padding: 10px 10px 48px;
 }
 
 @media (min-width: 768px) {
@@ -11,8 +11,8 @@
 
 .pageTitle {
   margin: 4px 16px 12px;
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 22px;
+  font-weight: 650;
 }
 
 .subtitle {
@@ -49,10 +49,12 @@
 }
 
 .section {
-  padding: 8px;
-  border-radius: 24px;
-  background: var(--color-surface);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  padding: 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 22px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px) saturate(130%);
 }
 
 .caption {
@@ -86,11 +88,15 @@
 
 .clickable {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
 .clickable:hover:not(:disabled) {
   background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.clickable:active:not(:disabled) {
+  transform: scale(0.99);
 }
 
 .clickable:disabled {

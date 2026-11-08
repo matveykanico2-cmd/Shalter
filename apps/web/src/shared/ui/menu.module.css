@@ -9,9 +9,11 @@
   max-height: calc(100vh - 16px);
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border-radius: 18px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(20px) saturate(150%);
+  animation: menu-in 0.14s ease-out both;
 }
 
 .wide {
@@ -63,6 +65,10 @@
 .item:focus-visible {
   background: var(--color-surface-alt);
   outline: none;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
 }
 
 .item svg,
