@@ -23,7 +23,7 @@ import { publicUrl } from "@/shared/lib/public-link";
 import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openInAppBrowser, toast } from "@/shared/ui";
 
 import { type ChannelCard, profileApi, profileQueries, type SharedMedia } from "../api/profile-api";
-import { type TabId,TABS } from "../lib/tabs";
+import { isTabId, type TabId,TABS } from "../lib/tabs";
 
 import { AvatarViewer } from "./avatar-viewer";
 import { BusinessHoursRow } from "./business-hours-row";
@@ -58,6 +58,7 @@ export function UserProfilePanel({ userId, me }: Props) {
   const [showDotsMenu, setShowDotsMenu] = useState(false);
   const [tab, setTab] = useState<TabId>("media");
   const tabsRef = useRef<HTMLDivElement>(null);
+  const defaultTabApplied = useRef<string | null>(null);
   const dotsMenuRef = useRef<HTMLDivElement>(null);
 
   const close = closeUserProfile;
@@ -95,6 +96,12 @@ export function UserProfilePanel({ userId, me }: Props) {
   const data = profile.data;
   const u = data?.user as ProfileUser | undefined;
   const safety = useSafetyLabel(u?.safetyLabel);
+
+  useEffect(() => {
+    if (!u || defaultTabApplied.current === userId) return;
+    defaultTabApplied.current = userId;
+    setTab(isTabId(u.profileDefaultTab) ? u.profileDefaultTab : "media");
+  }, [u, userId]);
 
   const patchProfile = (patch: Partial<UserProfile> | ((p: UserProfile) => Partial<UserProfile>)) =>
     client.setQueryData(userQueries.profile(userId).queryKey, (p) => (p ? ({ ...p, ...(typeof patch === "function" ? patch(p) : patch) } as UserProfile) : p));

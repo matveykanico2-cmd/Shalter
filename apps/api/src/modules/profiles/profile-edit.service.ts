@@ -37,6 +37,7 @@ const EDITABLE_FIELDS = [
   "nameColor",
   "profileBanner",
   "profileLinks",
+  "profileDefaultTab",
 ] as const;
 const STRING_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "birthday", "businessAddress"] as const;
 // Встроенные баннеры профиля (public/js/lib/profileBanners.js) и своё фото из загрузок.
@@ -44,6 +45,7 @@ const BANNER_ID_RE = /^[a-z0-9-]{1,32}$/;
 const BANNER_UPLOAD_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}\.(jpe?g|png|webp|gif)$/;
 // Цвета имени — палитра peer colors из Telegram.
 const NAME_COLORS = ["red", "orange", "violet", "green", "cyan", "blue", "pink"];
+const PROFILE_TABS = ["media", "stories", "gifts", "files", "links", "voice", "groups"];
 
 // Правка своего профиля и блокировки (PATCH /api/users/:id, POST /:id/block) — как
 // server/routes/users.js: проверки по порядку, первая ошибка — ответ, и тогда ничего
@@ -93,6 +95,10 @@ export class ProfileEditService {
       const parsed = profileLinksSchema.safeParse(patch.profileLinks);
       if (!parsed.success) throw new ApiError(400, parsed.error.issues[0]?.message ?? "Некорректные кнопки");
       patch.profileLinks = parsed.data ?? [];
+    }
+    if ("profileDefaultTab" in patch) {
+      if (patch.profileDefaultTab != null && !PROFILE_TABS.includes(patch.profileDefaultTab)) throw new ApiError(400, "Некорректная вкладка профиля");
+      patch.profileDefaultTab = patch.profileDefaultTab || null;
     }
     for (const key of ["businessLat", "businessLng"]) {
       if (key in patch && patch[key] != null && !Number.isFinite(Number(patch[key]))) throw new ApiError(400, "Некорректные координаты");

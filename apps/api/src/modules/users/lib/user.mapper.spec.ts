@@ -32,7 +32,7 @@ const { publicUser, selfUser } = require(server + "/data/sanitize.js");
   await users.createUser({ ...base, id: "u_ban_over", name: "Был в бане", username: "was_banned", phone: "+79990000005" });
   await users.createUser({ ...base, id: "u_broken", name: "Сломан", username: "broken", phone: "+79990000006" });
 
-  await users.updateUser("u_rich", { lastName: "Петров", nameColor: "#ff0000", adsUntil: "9999-01-01T00:00:00.000Z", adText: "Реклама", businessUntil: "2999-01-01T00:00:00.000Z", businessLat: 55.75, businessLng: 37.61 });
+  await users.updateUser("u_rich", { lastName: "Петров", nameColor: "#ff0000", adsUntil: "9999-01-01T00:00:00.000Z", adText: "Реклама", businessUntil: "2999-01-01T00:00:00.000Z", businessLat: 55.75, businessLng: 37.61, profileDefaultTab: "gifts" });
   await users.updateUser("u_plain", { nameColor: "#00ff00" });
   await users.setBanned("u_banned", true, "спам", "2999-01-01T00:00:00.000Z");
   await users.setBanned("u_ban_over", true, "давно", "2000-01-01T00:00:00.000Z");

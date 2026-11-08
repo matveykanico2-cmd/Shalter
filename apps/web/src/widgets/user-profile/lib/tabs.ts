@@ -10,3 +10,5 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: "voice", label: "Голосовые и видео" },
   { id: "groups", label: "Группы" },
 ];
+
+export const isTabId = (value: unknown): value is TabId => TABS.some((tab) => tab.id === value);

@@ -100,6 +100,7 @@ function rowToUser(row) {
     // показывает профиль, остальные — в списке по нажатию (как музыка в профиле Telegram).
     ...profileTracksOf(row.profileTrack),
     profileLinks: profileLinksOf(row.profileLinks),
+    profileDefaultTab: row.profileDefaultTab ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     developer: !!row.developer || undefined,
@@ -266,7 +267,7 @@ async function createGuestUser() {
   return getUser(id);
 }
 
-const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "avatarEmoji", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "avatarEmoji", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor", "profileDefaultTab"];
 
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);

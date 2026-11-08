@@ -31,6 +31,7 @@ describe("PATCH /api/users/:id — успешные изменения", () => {
         businessLat: "55.75",
         businessLng: 37.6,
         profileBanner: { id: "sunset", extra: "x" },
+        profileDefaultTab: "gifts",
       }),
       patchProfileBody
     );
@@ -45,6 +46,7 @@ describe("PATCH /api/users/:id — успешные изменения", () => {
       businessLat: 55.75,
       businessLng: 37.6,
       profileBanner: { id: "sunset" },
+      profileDefaultTab: "gifts",
       phone: me.phone,
       email: me.email,
     });
@@ -81,6 +83,15 @@ describe("PATCH /api/users/:id — успешные изменения", () => {
     const me = await registerUser(server().baseUrl);
     const user = await patchMe(me, {});
     expect(user).toMatchObject({ id: me.id, name: me.name, username: me.username });
+  });
+
+  test("вкладка профиля: только известный раздел, ошибка не сохраняет соседнее поле", async () => {
+    const me = await registerUser(server().baseUrl);
+    expect((await patchMe(me, { profileDefaultTab: "stories" })).profileDefaultTab).toBe("stories");
+    expectError(await me.api.patch(`/api/users/${me.id}`, { profileDefaultTab: "unknown", bio: "не сохранится" }), 400, "Некорректная вкладка профиля");
+    const own = expectOk(await me.api.get(`/api/users/${me.id}`), ownProfileBody).user;
+    expect(own.profileDefaultTab).toBe("stories");
+    expect(own.bio).not.toBe("не сохранится");
   });
 
   test("username: «@» срезается, свой текущий можно оставить; ошибки — точные тексты", async () => {

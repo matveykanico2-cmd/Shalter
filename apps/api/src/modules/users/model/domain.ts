@@ -54,6 +54,8 @@ export interface ProfilePatch {
   nameColor?: string | null;
   profileBanner?: { id: string; url?: string } | null;
   profileLinks?: { title: string; target: string }[];
+  /** Первая вкладка, которую увидят посетители профиля. */
+  profileDefaultTab?: "media" | "stories" | "gifts" | "files" | "links" | "voice" | "groups" | null;
 }
 
 /** Аватарка из списка профиля: url, вид и превью. */

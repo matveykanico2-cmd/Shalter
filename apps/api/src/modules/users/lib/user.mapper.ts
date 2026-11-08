@@ -128,6 +128,7 @@ export function toUser(row: UserRow) {
     adminSections: safeParse<string[]>(row.adminSections, []),
     ...profileTracksOf(row.profileTrack),
     profileLinks: profileLinksOf(row.profileLinks),
+    profileDefaultTab: row.profileDefaultTab ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     developer: !!row.developer || undefined,

@@ -1,7 +1,7 @@
 import { type CSSProperties, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { AvatarViewer } from "@/widgets/user-profile";
+import { AvatarViewer, TABS } from "@/widgets/user-profile";
 
 import { type SelfUser, useSession, useUpdateSelf } from "@/entities/session";
 import { bannerBackground, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
@@ -226,6 +226,20 @@ function Profile({ me }: { me: SelfUser }) {
       </SettingsSection>
 
       <ProfileLinksEditor me={me} />
+
+      <SettingsSection title="Вкладка профиля по умолчанию" caption="Её первой увидят люди, открывшие ваш профиль. Если раздел пуст, откроется ближайший доступный.">
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Показывать первой</span>
+          <select
+            className={styles.select}
+            aria-label="Вкладка профиля по умолчанию"
+            value={me.profileDefaultTab ?? "media"}
+            onChange={(event) => void saveField({ profileDefaultTab: event.target.value as SelfUser["profileDefaultTab"] }, "Не удалось сохранить вкладку")}
+          >
+            {TABS.map((tab) => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          </select>
+        </label>
+      </SettingsSection>
 
       <ProfileTracks me={me} />
 

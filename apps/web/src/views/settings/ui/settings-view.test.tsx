@@ -126,6 +126,18 @@ describe("«Настройки»", () => {
     expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.name).toBe("Анна");
   });
 
+  it("«Изменить профиль»: вкладка по умолчанию сохраняется отдельно", async () => {
+    const { calls } = fakeApi({
+      "PATCH /api/users/u_me0000000": (body) => ({ body: { user: { ...ME, ...(body as object) } } }),
+      "GET /api/sessions": { body: { sessions: [] } },
+      "GET /api/stars": { body: { balance: 0 } },
+    });
+    const { client } = renderSettings("/settings/profile");
+    fireEvent.change(await screen.findByRole("combobox", { name: "Вкладка профиля по умолчанию" }), { target: { value: "gifts" } });
+    await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.profileDefaultTab).toBe("gifts"));
+    expect(calls.find((call) => call.key === "PATCH /api/users/u_me0000000")?.body).toEqual({ profileDefaultTab: "gifts" });
+  });
+
 
   it("«Изменить профиль»: смайл на аватарке сохраняется сразу и убирается", async () => {
     const { calls } = fakeApi({

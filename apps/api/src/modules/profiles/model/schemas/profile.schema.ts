@@ -20,6 +20,7 @@ export const patchProfileSchema = requestBody({
   nameColor: raw(),
   profileBanner: raw(),
   profileLinks: raw(),
+  profileDefaultTab: raw(),
   currentPassword: raw(),
 });
 export type PatchProfileDto = z.infer<typeof patchProfileSchema>;

@@ -109,6 +109,27 @@ describe("профиль человека", () => {
     expect(screen.queryByRole("complementary", { name: "Профиль" })).toBeNull();
   });
 
+  it("открывает выбранную владельцем вкладку профиля", async () => {
+    fakeApi({
+      "GET /api/users/u_boris0000": { body: profile({ user: { ...BORIS, profileDefaultTab: "files" } }) },
+      "GET /api/users/u_boris0000/shared-media": {
+        body: {
+          chatId: "c_dm",
+          media: [],
+          files: [{ messageId: "m_file", createdAt: "2026-01-01T00:00:00.000Z", attachment: { kind: "file", url: "/uploads/doc.pdf", name: "Документ.pdf" } }],
+          links: [],
+          voice: [],
+        },
+      },
+    });
+    renderHost();
+    act(() => openUserProfile(BORIS.id));
+    const panel = await screen.findByRole("complementary", { name: "Профиль" });
+    const files = await within(panel).findByRole("button", { name: "Файлы" });
+    await waitFor(() => expect(files.getAttribute("aria-pressed")).toBe("true"));
+    expect(await within(panel).findByText("Документ.pdf")).toBeTruthy();
+  });
+
   it("блокировка прячет звонки, разблокировка возвращает; Escape закрывает", async () => {
     const { calls } = fakeApi({
       "GET /api/users/u_boris0000": { body: profile() },
