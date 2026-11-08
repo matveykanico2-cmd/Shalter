@@ -1,6 +1,6 @@
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
 
-const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "legal"];
+const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "exchange", "legal"];
 
 function hasAdminSection(user, section) {
   if (!user) return false;

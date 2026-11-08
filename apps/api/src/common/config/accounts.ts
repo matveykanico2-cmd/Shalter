@@ -30,4 +30,4 @@ export const SYSTEM_BOT_ID = "bot_shalter";
 export const HELPER_BOT_ID = "bot_helper";
 
 /** Разделы админки, которые главный админ выдаёт другим (server/lib/adminAccess.js). */
-export const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "legal"];
+export const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "exchange", "legal"];

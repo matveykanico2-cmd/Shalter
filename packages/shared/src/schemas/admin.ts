@@ -5,7 +5,7 @@ import { z } from "zod";
 import { genId, isoDate } from "./common";
 import { chat } from "./chat";
 
-export const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "legal"] as const;
+export const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "exchange", "legal"] as const;
 export const adminSection = z.enum(ADMIN_SECTIONS);
 
 /** GET /lookup */

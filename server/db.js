@@ -1282,6 +1282,32 @@ CREATE TABLE IF NOT EXISTS passkeys (
 );
 CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(userId);
 
+-- Внутренняя витрина монет: торговых операций нет, хранится только курс и его история.
+CREATE TABLE IF NOT EXISTS exchange_coins (
+  id TEXT PRIMARY KEY,
+  symbol TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL,
+  currentRate REAL NOT NULL,
+  createdBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS exchange_rates (
+  id TEXT PRIMARY KEY,
+  coinId TEXT NOT NULL REFERENCES exchange_coins(id) ON DELETE CASCADE,
+  rate REAL NOT NULL,
+  changedBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_coin ON exchange_rates(coinId, createdAt);
+CREATE TABLE IF NOT EXISTS exchange_creators (
+  userId TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  grantedBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+
 -- Кэш перевода интерфейса (server/routes/translate.js /batch): одна и та же
 -- надпись переводится в Google один раз на весь сервер, а не у каждого юзера.
 CREATE TABLE IF NOT EXISTS translation_cache (

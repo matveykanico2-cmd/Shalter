@@ -994,3 +994,29 @@ export const communityAutoMembers = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.chatId, table.userId], name: "community_auto_members_chatId_userId_pk" })]
 );
+
+export const exchangeCoins = sqliteTable("exchange_coins", {
+  id: text().primaryKey(),
+  symbol: text().notNull().unique(),
+  name: text().notNull(),
+  description: text().default("").notNull(),
+  color: text().notNull(),
+  currentRate: real().notNull(),
+  createdBy: text().notNull(),
+  createdAt: text().notNull(),
+  updatedAt: text().notNull(),
+});
+
+export const exchangeRates = sqliteTable("exchange_rates", {
+  id: text().primaryKey(),
+  coinId: text().notNull().references(() => exchangeCoins.id, { onDelete: "cascade" }),
+  rate: real().notNull(),
+  changedBy: text().notNull(),
+  createdAt: text().notNull(),
+});
+
+export const exchangeCreators = sqliteTable("exchange_creators", {
+  userId: text().primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  grantedBy: text().notNull(),
+  createdAt: text().notNull(),
+});

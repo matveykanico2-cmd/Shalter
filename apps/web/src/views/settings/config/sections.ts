@@ -46,6 +46,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "partners", label: "Партнёрка", icon: "Users", color: "purple", group: "extra", load: () => import("@/features/partners").then((m) => ({ default: m.PartnersSection })) },
   { id: "oauth", label: "Войти через Shalter", icon: "Lock", color: "blue", group: "extra", load: () => import("@/features/oauth-apps").then((m) => ({ default: m.OAuthAppsSection })) },
   { id: "stars", label: "Звёзды", icon: "Zap", color: "orange", group: "extra", load: () => import("@/features/purchase").then((m) => ({ default: m.StarsSection })) },
+  { id: "exchange", label: "Биржа монет", icon: "BarChart", color: "green", group: "extra", load: () => import("@/features/exchange").then((m) => ({ default: m.ExchangeSection })) },
   { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", color: "blue", group: "extra", load: () => import("@/features/usernames-market").then((m) => ({ default: m.UsernamesSection })) },
   { id: "ads", label: "Реклама", icon: "BarChart", color: "pink", group: "extra", load: () => import("@/features/ad-cabinet").then((m) => ({ default: m.AdsSection })) },
   { id: "bots", label: "Боты", icon: "Code", color: "green", group: "extra", load: () => import("@/features/my-bots").then((m) => ({ default: m.BotsSection })) },
