@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 
+import { errorText } from "@/shared/lib/error-text";
+import { stopRingtone } from "@/shared/lib/media/sounds";
 import { Avatar, Icon } from "@/shared/ui";
 
 import type { CallPeer } from "../api/call-api";
-import { callApi } from "../api/call-api";
 import { decline, joinCallById } from "../model/call-store";
 import { useCall } from "../model/use-call";
 import { useIncomingCall } from "../model/use-incoming-call";
@@ -13,9 +15,11 @@ import styles from "./incoming-call.module.css";
 
 /** Экран входящего звонка поверх приложения — «Отклонить» и «Ответить». */
 export function IncomingCall({ me }: { me: CallPeer }) {
-  const { ringing, dismiss } = useIncomingCall(me.id);
-  const navigate = useNavigate();
   const current = useCall();
+  const { ringing, dismiss } = useIncomingCall(me.id, current?.call.id);
+  const [answering, setAnswering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   // Ответили из уведомления (/call/:id?answer=1) — звонок уже идёт.
   if (!ringing || current?.call.id === ringing.id) return null;
   const other = ringing.otherUser;
@@ -23,10 +27,19 @@ export function IncomingCall({ me }: { me: CallPeer }) {
   const video = ringing.kind === "video";
   const kind = group ? (video ? "Групповой видеозвонок" : "Групповой звонок") : video ? "Входящий видеозвонок" : "Входящий звонок";
   const answer = async () => {
-    dismiss();
-    await callApi.answer(ringing.id).catch(() => {});
-    await joinCallById(ringing.id, me).catch(() => {});
-    void navigate(`/call/${ringing.id}`);
+    if (answering) return;
+    setAnswering(true);
+    setError(null);
+    stopRingtone();
+    try {
+      await joinCallById(ringing.id, me);
+      dismiss();
+      void navigate(`/call/${ringing.id}`);
+    } catch (err) {
+      setError(errorText(err, "Не удалось ответить. Попробуйте ещё раз"));
+    } finally {
+      setAnswering(false);
+    }
   };
   return createPortal(
     <div className={styles.screen} role="dialog" aria-label={kind}>
@@ -37,6 +50,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
         </div>
         <p className={styles.name}>{other?.name ?? "Звонок"}</p>
         <p className={styles.hint}>{other?.username ? `@${other.username}` : "Звонит…"}</p>
+        {error ? <p role="alert">{error}</p> : null}
         <div className={styles.actions}>
           <div className={styles.action}>
             <button
@@ -44,6 +58,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
               className={`${styles.button} ${styles.decline}`}
               title="Отклонить"
               aria-label="Отклонить"
+              disabled={answering}
               onClick={() => {
                 dismiss();
                 void decline(ringing);
@@ -54,7 +69,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
             <span className={styles.label}>Отклонить</span>
           </div>
           <div className={styles.action}>
-            <button type="button" className={`${styles.button} ${styles.accept}`} title="Ответить" aria-label="Ответить" onClick={() => void answer()}>
+            <button type="button" className={`${styles.button} ${styles.accept}`} title="Ответить" aria-label="Ответить" disabled={answering} onClick={() => void answer()}>
               <Icon name={video ? "Video" : "Phone"} size={26} />
             </button>
             <span className={styles.label}>Ответить</span>

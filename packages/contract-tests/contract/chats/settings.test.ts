@@ -322,7 +322,9 @@ describe("POST /:id/reactions", () => {
     const channel = await createChannel(a, [b]);
     const group = await createGroup(a, [b]);
     const bWs = await ws(b.api);
-    expectError(await a.api.post(`/api/chats/${group.id}/reactions`, { reactions: [] }), 400, "Список реакций настраивается только у каналов");
+    expect(expectOk(await a.api.post(`/api/chats/${group.id}/reactions`, { reactions: ["👍", "sticker:heart"] }), chatBody).chat.allowedReactions).toEqual(["👍", "sticker:heart"]);
+    await bWs.waitFor("chat:updated", (e) => e.chat?.id === group.id);
+    expectError(await b.api.post(`/api/chats/${group.id}/reactions`, { reactions: [] }), 403, NO_RIGHTS);
     expectError(await b.api.post(`/api/chats/${channel.id}/reactions`, { reactions: [] }), 403, NO_RIGHTS);
 
     const set = expectOk(await a.api.post(`/api/chats/${channel.id}/reactions`, { reactions: ["👍", " 👍 ", "", "🔥"] }), chatBody).chat;

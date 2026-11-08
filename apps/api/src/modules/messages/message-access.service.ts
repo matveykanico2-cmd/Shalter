@@ -38,6 +38,7 @@ export class MessageAccessService {
     const member = !!chat && chat.memberIds.includes(uid);
     const moderator = allowModerator && !member && !!chat && this.isServerModerator(uid);
     if (!chat || !message || message.chatId !== chat.id || (!member && !moderator)) throw new ApiError(404, "not found");
+    if (!moderator && message.visibleToId && message.visibleToId !== uid && message.senderId !== uid) throw new ApiError(404, "not found");
     return { chat, message, moderator };
   }
 }

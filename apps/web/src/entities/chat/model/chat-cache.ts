@@ -6,7 +6,7 @@ import type { Message } from "@/entities/message/@x/chat";
 
 import { chatQueries } from "../api/chat-queries";
 
-import type { ChatSummary } from "./types";
+import type { ChatCard, ChatSummary } from "./types";
 
 type OtherUser = NonNullable<ChatSummary["otherUser"]>;
 
@@ -74,6 +74,14 @@ export const chatCache = {
 
   /** «В сети», имя, аватарка собеседника в личках. */
   patchOtherUser(client: QueryClient, userId: string, patch: Partial<OtherUser>) {
+    client.setQueriesData<ChatCard>({ queryKey: [...chatQueries.baseKey, "card"] }, (card) => {
+      if (!card) return card;
+      return {
+        ...card,
+        chat: card.chat.otherUser?.id === userId ? { ...card.chat, otherUser: { ...card.chat.otherUser, ...patch } } : card.chat,
+        members: card.members.map((u) => u.id === userId ? { ...u, ...patch } : u),
+      };
+    });
     updateChats(client, (chats) =>
       chats.some((c) => c.otherUser?.id === userId)
         ? chats.map((c) => (c.otherUser?.id === userId ? { ...c, otherUser: { ...c.otherUser, ...patch } as OtherUser } : c))

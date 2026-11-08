@@ -4,6 +4,8 @@
 
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;
+// Отдельный выход рингтона: отключение глушит и уже запланированные ноты.
+let loopOutput: AudioNode | null = null;
 
 // Старый iOS Safari знает только webkitAudioContext (AudioContext || webkitAudioContext в ringtone.js).
 const audioCtor = (): typeof AudioContext | undefined =>
@@ -50,7 +52,7 @@ function beep(when: number, duration: number, freq: number, { type = "sine", gli
   gain.gain.setValueAtTime(0, when);
   gain.gain.linearRampToValueAtTime(vol, when + Math.min(0.02, duration / 4));
   gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-  osc.connect(gain).connect(audio.destination);
+  osc.connect(gain).connect(loopOutput ?? audio.destination);
   osc.start(when);
   osc.stop(when + duration + 0.02);
 }
@@ -158,15 +160,19 @@ function loop(play: (t: number) => void, cycleSec: number) {
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const audio = getCtx();
+  const output = audio.createGain();
+  output.connect(audio.destination);
   const cycle = (at: number) => {
     if (cancelled) return;
-    play(at);
+    loopOutput = output;
+    try { play(at); } finally { loopOutput = null; }
     timer = setTimeout(() => cycle(audio.currentTime), cycleSec * 1000);
   };
   cycle(audio.currentTime);
   return () => {
     cancelled = true;
     clearTimeout(timer);
+    output.disconnect();
   };
 }
 

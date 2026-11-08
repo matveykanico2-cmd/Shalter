@@ -258,7 +258,7 @@ describe("сообщение совпадает с server/data/messages.js", () 
     expect(right.every((m) => m.readAt === null && JSON.parse(m.readByIds!).includes("u_c"))).toBe(true);
     expect(left.every((m) => m.readAt === null && JSON.parse(m.readByIds!).includes("u_c"))).toBe(true);
     const reads = (chatId: string) => conn.prepare("SELECT lastReadAt FROM chat_reads WHERE chatId = ? AND userId = 'u_c'").get(chatId);
-    expect(reads("c_r")).toEqual({ lastReadAt: (conn.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = 'c_r'").get() as { at: string }).at });
+    expect(reads("c_r")).toEqual({ lastReadAt: (conn.prepare(`SELECT MAX(createdAt) AS at FROM messages WHERE chatId = 'c_r' AND readByIds LIKE '%"u_c"%'`).get() as { at: string }).at });
 
     // recordTime пишет readAt, повторное прочтение его не меняет.
     const fresh = sample("c_r", { senderId: "u_b", readByIds: ["u_b"] });

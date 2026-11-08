@@ -284,10 +284,14 @@ export class MessagesRepository {
    * recordTime — записать readAt (личка, если читатель не скрывает время захода).
    */
   public markChatRead(chatId: string, viewerId: string, recordTime: boolean): string[] {
+    const visible = and(
+      sql`NOT ${listsId(messages.deletedForIds, viewerId)}`,
+      or(isNull(messages.visibleToId), eq(messages.visibleToId, viewerId), eq(messages.senderId, viewerId))
+    );
     const rows = this.db
       .select({ id: messages.id, senderId: messages.senderId, readByIds: messages.readByIds, readTimes: messages.readTimes })
       .from(messages)
-      .where(and(eq(messages.chatId, chatId), ne(messages.senderId, viewerId), sql`${messages.readByIds} NOT LIKE ${`%"${viewerId}"%`}`))
+      .where(and(eq(messages.chatId, chatId), visible, ne(messages.senderId, viewerId), sql`${messages.readByIds} NOT LIKE ${`%"${viewerId}"%`}`))
       .all();
     const changedIds: string[] = [];
     const readNow = new Date().toISOString();
@@ -306,7 +310,7 @@ export class MessagesRepository {
         changedIds.push(row.id);
       }
     });
-    const newest = this.db.select({ at: sql<string | null>`MAX(${messages.createdAt})` }).from(messages).where(eq(messages.chatId, chatId)).get()?.at;
+    const newest = this.db.select({ at: sql<string | null>`MAX(${messages.createdAt})` }).from(messages).where(and(eq(messages.chatId, chatId), visible)).get()?.at;
     if (newest) {
       this.db
         .insert(chatReads)

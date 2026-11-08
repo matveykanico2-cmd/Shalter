@@ -17,6 +17,7 @@
   gap: 14px;
   width: 100%;
   max-width: 400px;
+  margin: auto;
   padding: 32px 24px 24px;
   border-radius: 24px;
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
@@ -112,13 +113,14 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 100%;
-  margin-top: 6px;
-  padding: 12px;
+  align-self: flex-start;
+  width: auto;
+  margin: 0 0 4px;
+  padding: 8px 12px;
   border: 0;
   border-radius: var(--radius-control);
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
+  background: transparent;
+  color: var(--color-accent);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -128,4 +130,26 @@
   margin: 0;
   color: var(--color-muted);
   font-size: 12px;
+}
+
+.icon > svg {
+  animation: clock-turn 8s linear infinite;
+}
+
+@keyframes clock-turn {
+  to { transform: rotate(360deg); }
+}
+
+.appeal {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon > svg { animation: none; }
 }

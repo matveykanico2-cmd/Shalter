@@ -56,7 +56,7 @@ export class ChatAdminService {
 
   /** Реакции, доступные под постами канала (до 20); не список — любые. */
   public setReactions(uid: string, chat: Chat, allowedReactions: string[] | null) {
-    if (chat.type !== "channel") throw new ApiError(400, "Список реакций настраивается только у каналов");
+    if (chat.type !== "channel" && chat.type !== "group") throw new ApiError(400, "Список реакций настраивается только у групп и каналов");
     this.requireStaff(chat, uid);
     const updated = this.chats.update(chat.id, { allowedReactions })!;
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });

@@ -304,7 +304,7 @@ export function renderLottie(name: string, { size = 84, replay = true, loop = fa
       anim.addEventListener("DOMLoaded", start);
       // DOMLoaded иногда приходит синхронно внутри loadAnimation — до слушателя.
       if (anim.isLoaded) start();
-      if (!replay) anim.addEventListener("complete", () => anim.goToAndStop(restFrame(), true));
+      if (!loop) anim.addEventListener("complete", () => anim.goToAndStop(restFrame(), true));
       const host = box.closest("button, a, .gift-message, .gift-card-emoji") ?? box;
       host.addEventListener("mouseenter", () => anim.isPaused && replayFromStart());
       box.addEventListener("click", () => anim.isPaused && replayFromStart());

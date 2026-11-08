@@ -36,6 +36,14 @@ describe("профиль: PATCH /api/users/:id { avatarEmoji }", () => {
     expect(expectOk(await patch(""), patchProfileBody).user).not.toHaveProperty("avatarEmoji");
   });
 
+  test("прозрачный фон сохраняется независимо от смайла; произвольный CSS запрещён", async () => {
+    const me = await registerUser(server().baseUrl);
+    await me.api.patch(`/api/users/${me.id}`, { avatarEmoji: "🔥" });
+    const res = expectOk(await me.api.patch(`/api/users/${me.id}`, { avatarColor: "transparent" }), patchProfileBody);
+    expect(res.user).toMatchObject({ avatarEmoji: "🔥", avatarColor: "transparent" });
+    expectError(await me.api.patch(`/api/users/${me.id}`, { avatarColor: "url(https://example.com/a)" }), 400, "Некорректный цвет");
+  });
+
   test("не смайл, длинная строка, не строка — 400 «Некорректный эмодзи», ничего не сохраняется", async () => {
     const { baseUrl } = server();
     const me = await registerUser(baseUrl);

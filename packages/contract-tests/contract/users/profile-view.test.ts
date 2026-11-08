@@ -219,14 +219,16 @@ describe("блокировка", () => {
   });
 
 
-  test("блокировка сама по себе событий по WS не шлёт", async () => {
+  test("блокировка обновляет видимость профиля у заблокированного", async () => {
     const { baseUrl } = server();
     const [me, target] = await registerUsers(baseUrl, 2);
     const [meWs, targetWs] = await Promise.all([open(me.api), open(target.api)]);
     meWs.clear();
     targetWs.clear();
     await block(me, target);
-    await targetWs.expectNone("contact:updated", () => true, 500);
+    const event = await targetWs.waitFor("contact:updated", (e) => e.user?.id === me.id);
+    expect(event.user.online).toBe(false);
+    expect(event.user).not.toHaveProperty("avatarImages");
     await meWs.expectNone("contact:updated", () => true, 0);
   });
 });

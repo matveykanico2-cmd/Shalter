@@ -103,3 +103,8 @@
   object-fit: contain;
 }
 
+
+.transparent {
+  background-image: conic-gradient(#aaa 25%, #fff 0 50%, #aaa 0 75%, #fff 0);
+  background-size: 12px 12px;
+}

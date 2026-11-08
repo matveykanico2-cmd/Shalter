@@ -58,7 +58,7 @@ describe("«Игры» и «О приложении»", () => {
     expect(creator.getAttribute("rel")).toBe("noopener");
     const project = screen.getByText("Независимый проект");
     expect(creator.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("Плушкина Семен")).toBeTruthy();
+    expect(screen.getByText("Плюшкин Семён")).toBeTruthy();
     const partner = screen.getByRole("link", { name: /Spitsa Crimea.*Партнёр Shalter/ });
     expect(partner.getAttribute("href")).toBe("https://spitsa-crimea.ru");
     expect(partner.getAttribute("target")).toBe("_blank");

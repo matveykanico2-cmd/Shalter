@@ -1523,3 +1523,25 @@ the Dockerfile does); `SKIP_WEB_BUILD=1` reuses an existing `apps/web/dist`.
 Built via `npm run desktop:build` (Tauri). Artifacts land in `public/downloads/`:
 - `Shalter.AppImage`, `Shalter.deb`, `Shalter.rpm`
 Upload these to `https://shalter.ru/downloads/` so `install-linux.sh` can fetch them.
+
+
+## Account screens, blocking and call reliability update (2026-11-08)
+
+Rebuild both packages so the client reaction settings and API validation agree.
+Startup automatically adds nullable `call_participants.answeredAt` to existing databases.
+It records answers across devices and reconnects; no Drizzle migration command is needed.
+Back up the database before restarting. Deployment is performed by the server operator.
+
+```bash
+npm ci
+node -e 'const Database = require("better-sqlite3"); const db = new Database("data/app.db", { readonly: true, fileMustExist: true }); db.backup("data/app.before-call-answer." + Date.now() + ".db").then(() => db.close()).catch(err => { console.error(err); process.exitCode = 1; });'
+npm run build:api
+npm run build:web
+```
+
+Restart the existing Nest service using the deployment method configured above.
+For local isolated browser checks (each worker creates its own temporary data directory):
+
+```bash
+npm run test:e2e -- ui-fixes.spec.ts reliability.spec.ts chat-list.spec.ts calls.spec.ts social/profile.spec.ts platform/communities.spec.ts --workers=2
+```

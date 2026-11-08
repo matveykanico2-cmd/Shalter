@@ -222,6 +222,14 @@ describe("POST /api/calls/:id/answer", () => {
       expect(e).toEqual({ type: "call:answered", callId: call.id });
     }
     await aWs.expectNone("call:answered", () => true, 300);
+    const phone = await login(baseUrl, b);
+    for (const api of [b.api, phone]) {
+      const history = await api.get("/api/calls");
+      const item = history.body.calls.find((c: any) => c.id === call.id);
+      expectShape(callListItem, item);
+      expect(item.answered).toBe(true);
+    }
+    expect((await a.api.get("/api/calls")).body.calls.find((c: any) => c.id === call.id)).not.toHaveProperty("answered");
   });
 
   test("посторонний или несуществующий звонок — 404 без событий", async () => {

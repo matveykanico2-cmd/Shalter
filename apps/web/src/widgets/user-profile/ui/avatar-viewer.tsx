@@ -27,6 +27,8 @@ type Props = {
   /** Сервер вернул обновлённого себя (аватар сменился). */
   onChange: (user: Record<string, unknown>) => void;
   onClose: () => void;
+  /** В редакторе открываем историю фото; в профиле — активный смайл. */
+  photosFirst?: boolean;
 };
 
 const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" && typeof (a as AvatarEntry).url === "string";
@@ -53,9 +55,9 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
  * Аватары с листанием — как public/js/components/avatarViewer.js: стрелки, свайп, точки,
  * нажатие на половину фото; себе — добавить фото или видео, сделать основной, удалить.
  */
-export function AvatarViewer({ user, canEdit, onChange, onClose }: Props) {
+export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = false }: Props) {
   const [avatars, setAvatars] = useState<DisplayEntry[]>(() => displayEntries(user, user.avatarImages ?? []));
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => photosFirst && user.avatarEmoji && user.avatarImages?.some(isEntry) ? 1 : 0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);

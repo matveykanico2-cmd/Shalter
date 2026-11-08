@@ -200,6 +200,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  overflow-anchor: none;
   scrollbar-width: thin;
   padding-bottom: 90px;
 }

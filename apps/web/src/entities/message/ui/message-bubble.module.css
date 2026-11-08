@@ -423,7 +423,7 @@
   padding: 2px 8px 2px 6px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 50%, transparent);
   color: var(--color-text);
   font: inherit;
   font-size: 12.5px;
@@ -434,7 +434,7 @@
 
 .reaction:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: var(--color-surface-alt);
+  background: color-mix(in srgb, var(--color-surface-alt) 50%, transparent);
 }
 
 .reaction:disabled {
@@ -443,12 +443,12 @@
 
 .reactionMine {
   border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: color-mix(in srgb, var(--color-accent-soft) 50%, transparent);
   color: var(--color-accent);
 }
 
 .reactionMine:hover:not(:disabled) {
-  background: var(--color-accent-soft);
+  background: color-mix(in srgb, var(--color-accent-soft) 50%, transparent);
 }
 
 .reactionStar {

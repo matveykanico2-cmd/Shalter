@@ -208,6 +208,7 @@ export const calls = sqliteTable("calls", {
 export const callParticipants = sqliteTable("call_participants", {
   callId: text().notNull().references(() => calls.id, { onDelete: "cascade" }),
   userId: text().notNull(),
+  answeredAt: text(),
 },
 (table) => [
   primaryKey({ columns: [table.callId, table.userId], name: "call_participants_callId_userId_pk" }),

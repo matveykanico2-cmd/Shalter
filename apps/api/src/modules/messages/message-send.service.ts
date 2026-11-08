@@ -83,7 +83,7 @@ export class MessageSendService {
     }
     const { clientId, ...fields } = dto;
     return sendOnce(uid, chat.id, clientId, async () => {
-      const { charged } = await this.gate(chat, uid, fields);
+      const { charged } = await this.gate(chat, uid, fields, { allowBlocked: true });
       const paid = this.preparePaidMedia(chat, uid, fields);
       const message = await this.deliver(chat, uid, fields, { paidStars: charged, paid });
       // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог вернуться
@@ -99,7 +99,7 @@ export class MessageSendService {
    * или тому, кто заблокировал. charge — списывать ли звёзды за платные сообщения (при
    * планировании нет, при отправке да). Отказ — ApiError.
    */
-  public async gate(chat: Chat, uid: string, body: MessageDraft, { charge = true, skipSlowMode = false } = {}): Promise<{ charged: number }> {
+  public async gate(chat: Chat, uid: string, body: MessageDraft, { charge = true, skipSlowMode = false, allowBlocked = false } = {}): Promise<{ charged: number }> {
     if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
     body.article = body.article === true;
     if (body.article && !body.forwardedFrom) {
@@ -166,16 +166,19 @@ export class MessageSendService {
       }
     }
 
-    if (chat.type === "dm") return { charged: await this.dmGate(chat, uid, charge) };
+    if (chat.type === "dm") return { charged: await this.dmGate(chat, uid, charge, allowBlocked) };
     if (chat.type === "group") return { charged: this.commentGate(chat, uid, charge) };
     return { charged: 0 };
   }
 
   /** Личка: блокировка, служебный чат, «кто может мне писать», плата за сообщения незнакомцам. */
-  private async dmGate(chat: Chat, uid: string, charge: boolean): Promise<number> {
+  private async dmGate(chat: Chat, uid: string, charge: boolean, allowBlocked: boolean): Promise<number> {
     const otherId = chat.memberIds.find((m) => m !== uid);
     const other = otherId ? this.users.findById(otherId) : undefined;
-    if (other?.blockedUserIds?.includes(uid)) throw new ApiError(403, "Пользователь заблокировал вас");
+    if (other?.blockedUserIds?.includes(uid)) {
+      if (allowBlocked) return 0;
+      throw new ApiError(403, "Пользователь заблокировал вас");
+    }
     if (otherId === SYSTEM_BOT_ID) throw new ApiError(403, "Shalter — служебный чат, отвечать в нём нельзя");
     if (!other) return 0;
 
@@ -276,6 +279,7 @@ export class MessageSendService {
 
   /** Сохраняет сообщение и рассылает его: участникам по WS, ботам, ИИ, в пуш; фоном — превью. */
   public async deliver(chat: Chat, senderId: string, body: MessageDraft, { paidStars = 0, paid = null as PaidPost | null } = {}): Promise<Message> {
+    const hiddenRecipient = chat.type === "dm" ? chat.memberIds.find((id) => id !== senderId && this.users.findById(id)?.blockedUserIds.includes(senderId)) : undefined;
     let forwardedFrom = body.forwardedFrom as ForwardedFrom | undefined;
     if (forwardedFrom?.senderId) {
       const linkAllowed = forwardedFrom.senderId === senderId || this.privacy.allowsUser(forwardedFrom.senderId, "forwards", senderId);
@@ -289,7 +293,7 @@ export class MessageSendService {
     const replyToId = inThisChat(body.replyToId) ? body.replyToId : null;
     const threadRootId = inThisChat(body.threadRootId) ? body.threadRootId : null;
     const clean = sanitizers();
-    const attachments = paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments));
+    const attachments = paid ? [paid.placeholder] : hiddenRecipient ? clean.sanitizeAttachments(body.attachments) : markPendingPreviews(clean.sanitizeAttachments(body.attachments));
     // «Предложить фото профиля» — только одно фото в обычной личке, как в Telegram: не в
     // секретном и не в защищённом от пересылки чате (копия-аватарка открыта всем).
     const photoSuggestion =
@@ -314,6 +318,8 @@ export class MessageSendService {
       sticker: clean.sanitizeSticker(body.sticker),
       customEmoji: sanitizeMessageEmoji(body.customEmoji),
       readByIds: [senderId],
+      visibleToId: hiddenRecipient ? senderId : undefined,
+      deletedForIds: hiddenRecipient ? [hiddenRecipient] : [],
       paidStars,
       anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
       // Эффекты — только в личных чатах, как в Telegram.
@@ -321,6 +327,13 @@ export class MessageSendService {
       photoSuggestion,
       buttons: body.buttons,
     });
+
+    // Сообщение заблокированного хранится только для отправителя: ни доставки, ни пуша,
+    // ботов, превью или обработки медиа для собеседника. Разблокировка не доставляет его задним числом.
+    if (hiddenRecipient) {
+      this.realtime.broadcastToUsers([senderId], { type: "message:new", chatId: chat.id, message });
+      return message;
+    }
 
     const { registerAttachments } = uploadAccess();
     registerAttachments(chat.id, message.attachments, { by: senderId });

@@ -11,7 +11,7 @@ import styles from "./about-section.module.css";
 
 const ABOUT_TEAM: { name: string; role: string; url?: string }[] = [
   { name: "Николаенко Матвей", role: "Создатель Shalter", url: "https://shalter.ru" },
-  { name: "Плушкина Семен", role: "Разработчик Shalter" },
+  { name: "Плюшкин Семён", role: "Разработчик Shalter" },
   { name: "Spitsa Crimea", role: "Партнёр Shalter", url: "https://spitsa-crimea.ru" },
   { name: "Shalter", role: "Независимый проект" },
 ];

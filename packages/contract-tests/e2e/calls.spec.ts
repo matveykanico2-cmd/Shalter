@@ -30,13 +30,9 @@ test("аудиозвонок из лички: входящий, ответ, PiP 
   // У Бориса — экран входящего звонка с именем звонящей.
   await expect(b.getByText("Входящий звонок", { exact: true })).toBeVisible();
   await expect(b.getByText("Алиса", { exact: true }).last()).toBeVisible();
-  // Кнопка «Ответить» бесконечно «дышит» (CSS-анимация без prefers-reduced-motion),
-  // поэтому «стабильной» для Playwright не бывает. Клик мышью с force изредка (~1 из 10
-  // прогонов в одном воркере) не доходит до обработчика — запроса ответа нет, — поэтому
-  // событие click отправляется прямо на кнопку.
   const answer = b.getByRole("button", { name: "Ответить", exact: true });
   await expect(answer).toBeEnabled();
-  await answer.dispatchEvent("click");
+  await answer.click();
   await expect(b.getByText("Входящий звонок", { exact: true })).toHaveCount(0);
 
   // Оба на экране звонка: идёт таймер разговора, есть «Микрофон» и «Завершить».

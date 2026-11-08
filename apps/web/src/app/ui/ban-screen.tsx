@@ -29,7 +29,7 @@ function formatLeft(ms: number) {
   return `${pad(mins)}:${pad(total % 60)}`;
 }
 
-function formatUntil(iso: string) {
+function formatUntil(iso: string | number) {
   const d = new Date(iso);
   const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
   return `${date} в ${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -59,15 +59,18 @@ async function leave() {
  * настроек — причина, до какого времени и сколько осталось, и «Назад», чтобы выйти.
  */
 export function BanScreen({ ban }: { ban: BanInfo }) {
-  const until = ban.bannedUntil ? Date.parse(ban.bannedUntil) : null;
+  const parsedUntil = ban.bannedUntil ? Date.parse(ban.bannedUntil) : NaN;
+  const until = Number.isFinite(parsedUntil) ? parsedUntil : null;
   const [now, setNow] = useState(Date.now);
   const [leaving, setLeaving] = useState(false);
   const backRef = useRef<HTMLButtonElement>(null);
-  const left = until ? until - now : null;
+  const left = until !== null ? until - now : null;
+  const started = ban.bannedAt ? Date.parse(ban.bannedAt) : NaN;
+  const duration = until !== null && Number.isFinite(started) && until > started ? until - started : null;
 
   useEffect(() => {
     backRef.current?.focus();
-    if (!until) return;
+    if (until === null) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [until]);
@@ -80,8 +83,21 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
   return (
     <div className={styles.screen}>
       <div className={styles.card} role="alertdialog" aria-modal="true" aria-labelledby="ban-screen-title">
-        <div className={styles.icon}>
-          <Icon name="ShieldOff" size={44} />
+        <button
+          ref={backRef}
+          type="button"
+          className={styles.back}
+          disabled={leaving}
+          onClick={() => {
+            setLeaving(true);
+            void leave();
+          }}
+        >
+          <Icon name="ChevronLeft" size={18} />
+          Назад
+        </button>
+        <div className={styles.icon} aria-hidden="true">
+          <Icon name="Clock" size={44} />
         </div>
         <h1 className={styles.title} id="ban-screen-title">
           Аккаунт заблокирован
@@ -96,23 +112,15 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
         <div className={styles.term}>
           <Icon name="Clock" size={18} />
           <div>
-            <p className={styles.until}>{ban.bannedUntil ? `Заблокирован до ${formatUntil(ban.bannedUntil)}` : "Блокировка бессрочная"}</p>
+            <p className={styles.until}>{until !== null ? `Заблокирован до ${formatUntil(until)}` : "Блокировка бессрочная"}</p>
+            {duration !== null && <p className={styles.left}>{`Срок блокировки: ${formatLeft(duration)}`}</p>}
             {left !== null && left > 0 && <p className={styles.left}>{`Осталось ${formatLeft(left)}`}</p>}
           </div>
         </div>
-        <button
-          ref={backRef}
-          type="button"
-          className={styles.back}
-          disabled={leaving}
-          onClick={() => {
-            setLeaving(true);
-            void leave();
-          }}
-        >
-          <Icon name="ChevronLeft" size={18} />
-          Назад
-        </button>
+        <a className={styles.appeal} href={`mailto:shalter.support@gmail.com?subject=${encodeURIComponent("Апелляция на блокировку аккаунта Shalter")}`}>
+          Подать апелляцию
+        </a>
+        <p className={styles.hint}>shalter.support@gmail.com</p>
         <p className={styles.hint}>«Назад» — выйти из этого аккаунта и войти в другой</p>
       </div>
     </div>

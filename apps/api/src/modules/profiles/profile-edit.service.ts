@@ -79,7 +79,7 @@ export class ProfileEditService {
       patch.bio = String(patch.bio ?? "").trim();
       if (patch.bio.length > MAX_BIO) throw new ApiError(400, `«О себе» — не длиннее ${MAX_BIO} символов`);
     }
-    if ("avatarColor" in patch && !COLOR_RE.test(patch.avatarColor ?? "")) throw new ApiError(400, "Некорректный цвет");
+    if ("avatarColor" in patch && patch.avatarColor !== "transparent" && !COLOR_RE.test(patch.avatarColor ?? "")) throw new ApiError(400, "Некорректный цвет");
     if ("businessAddress" in patch) {
       patch.businessAddress = String(patch.businessAddress ?? "").trim() || null;
       if (patch.businessAddress && patch.businessAddress.length > MAX_ADDRESS) throw new ApiError(400, `Адрес — не длиннее ${MAX_ADDRESS} символов`);
@@ -151,6 +151,8 @@ export class ProfileEditService {
     // Разблокировать можно и удалённого — чтобы его id не застрял в списке.
     if (blocked && !this.users.findById(id)) throw new ApiError(404, "Пользователь не найден");
     this.users.setBlocked(uid, id, blocked);
+    const owner = this.users.findById(uid);
+    if (owner) this.notify.visibilityChanged(owner, id);
     // В ответе — тот, кого (раз)блокировали, глазами блокирующего; удалённый — null.
     const target = this.users.findById(id);
     return { user: target ? this.privacy.publicUserFor(target, uid) : null };

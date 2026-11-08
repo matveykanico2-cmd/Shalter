@@ -31,6 +31,8 @@ export const callWithCaller = z.strictObject({ ...callShape, otherUser: viewerUs
 /** Элемент GET /api/calls. */
 export const callListItem = z.strictObject({
   ...callShape,
+  /** Ответили на одном из устройств этого пользователя. */
+  answered: z.boolean().optional(),
   direction: z.enum(["outgoing", "incoming"]),
   otherUser: viewerUser.nullable(),
   group: z

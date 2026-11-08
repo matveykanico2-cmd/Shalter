@@ -53,4 +53,11 @@ describe("AvatarViewer", () => {
     render(<AvatarViewer {...callbacks} user={{ name: "Борис Иванов", avatarColor: "#1e88e5" }} />);
     expect(within(screen.getByRole("dialog", { name: "Фото профиля" })).getByText("БИ")).toBeTruthy();
   });
+  it("редактор открывает сохранённое фото первым, профиль по умолчанию — смайл", () => {
+    render(<AvatarViewer {...callbacks} canEdit photosFirst user={{ name: "Борис", avatarEmoji: "🔥", avatarImages: [{ kind: "image", url: "/uploads/old.jpg" }] }} />);
+    const dialog = screen.getByRole("dialog", { name: "Фото профиля" });
+    expect(within(dialog).getByRole("img", { name: "Борис" }).getAttribute("src")).toBe("/uploads/old.jpg");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Предыдущее" }));
+    expect(dialog.textContent).toContain("🔥");
+  });
 });

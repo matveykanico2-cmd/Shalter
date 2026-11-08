@@ -116,11 +116,12 @@
 .accept {
   background: var(--color-success);
   animation: breathe 1.6s ease-in-out infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 35%, transparent);
 }
 
 @keyframes breathe {
   50% {
-    transform: scale(1.06);
+    box-shadow: 0 0 0 12px transparent;
   }
 }
 

@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { chatQueries, type ChatSummary, useChats } from "@/entities/chat";
+import { REACTION_STICKER_PREFIX, REACTION_STICKERS } from "@/entities/message";
 
 import { ALL_EMOJI } from "@/shared/lib/emoji-list";
 import { errorText } from "@/shared/lib/error-text";
@@ -34,15 +35,16 @@ export function ReactionsPage({ chat }: PageProps) {
     }
   };
   const toggle = (emoji: string) => {
+    if (!draft.includes(emoji) && draft.length >= 20) return toast("Можно разрешить до 20 реакций", { error: true });
     const next = draft.includes(emoji) ? draft.filter((x) => x !== emoji) : [...draft, emoji];
     setDraft(next);
     void save(next);
   };
   return (
     <>
-      <Section name="Реакции под постами">
+      <Section name={chat.type === "channel" ? "Реакции под постами" : "Реакции в группе"}>
         <RadioRows
-          label="Реакции под постами"
+          label="Разрешённые реакции"
           options={[
             { value: false, label: "Все реакции" },
             { value: true, label: "Только выбранные" },
@@ -68,6 +70,18 @@ export function ReactionsPage({ chat }: PageProps) {
                 {e}
               </button>
             ))}
+          </div>
+          <p>Реакции стикерами</p>
+          <div className={styles.reactions}>
+            {REACTION_STICKERS.map((sticker) => {
+              const value = `${REACTION_STICKER_PREFIX}${sticker.id}`;
+              return (
+                <button key={value} type="button" className={draft.includes(value) ? `${styles.reaction} ${styles.reactionOn}` : styles.reaction}
+                  aria-label={`Стикер ${sticker.name}`} title={sticker.name} aria-pressed={draft.includes(value)} onClick={() => toggle(value)}>
+                  {sticker.emoji}
+                </button>
+              );
+            })}
           </div>
         </Section>
       ) : null}

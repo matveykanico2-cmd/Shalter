@@ -30,5 +30,6 @@ it("заблокированный: 403 banned на защищённом зап�
   expect(within(screenEl).getByText(/^Заблокирован до /)).toBeTruthy();
   expect(within(screenEl).getByText(/^Осталось (6 дней 23 часа|7 дней)$/)).toBeTruthy();
   expect(within(screenEl).getByRole("button", { name: "Назад" })).toBeTruthy();
+  expect(within(screenEl).getByRole("link", { name: "Подать апелляцию" }).getAttribute("href")).toContain("mailto:shalter.support@gmail.com");
   expect(screen.queryByRole("link", { name: "Чаты" })).toBeNull();
 });

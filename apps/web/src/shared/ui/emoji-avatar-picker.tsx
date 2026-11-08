@@ -22,6 +22,7 @@ const BACKGROUNDS = [
   "#1e88e5",
   "#5e35b1",
   "#8e24aa",
+  "transparent",
 ];
 
 type Props = {
@@ -68,9 +69,9 @@ export function EmojiAvatarPicker({ onPick, label = "Смайл на авата�
             type="button"
             role="radio"
             aria-checked={background === bg}
-            aria-label={`Фон ${i + 1}`}
-            className={styles.bgSwatch}
-            style={{ background: bg }}
+            aria-label={bg === "transparent" ? "Прозрачный фон" : `Фон ${i + 1}`}
+            className={`${styles.bgSwatch} ${bg === "transparent" ? styles.transparent : ""}`}
+            style={{ backgroundColor: bg }}
             onClick={() => pickBackground(bg)}
           />
         ))}

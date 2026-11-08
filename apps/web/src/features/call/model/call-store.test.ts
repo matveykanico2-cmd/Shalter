@@ -36,6 +36,7 @@ describe("звонок", () => {
     const { calls } = fakeApi({
       "POST /api/calls": { body: { call: CALL } },
       "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } },
       "GET /api/calls/ice-servers": { body: { iceServers: [{ urls: "stun:example.org" }] } },
       "PATCH /api/calls/cl_1": { body: { call: { ...CALL, status: "completed" } } },
     });
@@ -49,8 +50,11 @@ describe("звонок", () => {
     // Opus с защитой от потерь.
     expect((offer!.data as { sdp: string }).sdp).toContain("useinbandfec=1");
 
+    FakeSocket.last().receive({ type: "call:signal", signal: signal("ice", { candidate: "candidate:early", sdpMid: "0", sdpMLineIndex: 0 }, 0) });
+    expect(FakePeer.instances[0]!.addIceCandidate).not.toHaveBeenCalled();
     FakeSocket.last().receive({ type: "call:signal", signal: signal("answer", { type: "answer", sdp: "v=0" }, 1) });
     await vi.waitFor(() => expect(FakePeer.instances[0]!.currentRemoteDescription).toMatchObject({ type: "answer" }));
+    await vi.waitFor(() => expect(FakePeer.instances[0]!.addIceCandidate).toHaveBeenCalledTimes(1));
     FakePeer.instances[0]!.connect();
     expect(getCall()?.phase).toBe("connected");
 
@@ -65,7 +69,8 @@ describe("звонок", () => {
   });
 
   it("видеозвонок: камера с подсказкой motion, после согласования — потолок 2,5 Мбит/с, 30 кадров, balanced", async () => {
-    fakeApi({ "POST /api/calls": { body: { call: { ...CALL, kind: "video" } } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+    fakeApi({ "POST /api/calls": { body: { call: { ...CALL, kind: "video" } } }, "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } }, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
     const { getUserMedia } = fakeRtc();
     await placeCall("c_1", "video", ME);
     // 720p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
@@ -87,7 +92,8 @@ describe("звонок", () => {
   it("медленная сеть: перезапуск ICE не раньше 20 с, ошибка — ещё через 10 с; соединились — ошибки нет", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+      fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } }, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
       await placeCall("c_1", "audio", ME);
       const peer = FakePeer.instances[0]!;
       const restartIce = vi.spyOn(peer, "restartIce");
@@ -113,6 +119,7 @@ describe("звонок", () => {
     const { calls } = fakeApi({
       "POST /api/calls": { body: { call: CALL } },
       "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } },
       "PATCH /api/calls/cl_1": { body: { call: CALL } },
     });
     await placeCall("c_1", "audio", ME);
@@ -120,16 +127,35 @@ describe("звонок", () => {
     expect(calls.find((c) => c.key === "PATCH /api/calls/cl_1")?.body).toEqual({ status: "missed", durationSec: 0 });
   });
 
+  it("сохраняет ICE до offer и применяет после remote description ровно один раз", async () => {
+    const incoming = { ...CALL, callerId: BORIS.id };
+    fakeApi({
+      "GET /api/calls": { body: { calls: [{ ...incoming, direction: "incoming", otherUser: BORIS, group: null }] } },
+      "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } },
+    });
+    await joinCallById("cl_1", ME);
+    const ice = signal("ice", { candidate: "candidate:test", sdpMid: "0", sdpMLineIndex: 0 }, 1);
+    FakeSocket.last().receive({ type: "call:signal", signal: ice });
+    expect(FakePeer.instances).toHaveLength(0);
+    FakeSocket.last().receive({ type: "call:signal", signal: signal("offer", { type: "offer", sdp: "v=0" }, 2) });
+    await vi.waitFor(() => expect(FakePeer.instances[0]?.addIceCandidate).toHaveBeenCalledTimes(1));
+    expect(FakePeer.instances[0]!.currentRemoteDescription).toMatchObject({ type: "offer" });
+    FakeSocket.last().receive({ type: "call:signal", signal: ice });
+    expect(FakePeer.instances[0]!.addIceCandidate).toHaveBeenCalledTimes(1);
+  });
+
   it("входящий: ответ, answer на offer звонящего; тот же сигнал из опроса второй раз не применяется", async () => {
     const incoming = { ...CALL, callerId: BORIS.id };
     const { calls } = fakeApi({
       "GET /api/calls": { body: { calls: [{ ...incoming, direction: "incoming", otherUser: BORIS, group: null }] } },
       "GET /api/chats/c_1": chatRoute,
+      "POST /api/calls/cl_1/answer": { body: { ok: true } },
       "GET /api/calls/cl_1/signal?after=0": { body: { signals: [signal("offer", { type: "offer", sdp: "v=0" }, 1)] } },
     });
     await joinCallById("cl_1", ME);
     // Ответ на входящий — только по кнопке «Ответить» (IncomingCall.answer), не при входе.
-    expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(false);
+    expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(true);
     // Без offer от отвечающего: offer шлёт звонящий.
     expect(sentSignals().some((m) => m.kind === "offer")).toBe(false);
 

@@ -18,6 +18,10 @@ export class ProfileNotifyService {
     private readonly privacy: UserPrivacyService
   ) {}
 
+  public visibilityChanged(user: User, viewerId: string): void {
+    this.realtime.broadcastToUsers([viewerId], { type: "contact:updated", user: this.privacy.publicUserFor(user, viewerId) });
+  }
+
   public profileChanged(userId: string, user: User): void {
     this.realtime.broadcastToUsers([userId], { type: "contact:updated", user: publicUser(user) });
     const peers = this.dmPeersOf(userId);

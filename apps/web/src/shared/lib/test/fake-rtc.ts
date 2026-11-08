@@ -58,6 +58,9 @@ export class FakePeer {
   public signalingState = "stable";
   public currentRemoteDescription: RTCSessionDescriptionInit | null = null;
   public localDescription: RTCSessionDescriptionInit | null = null;
+  public get remoteDescription() {
+    return this.currentRemoteDescription;
+  }
   public onicecandidate: ((e: { candidate: { toJSON: () => object } | null }) => void) | null = null;
   public onnegotiationneeded: (() => void) | null = null;
   public ontrack: ((e: { track: FakeTrack; transceiver: object; streams: FakeStream[] }) => void) | null = null;

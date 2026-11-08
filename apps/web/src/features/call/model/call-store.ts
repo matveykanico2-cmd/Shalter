@@ -50,6 +50,7 @@ type State = CallState & {
   screenAudio: { ctx: AudioContext; track: MediaStreamTrack; mixed: MediaStreamTrack | undefined } | null;
   /** Сигналы приходят и по сокету, и опросом — второй раз не применяем. */
   handled: Set<string>;
+  pendingIce: Map<string, RTCIceCandidateInit[]>;
 };
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -273,16 +274,28 @@ function adoptTransceivers(pc: RTCPeerConnection) {
   applyOutgoing(pc);
 }
 
+async function flushIce(owner: State, userId: string, pc: RTCPeerConnection) {
+  const candidates = owner.pendingIce.get(userId) ?? [];
+  owner.pendingIce.delete(userId);
+  for (const candidate of candidates) {
+    if (state !== owner || owner.peers.get(userId) !== pc) return;
+    try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* Устаревший кандидат. */ }
+  }
+}
+
 async function handleSignal(sig: Signal) {
   if (!state || sig.callId !== state.call.id || state.handled.has(sig.id)) return;
+  const owner = state;
   state.handled.add(sig.id);
   const data = sig.data as never;
   try {
     if (sig.kind === "offer") {
       await state.mediaReady;
-      if (!state || sig.callId !== state.call.id) return;
+      if (state !== owner) return;
       const pc = state.peers.get(sig.fromUserId) ?? createPeer(sig.fromUserId, { answering: true });
       await pc.setRemoteDescription(new RTCSessionDescription(data));
+      await flushIce(owner, sig.fromUserId, pc);
+      if (state !== owner) return;
       adoptTransceivers(pc);
       const answer = tuneOpusSdp(await pc.createAnswer());
       await pc.setLocalDescription(answer);
@@ -291,9 +304,17 @@ async function handleSignal(sig: Signal) {
     } else if (sig.kind === "answer") {
       const pc = state.peers.get(sig.fromUserId);
       await pc?.setRemoteDescription(new RTCSessionDescription(data));
-      if (pc) tunePeer(pc);
+      if (pc) {
+        await flushIce(owner, sig.fromUserId, pc);
+        tunePeer(pc);
+      }
     } else if (sig.kind === "ice") {
-      await state.peers.get(sig.fromUserId)?.addIceCandidate(new RTCIceCandidate(data));
+      const pc = state.peers.get(sig.fromUserId);
+      if (!pc?.remoteDescription) {
+        const pending = owner.pendingIce.get(sig.fromUserId) ?? [];
+        pending.push(sig.data as RTCIceCandidateInit);
+        owner.pendingIce.set(sig.fromUserId, pending);
+      } else await pc.addIceCandidate(new RTCIceCandidate(data));
     } else if (sig.kind === "end") {
       removePeer(sig.fromUserId);
     } else if (sig.kind === "media") {
@@ -314,6 +335,7 @@ const without = <T>(map: Record<string, T>, key: string) => omit(map, [key]);
 
 function removePeer(userId: string) {
   if (!state) return;
+  state.pendingIce.delete(userId);
   const pc = state.peers.get(userId);
   if (pc) {
     pc.close();
@@ -378,6 +400,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     offered: new Set(),
     mediaReady,
     handled: new Set(),
+    pendingIce: new Map(),
   };
   const mine = state;
   notify();
@@ -503,8 +526,9 @@ export function joinCallById(callId: string, me: CallPeer): Promise<void> {
     const { calls } = await callApi.list();
     const found = calls.find((c) => c.id === callId);
     if (!found || found.status !== "ongoing") return;
+    if (found.callerId !== me.id && found.kind !== "voice-room") await callApi.answer(callId);
     // Строка истории: направление и собеседник — не часть звонка.
-    const call = omit(found, ["direction", "otherUser", "group"]);
+    const call = omit(found, ["direction", "otherUser", "group", "answered"]);
     let chatTitle: string | null = "Звонок";
     let chatType = "dm";
     let participants: CallPeer[];

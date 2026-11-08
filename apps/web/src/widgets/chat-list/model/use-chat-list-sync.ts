@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { chatCache, chatQueries } from "@/entities/chat";
 import { type SelfUser, sessionQueries } from "@/entities/session";
+import { userQueries } from "@/entities/user";
 
 import { ws, type WsEvents } from "@/shared/api";
 import { toast } from "@/shared/ui";
@@ -92,7 +93,7 @@ export function useChatListSync(meId: string) {
 function applyContactUpdate(client: QueryClient, meId: string, { user }: WsEvents["contact:updated"]) {
   // Без фото (удалено или скрыто приватностью) сервер поле не присылает — сбрасываем явно,
   // иначе при слиянии осталась бы старая аватарка.
-  const patch = { avatarImage: undefined, avatarImages: [], ...user };
+  const patch = { avatarImage: undefined, avatarImages: [], avatarEmoji: undefined, lastSeen: undefined, ...user };
   if (user.id === meId) {
     client.setQueryData(sessionQueries.current().queryKey, (session) =>
       session?.user ? { ...session, user: { ...session.user, ...patch } as SelfUser } : session
@@ -100,4 +101,5 @@ function applyContactUpdate(client: QueryClient, meId: string, { user }: WsEvent
     return;
   }
   chatCache.patchOtherUser(client, user.id, patch);
+  void client.invalidateQueries({ queryKey: userQueries.profile(user.id).queryKey });
 }

@@ -29,6 +29,9 @@ export class RealtimeService {
   ) {}
 
   public broadcastToUsers(userIds: Iterable<string>, message: WsEvent): void {
+    // Скрытые сообщения нельзя раскрывать через правки, реакции и фоновые обновления.
+    const content = message.message as { visibleToId?: string; senderId?: string; deletedForIds?: string[] } | undefined;
+    if (content?.visibleToId) userIds = [...userIds].filter((uid) => (uid === content.visibleToId || uid === content.senderId) && !content.deletedForIds?.includes(uid));
     const chat = message.chat as { id?: unknown; type?: unknown; memberIds?: unknown } | undefined;
     const chatId = message.chatId ?? chat?.id;
     // Событие с каналом: админы получают его целиком, подписчики — без списка

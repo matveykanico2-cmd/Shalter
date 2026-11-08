@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MESSAGE_SOUNDS, playSentSound, previewSound, RINGTONES } from "./sounds";
+import { MESSAGE_SOUNDS, playSentSound, previewSound, RINGTONES, startRingtone, stopRingtone } from "./sounds";
 
 // Подмена WebAudio: записываем, какие ноты (частота, скольжение, форма волны) запланированы.
 type Note = { freq: number; glide: number | null; type: string; at: number };
 let notes: Note[] = [];
+const disconnect = vi.fn();
 
 class FakeAudioContext {
   public state = "running";
@@ -27,7 +28,7 @@ class FakeAudioContext {
     };
   }
   public createGain() {
-    return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: (d: unknown) => d };
+    return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: (d: unknown) => d, disconnect };
   }
 }
 
@@ -35,7 +36,7 @@ beforeEach(() => {
   notes = [];
   vi.stubGlobal("AudioContext", FakeAudioContext);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { stopRingtone(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const freqs = () => notes.map((n) => Math.round(n.freq * 100) / 100);
 
@@ -71,5 +72,16 @@ describe("звуки (как ringtone.js в main2)", () => {
   it("«Отправлено» — 880 → 1320 Гц", () => {
     playSentSound();
     expect(freqs()).toEqual([880, 1320]);
+  });
+  it("остановка рингтона отключает уже запланированные ноты и следующие повторы", () => {
+    vi.useFakeTimers();
+    disconnect.mockClear();
+    startRingtone();
+    const count = notes.length;
+    expect(count).toBeGreaterThan(0);
+    stopRingtone();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10_000);
+    expect(notes).toHaveLength(count);
   });
 });

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { callParticipants, calls } from "../db/schema.js";
 import type { Call, CallPatch, CallRow, NewCall } from "./model/domain.js";
@@ -24,6 +24,16 @@ export class CallsRepository {
       .orderBy(desc(calls.startedAt))
       .all()
       .map((r) => this.toCall(r.call)!);
+  }
+
+  public answeredIdsFor(userId: string): Set<string> {
+    return new Set(this.db.select({ callId: callParticipants.callId }).from(callParticipants)
+      .where(and(eq(callParticipants.userId, userId), isNotNull(callParticipants.answeredAt))).all().map((r) => r.callId));
+  }
+
+  public markAnswered(callId: string, userId: string, at: string): void {
+    this.db.update(callParticipants).set({ answeredAt: at })
+      .where(and(eq(callParticipants.callId, callId), eq(callParticipants.userId, userId))).run();
   }
 
   public findById(id: string): Call | undefined {

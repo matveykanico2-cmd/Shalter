@@ -39,6 +39,7 @@ export class CallsService {
 
   public async history(uid: string) {
     const calls = this.calls.listFor(uid);
+    const answered = this.calls.answeredIdsFor(uid);
     const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== uid))];
     const users = this.users.findByIds(otherIds);
     const groupTitles = new Map<string, { title: unknown; avatarColor: unknown; avatarImage: unknown; avatarEmoji: unknown }>();
@@ -53,6 +54,7 @@ export class CallsService {
       const other = otherId ? visibleById.get(otherId) : null;
       return {
         ...call,
+        ...(answered.has(call.id) ? { answered: true } : {}),
         direction: call.callerId === uid ? "outgoing" : "incoming",
         otherUser: other ?? null,
         group: groupTitles.get(call.chatId) ?? null,
@@ -147,6 +149,7 @@ export class CallsService {
   /** Ответ на одном устройстве: остальные устройства ответившего перестают звонить. */
   public answer(uid: string, id: string) {
     const call = this.participantCall(id, uid);
+    this.calls.markAnswered(call.id, uid, new Date().toISOString());
     this.realtime.broadcastToUsers([uid], { type: "call:answered", callId: call.id });
     return { ok: true };
   }

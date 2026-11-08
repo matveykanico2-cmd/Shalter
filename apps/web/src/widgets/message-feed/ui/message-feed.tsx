@@ -153,7 +153,17 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const [unreadId, setUnreadId] = useState<string | null | undefined>(undefined);
   if (unreadId === undefined && history.isFetchedAfterMount && data) setUnreadId(data.firstUnreadId);
 
-  const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null), [data?.messages, unreadId]);
+  const [calendarDay, setCalendarDay] = useState(() => new Date().toDateString());
+  useEffect(() => {
+    const update = () => setCalendarDay(new Date().toDateString());
+    const timer = setInterval(update, 1000);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+  const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null, new Date(calendarDay)), [data?.messages, unreadId, calendarDay]);
   const entrance = useEntrance(chat.id, data?.messages, meId);
   const senders = useSenders(chat, members);
   const attachmentActions = useMemo<AttachmentActions>(

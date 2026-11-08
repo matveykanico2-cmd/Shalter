@@ -23,4 +23,14 @@ describe("EmojiAvatarPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "🔥" }));
     expect(onPick).toHaveBeenCalledWith("🔥", "#e53935");
   });
+  it("выбирает прозрачность отдельно от смайла", () => {
+    const onPick = vi.fn();
+    const onColor = vi.fn();
+    render(<EmojiAvatarPicker onPick={onPick} onColor={onColor} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Прозрачный фон" }));
+    expect(onColor).toHaveBeenCalledWith("transparent");
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "🔥" }));
+    expect(onPick).toHaveBeenCalledWith("🔥", "transparent");
+  });
 });

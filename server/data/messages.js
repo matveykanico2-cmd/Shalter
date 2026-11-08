@@ -457,8 +457,8 @@ function readWatermarksFor(userId) {
 // скрывает время захода от отправителя; это решает маршрут).
 async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
   const rows = db
-    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
-    .all(chatId, viewerId, `%"${viewerId}"%`);
+    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ? AND instr(deletedForIds, ?) = 0 AND (visibleToId IS NULL OR visibleToId = ? OR senderId = ?)")
+    .all(chatId, viewerId, `%"${viewerId}"%`, JSON.stringify(viewerId), viewerId, viewerId);
   const changedIds = [];
   const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?), readTimes = ? WHERE id = ?");
   const readNow = new Date().toISOString();
@@ -476,7 +476,7 @@ async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
     }
   });
   txn();
-  const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ?").get(chatId)?.at;
+  const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ? AND instr(deletedForIds, ?) = 0 AND (visibleToId IS NULL OR visibleToId = ? OR senderId = ?)").get(chatId, JSON.stringify(viewerId), viewerId, viewerId)?.at;
   if (newest) setReadWatermark(chatId, viewerId, newest);
   return changedIds;
 }

@@ -162,9 +162,8 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
       <Section>
         <NavRow icon={isChannel ? "Send" : "Users"} color="blue" title={isChannel ? "Тип канала" : "Тип группы"} right={chat.isPublic ? "Публичный" : "Частный"} onClick={() => onOpen("type")} />
         <NavRow icon="Link" color="orange" title="Пригласительные ссылки" right={chat.approveJoins ? "по заявкам" : null} onClick={() => onOpen("invite")} />
-        {isChannel ? (
-          <NavRow icon="Smile" color="pink" title="Реакции" right={reactions ? String(reactions.length) : "Все"} onClick={() => onOpen("reactions")} />
-        ) : permissions ? (
+        <NavRow icon="Smile" color="pink" title="Реакции" right={reactions ? String(reactions.length) : "Все"} onClick={() => onOpen("reactions")} />
+        {!isChannel && permissions ? (
           <NavRow icon="Lock" color="purple" title="Права участников" right={chat.slowModeSeconds ? "медленный режим" : null} onClick={() => onOpen("permissions")} />
         ) : null}
         {isChannel ? (

@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS calls (
 CREATE TABLE IF NOT EXISTS call_participants (
   callId TEXT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
   userId TEXT NOT NULL,
+  answeredAt TEXT,
   PRIMARY KEY (callId, userId)
 );
 CREATE INDEX IF NOT EXISTS idx_call_participants_user ON call_participants(userId);
@@ -811,6 +812,9 @@ if (!existingChatColumns.has("autoDeleteSeconds")) db.exec("ALTER TABLE chats AD
 if (!existingChatColumns.has("warnings")) db.exec("ALTER TABLE chats ADD COLUMN warnings TEXT");
 if (!existingChatColumns.has("rules")) db.exec("ALTER TABLE chats ADD COLUMN rules TEXT");
 if (!existingChatColumns.has("bannedIds")) db.exec("ALTER TABLE chats ADD COLUMN bannedIds TEXT");
+
+const existingCallParticipantColumns = new Set(db.prepare("PRAGMA table_info(call_participants)").all().map((c) => c.name));
+if (!existingCallParticipantColumns.has("answeredAt")) db.exec("ALTER TABLE call_participants ADD COLUMN answeredAt TEXT");
 
 const existingCallColumns = new Set(db.prepare("PRAGMA table_info(calls)").all().map((c) => c.name));
 if (!existingCallColumns.has("joinToken")) db.exec("ALTER TABLE calls ADD COLUMN joinToken TEXT");
