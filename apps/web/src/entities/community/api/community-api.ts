@@ -2,6 +2,7 @@ import type {
   adminsBody,
   banPreviewBody,
   bansBody,
+  byChatBody,
   communityBody,
   communityRequestedBody,
   communityRights,
@@ -74,6 +75,13 @@ export const communityQueries = {
       queryKey: [...baseKey, "detail", id],
       queryFn: async ({ signal }) => (await http.get<Body>(path(id), signal)).community,
       staleTime: 0,
+      retry: false,
+    }),
+  byChat: (chatId: string) =>
+    queryOptions({
+      queryKey: [...baseKey, "by-chat", chatId],
+      queryFn: async ({ signal }) => (await http.get<z.infer<typeof byChatBody>>(`/api/communities/by-chat/${encodeURIComponent(chatId)}`, signal)).community,
+      staleTime: 30_000,
       retry: false,
     }),
 };

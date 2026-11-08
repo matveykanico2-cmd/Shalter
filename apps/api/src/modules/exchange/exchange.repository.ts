@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { genId } from "../../common/lib/gen-id.js";
 import { InjectDb, type Db } from "../db/db.module.js";
-import { exchangeCoins, exchangeCreators, exchangeRates, users } from "../db/schema.js";
+import { exchangeBalances, exchangeCoins, exchangeCreators, exchangeRates, exchangeTransactions, users } from "../db/schema.js";
+
+const rounded = (value: number) => Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000;
 
 @Injectable()
 export class ExchangeRepository {
@@ -50,5 +52,57 @@ export class ExchangeRepository {
 
   public creators() {
     return this.db.select({ userId: exchangeCreators.userId, name: users.name, username: users.username, createdAt: exchangeCreators.createdAt }).from(exchangeCreators).innerJoin(users, eq(users.id, exchangeCreators.userId)).orderBy(desc(exchangeCreators.createdAt)).all();
+  }
+
+  public wallet(userId: string) {
+    return this.db
+      .select({ amount: exchangeBalances.amount, coin: exchangeCoins })
+      .from(exchangeBalances)
+      .innerJoin(exchangeCoins, eq(exchangeCoins.id, exchangeBalances.coinId))
+      .where(eq(exchangeBalances.userId, userId))
+      .orderBy(asc(exchangeCoins.symbol))
+      .all()
+      .filter((row) => row.amount > 0)
+      .map((row) => ({ amount: rounded(row.amount), coin: row.coin }));
+  }
+
+  public mint(coinId: string, userId: string, amount: number) {
+    return this.db.transaction((tx) => {
+      this.changeBalance(tx, userId, coinId, amount);
+      const transaction = { id: genId("xt"), kind: "mint", coinId, targetCoinId: null, fromUserId: null, toUserId: userId, amount: rounded(amount), targetAmount: null, chatId: null, createdAt: new Date().toISOString() };
+      tx.insert(exchangeTransactions).values(transaction).run();
+      return transaction;
+    });
+  }
+
+  public transfer(fromUserId: string, toUserId: string, coinId: string, amount: number, chatId: string) {
+    return this.db.transaction((tx) => {
+      const balance = tx.select({ amount: exchangeBalances.amount }).from(exchangeBalances).where(and(eq(exchangeBalances.userId, fromUserId), eq(exchangeBalances.coinId, coinId))).get()?.amount ?? 0;
+      if (balance + 1e-9 < amount) return null;
+      this.changeBalance(tx, fromUserId, coinId, -amount);
+      this.changeBalance(tx, toUserId, coinId, amount);
+      const transaction = { id: genId("xt"), kind: "transfer", coinId, targetCoinId: null, fromUserId, toUserId, amount: rounded(amount), targetAmount: null, chatId, createdAt: new Date().toISOString() };
+      tx.insert(exchangeTransactions).values(transaction).run();
+      return transaction;
+    });
+  }
+
+  public convert(userId: string, fromCoinId: string, toCoinId: string, amount: number, targetAmount: number) {
+    return this.db.transaction((tx) => {
+      const balance = tx.select({ amount: exchangeBalances.amount }).from(exchangeBalances).where(and(eq(exchangeBalances.userId, userId), eq(exchangeBalances.coinId, fromCoinId))).get()?.amount ?? 0;
+      if (balance + 1e-9 < amount) return null;
+      this.changeBalance(tx, userId, fromCoinId, -amount);
+      this.changeBalance(tx, userId, toCoinId, targetAmount);
+      const transaction = { id: genId("xt"), kind: "convert", coinId: fromCoinId, targetCoinId: toCoinId, fromUserId: userId, toUserId: userId, amount: rounded(amount), targetAmount: rounded(targetAmount), chatId: null, createdAt: new Date().toISOString() };
+      tx.insert(exchangeTransactions).values(transaction).run();
+      return transaction;
+    });
+  }
+
+  private changeBalance(tx: Pick<Db, "select" | "insert" | "update">, userId: string, coinId: string, delta: number): void {
+    const current = tx.select({ amount: exchangeBalances.amount }).from(exchangeBalances).where(and(eq(exchangeBalances.userId, userId), eq(exchangeBalances.coinId, coinId))).get()?.amount ?? 0;
+    const next = rounded(current + delta);
+    const now = new Date().toISOString();
+    tx.insert(exchangeBalances).values({ userId, coinId, amount: next, updatedAt: now }).onConflictDoUpdate({ target: [exchangeBalances.userId, exchangeBalances.coinId], set: { amount: next, updatedAt: now } }).run();
   }
 }

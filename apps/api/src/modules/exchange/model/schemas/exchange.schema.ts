@@ -10,6 +10,13 @@ export const createCoinSchema = requestBody({
 });
 export const rateSchema = requestBody({ rate: z.coerce.number().positive("Курс должен быть больше нуля").max(1_000_000_000, "Слишком большой курс") });
 export const creatorSchema = requestBody({ userId: z.string().trim().min(1), enabled: z.boolean() });
+const amount = z.coerce.number().positive("Количество должно быть больше нуля").max(1_000_000_000, "Слишком большое количество");
+export const mintSchema = requestBody({ userId: z.string().trim().min(1), amount });
+export const transferSchema = requestBody({ chatId: z.string().trim().min(1), userId: z.string().trim().min(1), coinId: z.string().trim().min(1), amount });
+export const convertSchema = requestBody({ fromCoinId: z.string().trim().min(1), toCoinId: z.string().trim().min(1), amount });
 export type CreateCoinDto = z.infer<typeof createCoinSchema>;
 export type RateDto = z.infer<typeof rateSchema>;
 export type CreatorDto = z.infer<typeof creatorSchema>;
+export type MintDto = z.infer<typeof mintSchema>;
+export type TransferDto = z.infer<typeof transferSchema>;
+export type ConvertDto = z.infer<typeof convertSchema>;

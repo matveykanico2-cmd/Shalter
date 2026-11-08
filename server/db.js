@@ -1307,6 +1307,26 @@ CREATE TABLE IF NOT EXISTS exchange_creators (
   grantedBy TEXT NOT NULL,
   createdAt TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS exchange_balances (
+  userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  coinId TEXT NOT NULL REFERENCES exchange_coins(id) ON DELETE CASCADE,
+  amount REAL NOT NULL DEFAULT 0,
+  updatedAt TEXT NOT NULL,
+  PRIMARY KEY (userId, coinId)
+);
+CREATE TABLE IF NOT EXISTS exchange_transactions (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  coinId TEXT NOT NULL REFERENCES exchange_coins(id) ON DELETE CASCADE,
+  targetCoinId TEXT REFERENCES exchange_coins(id) ON DELETE SET NULL,
+  fromUserId TEXT REFERENCES users(id) ON DELETE SET NULL,
+  toUserId TEXT REFERENCES users(id) ON DELETE SET NULL,
+  amount REAL NOT NULL,
+  targetAmount REAL,
+  chatId TEXT REFERENCES chats(id) ON DELETE SET NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_exchange_transactions_user ON exchange_transactions(fromUserId, toUserId, createdAt);
 
 -- Кэш перевода интерфейса (server/routes/translate.js /batch): одна и та же
 -- надпись переводится в Google один раз на весь сервер, а не у каждого юзера.
@@ -1549,6 +1569,31 @@ runOnce("community-members-in-open-chats", () => {
   for (const r of rows) {
     add.run(r.chatId, r.userId);
     mark.run(r.chatId, r.userId, r.communityId, now);
+  }
+});
+
+// С 2026-11-08 членство сообщества единое: каждый его участник состоит во всех группах
+// и каналах, в том числе приватных, скрытых и с заявками. Это отдельная миграция, чтобы
+// базы, уже выполнившие прежний перенос только открытых чатов, тоже были исправлены.
+runOnce("community-members-in-all-chats", () => {
+  const rows = db
+    .prepare(
+      `SELECT cc.chatId, m.userId, cc.communityId
+         FROM community_chats cc
+         JOIN (SELECT communityId, userId FROM community_members WHERE left = 0
+               UNION SELECT id AS communityId, ownerId AS userId FROM communities) m ON m.communityId = cc.communityId
+         JOIN chats c ON c.id = cc.chatId
+        WHERE c.type IN ('group', 'channel')
+          AND COALESCE(c.secret, 0) = 0
+          AND NOT EXISTS (SELECT 1 FROM community_bans b WHERE b.communityId = cc.communityId AND b.userId = m.userId)`
+    )
+    .all();
+  const add = db.prepare("INSERT OR IGNORE INTO chat_members (chatId, userId) VALUES (?, ?)");
+  const mark = db.prepare("INSERT OR IGNORE INTO community_auto_members (chatId, userId, communityId, addedAt) VALUES (?, ?, ?, ?)");
+  const now = new Date().toISOString();
+  for (const row of rows) {
+    add.run(row.chatId, row.userId);
+    mark.run(row.chatId, row.userId, row.communityId, now);
   }
 });
 

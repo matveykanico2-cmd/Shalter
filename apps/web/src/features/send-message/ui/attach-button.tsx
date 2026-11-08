@@ -16,6 +16,8 @@ type Props = {
   onDice: (emoji: string) => void;
   /** Каталог игр — карточка выбранной игры уходит в чат. */
   onGames: () => void;
+  /** Игровой перевод внутренней монеты участнику чата. */
+  onCoins?: () => void;
   onLocation: (live: boolean) => void;
   onContact: () => void;
   onHugo: () => void;
@@ -42,7 +44,7 @@ const PHONE_QUERY = "(max-width: 560px)";
 type Tile = { icon: IconName; label: string; color: string };
 
 /** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, мем, рисунок, опрос, чек-лист, кубики, геолокация, контакт. */
-export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, onGames, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
+export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, onGames, onCoins, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [phone, setPhone] = useState(false);
   const [diceAt, setDiceAt] = useState<{ x: number; y: number } | null>(null);
@@ -72,6 +74,7 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
     ...(onArticle ? [{ icon: "Star" as const, label: "Статья (Premium)", onClick: onArticle }] : []),
     // Меню закрывается раньше, чем откроется следующее, — второе ставим в ту же точку.
     { icon: "Smile", label: "Кубик и игры", onClick: () => setTimeout(() => setDiceAt(at), 0) },
+    ...(onCoins ? [{ icon: "Zap" as const, label: "Отправить монеты", onClick: onCoins }] : []),
     ...(phone ? [] : [{ icon: "MapPin" as const, label: "Геолокация", onClick: () => onLocation(false) }]),
     { icon: "MapPin", label: "Живая геолокация (15 мин)", onClick: () => onLocation(true) },
     ...(phone ? [] : [{ icon: "Users" as const, label: "Контакт", onClick: onContact }]),

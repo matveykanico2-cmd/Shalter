@@ -95,6 +95,8 @@ type Props = {
   topicId?: string | null;
   /** Кого можно отправить контактом, кроме своих контактов (участники чата), и кого нельзя. */
   people?: readonly PickedContact[];
+  /** Открыть серверный перевод игровой монеты участнику этого чата. */
+  onCoins?: () => void;
   excludeContacts?: readonly string[];
   /** Эффекты при отправке — в личке. */
   allowEffects?: boolean;
@@ -811,6 +813,7 @@ export function Composer(props: Props) {
                 onArticle={channel ? undefined : openArticle}
                 onDice={(emoji) => void sendAttachment("", { kind: "dice", meta: { emoji } })}
                 onGames={openGames}
+                onCoins={props.onCoins}
                 onLocation={(live) => void sendLocation(live)}
                 onContact={() => setCreating("contact")}
                 onHugo={() => void runHugo()}

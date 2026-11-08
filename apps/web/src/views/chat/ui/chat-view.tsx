@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 
@@ -12,6 +12,7 @@ import { SubscribeBar } from "@/features/channel-subscription";
 import { useChatActions } from "@/features/chat-actions";
 import { ChatSearch } from "@/features/chat-search";
 import { ContactBar } from "@/features/contact-bar";
+import { CoinTransferDialog } from "@/features/exchange";
 import { LiveBar } from "@/features/live";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile } from "@/features/open-profile";
@@ -19,6 +20,7 @@ import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/feat
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
 import { type ChatCard, type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, isChatModerator, useChatCard, useChatFromList, useTyping } from "@/entities/chat";
+import { communityQueries } from "@/entities/community";
 import { inTopic, type Message, type MessageLinkHandlers, MessageLinks, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
@@ -62,8 +64,11 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [coinsOpen, setCoinsOpen] = useState(false);
   const actions = useMessageActions(chat, me);
   const chatActions = useChatActions(chat, me.id);
+  const community = useQuery(communityQueries.byChat(chat.id));
+  const inCommunity = !!community.data;
   const blockedOther = !!chat.otherUser && me.blockedUserIds.includes(chat.otherUser.id);
   const title = chatTitle(chat);
   const wallpaper = wallpaperProps(chatWallpaper(useSettings().data, chat.id, chat.wallpaper));
@@ -144,7 +149,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <div className={styles.main}>
-        <ChatHeader chat={chat} members={members} me={me} typing={typing} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        <ChatHeader chat={chat} members={members} me={me} typing={typing} hideMembers={inCommunity} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
         {searching !== null ? (
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
         ) : null}
@@ -170,6 +175,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                 channel={chat.type === "channel"}
                 topicId={openTopic?.id ?? null}
                 people={people}
+                onCoins={() => setCoinsOpen(true)}
                 excludeContacts={notContacts}
                 mentions={mentionable}
                 botCommands={botCommands}
@@ -200,8 +206,9 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
           />
         </div>
       </div>
-      {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} onClose={() => setInfoOpen(false)} /> : null}
+      {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} hideMembers={inCommunity} onClose={() => setInfoOpen(false)} /> : null}
       {miniApp ? <MiniApp target={miniApp} onClose={() => setMiniApp(null)} /> : null}
+      {coinsOpen ? <CoinTransferDialog chatId={chat.id} people={people} onClose={() => setCoinsOpen(false)} /> : null}
       {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}
     </section>
   );

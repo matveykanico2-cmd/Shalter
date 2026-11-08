@@ -101,6 +101,7 @@ export function messagePreview(m: Message | null | undefined) {
     if (att.kind === "checklist") return `☑️ ${text || "Чек-лист"}`;
     if (att.kind === "dice") return `${att.meta?.emoji ?? "🎲"} ${diceResult(att.meta)}`;
     if (att.kind === "game") return `🎮 ${att.meta?.title ?? "Игра"}`;
+    if (att.kind === "coin-transfer") return `🪙 ${text || "Перевод монет"}`;
     if (att.kind === "paid") return `⭐ Платный пост${text ? `: ${text}` : ""}`;
     if (att.kind === "file" && att.name) {
       const isAudio = att.mimeType?.startsWith("audio/") || /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba)$/i.test(att.name);

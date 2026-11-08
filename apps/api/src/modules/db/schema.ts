@@ -1020,3 +1020,23 @@ export const exchangeCreators = sqliteTable("exchange_creators", {
   grantedBy: text().notNull(),
   createdAt: text().notNull(),
 });
+
+export const exchangeBalances = sqliteTable("exchange_balances", {
+  userId: text().notNull().references(() => users.id, { onDelete: "cascade" }),
+  coinId: text().notNull().references(() => exchangeCoins.id, { onDelete: "cascade" }),
+  amount: real().default(0).notNull(),
+  updatedAt: text().notNull(),
+}, (table) => [primaryKey({ columns: [table.userId, table.coinId], name: "exchange_balances_userId_coinId_pk" })]);
+
+export const exchangeTransactions = sqliteTable("exchange_transactions", {
+  id: text().primaryKey(),
+  kind: text().notNull(),
+  coinId: text().notNull().references(() => exchangeCoins.id, { onDelete: "cascade" }),
+  targetCoinId: text().references(() => exchangeCoins.id, { onDelete: "set null" }),
+  fromUserId: text().references(() => users.id, { onDelete: "set null" }),
+  toUserId: text().references(() => users.id, { onDelete: "set null" }),
+  amount: real().notNull(),
+  targetAmount: real(),
+  chatId: text().references(() => chats.id, { onDelete: "set null" }),
+  createdAt: text().notNull(),
+});

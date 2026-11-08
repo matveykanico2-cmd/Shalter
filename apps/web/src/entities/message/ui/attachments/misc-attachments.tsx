@@ -45,6 +45,24 @@ export function ContactAttachment({ attachment: a }: { attachment: Attachment })
   );
 }
 
+/** Игровой перевод монет: данные подписаны серверной транзакцией, клиент их не создаёт. */
+export function CoinTransferAttachment({ attachment: a, meId }: { attachment: Attachment; meId: string }) {
+  const { symbol, name, color, amount, fromUserId, toUserId, toName } = (a.meta ?? {}) as {
+    symbol?: string; name?: string; color?: string; amount?: number; fromUserId?: string; toUserId?: string; toName?: string;
+  };
+  const incoming = toUserId === meId;
+  const mine = fromUserId === meId;
+  return (
+    <div className={styles.coinTransfer} style={{ "--coin-color": color || "#2aabee" } as React.CSSProperties}>
+      <span className={styles.coinTransferIcon}>{symbol?.slice(0, 2) || "¤"}</span>
+      <span className={styles.contactBody}>
+        <span className={styles.coinTransferAmount}>{Number(amount ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} {symbol}</span>
+        <span className={styles.coords}>{incoming ? "Получено вами" : mine ? `Отправлено: ${toName || "участнику"}` : `Игровой перевод · ${name || symbol || "монета"}`}</span>
+      </span>
+    </div>
+  );
+}
+
 /** День рождения друга (BirthdayAttachment в messageBubble.js): «Быстро:» — подарки-подсказки и «Подарить». */
 export function BirthdayAttachment({ attachment: a, meId }: { attachment: Attachment; meId: string }) {
   const { userId, name, avatarImage, suggestedGifts } = (a.meta ?? {}) as {

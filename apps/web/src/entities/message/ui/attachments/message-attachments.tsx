@@ -13,7 +13,7 @@ import { type ChecklistActions, ChecklistAttachment } from "./checklist-attachme
 import { DiceAttachment, GameCard } from "./dice-attachment";
 import { FileAttachment } from "./file-attachment";
 import { ImageAttachment } from "./image-attachment";
-import { BirthdayAttachment, ContactAttachment, LocationAttachment } from "./misc-attachments";
+import { BirthdayAttachment, CoinTransferAttachment, ContactAttachment, LocationAttachment } from "./misc-attachments";
 import { PaidMedia } from "./paid-media";
 import { type PollActions, PollAttachment } from "./poll-attachment";
 import { VideoAttachment } from "./video-attachment";
@@ -96,6 +96,9 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
         return;
       case "game":
         out.push(<GameCard key={i} attachment={a} message={message} />);
+        return;
+      case "coin-transfer":
+        out.push(<CoinTransferAttachment key={i} attachment={a} meId={meId} />);
         return;
       case "paid":
         out.push(

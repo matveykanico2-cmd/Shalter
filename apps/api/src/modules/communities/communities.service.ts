@@ -185,9 +185,8 @@ export class CommunitiesService {
     const row = this.communities.memberRow(community.id, uid);
     const alreadyJoined = community.ownerId === uid || (!!row && !row.left);
     this.communities.join(community.id, uid);
-    // Вступил сам — сразу в открытых чатах сообщества. Повторное «Вступить» ничего не добавляет:
-    // иначе вышедший из чата возвращался бы туда против воли.
-    if (!alreadyJoined) this.access.addToChats(this.access.reload(community.id), uid);
+    // Членство единое: повторный вызов также восстанавливает недостающий чат.
+    if (!alreadyJoined || community.chatIds.length) this.access.addToChats(this.access.reload(community.id), uid);
     // Открытые страницы сообщества у остальных обновляют число участников сразу.
     this.access.notify(community.id);
     return { community: this.access.view(community, uid) };

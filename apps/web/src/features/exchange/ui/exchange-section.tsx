@@ -6,7 +6,7 @@ import { useSession } from "@/entities/session";
 import { errorText } from "@/shared/lib/error-text";
 import { Button, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
 
-import { createCoin, type ExchangeCoin, exchangeQueries, setExchangeCreator, updateCoinRate } from "../api/exchange";
+import { convertCoin, createCoin, type ExchangeCoin, exchangeQueries, mintCoin, setExchangeCreator, updateCoinRate } from "../api/exchange";
 
 import styles from "./exchange.module.css";
 
@@ -26,7 +26,7 @@ export function ExchangeSection() {
   if (query.isPending) return <SettingsPage title="Биржа монет"><p className={styles.state}>Загрузка котировок…</p></SettingsPage>;
   if (query.isError || !query.data) return <SettingsPage title="Биржа монет"><p className={styles.state}>Не удалось загрузить биржу</p></SettingsPage>;
   return (
-    <SettingsPage title="Биржа монет" subtitle="Информационная витрина Shalter. Покупка, продажа и перевод монет отключены.">
+    <SettingsPage title="Биржа монет" subtitle="Игровые монеты Shalter: без покупки и вывода, но с переводами и обменом.">
       <div className={styles.hero}>
         <div><span className={styles.live}><i /> Котировки</span><h2>Рынок Shalter</h2><p>Наблюдайте за курсом и историей изменений. Это виртуальные показатели, не финансовый инструмент.</p></div>
         <div className={styles.heroCount}>{query.data.coins.length}<small>монет</small></div>
@@ -35,10 +35,39 @@ export function ExchangeSection() {
         {query.data.coins.map((coin) => <CoinCard key={coin.id} coin={coin} canEdit={isAdmin || (query.data.permissions.canCreate && coin.createdBy === me?.id)} onRate={(value) => rate.mutate({ id: coin.id, value })} busy={rate.isPending} />)}
         {!query.data.coins.length ? <p className={styles.empty}>Монет пока нет. Администратор или назначенный создатель может добавить первую.</p> : null}
       </div>
+      <Wallet coins={query.data.coins} canMint={query.data.permissions.canCreate} isAdmin={isAdmin} meId={me?.id ?? ""} />
       {query.data.permissions.canCreate ? <CreateCoin busy={create.isPending} onCreate={(data) => create.mutate(data)} /> : null}
       {isAdmin ? <CreatorAccess creators={creators.data ?? []} busy={creator.isPending} onSet={(id, enabled) => creator.mutate({ id, enabled })} /> : null}
     </SettingsPage>
   );
+}
+
+function Wallet({ coins, canMint, isAdmin, meId }: { coins: ExchangeCoin[]; canMint: boolean; isAdmin: boolean; meId: string }) {
+  const client = useQueryClient();
+  const wallet = useQuery(exchangeQueries.wallet());
+  const balances = wallet.data?.balances ?? [];
+  const [fromId, setFromId] = useState("");
+  const [toId, setToId] = useState("");
+  const [amount, setAmount] = useState("1");
+  const [mint, setMint] = useState({ coinId: "", userId: "", amount: "100" });
+  const conversion = useMutation({ mutationFn: convertCoin, onSuccess: (data) => { client.setQueryData(exchangeQueries.wallet().queryKey, data.wallet); toast("Монеты конвертированы"); }, onError: (error) => toast(errorText(error, "Не удалось конвертировать"), { error: true }) });
+  const issue = useMutation({ mutationFn: ({ coinId, userId, value }: { coinId: string; userId: string; value: number }) => mintCoin(coinId, userId, value), onSuccess: () => { void client.invalidateQueries({ queryKey: ["exchange", "wallet"] }); toast("Монеты начислены"); }, onError: (error) => toast(errorText(error, "Не удалось начислить монеты"), { error: true }) });
+  const sourceId = fromId || balances[0]?.coin.id || "";
+  const targetId = toId || coins.find((coin) => coin.id !== sourceId)?.id || "";
+  const mintable = isAdmin ? coins : coins.filter((coin) => coin.createdBy === meId);
+  const mintCoinId = mint.coinId || mintable[0]?.id || "";
+  return <SettingsSection title="Игровой кошелёк" caption="Монеты нельзя купить или вывести. Перевод отправляется прямо сообщением в чат.">
+    <div className={styles.walletBalances}>{balances.map((balance) => <div key={balance.coin.id}><span style={{ background: balance.coin.color }}>{balance.coin.symbol.slice(0, 2)}</span><b>{balance.coin.symbol}</b><strong>{money.format(balance.amount)}</strong></div>)}{!balances.length ? <p className={styles.empty}>Баланс пуст</p> : null}</div>
+    {balances.length && coins.length > 1 ? <form className={styles.walletForm} onSubmit={(event) => { event.preventDefault(); conversion.mutate({ fromCoinId: sourceId, toCoinId: targetId, amount: Number(amount) }); }}>
+      <label>Отдаёте<select value={sourceId} onChange={(event) => setFromId(event.target.value)}>{balances.map((balance) => <option key={balance.coin.id} value={balance.coin.id}>{balance.coin.symbol} · {balance.amount}</option>)}</select></label>
+      <label>Получаете<select value={targetId} onChange={(event) => setToId(event.target.value)}>{coins.filter((coin) => coin.id !== sourceId).map((coin) => <option key={coin.id} value={coin.id}>{coin.symbol} · курс {coin.currentRate}</option>)}</select></label>
+      <TextField aria-label="Количество для конвертации" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /><Button disabled={conversion.isPending || !targetId || Number(amount) <= 0}>Конвертировать сразу</Button>
+    </form> : null}
+    {canMint && mintable.length ? <form className={styles.walletForm} onSubmit={(event) => { event.preventDefault(); issue.mutate({ coinId: mintCoinId, userId: mint.userId.trim(), value: Number(mint.amount) }); }}>
+      <label>Выпустить монету<select value={mintCoinId} onChange={(event) => setMint({ ...mint, coinId: event.target.value })}>{mintable.map((coin) => <option key={coin.id} value={coin.id}>{coin.symbol}</option>)}</select></label>
+      <TextField aria-label="ID получателя монет" placeholder="ID пользователя" value={mint.userId} onChange={(event) => setMint({ ...mint, userId: event.target.value })} /><TextField aria-label="Количество для начисления" inputMode="decimal" value={mint.amount} onChange={(event) => setMint({ ...mint, amount: event.target.value })} /><Button disabled={issue.isPending || !mint.userId.trim() || Number(mint.amount) <= 0}>Начислить монеты</Button>
+    </form> : null}
+  </SettingsSection>;
 }
 
 function CoinCard({ coin, canEdit, onRate, busy }: { coin: ExchangeCoin; canEdit: boolean; onRate: (rate: number) => void; busy: boolean }) {

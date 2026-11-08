@@ -31,6 +31,7 @@ type Props = {
   me: SelfUser;
   /** Кто печатает — useTyping в ChatView (его же видит лента). */
   typing: Typing;
+  hideMembers?: boolean;
   onSearch: () => void;
   /** «Информация о чате» открыта справа. */
   infoOpen: boolean;
@@ -38,7 +39,7 @@ type Props = {
 };
 
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
-export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onInfo }: Props) {
+export function ChatHeader({ chat, members, me, typing, hideMembers = false, onSearch, infoOpen, onInfo }: Props) {
   const meId = me.id;
   const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | "ai" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
@@ -58,7 +59,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
   // Личка с ботом: «бот · N пользователей» и кнопка его мини-приложения.
   const bot = chat.type === "dm" && other?.isBot ? other : null;
   const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
-  const subtitle = chatSubtitle(chat, members, meId, typing, now, botUsers);
+  const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
   return (
     // Шапка чата — banner, как <header> старого клиента вне <main>.
     <header className={styles.header} role="banner">
@@ -121,7 +122,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
             {chat.type === "dm" && other ? <ProfileStatusBadge user={other} size={15} /> : null}
             {chat.type === "dm" && other?.safetyLabel ? <SafetyBadge label={other.safetyLabel} mini /> : null}
           </h1>
-          {subtitle.text ? (
+          {subtitle?.text ? (
             <p className={styles[subtitle.tone]} aria-live="polite">
               {subtitle.text}
             </p>

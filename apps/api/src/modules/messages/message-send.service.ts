@@ -93,6 +93,13 @@ export class MessageSendService {
     });
   }
 
+  /** Серверное вложение, которое нельзя подделать через обычный POST сообщения. */
+  public async sendTrustedAttachment(uid: string, chat: Chat, text: string, attachment: Attachment): Promise<Message> {
+    const body: MessageDraft = { text };
+    await this.gate(chat, uid, body, { allowBlocked: true });
+    return this.deliver(chat, uid, body, { trustedAttachments: [attachment] });
+  }
+
   /**
    * Все проверки «можно ли этому человеку сюда писать». Общие для обычной отправки и
    * отложенной: иначе через расписание можно было постить в чужой канал, писать при запрете
@@ -278,7 +285,7 @@ export class MessageSendService {
   }
 
   /** Сохраняет сообщение и рассылает его: участникам по WS, ботам, ИИ, в пуш; фоном — превью. */
-  public async deliver(chat: Chat, senderId: string, body: MessageDraft, { paidStars = 0, paid = null as PaidPost | null } = {}): Promise<Message> {
+  public async deliver(chat: Chat, senderId: string, body: MessageDraft, { paidStars = 0, paid = null as PaidPost | null, trustedAttachments = null as Attachment[] | null } = {}): Promise<Message> {
     const hiddenRecipient = chat.type === "dm" ? chat.memberIds.find((id) => id !== senderId && this.users.findById(id)?.blockedUserIds.includes(senderId)) : undefined;
     let forwardedFrom = body.forwardedFrom as ForwardedFrom | undefined;
     if (forwardedFrom?.senderId) {
@@ -293,7 +300,7 @@ export class MessageSendService {
     const replyToId = inThisChat(body.replyToId) ? body.replyToId : null;
     const threadRootId = inThisChat(body.threadRootId) ? body.threadRootId : null;
     const clean = sanitizers();
-    const attachments = paid ? [paid.placeholder] : hiddenRecipient ? clean.sanitizeAttachments(body.attachments) : markPendingPreviews(clean.sanitizeAttachments(body.attachments));
+    const attachments = paid ? [paid.placeholder] : trustedAttachments ?? (hiddenRecipient ? clean.sanitizeAttachments(body.attachments) : markPendingPreviews(clean.sanitizeAttachments(body.attachments)));
     // «Предложить фото профиля» — только одно фото в обычной личке, как в Telegram: не в
     // секретном и не в защищённом от пересылки чате (копия-аватарка открыта всем).
     const photoSuggestion =

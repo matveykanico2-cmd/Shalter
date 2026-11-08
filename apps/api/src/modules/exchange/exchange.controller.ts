@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { AuthGuard } from "../auth/guards/auth.guard.js";
 import { ExchangeService } from "./exchange.service.js";
-import { createCoinSchema, creatorSchema, rateSchema, type CreateCoinDto, type CreatorDto, type RateDto } from "./model/schemas/exchange.schema.js";
+import { convertSchema, createCoinSchema, creatorSchema, mintSchema, rateSchema, transferSchema, type ConvertDto, type CreateCoinDto, type CreatorDto, type MintDto, type RateDto, type TransferDto } from "./model/schemas/exchange.schema.js";
 
 @Controller("api/exchange")
 @UseGuards(AuthGuard)
@@ -25,4 +25,19 @@ export class ExchangeController {
 
   @Put("creators")
   public setCreator(@Req() req: Request, @Body(new ZodValidationPipe(creatorSchema)) dto: CreatorDto) { return this.exchange.setCreator(req.uid!, dto); }
+
+  @Get("wallet")
+  public wallet(@Req() req: Request) { return this.exchange.wallet(req.uid!); }
+
+  @Post("coins/:id/mint")
+  @HttpCode(200)
+  public mint(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(mintSchema)) dto: MintDto) { return this.exchange.mint(req.uid!, id, dto); }
+
+  @Post("transfer")
+  @HttpCode(200)
+  public transfer(@Req() req: Request, @Body(new ZodValidationPipe(transferSchema)) dto: TransferDto) { return this.exchange.transfer(req.uid!, dto); }
+
+  @Post("convert")
+  @HttpCode(200)
+  public convert(@Req() req: Request, @Body(new ZodValidationPipe(convertSchema)) dto: ConvertDto) { return this.exchange.convert(req.uid!, dto); }
 }

@@ -27,12 +27,12 @@ import { membersLine, sortMembers } from "../lib/members";
 
 import styles from "./chat-info-panel.module.css";
 
-type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; onClose: () => void };
+type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; hideMembers?: boolean; onClose: () => void };
 
 type Dialog = { kind: "mute" } | { kind: "report"; target: ReportTarget; label: string } | null;
 
 /** «Информация о чате» справа (на телефоне — на весь экран) — как public/js/components/infoPanel.js. */
-export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
+export function ChatInfoPanel({ chat, members, me, hideMembers = false, onClose }: Props) {
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [giftPicker, setGiftPicker] = useState(false);
@@ -124,7 +124,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           </p>
           {other ? (
             <p className={status === "в сети" ? `${styles.subtitle} ${styles.online}` : styles.subtitle}>{status ?? "был(а) недавно"}</p>
-          ) : !isDm ? (
+          ) : !isDm && !hideMembers ? (
             <p className={styles.subtitle}>{membersLine(chat, members)}</p>
           ) : null}
         </HeroBox>
@@ -222,7 +222,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           ) : null}
         </div>
 
-        {!isDm && (chat.type !== "channel" || isAdmin) ? <Members chat={chat} members={members} meId={me.id} /> : null}
+        {!isDm && !hideMembers && (chat.type !== "channel" || isAdmin) ? <Members chat={chat} members={members} meId={me.id} /> : null}
       </div>
 
       {autoDeleteAt ? (
