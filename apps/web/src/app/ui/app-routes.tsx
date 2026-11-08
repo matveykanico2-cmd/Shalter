@@ -15,6 +15,7 @@ import type { SelfUser } from "@/entities/session";
 import { lazyView as lazyLoadedView } from "@/shared/lib/lazy-view";
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
+import { ScreenLoader } from "@/shared/ui";
 
 import { Splash } from "../ui/splash";
 
@@ -38,7 +39,9 @@ const CommunityView = lazyLoadedView(() => import("@/views/community").then((m) 
 const FolderInviteView = lazyLoadedView(() => import("@/views/folder-invite").then((m) => m.FolderInviteView));
 const QrScanView = lazyLoadedView(() => import("@/views/qr-scan").then((m) => m.QrScanView));
 
-const lazyView = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
+// Пока чанк экрана грузится, занимаем всю отведённую ему область. Пустой fallback на
+// /settings оставлял под ним список и домашний экран с «Выберите чат».
+const lazyView = (node: ReactNode) => <Suspense fallback={<ScreenLoader />}>{node}</Suspense>;
 
 /** Боковые разделы: на компьютере — в колонке списка чатов, на телефоне — во весь экран. */
 const sideRoutes = () => [

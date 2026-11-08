@@ -19,6 +19,7 @@ export { MediaViewer, type ViewerItem } from "./media-viewer";
 export { Menu, type MenuItem } from "./menu";
 export { NowPlayingBar } from "./now-playing-bar";
 export { PhoneField } from "./phone-field";
+export { ScreenLoader } from "./screen-loader";
 export { SettingsButton, SettingsPage, SettingsRow, type SettingsRowColor, SettingsSection } from "./settings-list";
 export { useSettingsSubpage, useSettingsSubpageState } from "./settings-subpage";
 export { StreamAudio, StreamVideo } from "./stream-media";
