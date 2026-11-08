@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -75,6 +75,15 @@ describe("«Модерация»", () => {
       "POST /api/admin/users/u_boris0001/ban": { body: { user: BANNED } },
       "POST /api/admin/users/u_boris0001/label": { body: { user: { ...USER, safetyLabel: "scam", safetyLabelAt: "2026-10-26T10:00:00.000Z" } } },
     });
+    // Начальный ответ карточки намеренно приходит после успешной блокировки.
+    const fetch = globalThis.fetch;
+    let releaseReports!: () => void;
+    const delayedReports = new Promise<void>((resolve) => { releaseReports = resolve; });
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await fetch(input, init);
+      if (String(input) === "/api/admin/users/u_boris0001/reports") await delayedReports;
+      return response;
+    });
     renderModeration();
 
     expect(await screen.findByText("Открытые жалобы (1)")).toBeTruthy();
@@ -92,6 +101,8 @@ describe("«Модерация»", () => {
     fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Рассылка спама" } });
     fireEvent.click(within(ask).getByRole("button", { name: "OK" }));
     expect(await within(card).findByText(/Аккаунт заблокирован — пользователь уведомлён/)).toBeTruthy();
+    await act(async () => releaseReports());
+    expect(await within(card).findByText("Жалоб на этот аккаунт нет")).toBeTruthy();
     expect(within(card).getByText(/^Заблокирован .* до .*\. Причина: Спам$/)).toBeTruthy();
     expect(within(card).getByRole("button", { name: "Разблокировать" })).toBeTruthy();
     expect(api.calls.find((c) => c.key === "POST /api/admin/users/u_boris0001/ban")?.body).toEqual({ banned: true, reason: "Рассылка спама", durationSec: 7 * 86400 });

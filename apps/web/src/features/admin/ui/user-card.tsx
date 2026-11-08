@@ -88,6 +88,8 @@ export function UserCard({ user, onClose }: Props) {
 function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUser; onClose: () => void }) {
   const client = useQueryClient();
   const [state, setState] = useState<AdminUser>(initial);
+  const [localPatch, setLocalPatch] = useState<Partial<AdminUser>>({});
+  const [pendingDirty, setPendingDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -109,8 +111,10 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
   const [seen, setSeen] = useState(fresh);
   if (fresh && fresh !== seen) {
     setSeen(fresh);
-    setState((s) => ({ ...s, ...fresh }));
-    setPending(new Set(fresh.adminSections ?? []));
+    // Начальная загрузка может завершиться уже после действия модератора.
+    // Подтверждённые правки этой карточки имеют приоритет над старым снимком.
+    setState((s) => ({ ...s, ...fresh, ...localPatch }));
+    if (!pendingDirty) setPending(new Set(localPatch.adminSections ?? fresh.adminSections ?? []));
   }
 
   /** Действие с карточкой: patch — новые поля, notice — что сказать. Списки модерации обновляются. */
@@ -121,7 +125,10 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
     setNotice(null);
     try {
       const result = (await fn()) ?? {};
-      if (result.patch) setState((s) => ({ ...s, ...result.patch }));
+      if (result.patch) {
+        setLocalPatch((patch) => ({ ...patch, ...result.patch }));
+        setState((s) => ({ ...s, ...result.patch }));
+      }
       setNotice(result.notice ?? successNotice ?? null);
       void client.invalidateQueries({ queryKey: adminQueries.moderation().queryKey });
     } catch (err) {
@@ -348,13 +355,14 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
                       aria-pressed={pending.has(s.id)}
                       className={pending.has(s.id) ? `${styles.chip} ${styles.active}` : styles.chip}
                       disabled={busy}
-                      onClick={() =>
+                      onClick={() => {
+                        setPendingDirty(true);
                         setPending((p) => {
                           const next = new Set(p);
                           if (!next.delete(s.id)) next.add(s.id);
                           return next;
-                        })
-                      }
+                        });
+                      }}
                     >
                       {s.label}
                     </button>

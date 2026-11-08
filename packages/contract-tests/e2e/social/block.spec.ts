@@ -9,7 +9,7 @@ async function texts(user: TestUser, chatId: string): Promise<string[]> {
   return (await user.api.get(`/api/chats/${chatId}/messages`)).body.messages.map((m: any) => m.text);
 }
 
-test("блокировка из лички: собеседник не может писать и не видит «в сети»; разблокировка возвращает переписку", async ({
+test("блокировка из лички: сообщения видны только автору, статус скрыт; разблокировка возвращает доставку", async ({
   newUser,
   openAs,
 }) => {
@@ -33,10 +33,10 @@ test("блокировка из лички: собеседник не может
   await expect(composer(a)).toHaveCount(0);
   await expect(a.getByRole("button", { name: "Разблокировать", exact: true }).first()).toBeVisible();
 
-  // Борис пишет — сервер отказывает, Борис видит причину, текст остаётся в поле.
+  // Борис может отправить сообщение, но оно остаётся только в его истории.
   await sendMessage(b, "Ну купи");
-  await expect(b.getByRole("status").filter({ hasText: "Пользователь заблокировал вас" })).toBeVisible();
-  await expect(composer(b)).toHaveValue("Ну купи");
+  await expect(messageText(b, "Ну купи")).toBeVisible();
+  await expect(composer(b)).toHaveValue("");
   expect(await texts(alice, chat.id)).not.toContain("Ну купи");
   await expect(messageText(a, "Ну купи")).toHaveCount(0);
 
@@ -73,10 +73,12 @@ test("блокировка из контактов и разблокировка
   await expect(a.getByRole("button", { name: "Разблокировать", exact: true })).toBeVisible();
   await expect(a.getByRole("button", { name: "Заблокировать", exact: true })).toHaveCount(0);
 
-  // Борис больше не может отправить Алисе сообщение.
+  // Отправленное Борисом видно ему самому, но не Алисе.
   const b = (await openAs(boris.api, `/chat/${chat.id}`)).page;
   await sendMessage(b, "Ты меня заблокировала?");
-  await expect(b.getByRole("status").filter({ hasText: "Пользователь заблокировал вас" })).toBeVisible();
+  await expect(messageText(b, "Ты меня заблокировала?")).toBeVisible();
+  await expect(composer(b)).toHaveValue("");
+  expect(await texts(alice, chat.id)).not.toContain("Ты меня заблокировала?");
 
   // В профиле Бориса у Алисы: «Разблокировать», а звонков нет.
   await a.goto(`/u/${boris.username}`);
