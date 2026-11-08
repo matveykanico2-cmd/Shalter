@@ -34,7 +34,7 @@ const showPreviousAvatarFullscreen = (stickerLayer: Layer) => {
 
 /** «Собрать аватар»: фон + слои (эмодзи, стикеры, фото) в выбранном порядке, как конструктор аватара в Telegram. */
 export function AvatarConstructorDialog({ onClose, onDone }: Props) {
-  const [bg, setBg] = useState(BACKGROUNDS[5]!);
+  const [bg, setBg] = useState(BACKGROUNDS.find((background) => background.id === "#65aadd")!);
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
@@ -175,7 +175,8 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
     setError(null);
     try {
       const canvas = await renderAvatar(bg, layers, 640);
-      const res = await uploadConstructedAvatar(await canvasToFile(canvas), posterOf(canvas));
+      const transparent = bg.id === "transparent";
+      const res = await uploadConstructedAvatar(await canvasToFile(canvas, transparent), posterOf(canvas, transparent));
       onDone(res.user);
       onClose();
     } catch (err) {
@@ -265,7 +266,7 @@ export function AvatarConstructorDialog({ onClose, onDone }: Props) {
             type="button"
             className={b.id === bg.id ? `${styles.swatch} ${styles.swatchActive}` : styles.swatch}
             style={{ background: b.css }}
-            aria-label={`Фон ${b.id}`}
+            aria-label={b.id === "transparent" ? "Прозрачный фон" : `Фон ${b.id}`}
             aria-pressed={b.id === bg.id}
             onClick={() => setBg(b)}
           />

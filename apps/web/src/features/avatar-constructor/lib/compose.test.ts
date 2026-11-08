@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseLottie, stickerFormat } from "./animated-source";
-import { BACKGROUNDS, clampScale, type Layer, layerRect, normalizeAngle, pinch, renderAvatar } from "./compose";
+import { BACKGROUNDS, canvasToFile, clampScale, type Layer, layerRect, normalizeAngle, pinch, posterOf, renderAvatar } from "./compose";
 
 const layer = (patch: Partial<Layer> = {}): Layer => ({ id: "l1", kind: "sticker", src: "/uploads/a.png", x: 0.5, y: 0.5, scale: 0.5, rotation: 0, ...patch });
 
@@ -63,6 +63,7 @@ describe("renderAvatar", () => {
     const ops: unknown[][] = [];
     const ctx = {
       fillStyle: "",
+      clearRect: (...a: unknown[]) => ops.push(["clearRect", ...a]),
       fillRect: (...a: unknown[]) => ops.push(["fillRect", ...a]),
       createLinearGradient: () => ({ addColorStop: () => undefined }),
       save: () => ops.push(["save"]),
@@ -74,9 +75,32 @@ describe("renderAvatar", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
     const frame = { id: "frame" } as unknown as CanvasImageSource;
     const load = vi.fn(async (url: string) => (url.includes("missing") ? null : { source: frame, width: 100, height: 100 }));
-    await renderAvatar(BACKGROUNDS[0]!, [layer({ src: "/uploads/a.tgs", x: 0.5, y: 0.5, scale: 0.5, rotation: 45 }), layer({ id: "l2", src: "/uploads/missing.webm" })], 640, load);
+    await renderAvatar(BACKGROUNDS.find((background) => background.id !== "transparent")!, [layer({ src: "/uploads/a.tgs", x: 0.5, y: 0.5, scale: 0.5, rotation: 45 }), layer({ id: "l2", src: "/uploads/missing.webm" })], 640, load);
     expect(load).toHaveBeenCalledWith("/uploads/a.tgs");
     expect(load).toHaveBeenCalledWith("/uploads/missing.webm");
     expect(ops).toEqual([["fillRect", 0, 0, 640, 640], ["save"], ["translate", 320, 320], ["rotate", 45], ["drawImage", frame, -160, -160, 320, 320], ["restore"]]);
+  });
+
+  it("прозрачный фон не закрашивается и экспортируется в PNG", async () => {
+    const ops: unknown[][] = [];
+    const ctx = {
+      clearRect: (...a: unknown[]) => ops.push(["clearRect", ...a]),
+      drawImage: (...a: unknown[]) => ops.push(["drawImage", ...a]),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
+    const canvas = await renderAvatar(BACKGROUNDS.find((background) => background.id === "transparent")!, [], 640);
+    expect(ops).toEqual([["clearRect", 0, 0, 640, 640]]);
+
+    vi.spyOn(canvas, "toBlob").mockImplementation((callback, type) => callback(new Blob(["png"], { type: type ?? undefined })));
+    const file = await canvasToFile(canvas, true);
+    expect(file.name).toBe("avatar.png");
+    expect(file.type).toBe("image/png");
+
+    const small = document.createElement("canvas");
+    vi.spyOn(document, "createElement").mockReturnValue(small);
+    vi.spyOn(small, "getContext").mockReturnValue(ctx as never);
+    const dataUrl = vi.spyOn(small, "toDataURL").mockReturnValue("data:image/png;base64,AA");
+    expect(posterOf(canvas, true)).toBe("data:image/png;base64,AA");
+    expect(dataUrl).toHaveBeenCalledWith("image/png");
   });
 });

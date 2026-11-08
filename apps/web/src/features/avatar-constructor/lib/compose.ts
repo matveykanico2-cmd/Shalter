@@ -19,6 +19,7 @@ export type Layer = {
 export type Background = { id: string; css: string; stops: readonly string[] };
 
 export const BACKGROUNDS: readonly Background[] = [
+  { id: "transparent", css: "conic-gradient(#aeb3b7 25%, #fff 0 50%, #aeb3b7 0 75%, #fff 0) 0 / 20px 20px", stops: [] },
   ...["#e17076", "#faa774", "#a695e7", "#7bc862", "#6ec9cb", "#65aadd", "#ee7aae", "#f2c94c", "#2b2d42", "#ffffff"].map((c) => ({ id: c, css: c, stops: [c] })),
   ...(
     [
@@ -72,12 +73,17 @@ export async function renderAvatar(bg: Background, layers: readonly Layer[], siz
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas недоступен");
-  if (bg.stops.length > 1) {
+  if (bg.id === "transparent") {
+    ctx.clearRect(0, 0, size, size);
+  } else if (bg.stops.length > 1) {
     const g = ctx.createLinearGradient(0, 0, size, size);
     bg.stops.forEach((c, i) => g.addColorStop(i / (bg.stops.length - 1), c));
     ctx.fillStyle = g;
-  } else ctx.fillStyle = bg.stops[0] ?? "#65aadd";
-  ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, size, size);
+  } else {
+    ctx.fillStyle = bg.stops[0] ?? "#65aadd";
+    ctx.fillRect(0, 0, size, size);
+  }
   const sources = await Promise.all(layers.map((l) => load(layerImageUrl(l))));
   layers.forEach((l, i) => {
     const src = sources[i];
@@ -92,17 +98,18 @@ export async function renderAvatar(bg: Background, layers: readonly Layer[], siz
   return canvas;
 }
 
-export function canvasToFile(canvas: HTMLCanvasElement): Promise<File> {
+export function canvasToFile(canvas: HTMLCanvasElement, transparent = false): Promise<File> {
+  const type = transparent ? "image/png" : "image/jpeg";
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(new File([b], "avatar.jpg", { type: "image/jpeg" })) : reject(new Error("Не удалось собрать картинку"))), "image/jpeg", 0.92)
+    canvas.toBlob((b) => (b ? resolve(new File([b], transparent ? "avatar.png" : "avatar.jpg", { type })) : reject(new Error("Не удалось собрать картинку"))), type, 0.92)
   );
 }
 
-export function posterOf(canvas: HTMLCanvasElement): string {
+export function posterOf(canvas: HTMLCanvasElement, transparent = false): string {
   const small = document.createElement("canvas");
   small.width = 256;
   small.height = 256;
   small.getContext("2d")?.drawImage(canvas, 0, 0, 256, 256);
-  return small.toDataURL("image/jpeg", 0.85);
+  return transparent ? small.toDataURL("image/png") : small.toDataURL("image/jpeg", 0.85);
 }
 

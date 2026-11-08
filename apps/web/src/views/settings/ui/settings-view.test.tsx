@@ -129,20 +129,28 @@ describe("«Настройки»", () => {
 
   it("«Изменить профиль»: смайл на аватарке сохраняется сразу и убирается", async () => {
     const { calls } = fakeApi({
-      "PATCH /api/users/u_me0000000": (body) => ({ body: { user: { ...ME, ...(body as object), avatarEmoji: (body as { avatarEmoji: string | null }).avatarEmoji ?? undefined } } }),
+      "PATCH /api/users/u_me0000000": (body) => {
+        const patch = body as { avatarEmoji?: string | null; avatarColor?: string };
+        return { body: { user: { ...ME, ...patch, ...(Object.hasOwn(patch, "avatarEmoji") ? { avatarEmoji: patch.avatarEmoji ?? undefined } : {}) } } };
+      },
       "GET /api/sessions": { body: { sessions: [] } },
       "GET /api/stars": { body: { balance: 0 } },
     });
     const { client } = renderSettings("/settings/profile");
     fireEvent.click(await screen.findByRole("button", { name: "Выбрать смайл" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Прозрачный фон" }));
+    await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarColor).toBe("transparent"));
+    expect(calls.find((c) => c.key === "PATCH /api/users/u_me0000000")?.body).toEqual({ avatarColor: "transparent" });
+    expect(screen.getByRole("button", { name: "🔥" })).toBeTruthy();
+
     fireEvent.click(screen.getByRole("button", { name: "🔥" }));
     await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarEmoji).toBe("🔥"));
-    expect(calls.find((c) => c.key === "PATCH /api/users/u_me0000000")?.body).toEqual({ avatarEmoji: "🔥", avatarColor: "#1e88e5" });
-    expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarColor).toBe("#1e88e5");
+    expect(calls.filter((c) => c.key === "PATCH /api/users/u_me0000000")[1]?.body).toEqual({ avatarEmoji: "🔥" });
+    expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarColor).toBe("transparent");
     expect(screen.queryByRole("button", { name: "🔥" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Убрать смайл" }));
     await waitFor(() => expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.avatarEmoji).toBeUndefined());
-    expect(calls.filter((c) => c.key === "PATCH /api/users/u_me0000000")[1]?.body).toEqual({ avatarEmoji: null, avatarColor: "#1e88e5" });
+    expect(calls.filter((c) => c.key === "PATCH /api/users/u_me0000000")[2]?.body).toEqual({ avatarEmoji: null });
   });
 });

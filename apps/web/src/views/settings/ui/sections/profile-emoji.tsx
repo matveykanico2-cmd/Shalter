@@ -19,14 +19,17 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const save = async (avatarEmoji: string | null, avatarColor = me.avatarColor) => {
+  const save = async (patch: { avatarEmoji?: string | null; avatarColor?: string }, close = false) => {
     setBusy(true);
     try {
-      const user = await updateProfile(me.id, { avatarEmoji, avatarColor });
-      updateSelf({ avatarEmoji: user.avatarEmoji, avatarColor: user.avatarColor });
-      setOpen(false);
+      const user = await updateProfile(me.id, patch);
+      updateSelf({
+        ...(Object.hasOwn(patch, "avatarEmoji") ? { avatarEmoji: user.avatarEmoji } : {}),
+        ...(Object.hasOwn(patch, "avatarColor") ? { avatarColor: user.avatarColor } : {}),
+      });
+      if (close) setOpen(false);
     } catch (err) {
-      toast(errorText(err, "Не удалось сохранить смайл"), { error: true });
+      toast(errorText(err, "Не удалось сохранить аватар"), { error: true });
     }
     setBusy(false);
   };
@@ -42,12 +45,19 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
           {me.avatarEmoji ? "Сменить смайл" : "Выбрать смайл"}
         </Button>
         {me.avatarEmoji ? (
-          <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => void save(null)}>
+          <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => void save({ avatarEmoji: null }, true)}>
             Убрать смайл
           </Button>
         ) : null}
       </div>
-      {open ? <EmojiAvatarPicker withStickers color={me.avatarColor} onPick={(e, color) => void save(e, color ?? me.avatarColor)} /> : null}
+      {open ? (
+        <EmojiAvatarPicker
+          withStickers
+          color={me.avatarColor}
+          onColor={(avatarColor) => void save({ avatarColor: avatarColor ?? "transparent" })}
+          onPick={(avatarEmoji) => void save({ avatarEmoji }, true)}
+        />
+      ) : null}
     </SettingsSection>
   );
 }

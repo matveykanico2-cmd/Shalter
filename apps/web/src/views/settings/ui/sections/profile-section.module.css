@@ -101,6 +101,12 @@
   transform: scale(1.08);
 }
 
+.colorTransparent {
+  background-color: transparent !important;
+  background-image: conic-gradient(#aeb3b7 25%, #fff 0 50%, #aeb3b7 0 75%, #fff 0) !important;
+  background-size: 12px 12px !important;
+}
+
 .colorActive {
   border-color: var(--color-text);
   box-shadow: 0 0 0 2px var(--color-surface) inset;

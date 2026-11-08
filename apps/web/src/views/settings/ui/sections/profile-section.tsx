@@ -133,18 +133,18 @@ function Profile({ me }: { me: SelfUser }) {
 
       <ProfileEmojiAvatar me={me} />
 
-      {!me.avatarImage ? (
+      {!me.avatarImage || me.avatarEmoji ? (
         <SettingsSection title="Цвет аватара">
-          <p className={`${styles.hint} ${profileStyles.pad}`}>Фон кружка с инициалами, пока не задано фото профиля</p>
+          <p className={`${styles.hint} ${profileStyles.pad}`}>Фон букв, смайла или стикера меняется отдельно и не сбрасывает содержимое аватара.</p>
           <div className={profileStyles.colorGrid}>
             {AVATAR_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
-                className={me.avatarColor === c ? `${profileStyles.colorSwatch} ${profileStyles.colorActive}` : profileStyles.colorSwatch}
+                className={[profileStyles.colorSwatch, c === "transparent" && profileStyles.colorTransparent, me.avatarColor === c && profileStyles.colorActive].filter(Boolean).join(" ")}
                 style={{ background: c }}
-                title="Выбрать цвет"
-                aria-label={`Цвет ${c}`}
+                title={c === "transparent" ? "Прозрачный фон" : "Выбрать цвет"}
+                aria-label={c === "transparent" ? "Прозрачный фон" : `Цвет ${c}`}
                 aria-pressed={me.avatarColor === c}
                 onClick={() => void saveField({ avatarColor: c }, "Не удалось сохранить цвет")}
               />
