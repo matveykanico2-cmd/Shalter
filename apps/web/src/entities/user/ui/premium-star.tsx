@@ -1,4 +1,4 @@
-import { type PointerEvent, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent, useRef, useState } from "react";
 
 import styles from "./premium-star.module.css";
 
@@ -29,7 +29,9 @@ export function PremiumStar({ size = 20 }: { size?: number }) {
     >
       <span className={styles.scene} style={{ width: size, height: size, transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
         <span className={`${styles.star} ${styles.back}`}>★</span>
-        <span className={`${styles.star} ${styles.middle}`}>★</span>
+        {[-2, -1, 0, 1, 2].map((z) => (
+          <span key={z} className={`${styles.star} ${styles.middle}`} style={{ "--star-depth": `${z}px` } as CSSProperties}>★</span>
+        ))}
         <span className={`${styles.star} ${styles.front}`}>★</span>
       </span>
     </button>

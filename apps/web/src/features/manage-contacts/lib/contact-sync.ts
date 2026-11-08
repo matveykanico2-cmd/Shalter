@@ -52,11 +52,17 @@ export async function matchAndAddAll(entries: PhoneEntry[]) {
     checked += res.checked;
   }
   let added = 0;
-  for (const entry of found) {
-    if (entry.alreadyContact) continue;
+  // Один человек может быть записан под несколькими номерами. Добавляем его один раз,
+  // а выбранным отмечаем каждое совпадение — иначе после разрешения часть строк всё ещё
+  // показывала кнопку «Добавить», хотя контакт уже появился.
+  const byUser = new Map<string, SyncedFound[]>();
+  for (const entry of found) byUser.set(entry.user.id, [...(byUser.get(entry.user.id) ?? []), entry]);
+  for (const entries of byUser.values()) {
+    if (entries.some((entry) => entry.alreadyContact)) continue;
     try {
+      const entry = entries[0]!;
       await addContact(entry.user.id, entry.localName || null);
-      entry.justAdded = true;
+      for (const match of entries) match.justAdded = true;
       added++;
     } catch {
       // Не добавился один — остальных всё равно добавляем.

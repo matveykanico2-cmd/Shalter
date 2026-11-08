@@ -5,6 +5,7 @@
   border: 0;
   background: transparent;
   cursor: grab;
+  overflow: visible;
   perspective: 180px;
   touch-action: none;
   vertical-align: middle;
@@ -15,6 +16,7 @@
 .scene {
   position: relative;
   display: block;
+  overflow: visible;
   transform-style: preserve-3d;
   transition: transform 120ms ease-out;
 }
@@ -30,11 +32,12 @@
   font-size: 1.25em;
   line-height: 1;
   text-shadow: 0 2px 5px rgba(95, 45, 210, 0.42);
+  backface-visibility: visible;
   transform-style: preserve-3d;
 }
 
 .back { color: #5530a7; transform: translateZ(-3px); }
-.middle { color: #7550db; transform: translateZ(0); }
+.middle { color: #7550db; transform: translateZ(var(--star-depth)); }
 .front { color: #b998ff; transform: translateZ(3px); }
 
 .front::after {
