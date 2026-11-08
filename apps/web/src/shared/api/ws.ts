@@ -6,7 +6,7 @@ import type { wsLiveEnded, wsLiveMessage, wsLiveMessageDeleted, wsLiveMessageUpd
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
 import type { wsStoryCommentDeleted, wsStoryCommented, wsStoryCommentLiked, wsStoryCommentUpdated, wsStoryDeleted, wsStoryLiked, wsStoryNew, wsStoryUpdated } from "@shalter/shared/schemas/stories";
 import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
-import type { aiState, callAnswered, callIncoming, callParticipantsUpdated, callSignal, callUpdated, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate, voicechatUpdated } from "@shalter/shared/schemas/ws";
+import type { aiState, callAnswered, callIncoming, callParticipantsUpdated, callSignal, callUpdated, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, newDeviceLogin, presenceUpdate, voicechatUpdated } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
 
 type Of<S extends z.ZodType> = z.infer<S>;
@@ -27,6 +27,8 @@ export type WsEvents = {
   "chat:updated": Of<typeof chatUpdated>;
   "chat:deleted": Of<typeof wsChatDeleted>;
   "community:updated": Of<typeof communityUpdated>;
+  /** Новый вход, показанный над списком чатов на уже открытых устройствах. */
+  "session:new-device": Of<typeof newDeviceLogin>;
   "presence:update": Of<typeof presenceUpdate>;
   /** Кто-то печатает (action: typing, upload_photo…; cancel — перестал). */
   "typing:update": Of<typeof wsTypingUpdate>;

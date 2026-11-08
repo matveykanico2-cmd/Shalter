@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type CSSProperties, lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useStartCall } from "@/features/call";
@@ -17,6 +17,7 @@ import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, Prem
 import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
+import { lazyView } from "@/shared/lib/lazy-view";
 import { plural, statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
 import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openInAppBrowser, toast } from "@/shared/ui";
@@ -35,7 +36,7 @@ type Props = { userId: string; me: SelfUser };
 type Overlay = "avatars" | "qr" | "share" | "report" | "channels" | "admin" | "edit-contact" | null;
 
 // Карточка модератора — отдельным чанком: она нужна только админам.
-const AdminUserCard = lazy(() => import("@/features/admin").then((m) => ({ default: m.UserCard })));
+const AdminUserCard = lazyView(() => import("@/features/admin").then((m) => m.UserCard));
 type ProfileUser = UserProfile["user"] & { inContacts?: true; mutualContact?: true; profileName?: string; profileAvatarImage?: string | null; profileAvatarEmoji?: string | null };
 
 /**

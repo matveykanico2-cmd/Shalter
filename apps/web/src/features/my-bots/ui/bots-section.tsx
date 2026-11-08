@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { chatQueries, openDm } from "@/entities/chat";
@@ -18,18 +18,36 @@ type Shown = { kind: "create" } | { kind: "token"; name: string; token: string; 
 export function BotsSection() {
   const client = useQueryClient();
   const navigate = useNavigate();
-  const bots = useQuery(botsQueries.mine()).data;
+  const botsQuery = useQuery(botsQueries.mine());
+  const bots = botsQuery.data;
   const [shown, setShown] = useState<Shown>(null);
+  const intent = useRef(0);
+  useEffect(() => () => { intent.current++; }, []);
+  const show = (next: Shown) => {
+    intent.current++;
+    setShown(next);
+  };
+  const showToken = async (b: Bot) => {
+    const request = ++intent.current;
+    try {
+      const { token } = await botToken(b.id);
+      if (request === intent.current) setShown({ kind: "token", name: b.user.name, token, fresh: false });
+    } catch (err) {
+      if (request === intent.current) fail(err, "Не удалось получить токен");
+    }
+  };
   const reload = () => client.invalidateQueries({ queryKey: botsQueries.mine().queryKey });
   const fail = (err: unknown, fallback: string) => toast(errorText(err, fallback), { error: true });
 
   const regenerate = async (b: Bot) => {
+    const request = ++intent.current;
     if (!(await askConfirm(`Обновить токен бота «${b.user.name}»? Старый токен перестанет работать.`, { okLabel: "Обновить", danger: true }))) return;
+    if (request !== intent.current) return;
     try {
       const { token } = await regenerateBotToken(b.id);
-      setShown({ kind: "token", name: b.user.name, token, fresh: true });
+      if (request === intent.current) setShown({ kind: "token", name: b.user.name, token, fresh: true });
     } catch (err) {
-      fail(err, "Не удалось обновить токен");
+      if (request === intent.current) fail(err, "Не удалось обновить токен");
     }
   };
 
@@ -63,19 +81,14 @@ export function BotsSection() {
   };
 
   const openChat = async (b: Bot) => {
+    const request = ++intent.current;
     try {
       const { chat } = await openDm(b.userId, b.user.name, b.user.avatarColor);
-      void navigate(`/chat/${chat.id}`);
+      if (request === intent.current) void navigate(`/chat/${chat.id}`);
     } catch (err) {
-      fail(err, "Не удалось открыть чат");
+      if (request === intent.current) fail(err, "Не удалось открыть чат");
     }
   };
-
-  const action = (icon: IconName, title: string, onClick: () => void) => (
-    <button type="button" className={styles.iconButton} title={title} aria-label={title} onClick={onClick}>
-      <Icon name={icon} size={15} />
-    </button>
-  );
 
   return (
     <SettingsPage subtitle="Настоящие боты, которых можно программировать как угодно">
@@ -87,10 +100,15 @@ export function BotsSection() {
           Документация Bot API →
         </a>
       </div>
-      <Button className={styles.createButton} onClick={() => setShown({ kind: "create" })}>
+      <Button className={styles.createButton} onClick={() => show({ kind: "create" })}>
         <Icon name="Plus" size={15} /> Создать бота
       </Button>
-      <p className={styles.listTitle}>Ваши боты — {bots?.length ?? 0}</p>
+      <p className={styles.listTitle}>{bots ? `Ваши боты — ${bots.length}` : "Ваши боты"}</p>
+      {botsQuery.isPending ? <p className={styles.hint} role="status">Загружаем ботов…</p> : null}
+      {botsQuery.isError ? <div role="alert">
+        <p className={styles.error}>{errorText(botsQuery.error, "Не удалось загрузить ботов")}</p>
+        <Button variant="secondary" onClick={() => void botsQuery.refetch()}>Повторить</Button>
+      </div> : null}
       {bots && bots.length === 0 ? <p className={styles.empty}>У вас пока нет ботов</p> : null}
       <div className={styles.list}>
         {bots?.map((b) => (
@@ -104,33 +122,36 @@ export function BotsSection() {
                 {b.commands.length ? <span className={styles.badge}>{b.commands.length} команд</span> : null}
               </div>
             </div>
-            {action("Send", "Открыть чат с ботом", () => void openChat(b))}
-            {action("Edit", "Редактировать бота", () => setShown({ kind: "edit", bot: b }))}
-            {action("Key", "Показать токен", () =>
-              void botToken(b.id).then(
-                ({ token }) => setShown({ kind: "token", name: b.user.name, token, fresh: false }),
-                (err: unknown) => fail(err, "Не удалось получить токен")
-              )
-            )}
-            {action("BarChart", "Команды бота", () => void editCommands(b))}
-            {action("Lock", "Обновить токен", () => void regenerate(b))}
-            {action("Trash", "Удалить бота", () => void remove(b))}
+            <BotAction icon="Send" title="Открыть чат с ботом" onClick={() => void openChat(b)} />
+            <BotAction icon="Edit" title="Редактировать бота" onClick={() => show({ kind: "edit", bot: b })} />
+            <BotAction icon="Key" title="Показать токен" onClick={() => void showToken(b)} />
+            <BotAction icon="BarChart" title="Команды бота" onClick={() => void editCommands(b)} />
+            <BotAction icon="Lock" title="Обновить токен" onClick={() => void regenerate(b)} />
+            <BotAction icon="Trash" title="Удалить бота" onClick={() => void remove(b)} />
           </div>
         ))}
       </div>
       {shown?.kind === "create" ? (
         <CreateBotDialog
-          onClose={() => setShown(null)}
+          onClose={() => show(null)}
           onSubmit={async (name, avatarImage, description) => {
-            const { bot, token } = await createBot(name, avatarImage, description);
-            client.setQueryData(botsQueries.mine().queryKey, (list) => [bot, ...(list ?? [])]);
+            const request = ++intent.current;
+            const result = await createBot(name, avatarImage, description).catch((err: unknown) => {
+              if (request === intent.current) throw err;
+              return null;
+            });
+            if (!result) return;
+            const { bot, token } = result;
+            await client.cancelQueries({ queryKey: botsQueries.mine().queryKey });
+            client.setQueryData(botsQueries.mine().queryKey, (list) => [bot, ...(list ?? []).filter((existing) => existing.id !== bot.id)]);
+            void reload();
             void client.invalidateQueries({ queryKey: chatQueries.list().queryKey });
-            setShown({ kind: "token", name: bot.user.name, token, fresh: true });
+            if (request === intent.current) setShown({ kind: "token", name: bot.user.name, token, fresh: true });
           }}
         />
       ) : null}
-      {shown?.kind === "token" ? <BotTokenDialog botName={shown.name} token={shown.token} fresh={shown.fresh} onClose={() => setShown(null)} /> : null}
-      {shown?.kind === "edit" ? <EditBotDialog bot={shown.bot} onSaved={() => void reload()} onClose={() => setShown(null)} /> : null}
+      {shown?.kind === "token" ? <BotTokenDialog botName={shown.name} token={shown.token} fresh={shown.fresh} onClose={() => show(null)} /> : null}
+      {shown?.kind === "edit" ? <EditBotDialog bot={shown.bot} onSaved={() => void reload()} onClose={() => show(null)} /> : null}
     </SettingsPage>
   );
 }
@@ -146,5 +167,13 @@ function Way({ icon, strong, text }: { icon: IconName; strong: string; text: str
         {text}
       </p>
     </div>
+  );
+}
+
+function BotAction({ icon, title, onClick }: { icon: IconName; title: string; onClick: () => void }) {
+  return (
+    <button type="button" className={styles.iconButton} title={title} aria-label={title} onClick={onClick}>
+      <Icon name={icon} size={15} />
+    </button>
   );
 }

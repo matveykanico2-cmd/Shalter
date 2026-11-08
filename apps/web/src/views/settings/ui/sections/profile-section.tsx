@@ -1,4 +1,4 @@
-import { type CSSProperties, lazy, Suspense, useEffect, useRef, useState } from "react";
+import { type CSSProperties, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AvatarViewer } from "@/widgets/user-profile";
@@ -9,6 +9,7 @@ import { bannerBackground, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, Pro
 import { ApiError, uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageUpload, mediaDuration } from "@/shared/lib/image";
+import { lazyView } from "@/shared/lib/lazy-view";
 import { Avatar, BirthdayField, Button, Icon, PhoneField, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
 
 import { addProfileTrack, clearProfileTracks, removeProfileTrack, setMainProfileTrack } from "../../api/profile-api";
@@ -23,7 +24,7 @@ import profileStyles from "./profile-section.module.css";
 import styles from "./sections.module.css";
 
 // Конструктор аватара грузится только по кнопке «Собрать аватар».
-const AvatarConstructorDialog = lazy(() => import("@/features/avatar-constructor").then((m) => ({ default: m.AvatarConstructorDialog })));
+const AvatarConstructorDialog = lazyView(() => import("@/features/avatar-constructor").then((m) => m.AvatarConstructorDialog));
 
 const PHONE_NEEDS_PASSWORD = "Чтобы сменить номер, введите пароль от аккаунта";
 const MAX_TRACKS = 20;

@@ -1,3 +1,17 @@
+/* Документация — обычная страница, ей нужна прокрутка документа.
+   base.css также используется оболочкой мессенджера и запрещает прокрутку body. */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+}
+
 .doc-page {
   min-height: 100vh;
   background: var(--color-bg);

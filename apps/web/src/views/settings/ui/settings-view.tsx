@@ -1,10 +1,11 @@
-import { createElement, lazy, type ReactElement, Suspense, useState } from "react";
+import { createElement, type ReactElement, Suspense, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 
 import { ProfileQrDialog } from "@/features/profile-qr";
 
 import { type SelfUser, useSession } from "@/entities/session";
 
+import { lazyView } from "@/shared/lib/lazy-view";
 import { useCloseSidePanel } from "@/shared/lib/side-panel";
 import { Icon, Menu, useSettingsSubpageState } from "@/shared/ui";
 
@@ -15,7 +16,7 @@ import { SettingsMenu } from "./settings-menu";
 import styles from "./settings-view.module.css";
 
 // Каждый раздел — свой чанк: React.lazy один раз на раздел, загрузка — при первом открытии.
-const SECTION_ELEMENTS = new Map<string, ReactElement>(SETTINGS_SECTIONS.map((s) => [s.id, createElement(lazy(s.load))]));
+const SECTION_ELEMENTS = new Map<string, ReactElement>(SETTINGS_SECTIONS.map((s) => [s.id, createElement(lazyView(() => s.load().then((m) => m.default)))]));
 
 /** /settings и /settings/:section — SettingsView в public/js/views/settings/index.js. */
 export function SettingsView() {

@@ -1,6 +1,6 @@
 // Service Worker for Shalter - offline caching
-// v4 — клиент apps/web: старый кэш (с public/js) при активации удаляется.
-const CACHE_NAME = 'shalter-v4';
+// v5 — API больше не кэшируется: старые ответы сессий, профилей и токенов удаляются.
+const CACHE_NAME = 'shalter-v5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -60,22 +60,11 @@ self.addEventListener('fetch', (event) => {
   // (video Range requests, its own HTTP cache).
   if (url.pathname.startsWith('/uploads/')) return;
   
-  // API requests - network first, cache fallback
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
-    return;
-  }
-  
+  // Личные API-ответы зависят от сессии и текущего состояния сервера.
+  // При обрыве сети клиент должен получить ошибку, а не старый токен, профиль
+  // или ответ другого аккаунта. Не перехватываем API и не сохраняем его в Cache Storage.
+  if (url.pathname.startsWith('/api/')) return;
+
   // Gift scenes - from the cache at once, refreshed in the background: a regenerated
   // scene shows up on the next view without a service worker update.
   if (url.pathname.startsWith('/gift-scenes/') && url.pathname !== '/gift-scenes/index.json') {

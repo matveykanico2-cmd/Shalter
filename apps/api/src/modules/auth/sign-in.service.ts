@@ -5,6 +5,7 @@ import { parseUserAgent } from "../../common/lib/user-agent.js";
 import { passwordMatches } from "../../common/lib/password.js";
 import { sendMessagePush } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import type { Session } from "../sessions/model/domain.js";
 import { UiLanguageService } from "../ui-language/ui-language.service.js";
 import { selfUser } from "../users/lib/user.presenter.js";
@@ -34,7 +35,8 @@ export class SignInService {
     private readonly codes: AuthCodesStore,
     private readonly qrLogins: QrLoginsStore,
     private readonly notices: SystemNoticesService,
-    private readonly uiLanguage: UiLanguageService
+    private readonly uiLanguage: UiLanguageService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public async loginWithEmail(req: Request, res: Response, email: string, password: string): Promise<LoginResult> {
@@ -170,7 +172,18 @@ export class SignInService {
       location: req.ip || "неизвестно",
     });
     this.usersRepository.touchSecurityActivity(userId, req.ip || "");
-    if (isNewDevice && priorSessions.length > 0) await this.sendLoginAlert(userId, session);
+    if (isNewDevice && priorSessions.length > 0) {
+      // Новое устройство подключит сокет только после ответа на вход, поэтому событие получают
+      // уже открытые устройства. Оно дополняет постоянное сообщение в системном чате.
+      this.realtime.broadcastToUsers([userId], {
+        type: "session:new-device",
+        sessionId: session.id,
+        device: session.device || "Неизвестное устройство",
+        location: session.location || "Неизвестно",
+        at: session.lastActive,
+      });
+      await this.sendLoginAlert(userId, session);
+    }
     return session;
   }
 

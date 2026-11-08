@@ -1545,3 +1545,28 @@ For local isolated browser checks (each worker creates its own temporary data di
 ```bash
 npm run test:e2e -- ui-fixes.spec.ts reliability.spec.ts chat-list.spec.ts calls.spec.ts social/profile.spec.ts platform/communities.spec.ts --workers=2
 ```
+
+
+## Bot documentation and slow-network fixes (2026-11-08)
+
+Publish `public/styles/bots.css`, `public/sw.js` and the client build together.
+Service worker v5 removes the old cache containing private API responses; only
+static assets are cached. Existing installations activate this update automatically.
+
+```bash
+npm run build:web
+npm run test:e2e -- platform/bots-delays.spec.ts platform/bots.spec.ts --workers=2
+```
+
+## New-device alert and stale chunk recovery (2026-11-08)
+
+Deploy the API and web build together. Existing tabs recover once from a missing hashed
+JavaScript chunk by reloading the current page. A login on a new device emits the
+`session:new-device` WebSocket event to already connected devices; the warning above the chat
+list can open session details or revoke that exact session.
+
+```bash
+npm run build:api
+npm run build:web
+npm run test:e2e -- new-device-alert.spec.ts --workers=1
+```

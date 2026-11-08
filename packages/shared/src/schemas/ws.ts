@@ -46,3 +46,12 @@ export const aiState = z.strictObject({ type: z.literal("ai:state"), chatId: z.s
 
 /** Сообщество изменилось — перечитать его (modules/communities). */
 export const communityUpdated = z.strictObject({ type: z.literal("community:updated"), communityId: z.string() });
+
+/** На уже открытые устройства: в аккаунт только что вошли с нового устройства. */
+export const newDeviceLogin = z.strictObject({
+  type: z.literal("session:new-device"),
+  sessionId: z.string(),
+  device: z.string(),
+  location: z.string(),
+  at: isoDate,
+});

@@ -24,6 +24,12 @@
   place-items: center;
 }
 
+.stickerWrap[style*="transparent"],
+.emojiAvatar[style*="transparent"],
+.fallback[style*="transparent"] {
+  background: transparent !important;
+}
+
 .emojiAvatar {
   overflow: hidden;
 }

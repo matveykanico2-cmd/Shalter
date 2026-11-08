@@ -1,4 +1,4 @@
-import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
+import { type ReactNode, Suspense, useEffect, useState } from "react";
 import { Route, Routes, useLocation } from "react-router";
 
 import { HomeView } from "@/views/home";
@@ -12,6 +12,7 @@ import { ShareInboxHost, ShareRoute } from "@/features/share-inbox";
 
 import type { SelfUser } from "@/entities/session";
 
+import { lazyView as lazyLoadedView } from "@/shared/lib/lazy-view";
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
 
@@ -22,20 +23,20 @@ import { AtUsername } from "./at-username";
 // Экраны — отдельными чанками (как import() в public/js/app.js): оболочка и список чатов
 // появляются раньше, экран чата подгружается в простое (prefetchChat).
 const loadChat = () => import("@/views/chat");
-const ChatView = lazy(() => loadChat().then((m) => ({ default: m.ChatView })));
-const CallView = lazy(() => import("@/views/call").then((m) => ({ default: m.CallView })));
-const CallJoinView = lazy(() => import("@/views/call").then((m) => ({ default: m.CallJoinView })));
-const CallsView = lazy(() => import("@/views/calls").then((m) => ({ default: m.CallsView })));
-const UsernameView = lazy(() => import("@/views/username").then((m) => ({ default: m.UsernameView })));
-const JoinView = lazy(() => import("@/views/join").then((m) => ({ default: m.JoinView })));
-const SettingsView = lazy(() => import("@/views/settings").then((m) => ({ default: m.SettingsView })));
-const ContactsView = lazy(() => import("@/views/contacts").then((m) => ({ default: m.ContactsView })));
-const ArchiveView = lazy(() => import("@/views/archive").then((m) => ({ default: m.ArchiveView })));
-const NearbyView = lazy(() => import("@/views/nearby").then((m) => ({ default: m.NearbyView })));
-const DiscoverChannelsView = lazy(() => import("@/views/discover-channels").then((m) => ({ default: m.DiscoverChannelsView })));
-const CommunityView = lazy(() => import("@/views/community").then((m) => ({ default: m.CommunityView })));
-const FolderInviteView = lazy(() => import("@/views/folder-invite").then((m) => ({ default: m.FolderInviteView })));
-const QrScanView = lazy(() => import("@/views/qr-scan").then((m) => ({ default: m.QrScanView })));
+const ChatView = lazyLoadedView(() => loadChat().then((m) => m.ChatView));
+const CallView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallView));
+const CallJoinView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallJoinView));
+const CallsView = lazyLoadedView(() => import("@/views/calls").then((m) => m.CallsView));
+const UsernameView = lazyLoadedView(() => import("@/views/username").then((m) => m.UsernameView));
+const JoinView = lazyLoadedView(() => import("@/views/join").then((m) => m.JoinView));
+const SettingsView = lazyLoadedView(() => import("@/views/settings").then((m) => m.SettingsView));
+const ContactsView = lazyLoadedView(() => import("@/views/contacts").then((m) => m.ContactsView));
+const ArchiveView = lazyLoadedView(() => import("@/views/archive").then((m) => m.ArchiveView));
+const NearbyView = lazyLoadedView(() => import("@/views/nearby").then((m) => m.NearbyView));
+const DiscoverChannelsView = lazyLoadedView(() => import("@/views/discover-channels").then((m) => m.DiscoverChannelsView));
+const CommunityView = lazyLoadedView(() => import("@/views/community").then((m) => m.CommunityView));
+const FolderInviteView = lazyLoadedView(() => import("@/views/folder-invite").then((m) => m.FolderInviteView));
+const QrScanView = lazyLoadedView(() => import("@/views/qr-scan").then((m) => m.QrScanView));
 
 const lazyView = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
 

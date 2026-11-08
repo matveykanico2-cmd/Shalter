@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useMatch } from "react-router";
+import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
 import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
@@ -17,12 +17,12 @@ import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortC
 import { communityActivity, communityQueries, type JoinedCommunity, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
-import { useWsEvent } from "@/shared/api";
+import { http, useWsEvent, type WsEvents } from "@/shared/api";
 import { applyUpdate, useAppUpdate } from "@/shared/lib/app-update";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
-import { Icon, Menu } from "@/shared/ui";
+import { Icon, Menu, toast } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
 import { useChatListSync } from "../model/use-chat-list-sync";
@@ -52,6 +52,7 @@ export function ChatList({ meId }: { meId: string }) {
   const chats = chatsQuery.data;
   const connection = useConnectionTitle();
   const currentId = useMatch("/chat/:chatId")?.params.chatId;
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState("all");
   const [showArchive, setShowArchive] = useState(false);
@@ -69,6 +70,31 @@ export function ChatList({ meId }: { meId: string }) {
   // Поиск: запрос уходит, когда набор затих на 150 мс (как в chatList.js).
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const loginAlertKey = `shalter:new-device:${meId}`;
+  const [newDevice, setNewDevice] = useState<WsEvents["session:new-device"] | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(loginAlertKey) || "null") as WsEvents["session:new-device"] | null;
+    } catch {
+      return null;
+    }
+  });
+  useWsEvent("session:new-device", (event) => {
+    localStorage.setItem(loginAlertKey, JSON.stringify(event));
+    setNewDevice(event);
+  });
+  const dismissNewDevice = () => {
+    localStorage.removeItem(loginAlertKey);
+    setNewDevice(null);
+  };
+  const rejectNewDevice = async () => {
+    if (!newDevice) return;
+    try {
+      await http.delete(`/api/sessions/${encodeURIComponent(newDevice.sessionId)}`);
+      dismissNewDevice();
+    } catch (error) {
+      toast(errorText(error, "Не удалось завершить чужой сеанс"), { error: true });
+    }
+  };
   useEffect(() => {
     const t = setTimeout(() => setQuery(search.trim()), 150);
     return () => clearTimeout(t);
@@ -237,6 +263,21 @@ export function ChatList({ meId }: { meId: string }) {
             <Icon name="RotateCw" size={14} />
             {appUpdate.updating ? "Обновляем…" : "Обновить Shalter"}
           </button>
+        ) : null}
+
+        {newDevice && !searching ? (
+          <section className={styles.loginAlert} aria-label="Вход с нового устройства">
+            <span className={styles.loginAlertIcon}><Icon name="Monitor" size={22} /></span>
+            <button type="button" className={styles.loginAlertDetails} onClick={() => navigate("/settings/devices")}>
+              <strong>Вход с нового устройства</strong>
+              <span>{newDevice.device} · {newDevice.location}</span>
+              <span className={styles.loginAlertLink}>Подробности</span>
+            </button>
+            <div className={styles.loginAlertActions}>
+              <button type="button" className={styles.loginAlertDanger} onClick={() => void rejectNewDevice()}>Это не я</button>
+              <button type="button" onClick={dismissNewDevice}>Это я</button>
+            </div>
+          </section>
         ) : null}
 
       {/* Полоса историй — между поиском и вкладками, как StoriesBar в chatList.js; пока ищут — скрыта. */}
