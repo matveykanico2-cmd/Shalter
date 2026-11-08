@@ -135,7 +135,7 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
   return (
     <>
       <div className={styles.head}>
-        <AvatarEditor name={title || chat.title || ""} color={avatarColor} image={avatar.image} emoji={avatar.emoji} size={120} onChange={setAvatar} />
+        <AvatarEditor name={title || chat.title || ""} color={avatarColor} image={avatar.image} emoji={avatar.emoji} size={120} onChange={setAvatar} onColor={setAvatarColor} />
       </div>
       <Section>
         <div className={styles.fields}>

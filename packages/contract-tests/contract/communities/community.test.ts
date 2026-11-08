@@ -99,7 +99,7 @@ describe("POST /api/communities", () => {
     const res = await a.api.post("/api/communities", {
       title: "  Клуб  ",
       description: "  О нас  ",
-      avatarColor: "#0123456789abcdefghijklmn",
+      avatarColor: "#1e88e5",
       addMode: "nonsense",
     });
     const c = expectOk(res, communityBody).community;
@@ -107,7 +107,7 @@ describe("POST /api/communities", () => {
       id: c.id,
       title: "Клуб",
       description: "О нас",
-      avatarColor: "#0123456789abcdefghi",
+      avatarColor: "#1e88e5",
       avatarImage: null,
       avatarEmoji: null,
       addMode: "all",
@@ -149,6 +149,7 @@ describe("POST /api/communities", () => {
     expectError(await a.api.post("/api/communities", { title: "   " }), 400, "Введите название сообщества");
     expectError(await a.api.post("/api/communities", { title: "x", avatarImage: "javascript:alert(1)" }), 400, "Некорректное изображение");
     expectError(await a.api.post("/api/communities", { title: "x", avatarImage: 42 }), 400, "Некорректное изображение");
+    expectError(await a.api.post("/api/communities", { title: "x", avatarColor: "url(//example.com/x)" }), 400, "Некорректный цвет");
     expectError(await a.api.post("/api/communities", { title: "x", chatId: "c_nonexistent00" }), 404, "Чат не найден");
     expectError(await a.api.post("/api/communities", { title: "x", chatId: notMine.id }), 404, "Чат не найден");
     expectError(await a.api.post("/api/communities", { title: "x", chatId: dm.id }), 400, "В сообщество добавляются группы и каналы");
@@ -268,8 +269,8 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
     });
     const joinedB = expectOk(await b.api.get("/api/communities/joined"), joinedBody).communities;
     expect(joinedB).toHaveLength(1);
-    // Скрытый чат, где B не состоит, в его список не попадает.
-    expect(joinedB[0]).toMatchObject({ id: c.id, role: "member", isOwner: false, chatIds: [shown.id] });
+    // Членство единое: участник сообщества состоит и в скрытом чате.
+    expect(joinedB[0]).toMatchObject({ id: c.id, role: "member", isOwner: false, chatIds: [shown.id, hidden.id] });
     expect(expectOk(await outsider.api.get("/api/communities/joined"), joinedBody).communities).toEqual([]);
   });
 
@@ -331,12 +332,13 @@ describe("PATCH /api/communities/:id", () => {
       await a.api.patch(`/api/communities/${c.id}`, {
         title: " Новое ",
         description: "стало",
+        avatarColor: "transparent",
         avatarImage: avatar,
         addMode: "admins",
       }),
       communityBody
     ).community;
-    expect(updated).toMatchObject({ title: "Новое", description: "стало", avatarImage: avatar, addMode: "admins" });
+    expect(updated).toMatchObject({ title: "Новое", description: "стало", avatarColor: "transparent", avatarImage: avatar, addMode: "admins" });
     await bWs.waitFor("community:updated", aboutCommunity(c.id));
     await outWs.expectNone("community:updated");
     // Повторное сохранение того же аватара — без ошибок.
@@ -358,6 +360,7 @@ describe("PATCH /api/communities/:id", () => {
 
     expectError(await a.api.patch(`/api/communities/${c.id}`, { title: "  " }), 400, "Введите название сообщества");
     expectError(await a.api.patch(`/api/communities/${c.id}`, { avatarImage: "ftp://x" }), 400, "Некорректное изображение");
+    expectError(await a.api.patch(`/api/communities/${c.id}`, { avatarColor: "url(//example.com/x)" }), 400, "Некорректный цвет");
     // Чужая неприкреплённая загрузка и выдуманная ссылка — тоже (иначе файл открылся бы всем).
     const theirs = await uploadedUrl(b);
     for (const avatarImage of [theirs, fakeUploadUrl()]) {
@@ -408,7 +411,7 @@ describe("DELETE /api/communities/:id", () => {
 });
 
 describe("участие: join / leave", () => {
-  test("вступивший сразу в открытых чатах; в приватные, с заявками и скрытые — нет; вышел — только из них", async () => {
+  test("вступивший сразу во всех чатах сообщества; вышедший удаляется из всех", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const joiner = await registerUser(baseUrl);
@@ -426,14 +429,14 @@ describe("участие: join / leave", () => {
 
     const joined = expectOk(await joiner.api.post(`/api/communities/${c.id}/join`), communityBody).community;
     const memberOf = (v: typeof joined) => Object.fromEntries(v.chats.map((x) => [x.id, x.isMember]));
-    expect(memberOf(joined)).toEqual({ [openGroup.id]: true, [channel.id]: true, [privateGroup.id]: false, [approval.id]: false });
+    expect(memberOf(joined)).toEqual({ [openGroup.id]: true, [channel.id]: true, [privateGroup.id]: true, [approval.id]: true, [hiddenGroup.id]: true });
     await joinerWs.waitFor("chat:added", (e) => e.chat?.id === openGroup.id);
-    expect((await joiner.api.get(`/api/chats/${hiddenGroup.id}`)).status).toBe(404);
+    expect((await joiner.api.get(`/api/chats/${hiddenGroup.id}`)).status).toBe(200);
 
-    // Сам вышел из группы — повторное «Вступить» в сообщество его туда не возвращает.
+    // Повторное «Вступить» восстанавливает отсутствующее членство единого сообщества.
     expectOk(await joiner.api.post(`/api/chats/${openGroup.id}/leave`), z.unknown());
     expectOk(await joiner.api.post(`/api/communities/${c.id}/join`), communityBody);
-    expect((await joiner.api.get(`/api/chats/${openGroup.id}`)).status).toBe(404);
+    expect((await joiner.api.get(`/api/chats/${openGroup.id}`)).status).toBe(200);
 
     // Выход из сообщества — из чатов, куда его добавило сообщество.
     expectOk(await joiner.api.post(`/api/communities/${c.id}/leave`), okBody);
@@ -441,7 +444,7 @@ describe("участие: join / leave", () => {
     expect((await joiner.api.get(`/api/chats/${channel.id}`)).status).toBe(404);
   });
 
-  test("новый открытый чат сообщества — у вступивших, но не у подписчиков каналов и не у запретивших добавлять себя", async () => {
+  test("новый чат — у всех участников сообщества, но не у отдельного подписчика канала", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const member = await registerUser(baseUrl);
@@ -458,7 +461,7 @@ describe("участие: join / leave", () => {
     expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: fresh.id }), communityBody);
     const ids = (await a.api.get(`/api/chats/${fresh.id}`)).body.chat.memberIds as string[];
     expect(ids).toContain(member.id);
-    expect(ids).not.toContain(strict.id);
+    expect(ids).toContain(strict.id);
     expect(ids).not.toContain(subscriber.id);
   });
 
@@ -487,19 +490,20 @@ describe("участие: join / leave", () => {
 
     expectError(await a.api.post(`/api/communities/${c.id}/leave`), 400, "Владелец не может покинуть сообщество — его можно только удалить");
 
-    // Выход — только из сообщества: чат остаётся.
+    // Выход из сообщества удаляет и из всех его чатов.
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/leave`), okBody)).toEqual({ ok: true });
     const asB = expectOk(await b.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(asB).toMatchObject({ role: null, isMember: false, isBanned: false, addPolicy: null });
-    expect(asB.chats.map((x) => x.id)).toEqual([group.id]);
+    expect(asB.chats.map((x) => ({ id: x.id, isMember: x.isMember }))).toEqual([{ id: group.id, isMember: false }]);
     expect(expectOk(await b.api.get("/api/communities/joined"), joinedBody).communities).toEqual([]);
-    expect(expectOk(await b.api.get(`/api/communities/by-chat/${group.id}`), byChatBody).community?.isMember).toBe(false);
-    expectOk(await b.api.get(`/api/chats/${group.id}`), chatCard);
+    expectError(await b.api.get(`/api/communities/by-chat/${group.id}`), 404, "not found");
+    expectError(await b.api.get(`/api/chats/${group.id}`), 404, "not found");
     expectError(await b.api.post(`/api/communities/${c.id}/leave`), 403, NOT_MEMBER);
     expect(expectOk(await a.api.get(`/api/communities/${c.id}`), communityBody).community.membersCount).toBe(2);
 
-    // Вернуться можно через join.
+    // Бывший участник может вернуться; единое членство в чатах восстанавливается.
     expect(expectOk(await b.api.post(`/api/communities/${c.id}/join`), communityBody).community.role).toBe("member");
+    expectOk(await b.api.get(`/api/chats/${group.id}`), chatCard);
   });
 
   test("удалённому из сообщества: GET и join — 403", async () => {

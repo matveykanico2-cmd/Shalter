@@ -55,6 +55,7 @@
     "@capacitor/share": "^7.0.4",
     "@capawesome-team/capacitor-android-foreground-service": "^7.0.1",
     "better-sqlite3": "^13.0.2",
+    "capacitor-native-settings": "^7.0.2",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",

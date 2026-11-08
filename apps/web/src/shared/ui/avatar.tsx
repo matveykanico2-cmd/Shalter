@@ -54,7 +54,7 @@ export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: st
           <img className={styles.sticker} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
         </span>
       ) : (
-        <span className={styles.fallback} translate="no" style={{ background, fontSize: size * 0.5 }}>
+        <span className={styles.fallback} translate="no" style={{ background, color: background === "transparent" ? "var(--color-text)" : undefined, fontSize: size * 0.5 }}>
           {emoji ? <span className={styles.emojiBg}>{emoji}</span> : initials(name) || "?"}
         </span>
       )}

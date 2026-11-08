@@ -17,6 +17,7 @@ import { useGuestUiTranslation } from "../model/use-ui-translation";
 
 import { AppRoutes } from "./app-routes";
 import { AppServices } from "./app-services";
+import styles from "./session-gate.module.css";
 import { Splash } from "./splash";
 
 /** Экраны приложения — только со входом; без него — на /login. */
@@ -27,11 +28,7 @@ export function RequireSession() {
   if (isPending) return <Splash />;
   if (isError) {
     // Сервер недоступен: не выкидываем на вход, а предлагаем повторить.
-    return (
-      <div role="alert" onClick={() => void refetch()}>
-        Нет связи с сервером — нажмите, чтобы повторить
-      </div>
-    );
+    return <OfflineState retry={() => void refetch()} />;
   }
   if (!data.user) {
     // Отправка из системного меню «Поделиться»: содержимое дожидается входа.
@@ -39,6 +36,21 @@ export function RequireSession() {
     return <Navigate to="/login" replace />;
   }
   return <SignedIn user={data.user} />;
+}
+
+function OfflineState({ retry }: { retry: () => void }) {
+  const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  return (
+    <main className={styles.offline} role="alert">
+      <div className={styles.offlineGlow} />
+      <div className={styles.offlineCard}>
+        <div className={styles.offlineIcon} aria-hidden="true"><span /><span /><span /></div>
+        <h1>{offline ? "Нет подключения к интернету" : "Shalter временно недоступен"}</h1>
+        <p>{offline ? "Проверьте Wi‑Fi или мобильную сеть. Чаты появятся автоматически после подключения." : "Не удалось связаться с сервером. Ваши сообщения и данные в безопасности."}</p>
+        <button type="button" onClick={retry}>Попробовать снова</button>
+      </div>
+    </main>
+  );
 }
 
 function SignedIn({ user }: { user: SelfUser }) {

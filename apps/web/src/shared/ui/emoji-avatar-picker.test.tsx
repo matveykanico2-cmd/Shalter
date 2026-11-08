@@ -1,36 +1,33 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AvatarBackgroundPicker } from "./avatar-editor";
 import { EmojiAvatarPicker } from "./emoji-avatar-picker";
 
 afterEach(cleanup);
 
 describe("EmojiAvatarPicker", () => {
-  it("смайл из сетки выбирается вместе с фоном", () => {
+  it("смайл из сетки выбирается независимо от фона", () => {
     const onPick = vi.fn();
     render(<EmojiAvatarPicker onPick={onPick} />);
     const grid = screen.getByRole("group", { name: "Смайл на аватарке" });
     expect(grid.querySelectorAll("button").length).toBeGreaterThan(10);
     fireEvent.click(screen.getByRole("button", { name: "🔥" }));
-    expect(onPick).toHaveBeenCalledWith("🔥", "#1e88e5");
+    expect(onPick).toHaveBeenCalledWith("🔥");
   });
 
-  it("фон меняется, ручного ввода смайла нет", () => {
+  it("не показывает фон и ручной ввод внутри меню смайлов", () => {
     const onPick = vi.fn();
     render(<EmojiAvatarPicker onPick={onPick} />);
     expect(screen.queryByRole("textbox", { name: "Свой смайл" })).toBeNull();
-    fireEvent.click(screen.getByRole("radio", { name: "Фон 1" }));
+    expect(screen.queryByRole("radiogroup", { name: "Фон аватарки" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "🔥" }));
-    expect(onPick).toHaveBeenCalledWith("🔥", "#e53935");
+    expect(onPick).toHaveBeenCalledWith("🔥");
   });
   it("выбирает прозрачность отдельно от смайла", () => {
-    const onPick = vi.fn();
     const onColor = vi.fn();
-    render(<EmojiAvatarPicker onPick={onPick} onColor={onColor} />);
+    render(<AvatarBackgroundPicker color="#1e88e5" onPick={onColor} />);
     fireEvent.click(screen.getByRole("radio", { name: "Прозрачный фон" }));
     expect(onColor).toHaveBeenCalledWith("transparent");
-    expect(onPick).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "🔥" }));
-    expect(onPick).toHaveBeenCalledWith("🔥", "transparent");
   });
 });

@@ -34,7 +34,6 @@ import { CommunityPanel, CommunityRow } from "./community-panel";
 
 /** Высота строки чата (аватар 54 + отступы 7 + 7); точную меряет виртуализатор. */
 const ROW_HEIGHT = 68;
-const SCROLL_TO_TOP = false;
 
 const NO_FOLDERS: ChatFolder[] = [];
 
@@ -180,6 +179,7 @@ export function ChatList({ meId }: { meId: string }) {
   }, [chats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const didInitialScroll = useRef(false);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -196,7 +196,8 @@ export function ChatList({ meId }: { meId: string }) {
   // чтобы пользователь видел начало списка, а не конец (виртуализатор при этом сам не ставит
   // scrollTop в 0: без этого новое содержимое появлялось бы снизу при долгой загрузке).
   useEffect(() => {
-    if (!SCROLL_TO_TOP || !scrollRef.current || rows.length === 0) return;
+    if (didInitialScroll.current || !scrollRef.current || rows.length === 0) return;
+    didInitialScroll.current = true;
     virtualizer.scrollToOffset(0, { align: "start" });
   }, [virtualizer, rows.length]);
 

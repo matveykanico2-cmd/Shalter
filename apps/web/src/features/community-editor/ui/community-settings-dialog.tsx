@@ -67,23 +67,24 @@ type MainProps = { community: Community; onOpen: (s: Screen) => void; onClose: (
 function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProps) {
   const actions = useCommunityActions();
   const rights = community.rights;
-  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarImage: community.avatarImage ?? null, avatarEmoji: community.avatarEmoji ?? null };
+  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarColor: community.avatarColor ?? null, avatarImage: community.avatarImage ?? null, avatarEmoji: community.avatarEmoji ?? null };
   const [title, setTitle] = useState(saved.title);
   const [description, setDescription] = useState(saved.description);
   const [addMode, setAddMode] = useState<AddMode>(saved.addMode);
   const [avatar, setAvatar] = useState<AvatarValue>({ image: saved.avatarImage, emoji: saved.avatarEmoji });
+  const [avatarColor, setAvatarColor] = useState<string | null>(saved.avatarColor);
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   // tweb hasCommunityEditChanges: «Сохранить» — только когда что-то изменилось.
   const dirty =
-    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatar.image !== saved.avatarImage || avatar.emoji !== saved.avatarEmoji)) || (rights.editChats && addMode !== saved.addMode);
+    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatarColor !== saved.avatarColor || avatar.image !== saved.avatarImage || avatar.emoji !== saved.avatarEmoji)) || (rights.editChats && addMode !== saved.addMode);
 
   const save = async () => {
     const t = title.trim();
     if (!t) return setInvalid(true);
     setBusy(true);
     const patch: Parameters<typeof communityApi.update>[1] = {};
-    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarImage: avatar.image, avatarEmoji: avatar.emoji });
+    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarColor, avatarImage: avatar.image, avatarEmoji: avatar.emoji });
     if (rights.editChats) patch.addMode = addMode;
     try {
       await communityApi.update(community.id, patch);
@@ -100,7 +101,7 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
   return (
     <Dialog title={rights.editInfo || rights.editChats ? "Изменить сообщество" : "Сообщество"} onClose={onClose} className={styles.wide}>
       {rights.editInfo ? (
-        <AvatarEditor name={title} color={community.avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
+        <AvatarEditor name={title} color={avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} onColor={setAvatarColor} />
       ) : (
         <span className={styles.center}>
           <Avatar size={120} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />

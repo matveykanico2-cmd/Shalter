@@ -51,12 +51,12 @@ afterEach(() => {
 });
 
 describe("renderGiftArt", () => {
-  it("вне экрана — рамка с эмодзи-заглушкой и ни одного запроса", async () => {
+  it("вне экрана — лёгкая рамка без тяжёлой эмодзи-заглушки и запросов", async () => {
     const { renderGiftArt } = await load();
     const node = renderGiftArt({ id: "shalter_crab_hug", emoji: "🦀" }, { size: 72, replay: false }) as HTMLElement;
     expect(node.style.width).toBe("72px");
     expect(node.style.height).toBe("72px");
-    expect(node.childNodes.length).toBe(1);
+    expect(node.childNodes.length).toBe(0);
     await Promise.resolve();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(observed.map((o) => o.el)).toEqual([node]);
@@ -83,6 +83,15 @@ describe("renderGiftArt", () => {
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.filter((u) => u === "/gift-scenes/index.json")).toHaveLength(1);
     expect(urls.some((u) => u.startsWith("/gift-scenes/") && u !== "/gift-scenes/index.json")).toBe(false);
+  });
+
+  it("при ошибке загрузки показывает лёгкий статический fallback", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    const { renderGiftArt } = await load();
+    const node = renderGiftArt({ id: "rose", emoji: "🌹" }, { size: 72, replay: false }) as HTMLElement;
+    show(node);
+    await vi.waitFor(() => expect(node.childNodes.length).toBe(1));
+    expect(node.firstChild).toBeInstanceOf(Element);
   });
 
   it("картинка по ссылке — сразу, без списка сцен", async () => {

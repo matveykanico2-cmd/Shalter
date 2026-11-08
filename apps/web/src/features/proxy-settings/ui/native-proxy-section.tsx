@@ -15,7 +15,7 @@ export function NativeProxySection() {
   const [port, setPort] = useState(String(EMPTY.port));
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [needsRestart, setNeedsRestart] = useState(false);
+  const [restartFailed, setRestartFailed] = useState(false);
   const [ping, setPing] = useState<number | "checking" | null>(null);
 
   useEffect(() => {
@@ -48,8 +48,18 @@ export function NativeProxySection() {
     }
     setActive(!!url);
     setPing(null);
-    setNeedsRestart(true);
-    toast(url ? "Прокси сохранён — перезапустите приложение" : "Прокси выключен — перезапустите приложение");
+    setRestartFailed(false);
+    if (bridge.restart) {
+      toast(url ? "Прокси сохранён — подключаем…" : "Прокси выключен — переподключаем…");
+      window.setTimeout(() => {
+        void bridge.restart?.().catch(() => {
+          setRestartFailed(true);
+          setError("Не удалось перезапустить приложение автоматически");
+        });
+      }, 120);
+      return;
+    }
+    toast(url ? "Прокси подключён" : "Прокси выключен");
   };
 
   const save = (e: FormEvent) => {
@@ -131,7 +141,7 @@ export function NativeProxySection() {
               {ping === "checking" ? "Проверяем…" : ping === null ? "Проверить пинг" : `Пинг ${ping} мс`}
             </Button>
           ) : null}
-          {needsRestart && bridge.restart ? (
+          {restartFailed && bridge.restart ? (
             <Button variant="secondary" onClick={() => void bridge.restart?.()}>
               Перезапустить
             </Button>

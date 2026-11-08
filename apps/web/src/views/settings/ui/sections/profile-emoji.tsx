@@ -3,7 +3,7 @@ import { useState } from "react";
 import { type SelfUser, useUpdateSelf } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Avatar, Button, EmojiAvatarPicker, SettingsSection, toast } from "@/shared/ui";
+import { Avatar, AvatarBackgroundPicker, Button, EmojiAvatarPicker, SettingsSection, toast } from "@/shared/ui";
 
 import { updateProfile } from "../../api/settings-api";
 
@@ -51,12 +51,10 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
         ) : null}
       </div>
       {open ? (
-        <EmojiAvatarPicker
-          withStickers
-          color={me.avatarColor}
-          onColor={(avatarColor) => void save({ avatarColor: avatarColor ?? "transparent" })}
-          onPick={(avatarEmoji) => void save({ avatarEmoji }, true)}
-        />
+        <>
+          <AvatarBackgroundPicker color={me.avatarColor} onPick={(avatarColor) => void save({ avatarColor })} />
+          <EmojiAvatarPicker withStickers onPick={(avatarEmoji) => void save({ avatarEmoji }, true)} />
+        </>
       ) : null}
     </SettingsSection>
   );

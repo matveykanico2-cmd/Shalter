@@ -36,6 +36,7 @@ export interface Community {
 export interface CommunityPatch {
   title?: string;
   description?: string;
+  avatarColor?: string | null;
   avatarImage?: string | null;
   avatarEmoji?: string | null;
   addMode?: string;

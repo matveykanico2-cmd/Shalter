@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validAvatarColor } from "../../../../common/lib/avatar-color.js";
 import { raw, requestBody, requestQuery, text } from "../../../../common/lib/zod.js";
 import { cleanAddMode, cleanDescription, cleanTitle, cleanVisible } from "../../lib/community-fields.js";
 import { cleanRights, DEFAULT_ADMIN_RIGHTS } from "../../lib/community-rights.js";
@@ -16,7 +17,12 @@ export const createCommunitySchema = requestBody({
     .transform(cleanTitle)
     .refine((v) => !!v, { error: "Введите название сообщества" }),
   description: raw().transform(cleanDescription),
-  avatarColor: raw().transform((v) => (typeof v === "string" ? v.slice(0, 20) : null)),
+  avatarColor: raw().transform((v, context) => {
+    if (v === undefined || v === null || v === "") return null;
+    if (validAvatarColor(v)) return v;
+    context.addIssue({ code: "custom", message: "Некорректный цвет" });
+    return z.NEVER;
+  }),
   avatarImage: raw(),
   avatarEmoji: raw(),
   addMode: raw().transform((v) => cleanAddMode(v) ?? "all"),
@@ -29,6 +35,13 @@ export type CreateCommunityDto = z.infer<typeof createCommunitySchema>;
 export const patchCommunitySchema = requestBody({
   title: patchField(cleanTitle),
   description: patchField(cleanDescription),
+  avatarColor: raw().transform((v, context) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === "") return null;
+    if (validAvatarColor(v)) return v;
+    context.addIssue({ code: "custom", message: "Некорректный цвет" });
+    return z.NEVER;
+  }),
   avatarImage: raw(),
   /** Смайл вместо аватарки; null или "" — убрать. Проверяет сервис (после проверки права). */
   avatarEmoji: raw(),

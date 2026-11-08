@@ -144,7 +144,9 @@ export function renderGiftArt(gift: GiftLike | null | undefined, opts: GiftArtOp
   const host = document.createElement("span");
   host.className = "gift-art-host";
   Object.assign(host.style, { display: "inline-flex", alignItems: "center", justifyContent: "center", width: `${size}px`, height: `${size}px` });
-  host.appendChild(renderScene(gift?.emoji ?? "🎁", { size, replay: false }));
+  // Лёгкая нейтральная заглушка: десятки эмодзи-сцен одновременно тормозили телефон и
+  // на мгновение портили сетку перед появлением настоящих подарков.
+  Object.assign(host.style, { borderRadius: "22%", background: "var(--color-surface-alt)" });
   whenNearView(host, () => {
     // Список сцен и сцена уже в памяти — картинка сразу, без лишнего кадра с заглушкой.
     if (sceneIds) {
@@ -157,7 +159,9 @@ export function renderGiftArt(gift: GiftLike | null | undefined, opts: GiftArtOp
         const id = builtinSceneId(gift);
         return id ? loadScene(id) : null;
       })
-      .then((scene) => host.replaceChildren(renderWithScene(scene, gift, opts)));
+      .then((scene) => host.replaceChildren(renderWithScene(scene, gift, opts)))
+      // Офлайн и повреждённая сцена не должны оставлять пустую карточку.
+      .catch(() => host.replaceChildren(renderScene(gift?.emoji ?? "🎁", { size, replay: false })));
   });
   return host;
 }

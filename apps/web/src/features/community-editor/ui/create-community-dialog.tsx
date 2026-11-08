@@ -19,6 +19,7 @@ type Props = { onCreated: (community: Community) => void; onClose: () => void };
 export function CreateCommunityDialog({ onCreated, onClose }: Props) {
   const actions = useCommunityActions();
   const [avatar, setAvatar] = useState<AvatarValue>({ image: null, emoji: null });
+  const [avatarColor, setAvatarColor] = useState("#1e88e5");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [addMode, setAddMode] = useState<AddMode>("all");
@@ -39,6 +40,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
         title: t,
         description: description.trim(),
         avatarImage: avatar.image,
+        avatarColor,
         ...(avatar.emoji ? { avatarEmoji: avatar.emoji } : {}),
         addMode,
         chatId,
@@ -56,7 +58,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
 
   return (
     <Dialog title="Новое сообщество" onClose={onClose} className={styles.wide}>
-      <AvatarEditor name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
+      <AvatarEditor name={title} color={avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} onColor={setAvatarColor} />
       <label className={styles.field}>
         <span>Название сообщества</span>
         <TextField

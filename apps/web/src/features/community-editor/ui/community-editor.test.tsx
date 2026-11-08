@@ -61,7 +61,7 @@ describe("сообщества", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     const createCall = calls.find((c) => c.key.startsWith("POST /api/communities"));
     expect(createCall).toBeDefined();
-    expect(createCall?.body).toEqual({ title: "Дачники", description: "Всё о даче", avatarImage: null, addMode: "admins", chatVisible: true });
+    expect(createCall?.body).toEqual({ title: "Дачники", description: "Всё о даче", avatarColor: "#1e88e5", avatarImage: null, addMode: "admins", chatVisible: true });
   });
 
   it("«Добавить чат»: только свои группы, затем видимость", async () => {

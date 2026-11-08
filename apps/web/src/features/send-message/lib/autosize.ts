@@ -81,5 +81,10 @@ export function fitTextarea(el: HTMLTextAreaElement, max: number): void {
     if (el.scrollTop !== 0) el.scrollTop = 0;
   } else if (document.activeElement === el && el.selectionEnd === el.value.length) {
     el.scrollTop = el.scrollHeight;
+    // На Android WebView/Safari прокрутка textarea сбрасывается после layout текущего кадра.
+    // Повторяем после отрисовки, иначе при 7+ строках курсор остаётся снизу, а видна верхушка.
+    requestAnimationFrame(() => {
+      if (el.isConnected && document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight;
+    });
   }
 }

@@ -9,6 +9,8 @@ import { EmojiAvatarPicker } from "./emoji-avatar-picker";
 import { Icon } from "./icon";
 import { toast } from "./toast-store";
 
+const AVATAR_BACKGROUNDS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#5e35b1", "#8e24aa", "transparent"];
+
 /** Аватар группы, канала или сообщества: фото или смайл (стикер) — одно сменяет другое. */
 export type AvatarValue = { image: string | null; emoji: string | null };
 
@@ -21,13 +23,15 @@ type Props = {
   /** Сторона уменьшенного фото: у профиля сервер принимает картинку до 400 КБ — там меньше. */
   photoSize?: number;
   onChange: (value: AvatarValue) => void;
+  /** Фон меняется независимо от фото, смайла или буквы. */
+  onColor?: (color: string) => void;
 };
 
 /**
  * Выбор аватара как в профиле: нажатие на круг — фото с устройства, «Смайл или стикер» —
  * анимированный смайл или стикер из своих паков («sticker:/uploads/…») вместо фото.
  */
-export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize = 512, onChange }: Props) {
+export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize = 512, onChange, onColor }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const pick = async (file: File | undefined) => {
@@ -64,6 +68,7 @@ export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize =
           </button>
         ) : null}
       </div>
+      {onColor ? <AvatarBackgroundPicker color={color} onPick={onColor} /> : null}
       {emojiOpen ? (
         <EmojiAvatarPicker
           withStickers
@@ -84,6 +89,26 @@ export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize =
           e.target.value = "";
         }}
       />
+    </div>
+  );
+}
+
+export function AvatarBackgroundPicker({ color, onPick }: { color?: string | null; onPick: (color: string) => void }) {
+  return (
+    <div className={styles.backgrounds} role="radiogroup" aria-label="Фон аватарки">
+      <span className={styles.backgroundLabel}>Фон</span>
+      {AVATAR_BACKGROUNDS.map((background, index) => (
+        <button
+          key={background}
+          type="button"
+          role="radio"
+          aria-checked={color === background}
+          aria-label={background === "transparent" ? "Прозрачный фон" : `Фон ${index + 1}`}
+          className={`${styles.swatch} ${background === "transparent" ? styles.transparent : ""}`}
+          style={{ backgroundColor: background }}
+          onClick={() => onPick(background)}
+        />
+      ))}
     </div>
   );
 }

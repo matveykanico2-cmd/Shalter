@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validAvatarColor } from "../../../../common/lib/avatar-color.js";
 import { cleanAvatarEmoji } from "../../../../common/lib/avatar-emoji.js";
 import { raw, requestBody, requestQuery } from "../../../../common/lib/zod.js";
 
@@ -50,6 +51,12 @@ const communitySchema = (titleError: string) =>
       .refine((v) => v.trim() !== "", { error: titleError })
       .transform((v) => v.trim()),
     avatarImage: raw(),
+    avatarColor: z.unknown().optional().transform((v, context) => {
+      if (v === undefined) return undefined;
+      if (validAvatarColor(v)) return v;
+      context.addIssue({ code: "custom", message: "Некорректный цвет" });
+      return z.NEVER;
+    }),
     avatarEmoji: avatarEmoji(),
     memberIds: z.unknown().optional().transform((v) => (Array.isArray(v) ? (v as unknown[]) : [])),
     adminIds: z.unknown().optional().transform((v) => (Array.isArray(v) ? (v as unknown[]) : [])),

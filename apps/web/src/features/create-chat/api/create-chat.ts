@@ -3,11 +3,12 @@ import type { z } from "zod";
 
 import { http } from "@/shared/api";
 
-export type NewChatFields = { title: string; avatarImage: string | null; avatarEmoji?: string | null; memberIds: string[]; adminIds: string[]; description: string; isPublic: boolean; username: string | null };
+export type NewChatFields = { title: string; avatarImage: string | null; avatarColor?: string | null; avatarEmoji?: string | null; memberIds: string[]; adminIds: string[]; description: string; isPublic: boolean; username: string | null };
 
-const body = ({ title, avatarImage, avatarEmoji, memberIds, adminIds, description, isPublic, username }: NewChatFields) => ({
+const body = ({ title, avatarImage, avatarColor, avatarEmoji, memberIds, adminIds, description, isPublic, username }: NewChatFields) => ({
   title,
   avatarImage,
+  ...(avatarColor ? { avatarColor } : {}),
   ...(avatarEmoji ? { avatarEmoji } : {}),
   memberIds,
   adminIds,

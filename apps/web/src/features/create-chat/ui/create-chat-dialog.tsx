@@ -22,6 +22,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
   const isChannel = kind === "channel";
   const what = isChannel ? "канала" : "группы";
   const [avatar, setAvatar] = useState<AvatarValue>({ image: null, emoji: null });
+  const [avatarColor, setAvatarColor] = useState(isChannel ? "#D9822E" : "#2E56D9");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
@@ -39,7 +40,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
     }
     setBusy(true);
     try {
-      await onSubmit({ title: t, avatarImage: avatar.image, avatarEmoji: avatar.emoji, description: description.trim(), isPublic, username: isPublic ? username.trim() : null });
+      await onSubmit({ title: t, avatarImage: avatar.image, avatarColor, avatarEmoji: avatar.emoji, description: description.trim(), isPublic, username: isPublic ? username.trim() : null });
     } catch (err) {
       setBusy(false);
       toast(errorText(err, "Не получилось"), { error: true });
@@ -48,7 +49,7 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
 
   return (
     <Dialog title={isChannel ? "Новый канал" : "Новая группа"} onClose={onClose}>
-      <AvatarEditor name={title} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} />
+      <AvatarEditor name={title} color={avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} onColor={setAvatarColor} />
       <label className={styles.field}>
         <span>Название {what}</span>
         <TextField

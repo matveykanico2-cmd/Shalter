@@ -47,12 +47,13 @@ export class CommunitiesRepository {
   public update(id: string, patch: CommunityPatch): Community | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
-    const { title, description, avatarImage, avatarEmoji, addMode } = patch;
+    const { title, description, avatarColor, avatarImage, avatarEmoji, addMode } = patch;
     this.db
       .update(communities)
       .set({
         title: title ?? existing.title,
         description: description === undefined ? (existing.description ?? null) : description || null,
+        avatarColor: avatarColor === undefined ? (existing.avatarColor ?? null) : avatarColor,
         avatarImage: avatarImage === undefined ? (existing.avatarImage ?? null) : avatarImage || null,
         avatarEmoji: avatarEmoji === undefined ? (existing.avatarEmoji ?? null) : avatarEmoji || null,
         addMode: addMode === undefined ? existing.addMode : ADD_MODES.has(addMode) ? addMode : existing.addMode,

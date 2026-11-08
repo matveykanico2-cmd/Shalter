@@ -126,13 +126,14 @@ export class CommunitiesService {
     const community = this.access.load(id, uid);
     const rights = this.access.rightsOf(community, uid);
     const patch: CommunityPatch = {};
-    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined;
+    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarColor !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined;
     if (infoTouched && !rights.editInfo) throw new ApiError(403, "Нет права менять информацию о сообществе");
     if (dto.title !== undefined) {
       if (!dto.title) throw new ApiError(400, "Введите название сообщества");
       patch.title = dto.title;
     }
     if (dto.description !== undefined) patch.description = dto.description;
+    if (dto.avatarColor !== undefined) patch.avatarColor = dto.avatarColor;
     if (dto.avatarImage !== undefined) {
       const avatarImage = cleanAvatarImage(dto.avatarImage);
       if (avatarImage === undefined || usesForeignUpload(uid, avatarImage, community.avatarImage)) throw new ApiError(400, "Некорректное изображение");

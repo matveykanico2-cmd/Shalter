@@ -82,29 +82,3 @@
   object-fit: contain;
   background: transparent;
 }
-
-.bgSwatch {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid var(--color-border);
-  cursor: pointer;
-  box-sizing: border-box;
-}
-
-.bgSwatch[aria-checked="true"] {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.sticker {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-
-.transparent {
-  background-image: conic-gradient(#aaa 25%, #fff 0 50%, #aaa 0 75%, #fff 0);
-  background-size: 12px 12px;
-}

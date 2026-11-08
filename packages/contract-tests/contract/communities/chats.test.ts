@@ -122,7 +122,8 @@ describe("PATCH /:id/chats/:chatId — видимость", () => {
     const hidden = expectOk(await a.api.patch(`/api/communities/${c.id}/chats/${extra.id}`, { visible: 0 }), communityBody).community;
     expect(hidden.chats.find((x) => x.id === extra.id)?.visible).toBe(false);
     await bWs.waitFor("community:updated", aboutCommunity(c.id));
-    expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id]);
+    // Скрытие влияет на каталог, но не выкидывает участника единого сообщества из чата.
+    expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id, extra.id]);
 
     expectOk(await a.api.patch(`/api/communities/${c.id}/chats/${extra.id}`, { visible: true }), communityBody);
     expect(chatsOf(expectOk(await joiner.api.get(`/api/communities/${c.id}`), communityBody).community)).toEqual([shared.id, extra.id]);
