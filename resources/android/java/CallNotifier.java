@@ -1,5 +1,6 @@
 package ru.shalter.app;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,7 +11,9 @@ import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import androidx.core.content.ContextCompat;
 import androidx.core.app.NotificationCompat;
+import android.content.pm.PackageManager;
 
 // Входящий звонок, как в Telegram: на заблокированном или погасшем экране — сразу
 // экран звонка (full-screen intent), иначе — уведомление-звонок поверх всего, с
@@ -31,6 +34,7 @@ final class CallNotifier {
     private static void ensureChannel(Context ctx) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm == null) return;
         if (nm.getNotificationChannel(CHANNEL) != null) return;
         NotificationChannel ch = new NotificationChannel(CHANNEL, "Входящие звонки", NotificationManager.IMPORTANCE_HIGH);
         ch.setDescription("Экран входящего звонка и рингтон");
@@ -56,11 +60,15 @@ final class CallNotifier {
 
     static void show(Context ctx, String callId, String callerName, boolean video) {
         if (callId == null || callId.isEmpty()) return;
-        ensureChannel(ctx);
-        int id = notificationId(callId);
-        String base = "/call/" + Uri.encode(callId);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(ctx.getResources().getIdentifier("ic_stat_shalter", "drawable", ctx.getPackageName()))
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+        int icon = ctx.getResources().getIdentifier("ic_stat_shalter", "drawable", ctx.getPackageName());
+        if (icon == 0) return;
+        try {
+            ensureChannel(ctx);
+            int id = notificationId(callId);
+            String base = "/call/" + Uri.encode(callId);
+            NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(icon)
             .setContentTitle(callerName == null || callerName.isEmpty() ? "Входящий звонок" : callerName)
             .setContentText(video ? "Входящий видеозвонок" : "Входящий звонок")
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -74,16 +82,20 @@ final class CallNotifier {
             .setFullScreenIntent(open(ctx, base, id + 1), true)
             .addAction(0, "Отклонить", open(ctx, base + "?decline=1", id + 2))
             .addAction(0, "Ответить", open(ctx, base + "?answer=1", id + 3));
-        Notification n = b.build();
-        // Рингтон по кругу, пока звонок не приняли/отклонили (или не истёк таймаут).
-        n.flags |= Notification.FLAG_INSISTENT;
-        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.notify(id, n);
+            Notification n = b.build();
+            // Рингтон по кругу, пока звонок не приняли/отклонили (или не истёк таймаут).
+            n.flags |= Notification.FLAG_INSISTENT;
+            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify(id, n);
+        } catch (RuntimeException ignored) {
+            // Запрет full-screen intent, уведомлений или особенность OEM не должны ронять
+            // процесс приложения/службы Firebase.
+        }
     }
 
     static void hide(Context ctx, String callId) {
         if (callId == null || callId.isEmpty()) return;
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.cancel(notificationId(callId));
+        if (nm != null) nm.cancel(notificationId(callId));
     }
 }

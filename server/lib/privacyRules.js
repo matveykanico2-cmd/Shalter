@@ -131,7 +131,10 @@ async function publicUserFor(user, viewerId) {
   const isContact = (await listContactsFor(user.id)).some((c) => c.userId === viewerId);
   const canSee = (key) => privacyAllows(privacy, key, viewerId, isContact);
   const blocked = (user.blockedUserIds ?? []).includes(viewerId);
-  if (blocked) hideFromBlocked(visible);
+  if (blocked) {
+    hideFromBlocked(visible);
+    visible.blockedViewer = true;
+  }
   if (!canSee("lastSeen")) {
     delete visible.lastSeen;
     visible.online = false;

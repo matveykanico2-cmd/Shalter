@@ -23,6 +23,7 @@ type Subtitle = { text: string; tone: "typing" | "online" | "muted" };
 export function chatSubtitle(chat: ChatSummary, members: readonly ChatMember[], meId: string, typing: Typing, now = new Date(), botUsers: number | null = null): Subtitle {
   const isDm = chat.type === "dm";
   const other = chat.otherUser;
+  if (isDm && other?.blockedViewer) return { text: "был(а) давно", tone: "muted" };
   if (typing) {
     const label = CHAT_ACTION_LABELS[typing.action] ?? CHAT_ACTION_LABELS.typing!;
     if (isDm) return { text: `${label}…`, tone: "typing" };

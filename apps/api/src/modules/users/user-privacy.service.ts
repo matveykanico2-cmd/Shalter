@@ -43,7 +43,10 @@ export class UserPrivacyService {
     const canSee = (key: string) => privacyAllows(privacy, key, viewerId, isContact);
     const hidden: Record<string, unknown> = visible;
     const blocked = (user.blockedUserIds ?? []).includes(viewerId);
-    if (blocked) hideFromBlocked(hidden);
+    if (blocked) {
+      hideFromBlocked(hidden);
+      hidden.blockedViewer = true;
+    }
     if (!canSee("lastSeen")) {
       delete hidden.lastSeen;
       visible.online = false;

@@ -42,6 +42,14 @@ public class AppProxyPlugin extends Plugin {
     private static long authWindowStart = 0;
     private static int authAttempts = 0;
 
+    private static boolean supported() {
+        try {
+            return WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Можно ли ещё раз отдать логин и пароль (OfflineShell.onReceivedHttpAuthRequest). */
     static synchronized boolean allowAuthAttempt() {
         long now = System.currentTimeMillis();
@@ -57,7 +65,7 @@ public class AppProxyPlugin extends Plugin {
      * правило (исключение ловим: иначе приложение падало бы на каждом запуске).
      */
     static boolean apply(Context ctx) {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) return false;
+        if (!supported()) return false;
         synchronized (AppProxyPlugin.class) {
             authWindowStart = 0;
         }
@@ -108,7 +116,7 @@ public class AppProxyPlugin extends Plugin {
         } else {
             url = null;
         }
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+        if (!supported()) {
             call.reject("Этот WebView не поддерживает прокси — обновите Android System WebView");
             return;
         }

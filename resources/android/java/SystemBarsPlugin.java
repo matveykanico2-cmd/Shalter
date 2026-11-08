@@ -1,5 +1,6 @@
 package ru.shalter.app;
 
+import android.app.Activity;
 import android.graphics.Color;
 import android.os.Build;
 import android.view.View;
@@ -30,24 +31,38 @@ public class SystemBarsPlugin extends Plugin {
         }
         // light = светлый фон → тёмные значки времени/батареи.
         final boolean light = Boolean.TRUE.equals(call.getBoolean("light", true));
-        getActivity().runOnUiThread(() -> {
-            Window window = getActivity().getWindow();
-            View decor = window.getDecorView();
-            decor.setBackgroundColor(color);
-            View content = getActivity().findViewById(android.R.id.content);
-            if (content != null) content.setBackgroundColor(color);
-            if (getBridge().getWebView() != null && getBridge().getWebView().getParent() instanceof View) {
-                ((View) getBridge().getWebView().getParent()).setBackgroundColor(color);
+        Activity activity = getActivity();
+        if (activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+            call.reject("activity unavailable");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            Activity current = getActivity();
+            if (current == null || current.isFinishing() || (Build.VERSION.SDK_INT >= 17 && current.isDestroyed())) {
+                call.reject("activity unavailable");
+                return;
             }
-            // До Android 15 окно не во весь экран, и полосы красит не фон окна, а их собственный цвет.
-            if (Build.VERSION.SDK_INT < 35) {
-                window.setStatusBarColor(color);
-                window.setNavigationBarColor(color);
+            try {
+                Window window = current.getWindow();
+                View decor = window.getDecorView();
+                decor.setBackgroundColor(color);
+                View content = current.findViewById(android.R.id.content);
+                if (content != null) content.setBackgroundColor(color);
+                if (getBridge() != null && getBridge().getWebView() != null && getBridge().getWebView().getParent() instanceof View) {
+                    ((View) getBridge().getWebView().getParent()).setBackgroundColor(color);
+                }
+                // До Android 15 окно не во весь экран, и полосы красит не фон окна, а их собственный цвет.
+                if (Build.VERSION.SDK_INT < 35) {
+                    window.setStatusBarColor(color);
+                    window.setNavigationBarColor(color);
+                }
+                WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, decor);
+                controller.setAppearanceLightStatusBars(light);
+                controller.setAppearanceLightNavigationBars(light);
+                call.resolve(new JSObject());
+            } catch (RuntimeException e) {
+                call.reject("system bars unavailable", e);
             }
-            WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, decor);
-            controller.setAppearanceLightStatusBars(light);
-            controller.setAppearanceLightNavigationBars(light);
-            call.resolve(new JSObject());
         });
     }
 }

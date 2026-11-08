@@ -33,8 +33,12 @@ public class AppIconPlugin extends Plugin {
             call.reject("package not found");
             return;
         }
+        if (aliases == null) {
+            call.reject("app icons unavailable");
+            return;
+        }
         boolean found = false;
-        for (ActivityInfo a : aliases) if (a.name.equals(wanted)) found = true;
+        for (ActivityInfo a : aliases) if (a != null && wanted.equals(a.name)) found = true;
         if (!found) {
             call.reject("unknown icon: " + name);
             return;
@@ -42,10 +46,17 @@ public class AppIconPlugin extends Plugin {
         // Сначала включаем новую, потом выключаем остальные: иначе на миг у приложения
         // не остаётся ни одного значка, и часть лаунчеров убирает его с рабочего стола.
         // DONT_KILL_APP — приложение не перезапускается посреди работы.
-        pm.setComponentEnabledSetting(new ComponentName(pkg, wanted), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
-        for (ActivityInfo a : aliases) {
-            if (a.name.equals(wanted) || !a.name.startsWith(pkg + PREFIX)) continue;
-            pm.setComponentEnabledSetting(new ComponentName(pkg, a.name), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+        try {
+            pm.setComponentEnabledSetting(new ComponentName(pkg, wanted), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+            for (ActivityInfo a : aliases) {
+                if (a == null || a.name == null || a.name.equals(wanted) || !a.name.startsWith(pkg + PREFIX)) continue;
+                pm.setComponentEnabledSetting(new ComponentName(pkg, a.name), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            }
+        } catch (RuntimeException e) {
+            // Некоторые лаунчеры запрещают менять alias во время работы. Ошибка вернётся
+            // в настройки, но процесс приложения не упадёт.
+            call.reject("launcher rejected icon", e);
+            return;
         }
         JSObject result = new JSObject();
         result.put("name", name);

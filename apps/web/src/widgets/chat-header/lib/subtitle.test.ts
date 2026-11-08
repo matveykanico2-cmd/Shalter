@@ -14,6 +14,7 @@ describe("подпись в шапке чата (renderHeader в chatView.js)", 
     const ago = new Date(NOW.getTime() - 5 * 60_000).toISOString();
     expect(chatSubtitle(chat({ type: "dm", otherUser: { id: "u_l", name: "Лена", online: false, lastSeen: ago } as never }), [], "u_me", null, NOW).text).toBe("был(а) 5 минут назад");
     expect(chatSubtitle(chat({ type: "dm", otherUser: { id: "u_l", name: "Лена", online: false } as never }), [], "u_me", null, NOW).text).toBe("был(а) недавно");
+    expect(chatSubtitle(chat({ type: "dm", otherUser: { id: "u_l", name: "Лена", online: false, blockedViewer: true } as never }), [], "u_me", { userId: "u_l", action: "typing" }, NOW).text).toBe("был(а) давно");
     expect(chatSubtitle(chat({ type: "dm", otherUser: { id: "u_b", name: "Бот", online: false, isBot: true } as never }), [], "u_me", null, NOW).text).toBe("бот");
   });
 

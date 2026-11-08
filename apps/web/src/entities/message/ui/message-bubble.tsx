@@ -96,6 +96,8 @@ type Props = {
   metaApart?: boolean;
   /** «Установить как фото профиля» под предложенным собеседником фото; без него — только подпись. */
   onUseSuggestedPhoto?: (m: Message) => void;
+  /** Собеседник заблокировал отправителя: квитанцию доставки/прочтения не показываем. */
+  hideDeliveryStatus?: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -230,7 +232,7 @@ export function MessageBubble(props: Props) {
       {m.editedAt ? <span>изменено</span> : null}
       <span>{timeLabel(m.createdAt)}</span>
       {isChannel && typeof m.views === "number" ? <span>{m.views} 👁</span> : null}
-      {mine && !gift ? (
+      {mine && !gift && !props.hideDeliveryStatus ? (
         <span className={m.pending ? styles.pending : styles.tick} role="img" aria-label={m.pending ? "Отправляется" : isReadByOthers(m) ? "Прочитано" : "Доставлено"}>
           <Icon name={m.pending ? "Clock" : isReadByOthers(m) ? "CheckCheck" : "Check"} size={14} />
         </span>

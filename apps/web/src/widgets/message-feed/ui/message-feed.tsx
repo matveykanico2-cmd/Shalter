@@ -509,6 +509,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         groupEnd={row.groupEnd}
                         isGroup={isGroup}
                         isChannel={isChannel}
+                        hideDeliveryStatus={chat.type === "dm" && !!chat.otherUser?.blockedViewer}
                         senders={senders}
                         replyTo={row.message.replyToId ? (messagesById.get(row.message.replyToId) ?? data?.replyTargets[row.message.replyToId]) : undefined}
                         onReply={isChannel ? undefined : onReply}
@@ -626,6 +627,7 @@ type RowProps = {
   groupEnd: boolean;
   isGroup: boolean;
   isChannel: boolean;
+  hideDeliveryStatus: boolean;
   senders: (m: { senderId: string; anonymous?: boolean }) => MessageSender | null;
   replyTo: Message | ReplyTarget | undefined;
   onReply?: (m: Message, quote?: string) => void;
@@ -668,7 +670,7 @@ function MessageRow(props: RowProps) {
         report={message.report as ReportInfo}
         canResolve={props.canResolveReports}
         time={timeLabel(message.createdAt)}
-        read={mine ? isReadByOthers(message) : null}
+        read={mine && !props.hideDeliveryStatus ? isReadByOthers(message) : null}
       />
     );
   }
@@ -684,6 +686,7 @@ function MessageRow(props: RowProps) {
       groupStart={groupStart}
       groupEnd={groupEnd}
       isChannel={isChannel}
+      hideDeliveryStatus={props.hideDeliveryStatus}
       replyTo={replyTo ?? null}
       replyToName={replyToName}
       meId={meId}

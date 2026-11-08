@@ -46,15 +46,21 @@ final class OfflineShell extends BridgeWebViewClient {
         bridge.setWebViewClient(shell);
         // Запросы самого service worker'а Capacitor направляет в свой обработчик — оборачиваем и его.
         if (Build.VERSION.SDK_INT >= 24 && bridge.getConfig().isResolveServiceWorkerRequests()) {
-            ServiceWorkerController.getInstance().setServiceWorkerClient(
-                new ServiceWorkerClient() {
-                    @Override
-                    public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
-                        WebResourceResponse res = bridge.getLocalServer().shouldInterceptRequest(request);
-                        return res != null ? res : shell.bundledFile(request);
+            try {
+                ServiceWorkerController.getInstance().setServiceWorkerClient(
+                    new ServiceWorkerClient() {
+                        @Override
+                        public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
+                            WebResourceResponse res = bridge.getLocalServer().shouldInterceptRequest(request);
+                            return res != null ? res : shell.bundledFile(request);
+                        }
                     }
-                }
-            );
+                );
+            } catch (RuntimeException e) {
+                // Устаревший/сломанный Android System WebView: основная страница всё равно
+                // работает, лишь запросы service worker не получают APK-fallback.
+                Logger.warn("OfflineShell: Service Worker недоступен в системном WebView");
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -19,6 +20,7 @@ import com.getcapacitor.BridgeActivity;
 // и системную кнопку «Назад» (handleBack).
 // Файл копирует scripts/apply-native-resources.js поверх сгенерированного `cap add`.
 public class MainActivity extends BridgeActivity {
+    private static final String TAG = "Shalter";
     // Приложение на экране — входящий звонок показывает сама страница (свой баннер),
     // нативный экран звонка из push не нужен (ShalterMessagingService).
     static volatile boolean inForeground = false;
@@ -36,13 +38,23 @@ public class MainActivity extends BridgeActivity {
         // WebView держит cookie в памяти и пишет на диск не сразу: если система выгрузит
         // свёрнутое приложение раньше, пропадают и вход, и device_id — человек снова видит
         // экран входа, а каждый новый вход заводит ещё один сеанс в «Устройствах».
-        CookieManager.getInstance().flush();
+        flushCookies();
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        CookieManager.getInstance().flush();
+        flushCookies();
+    }
+
+    // На отдельных прошивках провайдер WebView уже уничтожен к onStop(). Потеря flush
+    // менее опасна, чем падение всего процесса при сворачивании приложения.
+    private static void flushCookies() {
+        try {
+            CookieManager.getInstance().flush();
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Не удалось сохранить cookies WebView", e);
+        }
     }
 
     @Override
@@ -72,18 +84,23 @@ public class MainActivity extends BridgeActivity {
     // по истории WebView, а если некуда — в фон.
     private void handleBack() {
         WebView webView = bridge != null ? bridge.getWebView() : null;
-        if (webView == null) {
+        if (webView == null || webView.isDestroyed()) {
             moveTaskToBack(true);
             return;
         }
-        webView.evaluateJavascript(
-            "(function(){try{return window.__shalterBack?(window.__shalterBack()?'handled':'root'):'none'}catch(e){return 'none'}})()",
-            (result) -> {
-                if ("\"handled\"".equals(result)) return;
-                if (!"\"root\"".equals(result) && webView.canGoBack()) webView.goBack();
-                else moveTaskToBack(true);
-            }
-        );
+        try {
+            webView.evaluateJavascript(
+                "(function(){try{return window.__shalterBack?(window.__shalterBack()?'handled':'root'):'none'}catch(e){return 'none'}})()",
+                (result) -> {
+                    if ("\"handled\"".equals(result)) return;
+                    if (!webView.isDestroyed() && !"\"root\"".equals(result) && webView.canGoBack()) webView.goBack();
+                    else moveTaskToBack(true);
+                }
+            );
+        } catch (RuntimeException e) {
+            Log.w(TAG, "WebView уже закрыт при нажатии Назад", e);
+            moveTaskToBack(true);
+        }
     }
 
     // Нажали на уведомление-звонок (или он сам открылся на весь экран): ведём в экран
@@ -164,7 +181,10 @@ public class MainActivity extends BridgeActivity {
             Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
             int bottom = Math.max(bars.bottom, ime.bottom);
-            ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            ViewGroup.LayoutParams params = v.getLayoutParams();
+            // OEM-оболочки иногда подменяют контейнер WebView и его LayoutParams.
+            if (!(params instanceof ViewGroup.MarginLayoutParams)) return windowInsets;
+            ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) params;
             if (mlp.leftMargin != bars.left || mlp.topMargin != bars.top || mlp.rightMargin != bars.right || mlp.bottomMargin != bottom) {
                 mlp.leftMargin = bars.left;
                 mlp.topMargin = bars.top;

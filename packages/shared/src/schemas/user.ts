@@ -68,6 +68,8 @@ export const publicUser = z.strictObject(publicUserShape);
  */
 export const viewerUser = z.strictObject({
   ...publicUserShape,
+  /** Этот пользователь заблокировал смотрящего; для статуса и скрытия квитанций доставки. */
+  blockedViewer: z.literal(true).optional(),
   bio: publicUserShape.bio.optional(),
   avatarImages: publicUserShape.avatarImages.optional(),
   inContacts: z.literal(true).optional(),
