@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type DragEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
@@ -199,33 +199,51 @@ export function ChatList({ meId }: { meId: string }) {
   // виртуализатора в этот момент видит нулевую высоту; после возврата старый scrollTop мог
   // указывать уже на середину или конец списка. Запоминаем строку, которой коснулись, и её
   // место в окне, затем восстанавливаем именно её — даже если чат поднялся из-за сообщения.
-  const returnPosition = useRef<{ key: string; top: number } | null>(null);
+  const returnPosition = useRef<{ key: string | null; top: number; offset: number } | null>(null);
   const previousChatId = useRef(currentId);
-  const rememberReturnPosition = (target?: EventTarget | null) => {
+  const rememberReturnPosition = useCallback(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
-    const slot = target instanceof Element ? target.closest<HTMLElement>("[data-row-key]") : null;
-    const fallback = virtualizer.getVirtualItems()[0];
-    const key = slot?.dataset.rowKey ?? (fallback ? rowKey(rows[fallback.index]!) : null);
-    if (!key) return;
-    const top = slot ? slot.getBoundingClientRect().top - scroller.getBoundingClientRect().top : (fallback?.start ?? 0) - scroller.scrollTop;
-    returnPosition.current = { key, top };
-  };
+    const offset = scroller.scrollTop;
+    // Диапазон виртуализатора обновляется после scroll. Поэтому всегда сохраняем и сырой offset:
+    // он остаётся надёжным запасным вариантом при резком свайпе за текущий overscan.
+    const item = virtualizer.getVirtualItems().find((candidate) => candidate.end > offset);
+    returnPosition.current = {
+      key: item && rows[item.index] ? rowKey(rows[item.index]!) : null,
+      top: item ? item.start - offset : 0,
+      offset,
+    };
+  }, [rows, virtualizer]);
+  // Cleanup layout-эффекта выполняется перед тем, как маршрут скроет мобильную колонку. Так
+  // прямой переход из меню («Избранное») сохраняет позицию без клика по строке списка.
+  useLayoutEffect(() => {
+    if (currentId) return;
+    return rememberReturnPosition;
+  }, [currentId, rememberReturnPosition]);
   useLayoutEffect(() => {
     const before = previousChatId.current;
     previousChatId.current = currentId;
+    // Якорь уже сохранён до смены маршрута. После прямого перехода из меню колонка на телефоне
+    // может быть скрыта, поэтому повторное измерение здесь затёрло бы его нулевыми метриками.
+    if (!before && currentId) return;
     if (!before || currentId || !returnPosition.current || !scrollRef.current) return;
     const saved = returnPosition.current;
-    const index = rows.findIndex((row) => rowKey(row) === saved.key);
-    if (index < 0) return;
-    virtualizer.scrollToIndex(index, { align: "start" });
+    // Нативное значение возвращаем сразу: после display:none оно могло стать нулевым.
+    scrollRef.current.scrollTop = saved.offset;
+    virtualizer.scrollToOffset(saved.offset, { align: "start" });
     requestAnimationFrame(() => {
       const scroller = scrollRef.current;
-      const slot = scroller ? [...scroller.querySelectorAll<HTMLElement>("[data-row-key]")].find((el) => el.dataset.rowKey === saved.key) : undefined;
+      const slot =
+        scroller && saved.key
+          ? [...scroller.querySelectorAll<HTMLElement>("[data-row-key]")].find((el) => el.dataset.rowKey === saved.key)
+          : undefined;
       if (!scroller || !slot) return;
-      scroller.scrollTop += slot.getBoundingClientRect().top - scroller.getBoundingClientRect().top - saved.top;
+      const slotRect = slot.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      if (!slotRect.height && !scrollerRect.height) return;
+      scroller.scrollTop += slotRect.top - scrollerRect.top - saved.top;
     });
-  }, [currentId, rows, virtualizer]);
+  }, [currentId, rememberReturnPosition, rows, virtualizer]);
 
   // При первой отрисовке или когда список изменился — прокручиваем к верхнему видимому элементу,
   // чтобы пользователь видел начало списка, а не конец (виртуализатор при этом сам не ставит
@@ -373,9 +391,10 @@ export function ChatList({ meId }: { meId: string }) {
       <div
         ref={scrollRef}
         className={styles.scroll}
+        role="list"
+        aria-label="Список чатов"
         hidden={!searching && !!panelCommunity}
-        onPointerDownCapture={(e) => rememberReturnPosition(e.target)}
-        onClickCapture={(e) => rememberReturnPosition(e.target)}
+        onScroll={rememberReturnPosition}
       >
         {searching ? (
           query ? (

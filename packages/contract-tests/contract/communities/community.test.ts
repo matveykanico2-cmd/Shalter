@@ -649,5 +649,11 @@ describe("GET /:id/media", () => {
     expect(result.media).toContainEqual({ chatId: group.id, messageId: first.id, createdAt: first.createdAt, senderId: owner.id, attachment: image });
     expect(result.files).toContainEqual({ chatId: channel.id, messageId: second.id, createdAt: second.createdAt, senderId: owner.id, attachment: file });
     expect(result.links[0]).toMatchObject({ chatId: group.id, messageId: first.id, text: first.text });
+
+    expectOk(await member.api.post(`/api/chats/${group.id}/clear`), okBody);
+    const afterClear = expectOk(await member.api.get(`/api/communities/${community.id}/media`), communityMediaBody);
+    expect(afterClear.media).toEqual([]);
+    expect(afterClear.links).toEqual([]);
+    expect(afterClear.files).toContainEqual({ chatId: channel.id, messageId: second.id, createdAt: second.createdAt, senderId: owner.id, attachment: file });
   });
 });

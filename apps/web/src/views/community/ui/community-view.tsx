@@ -244,7 +244,16 @@ function CommunityProfileTab({ community, tab }: { community: Community; tab: "m
     staleTime: 0,
   });
   const shared = useQuery({ ...communityQueries.media(community.id), enabled: tab !== "members" });
-  if (tab !== "members") return <CommunitySharedTab tab={tab} data={shared.data} pending={shared.isPending} />;
+  if (tab !== "members") {
+    return (
+      <CommunitySharedTab
+        tab={tab}
+        data={shared.data}
+        pending={shared.isPending}
+        error={shared.isError ? errorText(shared.error, "Не удалось загрузить раздел") : null}
+      />
+    );
+  }
   const list = members.data ?? [];
   return (
     <section className={styles.profileTab} aria-label="Участники сообщества">
@@ -255,9 +264,13 @@ function CommunityProfileTab({ community, tab }: { community: Community; tab: "m
         onChange={(e) => setQuery(e.target.value)}
       />
       <div className={styles.list}>
-        {members.isError ? <p className={styles.caption}>{errorText(members.error, "Не удалось загрузить участников")}</p> : null}
-        {members.isPending ? <p className={styles.caption}>Загрузка…</p> : null}
-        {members.data && list.length ? (
+        {members.isError ? (
+          <p className={styles.caption} role="alert">
+            {errorText(members.error, "Не удалось загрузить участников")}
+          </p>
+        ) : members.isPending ? (
+          <p className={styles.caption}>Загрузка…</p>
+        ) : list.length ? (
           list.map((m) => (
             <button key={m.id} type="button" className={styles.memberRow} onClick={() => void openUserProfile(m.id)}>
               <Avatar size={40} name={m.name} color={m.avatarColor} image={m.avatarImage} emoji={m.avatarEmoji} online={m.online} />
@@ -280,7 +293,23 @@ function CommunityProfileTab({ community, tab }: { community: Community; tab: "m
   );
 }
 
-function CommunitySharedTab({ tab, data, pending }: { tab: "media" | "files" | "links"; data: Awaited<ReturnType<typeof communityApi.media>> | undefined; pending: boolean }) {
+function CommunitySharedTab({
+  tab,
+  data,
+  pending,
+  error,
+}: {
+  tab: "media" | "files" | "links";
+  data: Awaited<ReturnType<typeof communityApi.media>> | undefined;
+  pending: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <p className={styles.caption} role="alert">
+        {error}
+      </p>
+    );
   if (tab === "media") {
     const items = data?.media ?? [];
     return items.length ? <CommunityMediaGrid items={items} /> : <p className={styles.caption}>{pending ? "Загрузка…" : "Медиа пока нет"}</p>;
@@ -288,9 +317,22 @@ function CommunitySharedTab({ tab, data, pending }: { tab: "media" | "files" | "
   if (tab === "files") {
     const items = data?.files ?? [];
     if (!items.length) return <p className={styles.caption}>{pending ? "Загрузка…" : "Файлов пока нет"}</p>;
-    return (
+    return <CommunityFilesList items={items} />;
+  }
+  const links = data?.links ?? [];
+  if (!links.length) return <p className={styles.caption}>{pending ? "Загрузка…" : "Ссылок пока нет"}</p>;
+  return <CommunityLinksList items={links} />;
+}
+
+const MEDIA_PAGE = 30;
+const LIST_PAGE = 50;
+
+function CommunityFilesList({ items }: { items: NonNullable<Awaited<ReturnType<typeof communityApi.media>>>["files"] }) {
+  const [shown, setShown] = useState(LIST_PAGE);
+  return (
+    <>
       <div className={styles.filesList}>
-        {items.map((item) => {
+        {items.slice(0, shown).map((item) => {
           const file = item.attachment as Attachment;
           return (
             <a key={`${item.messageId}:${file.url}`} className={styles.fileRow} href={file.url} target="_blank" rel="noreferrer" download={file.name ?? true}>
@@ -304,43 +346,61 @@ function CommunitySharedTab({ tab, data, pending }: { tab: "media" | "files" | "
           );
         })}
       </div>
-    );
-  }
-  const links = data?.links ?? [];
-  if (!links.length) return <p className={styles.caption}>{pending ? "Загрузка…" : "Ссылок пока нет"}</p>;
+      {shown < items.length ? <MoreButton onClick={() => setShown((value) => value + LIST_PAGE)} /> : null}
+    </>
+  );
+}
+
+function CommunityLinksList({ items }: { items: NonNullable<Awaited<ReturnType<typeof communityApi.media>>>["links"] }) {
+  const [shown, setShown] = useState(LIST_PAGE);
   return (
-    <div className={styles.linksList}>
-      {links.map((item) => {
-        const preview = item.linkPreview as { url?: string; title?: string; description?: string } | undefined;
-        const url = preview?.url ?? item.text.match(/https?:\/\/\S+/)?.[0];
-        return url ? (
-          <a key={item.messageId} className={styles.linkRow} href={url} target="_blank" rel="noreferrer">
-            <span className={styles.linkIcon}>{(preview?.title ?? url).slice(0, 1).toUpperCase()}</span>
-            <span className={styles.fileBody}>
-              <strong>{preview?.title || url}</strong>
-              {preview?.description ? <small>{preview.description}</small> : null}
-              <small className={styles.linkUrl}>{url}</small>
-            </span>
-          </a>
-        ) : null;
-      })}
-    </div>
+    <>
+      <div className={styles.linksList}>
+        {items.slice(0, shown).map((item) => {
+          const preview = item.linkPreview as { url?: string; title?: string; description?: string } | undefined;
+          const url = preview?.url ?? item.text.match(/https?:\/\/\S+/)?.[0];
+          return url ? (
+            <a key={item.messageId} className={styles.linkRow} href={url} target="_blank" rel="noreferrer">
+              <span className={styles.linkIcon}>{(preview?.title ?? url).slice(0, 1).toUpperCase()}</span>
+              <span className={styles.fileBody}>
+                <strong>{preview?.title || url}</strong>
+                {preview?.description ? <small>{preview.description}</small> : null}
+                <small className={styles.linkUrl}>{url}</small>
+              </span>
+            </a>
+          ) : null;
+        })}
+      </div>
+      {shown < items.length ? <MoreButton onClick={() => setShown((value) => value + LIST_PAGE)} /> : null}
+    </>
   );
 }
 
 function CommunityMediaGrid({ items }: { items: NonNullable<Awaited<ReturnType<typeof communityApi.media>>>["media"] }) {
+  const [shown, setShown] = useState(MEDIA_PAGE);
   const [open, setOpen] = useState<number | null>(null);
   const viewer: ViewerItem[] = items.map((item) => mediaItem(item.attachment as Attachment, { id: item.messageId }));
   return (
-    <div className={styles.mediaGrid}>
-      {viewer.map((item, index) => (
-        <button key={`${items[index]?.messageId}:${index}`} type="button" className={styles.mediaCell} aria-label={item.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(index)}>
-          {item.kind === "video" && !item.thumbUrl ? <video src={item.url} muted preload="metadata" /> : <img src={item.thumbUrl ?? item.url} alt="" loading="lazy" />}
-          {item.kind === "video" ? <span className={styles.play}><Icon name="Play" size={14} /></span> : null}
-        </button>
-      ))}
-      {open !== null ? <MediaViewer items={viewer} index={open} onClose={() => setOpen(null)} /> : null}
-    </div>
+    <>
+      <div className={styles.mediaGrid}>
+        {viewer.slice(0, shown).map((item, index) => (
+          <button key={`${items[index]?.messageId}:${index}`} type="button" className={styles.mediaCell} aria-label={item.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(index)}>
+            {item.kind === "video" && !item.thumbUrl ? <video src={item.url} muted preload="metadata" /> : <img src={item.thumbUrl ?? item.url} alt="" loading="lazy" />}
+            {item.kind === "video" ? <span className={styles.play}><Icon name="Play" size={14} /></span> : null}
+          </button>
+        ))}
+        {open !== null ? <MediaViewer items={viewer} index={open} onClose={() => setOpen(null)} /> : null}
+      </div>
+      {shown < items.length ? <MoreButton onClick={() => setShown((value) => value + MEDIA_PAGE)} /> : null}
+    </>
+  );
+}
+
+function MoreButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className={styles.moreButton} onClick={onClick}>
+      Показать ещё
+    </button>
   );
 }
 

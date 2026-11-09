@@ -354,6 +354,34 @@ export class MessagesRepository {
     return this.toMessages(rows).reverse();
   }
 
+  /** Последние медиа-сообщения сразу из нескольких чатов, с личной границей очистки каждого. */
+  public listMediaForChats(chatIds: string[], viewerId: string, clearedBefore: Record<string, string | undefined>, limit = 300): Message[] {
+    if (!chatIds.length) return [];
+    const chatsVisible = or(
+      ...chatIds.map((chatId) => {
+        const cleared = clearedBefore[chatId];
+        return and(eq(messages.chatId, chatId), cleared ? gt(messages.createdAt, cleared) : undefined)!;
+      }),
+    );
+    return this.toMessages(
+      this.db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            chatsVisible,
+            sql`NOT ${listsId(messages.deletedForIds, viewerId)}`,
+            or(isNull(messages.visibleToId), eq(messages.visibleToId, viewerId), eq(messages.senderId, viewerId)),
+            isNull(messages.threadRootId),
+            or(sql`${messages.attachments} IS NOT NULL`, sql`${messages.linkPreview} IS NOT NULL`, eq(messages.hasLink, 1)),
+          ),
+        )
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(limit)
+        .all(),
+    );
+  }
+
   /** Дни месяца (ГГГГ-ММ) со сообщениями ленты; tz — сдвиг в минутах. */
   public listDays(chatId: string, month: string, tz: number): string[] {
     return this.db

@@ -136,4 +136,38 @@ describe("страница сообщества", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Ссылки" }));
     expect(await screen.findByText("Shalter")).toBeTruthy();
   });
+
+  it("показывает ошибку общей медиатеки, а не сообщение о пустом разделе", async () => {
+    fakeApi({
+      "GET /api/communities/cm_city00000000": { body: { community: community({ isMember: true, role: "member" }) } },
+      "GET /api/communities/cm_city00000000/media": { status: 500, body: { error: "Медиатека временно недоступна" } },
+    });
+    renderAt("cm_city00000000");
+    await screen.findByRole("heading", { name: "Город" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Медиа" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Медиатека временно недоступна");
+    expect(screen.queryByText("Медиа пока нет")).toBeNull();
+  });
+
+  it("не монтирует сразу всю медиатеку", async () => {
+    const media = Array.from({ length: 31 }, (_, index) => ({
+      chatId: "c_open",
+      messageId: `m_image_${index}`,
+      createdAt: "2026-11-09T08:00:00.000Z",
+      senderId: "u_alice0000",
+      attachment: { kind: "image", url: `data:image/png;base64,${index}` },
+    }));
+    fakeApi({
+      "GET /api/communities/cm_city00000000": { body: { community: community({ isMember: true, role: "member" }) } },
+      "GET /api/communities/cm_city00000000/media": { body: { media, files: [], links: [] } },
+    });
+    renderAt("cm_city00000000");
+    await screen.findByRole("heading", { name: "Город" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Медиа" }));
+    expect(await screen.findAllByRole("button", { name: "Фото" })).toHaveLength(30);
+    fireEvent.click(screen.getByRole("button", { name: "Показать ещё" }));
+    expect(screen.getAllByRole("button", { name: "Фото" })).toHaveLength(31);
+  });
 });
