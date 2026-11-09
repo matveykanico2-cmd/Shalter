@@ -5,6 +5,7 @@ import { type Message, messagePreview } from "@/entities/message";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 
 import { copyText } from "@/shared/lib/clipboard";
+import { type DownloadItem, downloadMany } from "@/shared/lib/download-many";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, toast } from "@/shared/ui";
 
@@ -28,11 +29,19 @@ type Props = {
 /** «Выбрано: N» над лентой — как renderSelectionBar в public/js/views/chatView.js. */
 export function SelectionBar({ messages, chat, me, actions, senderName, onClear }: Props) {
   const [dialog, setDialog] = useState<"forward" | "delete" | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const isDm = chat.type === "dm";
   const allMine = messages.every((m) => m.senderId === me.id);
   const canDeleteForAll = allMine || (!isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))) || isServerModerator(me);
   const protectedContent = isProtectedChat(chat);
   const count = messages.length;
+  const downloads = messages.flatMap((message) =>
+    (message.attachments ?? []).flatMap((raw) => {
+      const attachment = raw as { url?: unknown; name?: unknown; inline?: unknown };
+      if (typeof attachment.url !== "string" || attachment.inline === true) return [];
+      return [{ url: attachment.url, name: typeof attachment.name === "string" ? attachment.name : undefined } satisfies DownloadItem];
+    }),
+  );
 
   const copy = () => {
     const text = messages.map((m) => `${senderName(m) ?? ""}: ${messagePreview(m)}`.trim()).join("\n");
@@ -61,6 +70,22 @@ export function SelectionBar({ messages, chat, me, actions, senderName, onClear 
     for (const m of messages) await actions.remove(m, forEveryone);
   };
 
+  const download = async () => {
+    if (downloading || !downloads.length) return;
+    setDownloading(true);
+    try {
+      const saved = await downloadMany(downloads);
+      if (saved) {
+        onClear();
+        toast(saved === 1 ? "Файл скачан" : `Файлы скачаны: ${saved}`);
+      }
+    } catch (err) {
+      toast(errorText(err, "Не удалось скачать файлы"), { error: true });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className={styles.selectionBar} role="toolbar" aria-label="Выбранные сообщения">
       <button type="button" className={styles.barButton} title="Отменить" onClick={onClear}>
@@ -75,6 +100,11 @@ export function SelectionBar({ messages, chat, me, actions, senderName, onClear 
           <button type="button" className={styles.barButton} title="Переслать" onClick={() => setDialog("forward")}>
             <Icon name="Forward" size={17} />
           </button>
+          {downloads.length ? (
+            <button type="button" className={styles.barButton} title={downloads.length === 1 ? "Скачать вложение" : `Скачать вложения (${downloads.length})`} disabled={downloading} onClick={() => void download()}>
+              <Icon name="Download" size={17} />
+            </button>
+          ) : null}
         </>
       ) : null}
       <button type="button" className={`${styles.barButton} ${styles.barDanger}`} title="Удалить" onClick={() => setDialog("delete")}>

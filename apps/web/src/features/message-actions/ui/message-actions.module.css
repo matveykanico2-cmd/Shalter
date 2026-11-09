@@ -436,6 +436,11 @@
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 
+.barButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .barDanger {
   color: var(--color-danger);
 }

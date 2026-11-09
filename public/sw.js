@@ -155,9 +155,12 @@ async function precacheBuild() {
 }
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type !== 'precache') return;
-  precaching ??= precacheBuild().catch(() => {}).finally(() => (precaching = null));
-  event.waitUntil?.(precaching);
+  if (event.data?.type === 'precache') {
+    precaching ??= precacheBuild().catch(() => {}).finally(() => (precaching = null));
+    event.waitUntil?.(precaching);
+  } else if (event.data?.type === 'sync-messages') {
+    event.waitUntil?.(syncMessages());
+  }
 });
 
 // ---------- Push-уведомления (server/push.js: { title, body, url, tag, kind, avatar, … }) ----------
@@ -405,7 +408,46 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 });
 
 
-// Background sync for messages
+// ---------- Фоновая очередь сообщений ----------
+// Клиент кладёт сюда JSON уже после загрузки файлов. Один store и последовательная отправка
+// сохраняют порядок даже после выгрузки вкладки; clientId на сервере делает повторы безопасными.
+const OUTBOX_DB = 'shalter-outbox';
+const OUTBOX_STORE = 'messages';
+let syncingMessages = null;
+
+function outboxDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(OUTBOX_DB, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(OUTBOX_STORE)) request.result.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function outboxEntries(db) {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll();
+    request.onsuccess = () => resolve(request.result.sort((a, b) => a.createdAt - b.createdAt));
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function removeOutboxEntry(db, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+    tx.objectStore(OUTBOX_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function tellWindows(message) {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of windows) client.postMessage(message);
+}
+
 self.addEventListener('sync', (event) => {
   if (event.tag === 'send-messages') {
     event.waitUntil(syncMessages());
@@ -413,6 +455,38 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncMessages() {
-  // Implementation would depend on your message queue storage
-  console.log('Background sync: sending queued messages');
+  if (syncingMessages) return syncingMessages;
+  syncingMessages = (async () => {
+    const db = await outboxDb();
+    try {
+      for (const entry of await outboxEntries(db)) {
+        let response;
+        try {
+          response = await fetch(entry.path, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(entry.body),
+          });
+        } catch {
+          break; // сеть снова пропала — запись остаётся до следующего sync/online
+        }
+        if (response.ok) {
+          let result = null;
+          try { result = await response.json(); } catch {}
+          await removeOutboxEntry(db, entry.id);
+          await tellWindows({ type: 'shalter:outbox-sent', clientId: entry.id, chatId: entry.chatId, message: result?.message });
+          continue;
+        }
+        // Сессия или сервер временно недоступны: не теряем очередь и не нарушаем порядок.
+        if (response.status === 401 || response.status === 429 || response.status >= 500) break;
+        // Невосстановимая ошибка конкретного сообщения не должна навсегда блокировать следующие.
+        await removeOutboxEntry(db, entry.id);
+        await tellWindows({ type: 'shalter:outbox-failed', clientId: entry.id, chatId: entry.chatId, status: response.status });
+      }
+    } finally {
+      db.close();
+    }
+  })().catch(() => {}).finally(() => (syncingMessages = null));
+  return syncingMessages;
 }

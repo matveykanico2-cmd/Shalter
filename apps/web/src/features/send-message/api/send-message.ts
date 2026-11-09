@@ -28,21 +28,32 @@ export type SendOptions = { silent?: true; effect?: string; anonymous?: true; pa
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 
+export function messageRequest(chatId: string, body: Body, channel: boolean) {
+  if (channel) {
+    return {
+      path: `/api/posts/${encodeURIComponent(chatId)}/publish`,
+      body: {
+        text: body.text,
+        attachments: body.attachments ?? [],
+        clientId: body.clientId,
+        ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
+      },
+    };
+  }
+  const { attachments, sticker, ...rest } = body;
+  return {
+    path: `${chatPath(chatId)}/messages`,
+    body: { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) },
+  };
+}
+
 /**
  * Сообщение в чат (POST /api/chats/:id/messages) или пост канала (POST /api/posts/:id/publish).
  * clientId — метка отправки: повтор после обрыва сети сервер узнаёт и не создаёт дубль.
  */
 export function sendMessage(chatId: string, body: Body, channel: boolean) {
-  if (channel) {
-    return http.post<SendResult>(`/api/posts/${encodeURIComponent(chatId)}/publish`, {
-      text: body.text,
-      attachments: body.attachments ?? [],
-      clientId: body.clientId,
-      ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
-    });
-  }
-  const { attachments, sticker, ...rest } = body;
-  return http.post<SendResult>(`${chatPath(chatId)}/messages`, { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) });
+  const request = messageRequest(chatId, body, channel);
+  return http.post<SendResult>(request.path, request.body);
 }
 
 export const saveDraft = (chatId: string, text: string) => http.post<unknown>(`${chatPath(chatId)}/draft`, { text });

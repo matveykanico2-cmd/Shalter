@@ -23,7 +23,8 @@ export function useUploads(chatId: string) {
 
   useEffect(
     () => () => {
-      aborts.current.forEach((c) => c.abort());
+      // Переход в другой чат не отменяет уже подтверждённую отправку: Promise ниже продолжит
+      // загрузку и затем отправит сообщение. Явная кнопка отмены по-прежнему abort-ит запрос.
       urls.current.forEach((u) => URL.revokeObjectURL(u));
     },
     []

@@ -9,11 +9,28 @@ import { settingsQueries } from "@/entities/settings";
 
 import type { Sticker } from "@/shared/lib/anim";
 import { playSentSound } from "@/shared/lib/media/sounds";
+import { forgetOutgoingMessage, keepOutgoingMessage, syncOutgoingMessages } from "@/shared/lib/message-outbox";
 
-import { type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
-import { retryOffline } from "../lib/retry-offline";
+import { messageRequest, type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
+import { isOffline, retryOffline } from "../lib/retry-offline";
 
 let localSeq = 0;
+const sendTails = new Map<string, Promise<void>>();
+
+/** Медленная сеть не должна переставлять свои сообщения: в один чат отправляем строго по одному. */
+function inSendOrder<T>(chatId: string, send: () => Promise<T>) {
+  const before = sendTails.get(chatId) ?? Promise.resolve();
+  const result = before.catch(() => {}).then(send);
+  const tail = result.then(
+    () => {},
+    () => {},
+  );
+  sendTails.set(chatId, tail);
+  void tail.finally(() => {
+    if (sendTails.get(chatId) === tail) sendTails.delete(chatId);
+  });
+  return result;
+}
 
 /**
  * topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения.
@@ -39,7 +56,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
           void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
         }
       }
-      historyCache.addPending(client, chatId, {
+      const pending = {
         id: localId,
         chatId,
         senderId: meId,
@@ -57,18 +74,29 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         deletedForIds: [],
         mentionedUserIds: [],
         views: null,
-      });
+      } satisfies Message;
+      historyCache.addPending(client, chatId, pending);
+      const body = { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options };
+      const request = messageRequest(chatId, body, channel);
+      // Записываем до fetch: закрытие/выгрузка вкладки не теряет уже нажатое «Отправить».
+      await keepOutgoingMessage({ id: localId, chatId, path: request.path, body: request.body, createdAt: Date.now() });
+      void syncOutgoingMessages();
       try {
         // Без сети пузырь ждёт, пока она появится; clientId не даст дубля.
-        const { message } = await retryOffline(() =>
-          sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options }, channel)
-        );
+        const { message } = await inSendOrder(chatId, () => retryOffline(() => sendMessage(chatId, body, channel)));
+        await forgetOutgoingMessage(localId);
         historyCache.confirmPending(client, chatId, localId, message);
         // «Отправлено» — если звук в настройках не выключен (playSentSound в chatView.js).
         if ((client.getQueryData(settingsQueries.current().queryKey)?.notifications as { sound?: boolean } | undefined)?.sound !== false) playSentSound();
         chatCache.noteMessage(client, chatId, message);
         return message;
       } catch (err) {
+        if (isOffline(err)) {
+          // Пузырь остаётся «отправляется»; SW продолжит в фоне и вернёт настоящее сообщение.
+          void syncOutgoingMessages();
+          return pending;
+        }
+        await forgetOutgoingMessage(localId);
         historyCache.dropPending(client, chatId, localId);
         throw err;
       } finally {
