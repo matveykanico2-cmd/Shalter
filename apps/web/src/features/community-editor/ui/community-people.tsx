@@ -65,6 +65,7 @@ export function AddCommunityMembersDialog({ community, meId, onChanged, onClose 
 
   const reload = () => {
     void client.invalidateQueries({ queryKey: peopleKey(community.id, "members") });
+    void client.invalidateQueries({ queryKey: ["communities", "members", community.id] });
     onChanged();
   };
   const toggle = (id: string) =>

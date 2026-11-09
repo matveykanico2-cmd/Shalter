@@ -61,7 +61,10 @@ function CommunityPage({ community }: { community: Community }) {
   const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const rights = community.rights;
-  const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
+  const reload = () => {
+    void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
+    void client.invalidateQueries({ queryKey: ["communities", "members", community.id] });
+  };
 
   const joinChat = async (chat: CommunityChat) => {
     setBusy(chat.id);

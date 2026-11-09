@@ -137,6 +137,26 @@
   font: inherit;
 }
 
+.detailDesc {
+  width: 100%;
+  min-width: 0;
+  min-height: 76px;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  outline: none;
+  resize: vertical;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.detailDesc:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
 .error {
   margin: 0;
   color: var(--color-danger);

@@ -94,6 +94,9 @@ describe("регистрация", () => {
     // Имя и юзернейм уже придуманы сервером — их можно поменять.
     expect((screen.getByPlaceholderText("Имя") as HTMLInputElement).value).toBe("Regina");
     expect((screen.getByPlaceholderText("юзернейм") as HTMLInputElement).value).toBe("regina_123");
+    expect(screen.getByRole("combobox", { name: "День рождения" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Месяц рождения" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Год рождения" })).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText("Имя"), { target: { value: "Регина" } });
     fireEvent.change(screen.getByPlaceholderText("юзернейм"), { target: { value: "@regina!" } });
     expect((screen.getByPlaceholderText("юзернейм") as HTMLInputElement).value).toBe("regina");
