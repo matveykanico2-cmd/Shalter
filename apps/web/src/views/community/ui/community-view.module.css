@@ -116,15 +116,57 @@
 
 /* Участники сообщества — диалог со списком. */
 .search {
-  width: min(460px, 100%);
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--color-text);
   font: inherit;
   font-size: 14px;
+}
+
+.searchBox {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+
+.memberTools {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.addMembers,
+.manageAdmins {
+  display: flex;
+  min-height: 48px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.manageAdmins {
+  flex: 0 0 auto;
+  color: var(--color-muted);
 }
 
 .list {
@@ -144,7 +186,6 @@
   text-align: left;
 }
 
-.profileTab .search,
 .profileTab .list {
   width: 100%;
 }
@@ -278,15 +319,23 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 12px;
-  background: none;
+  border-radius: 0;
+  background: var(--color-surface);
   border: none;
+  border-bottom: 1px solid var(--color-border);
   cursor: pointer;
   text-align: left;
 }
 
 .memberRow:hover {
   background: var(--color-surface-alt);
+}
+
+.profileTab .list {
+  gap: 0;
+  overflow: hidden auto;
+  border-radius: 16px;
+  background: var(--color-surface);
 }
 
 .memberBody {

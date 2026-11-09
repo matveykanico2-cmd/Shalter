@@ -48,6 +48,7 @@ describe("без сессии", () => {
       api.post(`/api/communities/${id}/mute`, {}),
       api.post(`/api/communities/${id}/read`),
       api.get(`/api/communities/${id}/members`),
+      api.post(`/api/communities/${id}/members`, { userIds: [u] }),
       api.get(`/api/communities/${id}/media`),
       api.post(`/api/communities/${id}/chats`, {}),
       api.patch(`/api/communities/${id}/chats/c_x0000000`, {}),
@@ -78,6 +79,7 @@ describe("без сессии", () => {
       api.post(`/api/communities/${id}/mute`, { forever: true }),
       api.post(`/api/communities/${id}/read`),
       api.get(`/api/communities/${id}/members`),
+      api.post(`/api/communities/${id}/members`, { userIds: [a.id] }),
       api.get(`/api/communities/${id}/media`),
       api.post(`/api/communities/${id}/chats`, {}),
       api.patch(`/api/communities/${id}/chats/c_x0000000`, { visible: true }),
@@ -626,6 +628,34 @@ describe("GET /:id/members", () => {
     const byNick = expectOk(await b.api.get(`/api/communities/${c.id}/members`, { query: { q: b.username.toUpperCase() } }), membersBody).users;
     expect(byNick.map((u) => u.id)).toEqual([b.id]);
     expect(expectOk(await b.api.get(`/api/communities/${c.id}/members`, { query: { q: "никого" } }), membersBody).users).toEqual([]);
+  });
+});
+
+describe("POST /:id/members", () => {
+  test("добавляет выбранных людей сразу во все чаты сообщества", async () => {
+    const { baseUrl } = server();
+    const owner = await registerUser(baseUrl, { name: "Владелец" });
+    const member = await registerUser(baseUrl, { name: "Обычный участник" });
+    const first = await registerUser(baseUrl, { name: "Первый новый" });
+    const second = await registerUser(baseUrl, { name: "Второй новый" });
+    const group = await createGroup(owner, [member]);
+    const channel = await createChannel(owner);
+    const community = await createCommunity(owner, { chatId: group.id });
+    expectOk(await owner.api.post(`/api/communities/${community.id}/chats`, { chatId: channel.id }), communityBody);
+
+    expectError(await member.api.post(`/api/communities/${community.id}/members`, { userIds: [first.id] }), 403, NO_RIGHTS);
+    expectError(await owner.api.post(`/api/communities/${community.id}/members`, { userIds: [] }), 400, "Выберите участников");
+    expectError(await owner.api.post(`/api/communities/${community.id}/members`, { userIds: ["u_missing00000"] }), 404, "Пользователь не найден");
+
+    const added = expectOk(await owner.api.post(`/api/communities/${community.id}/members`, { userIds: [first.id, second.id, first.id] }), communityBody).community;
+    expect(added.membersCount).toBe(4);
+    const users = expectOk(await owner.api.get(`/api/communities/${community.id}/members`), membersBody).users;
+    expect(users.map((user) => user.id)).toEqual(expect.arrayContaining([owner.id, member.id, first.id, second.id]));
+    for (const user of [first, second]) {
+      expectOk(await user.api.get(`/api/chats/${group.id}`), chatCard);
+      expectOk(await user.api.get(`/api/chats/${channel.id}`), chatCard);
+      expect(expectOk(await user.api.get("/api/communities/joined"), joinedBody).communities.map((item) => item.id)).toContain(community.id);
+    }
   });
 });
 

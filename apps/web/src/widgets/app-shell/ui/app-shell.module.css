@@ -87,6 +87,20 @@
   backdrop-filter: blur(20px) saturate(150%);
 }
 
+/* На телефоне blur большого слоя пересчитывался при каждом кадре прокрутки списка и ленты.
+   Сплошной фон визуально почти тот же, но не вынуждает Android WebView композить экран заново. */
+@media (pointer: coarse) {
+  .side,
+  .rail {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .rail {
+    background: var(--color-surface);
+  }
+}
+
 .account {
   display: grid;
   place-items: center;

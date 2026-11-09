@@ -54,15 +54,16 @@ describe("«Мои стикерпаки» (stickerPackDialog.js)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Создать пак" }));
     expect(screen.getByRole("dialog", { name: "Новый пак" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Создать пак" }));
+    fireEvent.click(screen.getByRole("button", { name: "Создать и добавить стикеры" }));
     expect(screen.getByRole("alert").textContent).toBe("Назовите пак");
     fireEvent.change(screen.getByRole("textbox", { name: "Название пака" }), { target: { value: "Мои" } });
-    fireEvent.click(screen.getByRole("button", { name: "Создать пак" }));
-    await screen.findByText("Мои");
-    expect(screen.getByRole("dialog", { name: "Мои стикерпаки" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Создать и добавить стикеры" }));
+    expect(await screen.findByRole("dialog", { name: "Правка «Мои»" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Добавить картинку" })).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/stickers/packs")?.body).toMatchObject({ name: "Мои" });
 
     // Удалить пак (владелец)
+    fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
     fireEvent.click(screen.getByRole("button", { name: "Удалить «Котики»" }));
     await waitFor(() => expect(screen.queryByText("Котики")).toBeNull());
   });

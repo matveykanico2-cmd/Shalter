@@ -11,6 +11,7 @@ import { fakeApi } from "@/shared/lib/test";
 import { Toaster } from "@/shared/ui";
 
 import { AddChatFlow } from "./add-chat-flow";
+import { AddCommunityMembersDialog, AdminsDialog } from "./community-people";
 import { CommunitySettingsDialog } from "./community-settings-dialog";
 import { CreateCommunityDialog } from "./create-community-dialog";
 
@@ -120,5 +121,38 @@ describe("сообщества", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
     expect(await screen.findByText("Сообщество создано")).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/communities")?.body).toMatchObject({ title: "Дачники", avatarImage: null, avatarEmoji: "😇" });
+  });
+
+  it("добавляет выбранные контакты сразу в участники сообщества", async () => {
+    const boris = { id: "u_boris0000", name: "Борис", username: "boris", avatarColor: null, avatarImage: null, avatarEmoji: null };
+    const { calls } = fakeApi({
+      "GET /api/communities/cm_dacha0000000": { body: { community } },
+      "GET /api/communities/cm_dacha0000000/members?q=": { body: { users: [{ ...boris, id: ME, name: "Я", role: "owner" }] } },
+      "GET /api/contacts": { body: { contacts: [{ user: boris, localName: null, note: null, sharePhone: false }] } },
+      "POST /api/communities/cm_dacha0000000/members": { body: { community: { ...community, membersCount: 2 } } },
+      "GET /api/communities/joined": { body: { communities: [] } },
+    });
+    setup(<AddCommunityMembersDialog community={community as never} meId={ME} onChanged={() => {}} onClose={() => {}} />);
+    const people = await screen.findByRole("dialog", { name: "Добавить участников" });
+    fireEvent.click(await within(people).findByRole("button", { name: "Выбрать Борис" }));
+    fireEvent.click(within(people).getByRole("button", { name: "Добавить (1)" }));
+    await waitFor(() => expect(calls.find((call) => call.key === "POST /api/communities/cm_dacha0000000/members")?.body).toEqual({ userIds: [boris.id] }));
+  });
+
+  it("показывает системный значок администратора как иконку, а не icon:crown", async () => {
+    const admin = { id: "u_admin0000", name: "Админ", username: "admin", avatarColor: null, avatarImage: null, avatarEmoji: null, role: "admin", rights, badge: "icon:crown", title: null };
+    fakeApi({
+      "GET /api/communities/cm_dacha0000000": { body: { community: { ...community, membersCount: 2, adminsCount: 2 } } },
+      "GET /api/communities/cm_dacha0000000/members?q=": { body: { users: [{ ...admin, role: "member" }] } },
+      "GET /api/communities/cm_dacha0000000/admins": { body: { admins: [admin] } },
+      "GET /api/communities/joined": { body: { communities: [] } },
+    });
+    setup(<AdminsDialog community={{ ...community, membersCount: 2, adminsCount: 2 } as never} meId={ME} onChanged={() => {}} onClose={() => {}} />);
+    const admins = await screen.findByRole("dialog", { name: "Администраторы" });
+    expect(admins.textContent).not.toContain("icon:crown");
+    fireEvent.click(await within(admins).findByRole("button", { name: /Админ/ }));
+    const rightsDialog = await screen.findByRole("dialog", { name: "Права администратора" });
+    expect((within(rightsDialog).getByRole("textbox", { name: "Значок (эмодзи)" }) as HTMLInputElement).value).toBe("");
+    expect(rightsDialog.textContent).not.toContain("icon:crown");
   });
 });

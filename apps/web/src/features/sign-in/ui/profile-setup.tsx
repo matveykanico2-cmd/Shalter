@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
-import { AvatarEditor, type AvatarValue, Button, DateField, PhoneField, TextField } from "@/shared/ui";
+import { AvatarEditor, type AvatarValue, BirthdayField, Button, PhoneField, TextField } from "@/shared/ui";
 
 import { type SignedInUser, updateNewProfile } from "../api/sign-in";
 
@@ -66,9 +66,8 @@ export function ProfileSetup({ user, password, onDone }: Props) {
       <TextField placeholder="Фамилия (необязательно)" aria-label="Фамилия" maxLength={60} value={lastName} onChange={(e) => setLastName(e.target.value)} />
       <UsernameInput value={username} own={initialUsername} onChange={setUsername} />
       <PhoneField initial="" onChange={setPhone} placeholder="Телефон (необязательно)" />
-      <DateField
+      <BirthdayField
         value={birthday}
-        aria-label="Дата рождения"
         onChange={(iso, err) => {
           setBirthday(iso || null);
           setBirthdayError(err);

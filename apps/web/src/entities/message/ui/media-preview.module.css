@@ -72,6 +72,20 @@
   color: #fff;
 }
 
+.videoPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-muted) 28%, transparent);
+  color: #fff;
+}
+
+/* Превью подарка в строке чата должно быть статичным: десятки бесконечных SVG-анимаций
+   в виртуальном списке съедали кадры на Android. */
+.giftArt :global(*) {
+  animation: none !important;
+}
+
 .dur {
   font-variant-numeric: tabular-nums;
 }

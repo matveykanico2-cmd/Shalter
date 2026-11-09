@@ -11,7 +11,7 @@ import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
 import { cleanAvatarImage, isChatAdmin } from "./lib/community-fields.js";
 import type { CommunityPatch } from "./model/domain.js";
-import type { CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
+import type { AddMembersDto, CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
 
 const MAX_MEMBERS = 200;
 const MAX_MEDIA_MESSAGES = 300;
@@ -258,6 +258,23 @@ export class CommunitiesService {
       if (users.length >= MAX_MEMBERS) break;
     }
     return { users };
+  }
+
+  /** Добавить людей сразу в сообщество и во все его группы/каналы. */
+  public addMembers(uid: string, id: string, dto: AddMembersDto) {
+    const community = this.access.load(id, uid, "ban");
+    const targets = dto.userIds.filter((userId) => userId !== uid);
+    for (const userId of targets) {
+      if (!this.access.userCard(userId)) throw new ApiError(404, "Пользователь не найден");
+      if (this.communities.isBanned(community.id, userId)) throw new ApiError(409, "Сначала верните пользователя из удалённых");
+    }
+    for (const userId of targets) {
+      this.communities.join(community.id, userId);
+      // Повторное добавление чинит недостающее членство в отдельных чатах.
+      this.access.addToChats(this.access.reload(community.id), userId);
+    }
+    if (targets.length) this.access.notify(community.id, targets);
+    return { community: this.access.view(this.access.reload(community.id), uid) };
   }
 
   /** Медиа, файлы и ссылки всех чатов сообщества, в которых состоит участник. */

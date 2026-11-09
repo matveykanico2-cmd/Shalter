@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatFolder, chatQueries, type ChatSummary } from "@/entities/chat";
+import { communityQueries } from "@/entities/community";
 import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
@@ -59,6 +60,7 @@ function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/"
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   client.setQueryData(chatQueries.list().queryKey, chats);
   client.setQueryData(chatQueries.folders().queryKey, folders);
+  client.setQueryData(communityQueries.joined().queryKey, []);
   const router = createMemoryRouter(
     [
       {

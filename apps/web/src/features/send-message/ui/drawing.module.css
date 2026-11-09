@@ -147,6 +147,57 @@
   max-width: min(420px, 94vw);
 }
 
+.createPackCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  border-radius: 20px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 9%, var(--color-surface)), var(--color-surface));
+  text-align: left;
+}
+
+.createPackIntro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.createPackIntro > span:last-child,
+.packField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.createPackIntro small,
+.packField small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.createPackIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.packField > span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.createPackCard .detailDesc {
+  min-height: 92px;
+  resize: vertical;
+}
+
 .packBody {
   display: flex;
   max-height: min(64vh, 520px);

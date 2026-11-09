@@ -31,15 +31,28 @@
 .loading {
   min-width: 120px;
   min-height: 90px;
-  background: linear-gradient(100deg, var(--color-surface-alt) 30%, color-mix(in srgb, var(--color-surface-alt) 60%, #fff) 50%, var(--color-surface-alt) 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.2s linear infinite;
+  background: var(--color-surface-alt);
+  filter: blur(8px);
+  transform: scale(1.03);
 }
 
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
+.mediaLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.downloadSpinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 7px rgba(0, 0, 0, 0.18);
+  animation: spin 0.85s linear infinite;
 }
 
 .failed {

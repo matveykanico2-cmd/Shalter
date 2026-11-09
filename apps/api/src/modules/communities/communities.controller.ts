@@ -7,6 +7,7 @@ import { CommunityAdminsService } from "./community-admins.service.js";
 import { CommunityChatsService } from "./community-chats.service.js";
 import {
   addChatSchema,
+  addMembersSchema,
   adminBadgeTitleSchema,
   adminRightsSchema,
   chatVisibleSchema,
@@ -17,6 +18,7 @@ import {
   patchCommunitySchema,
   prefsSchema,
   type AddChatDto,
+  type AddMembersDto,
   type AdminBadgeTitleDto,
   type AdminRightsDto,
   type ChatVisibleDto,
@@ -106,6 +108,12 @@ export class CommunitiesController {
   @Get(":id/members")
   public members(@Req() req: Request, @Param("id") id: string, @Query(new ZodValidationPipe(membersQuerySchema)) query: MembersQuery) {
     return this.communities.members(req.uid!, id, query);
+  }
+
+  @Post(":id/members")
+  @HttpCode(200)
+  public addMembers(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(addMembersSchema)) dto: AddMembersDto) {
+    return this.communities.addMembers(req.uid!, id, dto);
   }
 
   @Get(":id/media")

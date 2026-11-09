@@ -43,6 +43,7 @@ export const communityApi = {
   mute: (id: string, opts: { hours?: number; forever?: boolean; off?: boolean }) => http.post<unknown>(`${path(id)}/mute`, opts),
   read: (id: string) => http.post<unknown>(`${path(id)}/read`),
   members: (id: string, q = "") => http.get<z.infer<typeof membersBody>>(`${path(id)}/members?q=${encodeURIComponent(q)}`),
+  addMembers: (id: string, userIds: string[]) => http.post<Body>(`${path(id)}/members`, { userIds }),
   media: (id: string, signal?: AbortSignal) => http.get<CommunityMedia>(`${path(id)}/media`, signal),
   addChat: (id: string, chatId: string, visible = true) => http.post<Body | z.infer<typeof communityRequestedBody>>(`${path(id)}/chats`, { chatId, visible }),
   setChatVisible: (id: string, chatId: string, visible: boolean) => http.patch<Body>(`${path(id)}/chats/${encodeURIComponent(chatId)}`, { visible }),

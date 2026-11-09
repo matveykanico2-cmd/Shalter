@@ -318,11 +318,18 @@ export function UserProfilePanel({ userId, me }: Props) {
 
       <div className={styles.quickActions}>
         <QuickAction icon={isSelf ? "Bookmark" : "MessageSquare"} label={isSelf ? "Избранное" : "Написать"} onClick={() => void startChat()} />
-        {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Phone" label="Звонок" onClick={() => void call("audio")} /> : null}
-        {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Video" label="Видео" onClick={() => void call("video")} /> : null}
-        {u.username ? <QuickAction icon="Copy" label="Ссылка" onClick={() => void copyText(profileLink(), "Ссылка на профиль скопирована")} /> : null}
-        {u.username ? <QuickAction icon="Qrcode" label="QR-код" onClick={() => setOverlay("qr")} /> : null}
-        {inContacts && !isSelf ? <QuickAction icon="Edit" label="Изменить" onClick={() => setOverlay("edit-contact")} /> : null}
+        {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Phone" label="Позвонить" onClick={() => void call("audio")} /> : null}
+        {!isSelf && !u.isBot ? (
+          <QuickAction
+            icon="Mic"
+            label="Аудио"
+            onClick={() => {
+              if (!has.voice) return toast("В переписке пока нет аудио");
+              setTab("voice");
+              showTabs();
+            }}
+          />
+        ) : null}
         {isSelf ? (
           <QuickAction
             icon="Edit"
@@ -419,35 +426,6 @@ export function UserProfilePanel({ userId, me }: Props) {
           ) : null}
           <p className={styles.adText}>{ad.text}</p>
         </button>
-      ) : null}
-
-      {!isSelf ? (
-        <div className={styles.actions}>
-          {!u.isBot ? (
-            <ActionButton icon={inContacts ? "Trash" : "Plus"} onClick={() => void toggleContact()}>
-              {inContacts ? "Удалить из контактов" : "Добавить в контакты"}
-            </ActionButton>
-          ) : null}
-          {!u.isBot ? (
-            <ActionButton icon="Gift" onClick={() => openGiftShop({ recipient: { id: u.id, name: u.name } })}>
-              Отправить подарок
-            </ActionButton>
-          ) : null}
-          {!u.isBot && !blocked ? (
-            <ActionButton icon="Lock" onClick={() => void startSecretChat()}>
-              Начать секретный чат
-            </ActionButton>
-          ) : null}
-          <ActionButton icon="Forward" onClick={shareContact}>
-            Поделиться контактом
-          </ActionButton>
-          <ActionButton icon="Lock" danger onClick={() => void toggleBlock()}>
-            {blocked ? "Разблокировать" : "Заблокировать"}
-          </ActionButton>
-          <ActionButton icon="Info" danger onClick={() => setOverlay("report")}>
-            Пожаловаться
-          </ActionButton>
-        </div>
       ) : null}
 
       {data.pinnedChannels.length || isSelf ? (
@@ -633,26 +611,20 @@ export function UserProfilePanel({ userId, me }: Props) {
             </button>
           </div>
           <div className={styles.body}>
-            <p className={styles.muted}>Доступные действия:</p>
-            <div style={{ padding: "8px 16px" }}>
-              <button type="button" className={styles.actionButton} onClick={() => {
-                setShowDotsMenu(false);
-                navigate(isSelf ? "/settings/profile" : `/u/${u.username}`);
-              }}>
-                Редактировать профиль
-              </button>
-              <button type="button" className={styles.actionButton} onClick={() => {
-                setShowDotsMenu(false);
-                setOverlay("qr");
-              }}>
-                QR код
-              </button>
-              <button type="button" className={styles.actionButton} onClick={() => {
-                setShowDotsMenu(false);
-                setOverlay("report");
-              }}>
-                Сообщить о проблеме
-              </button>
+            <div className={styles.actions}>
+              {isSelf ? (
+                <ActionButton icon="Edit" onClick={() => { setShowDotsMenu(false); close(); void navigate("/settings/profile"); }}>Изменить профиль</ActionButton>
+              ) : null}
+              {u.username ? <ActionButton icon="Copy" onClick={() => { setShowDotsMenu(false); void copyText(profileLink(), "Ссылка на профиль скопирована"); }}>Скопировать ссылку</ActionButton> : null}
+              {u.username ? <ActionButton icon="Qrcode" onClick={() => { setShowDotsMenu(false); setOverlay("qr"); }}>QR-код</ActionButton> : null}
+              {inContacts && !isSelf ? <ActionButton icon="Edit" onClick={() => { setShowDotsMenu(false); setOverlay("edit-contact"); }}>Изменить контакт</ActionButton> : null}
+              {!isSelf && !u.isBot ? <ActionButton icon={inContacts ? "Trash" : "Plus"} onClick={() => { setShowDotsMenu(false); void toggleContact(); }}>{inContacts ? "Удалить из контактов" : "Добавить в контакты"}</ActionButton> : null}
+              {!isSelf && !u.isBot ? <ActionButton icon="Gift" onClick={() => { setShowDotsMenu(false); openGiftShop({ recipient: { id: u.id, name: u.name } }); }}>Отправить подарок</ActionButton> : null}
+              {!isSelf && !u.isBot && !blocked ? <ActionButton icon="Video" onClick={() => { setShowDotsMenu(false); void call("video"); }}>Видеозвонок</ActionButton> : null}
+              {!isSelf && !u.isBot && !blocked ? <ActionButton icon="Lock" onClick={() => { setShowDotsMenu(false); void startSecretChat(); }}>Начать секретный чат</ActionButton> : null}
+              {!isSelf ? <ActionButton icon="Forward" onClick={() => { setShowDotsMenu(false); shareContact(); }}>Поделиться контактом</ActionButton> : null}
+              {!isSelf ? <ActionButton icon="Lock" danger onClick={() => { setShowDotsMenu(false); void toggleBlock(); }}>{blocked ? "Разблокировать" : "Заблокировать"}</ActionButton> : null}
+              {!isSelf ? <ActionButton icon="Info" danger onClick={() => { setShowDotsMenu(false); setOverlay("report"); }}>Пожаловаться</ActionButton> : null}
             </div>
           </div>
         </div>

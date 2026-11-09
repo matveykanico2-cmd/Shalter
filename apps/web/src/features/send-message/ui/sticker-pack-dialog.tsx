@@ -77,11 +77,13 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await createStickerPack({
+      const created = await createStickerPack({
         name: name.trim(),
         description: description === "" ? null : description,
       });
       setCreating(false);
+      setEditingId(created.pack.id);
+      setDraft(created.pack);
       await refresh();
     } catch (err) {
       setError(errorText(err, "Не удалось создать пак"));
@@ -222,22 +224,23 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
           {errorText(packs.error, "Не удалось загрузить паки")}
         </p>
       ) : creating ? (
-        <>
-          <input
-            className={styles.input}
-            placeholder="Название пака"
-            aria-label="Название пака"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={60}
-          />
-          <textarea
-            className={styles.detailDesc}
-            placeholder="Описание пака (необязательно)"
-            aria-label="Описание"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+        <div className={styles.createPackCard}>
+          <div className={styles.createPackIntro}>
+            <span className={styles.createPackIcon}><Icon name="Sticker" size={24} /></span>
+            <span>
+              <strong>Создайте свой набор</strong>
+              <small>После создания сразу добавим картинки и настроим каждый стикер.</small>
+            </span>
+          </div>
+          <label className={styles.packField}>
+            <span>Название</span>
+            <input className={styles.input} placeholder="Например, Кот Матвей" aria-label="Название пака" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+          </label>
+          <label className={styles.packField}>
+            <span>Описание</span>
+            <textarea className={styles.detailDesc} placeholder="О чём этот набор и для каких эмоций" aria-label="Описание пака" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={240} />
+            <small>{description.length}/240 · необязательно</small>
+          </label>
           {error ? (
             <p className={styles.error} role="alert">
               {error}
@@ -248,10 +251,10 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
               Отмена
             </Button>
             <Button disabled={busy} onClick={saveNew}>
-              {busy ? "Создаём…" : "Создать пак"}
+              {busy ? "Создаём…" : "Создать и добавить стикеры"}
             </Button>
           </div>
-        </>
+        </div>
       ) : editingPack ? (
         <>
           <div className={pickerStyles.packHero}>

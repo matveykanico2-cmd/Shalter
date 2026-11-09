@@ -85,8 +85,9 @@ describe("профиль человека", () => {
     expect(within(panel).getByText("@boris")).toBeTruthy();
     expect(within(panel).getByText("Имя в профиле: Борис")).toBeTruthy();
     expect(within(panel).getByTitle("Shalter Premium")).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: "Звонок" })).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: /Добавить в контакты/ })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Позвонить" })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Аудио" })).toBeTruthy();
+    expect(within(panel).queryByRole("button", { name: /Добавить в контакты/ })).toBeNull();
 
     fireEvent.click(within(panel).getByRole("button", { name: "Написать" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_dm"));
@@ -138,12 +139,15 @@ describe("профиль человека", () => {
     const { client } = renderHost({ ...ME, blockedUserIds: [BORIS.id] });
     act(() => openUserProfile(BORIS.id));
     const panel = await screen.findByRole("complementary", { name: "Профиль" });
-    fireEvent.click(await within(panel).findByRole("button", { name: /Разблокировать/ }));
-    expect(await within(panel).findByRole("button", { name: /Заблокировать/ })).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: "Звонок" })).toBeTruthy();
+    fireEvent.click(await within(panel).findByRole("button", { name: "Дополнительные действия профиля" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Разблокировать/ }));
+    fireEvent.click(await within(panel).findByRole("button", { name: "Дополнительные действия профиля" }));
+    expect(await screen.findByRole("button", { name: /Заблокировать/ })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Позвонить" })).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/users/u_boris0000/block")?.body).toEqual({ blocked: false });
     expect(client.getQueryData(sessionQueries.current().queryKey)?.user?.blockedUserIds).toEqual([]);
 
+    fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("complementary", { name: "Профиль" })).toBeNull());
   });
@@ -156,6 +160,8 @@ describe("профиль человека", () => {
     });
     const { router } = renderHost();
     act(() => openUserProfile(BORIS.id));
+    const panel = await screen.findByRole("complementary", { name: "Профиль" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Дополнительные действия профиля" }));
     fireEvent.click(await screen.findByRole("button", { name: /Начать секретный чат/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Начать" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_secret"));
@@ -170,7 +176,8 @@ describe("профиль человека", () => {
     expect(await within(panel).findByText("Так ваш профиль видят те, кому это разрешает приватность")).toBeTruthy();
     expect(within(panel).queryByRole("button", { name: /Заблокировать/ })).toBeNull();
     expect(within(panel).getByText("Закрепите свои публичные каналы — их увидит каждый, кто откроет ваш профиль.")).toBeTruthy();
-    fireEvent.click(within(panel).getByRole("button", { name: "QR-код" }));
+    fireEvent.click(await within(panel).findByRole("button", { name: "Дополнительные действия профиля" }));
+    fireEvent.click(screen.getByRole("button", { name: "QR-код" }));
     expect(await screen.findByRole("dialog", { name: "QR-код" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Скопировать ссылку" })).toBeTruthy();
   });
@@ -183,13 +190,16 @@ describe("профиль человека", () => {
     renderHost();
     act(() => openUserProfile(BORIS.id));
     const panel = await screen.findByRole("complementary", { name: "Профиль" });
-    fireEvent.click(await within(panel).findByRole("button", { name: "QR-код" }));
+    fireEvent.click(await within(panel).findByRole("button", { name: "Дополнительные действия профиля" }));
+    fireEvent.click(await screen.findByRole("button", { name: "QR-код" }));
     const dialog = await screen.findByRole("dialog", { name: "QR-код" });
     expect(within(dialog).getByText("@boris")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Закрыть" }));
 
     act(() => openUserProfile("u_nousername"));
-    await waitFor(() => expect(within(screen.getByRole("complementary", { name: "Профиль" })).queryByRole("button", { name: "Ссылка" })).toBeNull());
-    expect(within(screen.getByRole("complementary", { name: "Профиль" })).queryByRole("button", { name: "QR-код" })).toBeNull();
+    const noUsername = screen.getByRole("complementary", { name: "Профиль" });
+    fireEvent.click(await within(noUsername).findByRole("button", { name: "Дополнительные действия профиля" }));
+    expect(screen.queryByRole("button", { name: "Скопировать ссылку" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "QR-код" })).toBeNull();
   });
 });

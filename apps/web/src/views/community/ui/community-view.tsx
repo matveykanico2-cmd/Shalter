@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { AddChatFlow, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
+import { AddChatFlow, AddCommunityMembersDialog, AdminsDialog, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
 import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
 import { fileSizeLabel } from "@/features/send-message";
 
@@ -57,8 +57,8 @@ function CommunityPage({ community }: { community: Community }) {
   const actions = useCommunityActions();
   const openCommunity = useOpenCommunity();
   const [busy, setBusy] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"add" | "settings" | null>(null);
-  const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">("chats");
+  const [dialog, setDialog] = useState<"add" | "settings" | "members-add" | "admins" | null>(null);
+  const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const rights = community.rights;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
@@ -128,11 +128,6 @@ function CommunityPage({ community }: { community: Community }) {
             Вступить в сообщество
           </Button>
         )}
-        {community.isMember ? (
-          <Button variant="secondary" onClick={() => setTab("members")}>
-            <Icon name="Users" size={15} /> Участники
-          </Button>
-        ) : null}
         <Button variant="secondary" onClick={() => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована")}>
           <Icon name="Link" size={15} /> Ссылка
         </Button>
@@ -207,7 +202,7 @@ function CommunityPage({ community }: { community: Community }) {
           {dialog === "add" && me ? <AddChatFlow community={community} meId={me.id} onDone={reload} onClose={() => setDialog(null)} /> : null}
         </>
       ) : community.isMember ? (
-        <CommunityProfileTab community={community} tab={tab} />
+        <CommunityProfileTab community={community} tab={tab} onAddMembers={() => setDialog("members-add")} onManageAdmins={() => setDialog("admins")} />
       ) : null}
       {creating && me ? (
         <CreateChatDialog
@@ -228,6 +223,8 @@ function CommunityPage({ community }: { community: Community }) {
         />
       ) : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
+      {dialog === "members-add" && me ? <AddCommunityMembersDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
+      {dialog === "admins" && me ? <AdminsDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
@@ -235,7 +232,7 @@ function CommunityPage({ community }: { community: Community }) {
 const roleIcon = (role: string) => (role === "owner" ? "Crown" : role === "admin" ? "Shield" : null);
 
 /** Вкладки профиля сообщества по образцу профиля группы: участники, медиа, файлы, ссылки. */
-function CommunityProfileTab({ community, tab }: { community: Community; tab: "members" | "media" | "files" | "links" }) {
+function CommunityProfileTab({ community, tab, onAddMembers, onManageAdmins }: { community: Community; tab: "members" | "media" | "files" | "links"; onAddMembers: () => void; onManageAdmins: () => void }) {
   const [query, setQuery] = useState("");
   const members = useQuery({
     queryKey: ["communities", "members", community.id, query],
@@ -257,12 +254,14 @@ function CommunityProfileTab({ community, tab }: { community: Community; tab: "m
   const list = members.data ?? [];
   return (
     <section className={styles.profileTab} aria-label="Участники сообщества">
-      <input
-        className={styles.search}
-        placeholder="Поиск участников"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className={styles.memberTools}>
+        {community.rights.ban ? <button type="button" className={styles.addMembers} onClick={onAddMembers}><Icon name="UserPlus" size={19} /> Добавить участников</button> : null}
+        {community.rights.addAdmins ? <button type="button" className={styles.manageAdmins} onClick={onManageAdmins}><Icon name="Shield" size={17} /> Управление</button> : null}
+      </div>
+      <label className={styles.searchBox}>
+        <Icon name="Search" size={17} />
+        <input className={styles.search} placeholder="Поиск участников" aria-label="Поиск участников" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </label>
       <div className={styles.list}>
         {members.isError ? (
           <p className={styles.caption} role="alert">

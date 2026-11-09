@@ -90,6 +90,13 @@ export function ChatLine({ chat, onClick, right }: { chat: Chatish; onClick?: ()
 
 type Person = { id: string; name?: string | null; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
+const BADGE_ICONS: readonly IconName[] = ["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"];
+const badgeIcon = (value: string) => {
+  if (!value.toLowerCase().startsWith("icon:")) return null;
+  const raw = value.slice(5).toLowerCase();
+  return BADGE_ICONS.find((name) => name.toLowerCase() === raw) ?? null;
+};
+
 /** Человек в списках сообщества — userRow() в communityEditor.js. */
 export function UserLine({ user, subtitle, right, onClick }: { user: Person; subtitle?: string | null; right?: ReactNode; onClick?: () => void }) {
   const body = (
@@ -97,9 +104,9 @@ export function UserLine({ user, subtitle, right, onClick }: { user: Person; sub
       <Avatar size={42} name={user.name ?? "Пользователь"} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{user.name ?? "Пользователь"}</span>
-        {user.badge?.startsWith("icon:") ? (
+        {user.badge && badgeIcon(user.badge) ? (
           <span className={styles.badge}>
-            <Icon name={user.badge.slice(5) as IconName} size={14} />
+            <Icon name={badgeIcon(user.badge)!} size={14} />
           </span>
         ) : user.badge ? (
           <span className={styles.badge}>{user.badge}</span>

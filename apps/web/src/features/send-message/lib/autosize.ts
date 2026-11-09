@@ -31,6 +31,7 @@ const COPIED = [
 ] as const;
 
 let mirror: HTMLTextAreaElement | null = null;
+const tailTimers = new WeakMap<HTMLTextAreaElement, ReturnType<typeof setTimeout>>();
 
 function getMirror(): HTMLTextAreaElement {
   if (mirror?.isConnected) return mirror;
@@ -90,8 +91,14 @@ function keepTailVisible(el: HTMLTextAreaElement): void {
     if (el.isConnected && document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight;
   };
   scroll();
+  queueMicrotask(scroll);
   requestAnimationFrame(() => {
     scroll();
     requestAnimationFrame(scroll);
   });
+  // Некоторые Android WebView восстанавливают старый scrollTop уже после layout/paint.
+  // Один отложенный проход заменяет таймер на каждый символ, поэтому не копится очередь.
+  const old = tailTimers.get(el);
+  if (old) clearTimeout(old);
+  tailTimers.set(el, setTimeout(scroll, 80));
 }

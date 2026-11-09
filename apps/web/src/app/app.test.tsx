@@ -58,7 +58,7 @@ describe("вход и оболочка", () => {
   });
 
   it("с сессией — оболочка; /login уводит в приложение", async () => {
-    fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
+    fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap, "GET /api/communities/joined": { body: { communities: [] } } });
     window.history.replaceState(null, "", "/login");
     render(<App />);
     expect(await screen.findByText("Выберите чат")).toBeTruthy();
@@ -77,7 +77,7 @@ describe("вход и оболочка", () => {
 
 describe("список чатов в оболочке", () => {
   it("чаты из /api/bootstrap — без отдельного /api/chats; сокет открыт; чат открывается по ссылке", async () => {
-    const { calls } = fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
+    const { calls } = fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap, "GET /api/communities/joined": { body: { communities: [] } } });
     render(<App />);
     const row = await screen.findByRole("button", { name: /Семья/ });
     // Кроме входа и bootstrap — только сверка входящих звонков, версия приложения, полоса историй и сообщества.
@@ -92,7 +92,7 @@ describe("список чатов в оболочке", () => {
   });
 
   it("неизвестный чат — «Чат не найден»", async () => {
-    fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
+    fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap, "GET /api/communities/joined": { body: { communities: [] } } });
     window.history.replaceState(null, "", "/chat/c_nope");
     render(<App />);
     expect(await screen.findByText("Чат не найден")).toBeTruthy();

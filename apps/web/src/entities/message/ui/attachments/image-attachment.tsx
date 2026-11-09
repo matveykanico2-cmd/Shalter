@@ -48,20 +48,23 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
           <span className={styles.failedHint}>Нажмите, чтобы повторить</span>
         </span>
       ) : (
-        <img
-          key={url}
-          className={loaded ? styles.image : `${styles.image} ${styles.loading}`}
-          src={url}
-          alt={a.name || "photo"}
-          loading="lazy"
-          decoding="async"
-          style={box ?? undefined}
-          onLoad={(e) => {
-            setLoaded(true);
-            setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight });
-          }}
-          onError={() => setAttempt((s) => ({ ...s, index: s.index + 1 }))}
-        />
+        <>
+          <img
+            key={url}
+            className={loaded ? styles.image : `${styles.image} ${styles.loading}`}
+            src={url}
+            alt={a.name || "photo"}
+            loading="lazy"
+            decoding="async"
+            style={box ?? undefined}
+            onLoad={(e) => {
+              setLoaded(true);
+              setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight });
+            }}
+            onError={() => setAttempt((s) => ({ ...s, index: s.index + 1 }))}
+          />
+          {!loaded ? <span className={styles.mediaLoading} aria-label="Фото загружается"><span className={styles.downloadSpinner} /></span> : null}
+        </>
       )}
     </MediaTile>
   );

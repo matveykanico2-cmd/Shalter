@@ -63,6 +63,23 @@ export type MuteDto = z.infer<typeof muteSchema>;
 export const membersQuerySchema = requestQuery({ q: text().transform((v) => v.trim().toLowerCase()) });
 export type MembersQuery = z.infer<typeof membersQuerySchema>;
 
+/** Владелец/администратор добавляет выбранные контакты сразу во всё сообщество. */
+export const addMembersSchema = requestBody({
+  userIds: raw().transform((value, context) => {
+    if (!Array.isArray(value)) {
+      context.addIssue({ code: "custom", message: "Выберите участников" });
+      return z.NEVER;
+    }
+    const ids = [...new Set(value.filter((id): id is string => typeof id === "string" && id.length > 0))].slice(0, 200);
+    if (!ids.length) {
+      context.addIssue({ code: "custom", message: "Выберите участников" });
+      return z.NEVER;
+    }
+    return ids;
+  }),
+});
+export type AddMembersDto = z.infer<typeof addMembersSchema>;
+
 export const addChatSchema = requestBody({ chatId: raw(), visible: raw().transform((v) => cleanVisible(v) ?? true) });
 export type AddChatDto = z.infer<typeof addChatSchema>;
 

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { chatsCountLabel, type Community, type CommunityAdmin, communityApi, type CommunityMember, type CommunityRights } from "@/entities/community";
+import { userQueries } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, Button, Dialog, Icon, type IconName, TextField, toast, Toggle } from "@/shared/ui";
@@ -16,6 +17,102 @@ type Base = { community: Community; onChanged: () => void; onClose: () => void }
 type Person = Pick<CommunityMember, "id" | "name" | "avatarColor" | "avatarImage" | "avatarEmoji"> & { badge?: string | null; title?: string | null; role?: "owner" | "admin" | "member" };
 
 const peopleKey = (id: string, what: string) => ["communities", "people", id, what] as const;
+const BADGE_ICONS = ["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"] as const satisfies readonly IconName[];
+
+function badgeIcon(value: string) {
+  if (!value.toLowerCase().startsWith("icon:")) return null;
+  const raw = value.slice(5).toLowerCase();
+  return BADGE_ICONS.find((name) => name.toLowerCase() === raw) ?? null;
+}
+
+function BadgeView({ value }: { value: string }) {
+  const icon = badgeIcon(value);
+  return <span className={styles.badge}>{icon ? <Icon name={icon} size={14} /> : value}</span>;
+}
+
+function BadgeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const selected = badgeIcon(value);
+  return (
+    <>
+      <label className={styles.field}>
+        <span>Значок (эмодзи)</span>
+        <span className={styles.badgeField}>
+          {selected ? <span className={styles.selectedIcon} title={selected}><Icon name={selected} size={17} /></span> : null}
+          <TextField value={selected ? "" : value} maxLength={20} placeholder={selected ? "Выбран значок" : "Например: 🚲"} onChange={(e) => onChange(e.target.value)} />
+          {selected ? <button type="button" className={styles.clearBadge} aria-label="Убрать значок" onClick={() => onChange("")}><Icon name="X" size={14} /></button> : null}
+        </span>
+      </label>
+      <div className={styles.iconRow}>
+        {BADGE_ICONS.map((name) => (
+          <button key={name} type="button" className={selected === name ? `${styles.iconPick} ${styles.iconPickOn}` : styles.iconPick} aria-pressed={selected === name} onClick={() => onChange(`icon:${name}`)} title={name}>
+            <Icon name={name} size={16} />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Добавление участников из контактов; сам список людей живёт только в профиле сообщества. */
+export function AddCommunityMembersDialog({ community, meId, onChanged, onClose }: Base & { meId: string }) {
+  const client = useQueryClient();
+  const members = useQuery({ queryKey: peopleKey(community.id, "members"), queryFn: () => communityApi.members(community.id).then((r) => r.users), staleTime: 0 });
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const contacts = useQuery(userQueries.contacts());
+  const memberIds = new Set((members.data ?? []).map((user) => user.id));
+  const available = (contacts.data ?? []).filter((user) => user.id !== meId && !memberIds.has(user.id));
+
+  const reload = () => {
+    void client.invalidateQueries({ queryKey: peopleKey(community.id, "members") });
+    onChanged();
+  };
+  const toggle = (id: string) =>
+    setSelected((old) => {
+      const next = new Set(old);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const submit = async () => {
+    if (!selected.size) return;
+    setBusy(true);
+    try {
+      await communityApi.addMembers(community.id, [...selected]);
+      toast(`${selected.size} ${selected.size === 1 ? "участник добавлен" : "участника добавлены"}`);
+      setSelected(new Set());
+      reload();
+      onClose();
+    } catch (err) {
+      toast(errorText(err, "Не удалось добавить участников"), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog title="Добавить участников" onClose={onClose}>
+      <div className={styles.list}>
+        <p className={styles.caption}>Выбранные люди сразу вступят в сообщество и во все его группы и каналы.</p>
+        {contacts.isPending || members.isPending ? <Empty>Загружаем контакты…</Empty> : available.length ? (
+          <div className={styles.contactPicker}>
+            <button type="button" className={styles.selectAll} onClick={() => setSelected(selected.size === available.length ? new Set() : new Set(available.map((user) => user.id)))}>
+              {selected.size === available.length ? "Снять выбор" : "Выбрать всех"}
+            </button>
+            {available.map((user) => (
+              <UserLine key={user.id} user={user} subtitle={user.username ? `@${user.username}` : null} right={
+                <button type="button" className={selected.has(user.id) ? `${styles.memberCheck} ${styles.memberCheckOn}` : styles.memberCheck} aria-pressed={selected.has(user.id)} aria-label={`Выбрать ${user.name}`} onClick={() => toggle(user.id)}>
+                  {selected.has(user.id) ? <Icon name="Check" size={14} /> : null}
+                </button>
+              } />
+            ))}
+            <Button disabled={!selected.size || busy} onClick={() => void submit()}>{busy ? "Добавляем…" : `Добавить${selected.size ? ` (${selected.size})` : ""}`}</Button>
+          </div>
+        ) : <Empty>Все контакты уже в сообществе</Empty>}
+      </div>
+      <Button variant="secondary" onClick={onClose}>Отмена</Button>
+    </Dialog>
+  );
+}
 
 /** Администраторы сообщества и их права — openCommunityAdmins. */
 export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { meId: string }) {
@@ -116,7 +213,7 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
         subtitle={current ? rightsSummary(rights) : (user.role === "owner" ? "Владелец" : rightsSummary(current ?? mine))}
         right={
           <>
-            {user.badge?.startsWith("icon:") ? <span className={styles.badge}><Icon name={user.badge.slice(5) as IconName} size={14} /></span> : user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
+            {user.badge ? <BadgeView value={user.badge} /> : null}
             {user.title ? <span className={styles.title}>{user.title}</span> : null}
           </>
         }
@@ -142,17 +239,7 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
         ))}
       </div>
       <p className={styles.sectionName}>Значок и подпись рядом с именем</p>
-      <label className={styles.field}>
-        <span>Значок (эмодзи)</span>
-        <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
-      </label>
-      <div className={styles.iconRow}>
-        {["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"].map((name) => (
-          <button key={name} type="button" className={styles.iconPick} onClick={() => setBadge(`icon:${name}`)} title={name}>
-            <Icon name={name as IconName} size={16} />
-          </button>
-        ))}
-      </div>
+      <BadgeField value={badge} onChange={setBadge} />
       <label className={styles.field}>
         <span>Подпись</span>
         <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />
@@ -238,17 +325,7 @@ function BadgeTitleDialog({ community, user, onClose, onDone }: { community: Com
     <Dialog title={`Значок и подпись — ${user.name}`} onClose={onClose}>
       <UserLine user={user} />
       <p className={styles.sectionName}>Значок (эмодзи) и подпись рядом с именем</p>
-      <label className={styles.field}>
-        <span>Значок</span>
-        <TextField value={badge} maxLength={20} placeholder="Например: 🚲" onChange={(e) => setBadge(e.target.value)} />
-      </label>
-      <div className={styles.iconRow}>
-        {["Search", "Lock", "Shield", "Crown", "Bug", "Info", "Bell"].map((name) => (
-          <button key={name} type="button" className={styles.iconPick} onClick={() => setBadge(`icon:${name}`)} title={name}>
-            <Icon name={name as IconName} size={16} />
-          </button>
-        ))}
-      </div>
+      <BadgeField value={badge} onChange={setBadge} />
       <label className={styles.field}>
         <span>Подпись</span>
         <TextField value={title} maxLength={40} placeholder="Например: велосипед" onChange={(e) => setTitle(e.target.value)} />

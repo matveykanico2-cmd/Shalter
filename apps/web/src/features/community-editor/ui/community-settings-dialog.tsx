@@ -11,10 +11,10 @@ import { useCommunityActions } from "../model/use-community-actions";
 
 import { AddChatFlow, ChatSettingsDialog } from "./add-chat-flow";
 import styles from "./community-editor.module.css";
-import { AdminsDialog, BansDialog, RequestsDialog } from "./community-people";
+import { BansDialog, RequestsDialog } from "./community-people";
 import { ChatLine, Empty, RadioRows, Row } from "./parts";
 
-type Screen = { kind: "main" } | { kind: "admins" } | { kind: "bans" } | { kind: "requests" } | { kind: "add" } | { kind: "chat"; chat: CommunityChat };
+type Screen = { kind: "main" } | { kind: "bans" } | { kind: "requests" } | { kind: "add" } | { kind: "chat"; chat: CommunityChat };
 
 type Props = { communityId: string; meId: string; onClose: () => void; onSaved?: () => void; onDeleted?: () => void };
 
@@ -47,8 +47,6 @@ export function CommunitySettingsDialog({ communityId, meId, onClose, onSaved, o
     );
   }
   switch (screen.kind) {
-    case "admins":
-      return <AdminsDialog community={community} meId={meId} onChanged={reload} onClose={back} />;
     case "bans":
       return <BansDialog community={community} meId={meId} onChanged={reload} onClose={back} />;
     case "requests":
@@ -132,12 +130,10 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
         </>
       ) : null}
       <div>
-        <Row icon="Shield" title="Администраторы" right={community.adminsCount} onClick={() => onOpen({ kind: "admins" })} />
         {rights.editChats && community.requestsCount ? (
           <Row icon="Inbox" title="Заявки на добавление" right={community.requestsCount} accent onClick={() => onOpen({ kind: "requests" })} />
         ) : null}
-        {rights.ban ? <Row icon="UserX" title="Удалённые пользователи" right={community.bannedCount} onClick={() => onOpen({ kind: "bans" })} /> : null}
-        <Row icon="Users" title="Участники" right={community.membersCount} />
+        {rights.ban && community.bannedCount ? <Row icon="UserX" title="Удалённые пользователи" right={community.bannedCount} onClick={() => onOpen({ kind: "bans" })} /> : null}
       </div>
       <p className={styles.sectionName}>{chatsCountLabel(chats.length)}</p>
       <div className={styles.list}>

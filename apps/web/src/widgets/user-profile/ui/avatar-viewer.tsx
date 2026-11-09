@@ -182,6 +182,14 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
         </div>
         <div
           className={styles.stage}
+          onPointerDown={(e) => {
+            // Поля вокруг фотографии относятся к затемнённому фону просмотрщика.
+            // Закрываем только его и не пропускаем нажатие в профиль под порталом.
+            if (e.target === e.currentTarget) {
+              e.stopPropagation();
+              onClose();
+            }
+          }}
           onTouchStart={(e) => {
             const t = e.touches[0];
             if (t) touch.current = { x: t.clientX, y: t.clientY };

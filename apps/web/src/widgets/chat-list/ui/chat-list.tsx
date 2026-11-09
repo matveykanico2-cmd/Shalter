@@ -110,7 +110,8 @@ export function ChatList({ meId }: { meId: string }) {
 
   // Сообщества: строки среди чатов и панель вместо списка (communityList.js).
   const client = useQueryClient();
-  const communities = useQuery(communityQueries.joined()).data ?? NO_COMMUNITIES;
+  const communitiesQuery = useQuery(communityQueries.joined());
+  const communities = communitiesQuery.data ?? NO_COMMUNITIES;
   useWsEvent("community:updated", ({ communityId }) => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(communityId).queryKey });
     void client.invalidateQueries({ queryKey: communityQueries.joined().queryKey });
@@ -411,7 +412,7 @@ export function ChatList({ meId }: { meId: string }) {
               )}
             />
           ) : null
-        ) : chatsQuery.isPending ? null : chatsQuery.isError && !chats ? (
+        ) : chatsQuery.isPending || communitiesQuery.isPending ? null : chatsQuery.isError && !chats ? (
           <p className={styles.error} role="alert">
             {errorText(chatsQuery.error)}
           </p>

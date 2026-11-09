@@ -29,8 +29,15 @@ function Mini({ a, round, size }: { a: Attachment; round?: boolean; size: number
   const cls = round ? `${styles.thumb} ${styles.round}` : styles.thumb;
   const style = { width: size, height: size };
   if (src) return <img className={cls} style={style} src={src} alt="" loading="lazy" decoding="async" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />;
-  // У кружка или видео без обложки — первый кадр самого ролика.
-  if (isVideo(a) && a.url && a.kind !== "video-note") return <video className={cls} style={style} src={`${a.url}#t=0.1`} muted playsInline preload="metadata" />;
+  // Не создаём <video> ради 20-px превью в списке чатов. На Android несколько таких
+  // декодеров одновременно заметно тормозят скролл; полноценный кадр будет уже в чате.
+  if (isVideo(a) && a.url && a.kind !== "video-note") {
+    return (
+      <span className={`${cls} ${styles.videoPlaceholder}`} style={style}>
+        <Icon name="PlayFill" size={Math.max(8, Math.round(size * 0.42))} />
+      </span>
+    );
+  }
   if (a.kind === "video-note") {
     return (
       <span className={`${cls} ${styles.round} ${styles.videoNotePlaceholder}`} style={style}>

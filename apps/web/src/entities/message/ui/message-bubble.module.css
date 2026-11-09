@@ -151,6 +151,20 @@
   outline: none !important;
 }
 
+/* У одиночного стикера нет пузыря: прижимаем его к краю той же колонки, что и
+   обычные сообщения, без дополнительного внутреннего воздуха. */
+.row:has(.stickerBubble) {
+  gap: 0;
+}
+
+.rowOut:has(.stickerBubble) .stickerBubble {
+  margin-right: -2px;
+}
+
+.row:not(.rowOut):has(.stickerBubble) .stickerBubble {
+  margin-left: -2px;
+}
+
 /* Стикер в сообщении — кликабельная область, открывает пак (как в Telegram). */
 .sticker-message {
   display: inline-flex;
@@ -580,8 +594,11 @@
 
 /* Долгое нажатие открывает меню сообщения, а не системную подсказку iOS. */
 @media (hover: none) {
-  .row {
+  .row,
+  .row * {
     -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 

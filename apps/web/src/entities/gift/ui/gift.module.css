@@ -51,6 +51,13 @@
   gap: 10px;
   padding: 12px;
 }
+
+/* В сетке одновременно видны десятки SVG. Движение у каждой плитки почти незаметно,
+   зато вместе они перегружают compositor мобильного WebView. Большая карточка продолжает
+   анимироваться после открытия подарка. */
+.grid .sticker :global(*) {
+  animation: none !important;
+}
 .tile {
   position: relative;
   display: flex;
