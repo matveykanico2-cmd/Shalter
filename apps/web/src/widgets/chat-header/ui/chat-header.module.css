@@ -156,6 +156,18 @@
   cursor: pointer;
 }
 
+/* На компьютере чат остаётся рядом со списком, поэтому его можно явно закрыть. */
+.desktopClose {
+  display: none;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--color-muted);
+}
+
 /* Кнопка поиска по чату — видна справа как в Telegram Web K. */
 .searchButton {
   display: flex;
@@ -173,13 +185,15 @@
 
 .searchButton:hover,
 .infoToggle:hover,
-.infoToggle[aria-pressed="true"] {
+.infoToggle[aria-pressed="true"],
+.desktopClose:hover {
   background: var(--color-surface-alt);
   color: var(--color-text);
 }
 
 @media (min-width: 768px) {
-  .infoToggle {
+  .infoToggle,
+  .desktopClose {
     display: flex;
   }
 }

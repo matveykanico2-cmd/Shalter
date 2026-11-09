@@ -136,6 +136,9 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
       <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
         <Icon name="Info" size={18} />
       </button>
+      <Link to="/" className={styles.desktopClose} title="Закрыть чат" aria-label="Закрыть чат">
+        <Icon name="X" size={19} />
+      </Link>
       {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
       {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
       {dialog === "ai" ? <AiSettingsDialog onClose={() => setDialog(null)} /> : null}

@@ -82,4 +82,9 @@ describe("ChatHeader", () => {
     expect(after.some((c) => c.getAttribute("title") === "Огонь")).toBe(true);
     expect(within(heading).getByText("СКАМ")).toBeTruthy();
   });
+
+  it("на компьютере даёт закрыть открытый чат", () => {
+    renderHeader(dmWithBadges());
+    expect(screen.getByRole("link", { name: "Закрыть чат" }).getAttribute("href")).toBe("/");
+  });
 });
