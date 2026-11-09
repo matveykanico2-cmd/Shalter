@@ -305,6 +305,7 @@ export function MessageBubble(props: Props) {
         message={m}
         meId={props.meId ?? ""}
         nameOf={props.nameOf ?? (() => "участник")}
+            userOf={props.userOf}
         actions={props.attachmentActions}
         canDownload={!props.protectedContent}
         senderName={sender?.name ?? null}

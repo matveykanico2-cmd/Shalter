@@ -11,7 +11,6 @@ import { BUILTIN_STICKER_PACKS } from "../lib/builtin-packs";
 import {
   outgoingSticker,
   packSticker,
-  preloadStickers,
   uniquePacks,
   uniqueStickers,
 } from "../lib/sticker-outgoing";
@@ -141,12 +140,6 @@ function StickerPanel({
         .sort((a, b) => Number(b.isOwner) - Number(a.isOwner)),
     [packs.data],
   );
-  // Картинки всех паков — заранее, чтобы при прокрутке не было пустых клеток.
-  useEffect(
-    () => preloadStickers(list.flatMap((p) => p.stickers.map((s) => s.url))),
-    [list],
-  );
-
   const pick = (s: Sticker | PackStickerT) => {
     onPick(outgoingSticker(s));
     closeStickerPack();
@@ -198,7 +191,7 @@ function StickerPanel({
                       pick(s);
                     }}
                   >
-                    <DomNode key={s.url} create={() => renderSticker(packSticker(s), { size: 56 })} />
+                    <DomNode key={s.url} viewport create={() => renderSticker(packSticker(s), { size: 56, lazy: true })} />
                   </button>
                 ))}
               </div>

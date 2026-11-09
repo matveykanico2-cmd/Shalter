@@ -27,14 +27,14 @@ describe("статья: текст «# Заголовок» + markdown", () => {
     expect(messagePreview(m(""))).toBe("📰 Статья");
   });
 
-  it("markdown тела: заголовки разделов и списки — только с markdown", () => {
+  it("markdown тела: заголовки разделов и списки", () => {
     const body = "## Раздел\n- раз\n* два\nтекст";
     expect(parseText(body, { markdown: true })).toEqual([
       { kind: "heading", level: 2, inline: [{ kind: "text", text: "Раздел" }] },
-      { kind: "list", items: [[{ kind: "text", text: "раз" }], [{ kind: "text", text: "два" }]] },
+      { kind: "list", ordered: false, items: [[{ kind: "text", text: "раз" }], [{ kind: "text", text: "два" }]] },
       { kind: "line", inline: [{ kind: "text", text: "текст" }] },
     ]);
-    // Обычное сообщение: «# привет» — строка с хештегом, не заголовок.
-    expect(parseText("# привет\n- пункт").map((b) => b.kind)).toEqual(["line", "line"]);
+    expect(parseText("# привет\n- пункт").map((b) => b.kind)).toEqual(["heading", "list"]);
+    expect(parseText("# привет\n- пункт", { markdown: false }).map((b) => b.kind)).toEqual(["line", "line"]);
   });
 });

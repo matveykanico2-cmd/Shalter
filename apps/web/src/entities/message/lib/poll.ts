@@ -9,6 +9,8 @@ export type PollMeta = {
   correctIndex?: number | null;
   multiple?: boolean;
   closed?: boolean;
+  votersVisible?: boolean;
+  closesAt?: string | null;
 };
 
 export type ChecklistItem = { id: number; text: string; doneBy?: string; doneAt?: string };
@@ -18,7 +20,7 @@ export const pollMeta = (a: Attachment) => (a.meta ?? { options: [] }) as PollMe
 export const checklistMeta = (a: Attachment) => (a.meta ?? { items: [] }) as ChecklistMeta;
 
 /** Всё, что нужно нарисовать опрос: проценты, свои голоса, викторина, итоги. */
-export function pollView(meta: PollMeta, meId: string) {
+export function pollView(meta: PollMeta, meId: string, now = Date.now()) {
   const options = meta.options ?? [];
   const voterIds = meta.voterIds ?? options.map(() => []);
   const votes = meta.votes ?? voterIds.map((v) => v.length);
@@ -27,7 +29,8 @@ export function pollView(meta: PollMeta, meId: string) {
   const correctIndex = Number.isInteger(meta.correctIndex) ? (meta.correctIndex as number) : null;
   const isQuiz = correctIndex !== null;
   const multiple = !!meta.multiple && !isQuiz;
-  const closed = !!meta.closed;
+  const deadline = meta.closesAt ? Date.parse(meta.closesAt) : NaN;
+  const closed = !!meta.closed || (Number.isFinite(deadline) && deadline <= now);
   const answered = myVotes.length > 0;
   const maxVotes = Math.max(0, ...votes);
   return {
@@ -37,10 +40,14 @@ export function pollView(meta: PollMeta, meId: string) {
       mine: myVotes.includes(i),
       leader: (votes[i] ?? 0) > 0 && votes[i] === maxVotes,
       mark: !isQuiz || !answered ? null : i === correctIndex ? ("correct" as const) : i === myVotes[0] ? ("wrong" as const) : null,
+      voterIds: voterIds[i] ?? [],
     })),
     totalVoters,
     isQuiz,
     multiple,
+    voterIds,
+    votersVisible: meta.votersVisible !== false,
+    closesAt: Number.isFinite(deadline) ? deadline : null,
     closed,
     answered,
     showResults: answered || closed,

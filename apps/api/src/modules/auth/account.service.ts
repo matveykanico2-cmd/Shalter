@@ -172,7 +172,11 @@ export class AccountService {
   public async startEmailChange(userId: string, dto: EmailStartDto) {
     const user = this.usersRepository.findById(userId);
     const { email } = dto;
-    if (!passwordMatches(dto.password, user?.passwordHash, user?.passwordSalt)) throw new ApiError(401, "Неверный пароль");
+    // Гостевой аккаунт изначально не имеет пароля: подтверждением новой почты служит
+    // одноразовый код на сам адрес. Для обычного аккаунта пароль по-прежнему обязателен.
+    if (user?.passwordHash && user.passwordSalt && !passwordMatches(dto.password, user.passwordHash, user.passwordSalt)) {
+      throw new ApiError(401, "Неверный пароль");
+    }
     if (!EMAIL_RE.test(email)) throw new ApiError(400, "Введите корректный адрес почты");
     if (email === (user?.email ?? "").toLowerCase()) throw new ApiError(400, "Это уже ваш адрес");
 

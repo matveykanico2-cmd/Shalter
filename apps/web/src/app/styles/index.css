@@ -76,3 +76,37 @@ html[data-power-saving-effects] * {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+
+/* Узлы стикеров создаются около viewport; CSS-анимации уже созданных узлов не тратят
+   кадры, когда пользователь прокрутил их за пределы панели. */
+[data-viewport-node]:not([data-in-viewport]) * {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+/* На среднем телефоне blur больших закреплённых слоёв особенно дорог: фон и тени
+   остаются читаемыми, но не требуют постоянной перерисовки при скролле. */
+@media (max-width: 720px), (pointer: coarse) {
+  body {
+    background-attachment: scroll;
+  }
+
+  * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  :root {
+    --shadow-soft: 0 2px 8px rgba(15, 35, 52, 0.08);
+    --shadow-float: 0 8px 24px rgba(15, 35, 52, 0.16);
+  }
+}

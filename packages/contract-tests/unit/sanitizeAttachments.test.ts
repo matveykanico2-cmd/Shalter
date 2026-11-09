@@ -85,6 +85,15 @@ test("опрос: несколько ответов — только у обыч
   assert.equal(quiz[0].meta.multiple, false);
 });
 
+test("опрос: видимость голосовавших и безопасный дедлайн сохраняются", () => {
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const poll = sanitizeAttachments([{ kind: "poll", meta: { options: ["a", "b"], votersVisible: false, closesAt: future } }]);
+  assert.equal(poll[0].meta.votersVisible, false);
+  assert.equal(poll[0].meta.closesAt, future);
+  const bad = sanitizeAttachments([{ kind: "poll", meta: { options: ["a", "b"], closesAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString() } }]);
+  assert.equal(bad[0].meta.closesAt, null);
+});
+
 test("голосовое: осциллограмма и расшифровка сохраняются, мусор отбрасывается", () => {
   const [ok] = sanitizeAttachments([
     { kind: "voice", url: "/uploads/sha_deadbeefdeadbeef.webm", durationSec: 3, waveform: [0, 5, 31, 12], transcript: "  Привет  " },

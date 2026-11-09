@@ -100,6 +100,8 @@ export const pollAttachment = z.strictObject({
     correctIndex: z.number().nullable(),
     multiple: z.boolean(),
     closed: z.boolean(),
+    votersVisible: z.boolean().optional(),
+    closesAt: isoDate.nullable().optional(),
   }),
 });
 

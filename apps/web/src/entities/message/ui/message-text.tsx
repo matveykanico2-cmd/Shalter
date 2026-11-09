@@ -22,8 +22,7 @@ const HIGHLIGHT_LIMIT = 20_000;
  * formatText в public/js/lib/formatText.js. meta — время с галочками: встаёт в конец
  * последней строки.
  */
-export function MessageText({ text, meta, customEmoji, markdown = false }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean }) {
-  // markdown — тело статьи: ещё заголовки «## …» и списки.
+export function MessageText({ text, meta, customEmoji, markdown = true }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean }) {
   const blocks = useMemo(() => parseText(text, { markdown }), [text, markdown]);
   const lastLine = blocks.at(-1)?.kind === "line" ? blocks.length - 1 : -1;
   return (
@@ -52,7 +51,7 @@ function BlockView({ block, tail }: { block: Block; tail?: ReactNode }) {
     case "quote":
       return <Quote lines={block.lines} />;
     case "heading": {
-      // Заголовок статьи — h2, разделы её тела — на уровень ниже.
+      // Внутри сообщения не создаём второй h1 страницы: уровни Markdown сдвинуты вниз.
       const Tag = (["h3", "h4", "h5", "h6", "h6"] as const)[block.level - 2]!;
       return (
         <Tag className={styles.heading}>
@@ -60,16 +59,18 @@ function BlockView({ block, tail }: { block: Block; tail?: ReactNode }) {
         </Tag>
       );
     }
-    case "list":
+    case "list": {
+      const Tag = block.ordered ? "ol" : "ul";
       return (
-        <ul className={styles.list}>
+        <Tag className={styles.list}>
           {block.items.map((item, i) => (
             <li key={i}>
               <InlineList items={item} />
             </li>
           ))}
-        </ul>
+        </Tag>
       );
+    }
     case "table":
       return (
         <span className={`${styles.block} ${styles.tableWrap}`}>

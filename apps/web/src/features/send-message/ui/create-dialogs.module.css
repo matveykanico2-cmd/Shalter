@@ -90,6 +90,26 @@
   cursor: pointer;
 }
 
+.fieldRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.select {
+  min-width: 0;
+  max-width: 190px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
 .error {
   margin: 0;
   color: var(--color-danger);

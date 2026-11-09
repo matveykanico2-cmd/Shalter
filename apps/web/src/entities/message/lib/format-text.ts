@@ -13,19 +13,19 @@ export type Block =
   | { kind: "code"; code: string; lang: string }
   | { kind: "quote"; lines: Inline[][] }
   | { kind: "table"; header: Inline[][] | null; rows: Inline[][][] }
-  // Только в теле статьи (parseText(text, { markdown: true })): «## …» и списки «- …».
+  // Базовый Markdown: заголовки и маркированные/нумерованные списки.
   | { kind: "heading"; level: 2 | 3 | 4 | 5 | 6; inline: Inline[] }
-  | { kind: "list"; items: Inline[][] };
+  | { kind: "list"; ordered: boolean; items: Inline[][] };
 
 /** Цитата длиннее этого сворачивается. */
 export const QUOTE_COLLAPSE_LINES = 4;
 const MAX_TABLE_COLS = 10;
 
 /**
- * markdown — тело статьи: ещё заголовки «## »…«###### » и списки «- »/«* ». В обычных
- * сообщениях их нет: «# привет» остаётся текстом с хештегом.
+ * Разбор идёт в собственный AST: HTML никогда не исполняется, а ссылки разрешены только
+ * с http/https. markdown можно выключить для мест, где нужен буквально сырой текст.
  */
-export function parseText(text: string, { markdown = false }: { markdown?: boolean } = {}): Block[] {
+export function parseText(text: string, { markdown = true }: { markdown?: boolean } = {}): Block[] {
   // ```блок кода``` — может занимать несколько строк, внутри разметка не работает.
   const out: Block[] = [];
   for (const part of text.split(/(```[\s\S]*?```)/g)) {
@@ -52,11 +52,18 @@ export function parseText(text: string, { markdown = false }: { markdown?: boole
           out.push({ kind: "heading", level: Math.max(2, heading[1]!.length) as 2 | 3 | 4 | 5 | 6, inline: parseInline(heading[2]!) });
           continue;
         }
-        if (LIST_RE.test(lines[i]!)) {
+        const list = LIST_RE.exec(lines[i]!);
+        if (list) {
+          const ordered = !!list[1];
           const items: Inline[][] = [];
-          while (i < lines.length && LIST_RE.test(lines[i]!)) items.push(parseInline(lines[i++]!.replace(LIST_RE, "")));
+          while (i < lines.length) {
+            const item = LIST_RE.exec(lines[i]!);
+            if (!item || !!item[1] !== ordered) break;
+            items.push(parseInline(item[2]!));
+            i++;
+          }
           i--;
-          out.push({ kind: "list", items });
+          out.push({ kind: "list", ordered, items });
           continue;
         }
       }
@@ -75,7 +82,7 @@ export function parseText(text: string, { markdown = false }: { markdown?: boole
 }
 
 const HEADING_RE = /^(#{1,6}) +(\S.*)$/;
-const LIST_RE = /^[-*] +/;
+const LIST_RE = /^(?:(\d+)[.)]|[-*+]) +(\S.*)$/;
 
 const isQuoteLine = (line: string) => line.startsWith("> ") || line === ">";
 

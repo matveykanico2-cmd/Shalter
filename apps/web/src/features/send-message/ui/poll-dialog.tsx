@@ -6,7 +6,7 @@ import styles from "./create-dialogs.module.css";
 
 const MAX_OPTIONS = 8;
 
-export type PollDraft = { question: string; options: string[]; correctIndex: number | null; multiple: boolean };
+export type PollDraft = { question: string; options: string[]; correctIndex: number | null; multiple: boolean; votersVisible: boolean; closesAt: string | null };
 
 /** «Новый опрос» / «Новая викторина» — как public/js/components/pollDialog.js. */
 export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) => void; onClose: () => void }) {
@@ -15,6 +15,8 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
   const [options, setOptions] = useState(["", ""]);
   const [correct, setCorrect] = useState(0);
   const [multiple, setMultiple] = useState(false);
+  const [votersVisible, setVotersVisible] = useState(true);
+  const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const create = () => {
@@ -26,7 +28,14 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
     if (quiz && !raw[correct]) return setError("Отметьте правильный ответ");
     onClose();
     // Пустые варианты выкидываем — номер правильного считаем среди оставшихся.
-    onCreate({ question: q, options: filled, correctIndex: quiz ? raw.slice(0, correct).filter(Boolean).length : null, multiple: !quiz && multiple });
+    onCreate({
+      question: q,
+      options: filled,
+      correctIndex: quiz ? raw.slice(0, correct).filter(Boolean).length : null,
+      multiple: !quiz && multiple,
+      votersVisible,
+      closesAt: duration ? new Date(Date.now() + duration).toISOString() : null,
+    });
   };
 
   return (
@@ -72,6 +81,20 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
           <span>Несколько вариантов ответа</span>
         </label>
       ) : null}
+      <label className={styles.check}>
+        <input type="checkbox" checked={votersVisible} onChange={(e) => setVotersVisible(e.target.checked)} />
+        <span>Показывать, кто как проголосовал</span>
+      </label>
+      <label className={styles.fieldRow}>
+        <span>Завершить автоматически</span>
+        <select className={styles.select} aria-label="Время до завершения" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+          <option value={0}>Без ограничения</option>
+          <option value={5 * 60_000}>Через 5 минут</option>
+          <option value={60 * 60_000}>Через час</option>
+          <option value={24 * 60 * 60_000}>Через сутки</option>
+          <option value={7 * 24 * 60 * 60_000}>Через неделю</option>
+        </select>
+      </label>
       {error ? (
         <p className={styles.error} role="alert">
           {error}

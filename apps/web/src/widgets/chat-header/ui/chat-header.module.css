@@ -22,7 +22,7 @@
   color: var(--color-muted);
 }
 
-@media (max-width: 767px) {
+@media (max-width: 960px) {
   .back {
     display: flex;
   }
@@ -191,7 +191,7 @@
   color: var(--color-text);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 961px) {
   .infoToggle,
   .desktopClose {
     display: flex;

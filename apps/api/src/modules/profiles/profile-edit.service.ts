@@ -177,7 +177,8 @@ export class ProfileEditService {
 
   private checkPhone(uid: string, raw: unknown, password: unknown): string {
     const normalized = normalizePhone(raw as string);
-    if (!PHONE_RE.test(normalized)) throw new ApiError(400, "Введите номер телефона в формате +79991234567");
+    // Номер необязателен: пустая строка снимает его с профиля и освобождает уникальный индекс.
+    if (normalized && !PHONE_RE.test(normalized)) throw new ApiError(400, "Введите номер телефона в формате +79991234567");
     const existing = this.users.findByPhone(normalized);
     if (existing && existing.id !== uid) throw new ApiError(409, "Этот номер уже используется другим аккаунтом");
     // Права админа привязаны к номеру, а номер не подтверждается — поэтому ни занять
@@ -187,8 +188,10 @@ export class ProfileEditService {
     // К номеру привязаны вход по коду, восстановление доступа и поиск — сменить его
     // можно только с паролем от аккаунта (как и почту).
     if (normalized !== me?.phone) {
-      if (typeof password !== "string" || !password) throw new ApiError(400, "Чтобы сменить номер, введите пароль от аккаунта");
-      if (!me?.passwordHash || !me?.passwordSalt || !verifyPassword(password, me.passwordHash, me.passwordSalt)) {
+      if (me?.passwordHash && me.passwordSalt && (typeof password !== "string" || !password)) {
+        throw new ApiError(400, "Чтобы сменить номер, введите пароль от аккаунта");
+      }
+      if (me?.passwordHash && me.passwordSalt && !verifyPassword(String(password), me.passwordHash, me.passwordSalt)) {
         throw new ApiError(401, "Неверный пароль");
       }
     }

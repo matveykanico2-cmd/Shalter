@@ -209,7 +209,9 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_ESTIMATE,
-    overscan: 10,
+    // Шести строк с каждой стороны хватает для быстрого свайпа и не держит за экраном
+    // десятки пузырей с медиа, Markdown и реакциями на слабом Android.
+    overscan: 6,
     getItemKey: (i) => rows[i]!.key,
   });
   const totalSize = virtualizer.getTotalSize();

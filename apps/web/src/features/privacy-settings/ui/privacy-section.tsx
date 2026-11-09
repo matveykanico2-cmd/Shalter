@@ -162,6 +162,7 @@ export function PrivacySection() {
       {open === "email" ? (
         <ChangeEmailDialog
           currentEmail={me.email}
+          passwordRequired={!me.isGuest}
           onDone={(email) => {
             if (email) client.setQueryData(sessionQueries.current().queryKey, (s) => (s?.user ? { ...s, user: { ...s.user, email } } : s));
             toast("Адрес почты изменён");

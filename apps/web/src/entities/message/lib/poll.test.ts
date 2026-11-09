@@ -36,6 +36,14 @@ describe("опрос (PollAttachment и applyLocalVote)", () => {
     expect(applyVote(closed, 0, ME)).toBe(closed);
     expect(pollView(closed, ME).kindLabel).toBe("Опрос завершён");
   });
+
+  it("дедлайн завершает опрос, видимость голосовавших настраивается", () => {
+    const closesAt = "2026-11-10T10:00:00.000Z";
+    const before = pollView({ options: ["Да", "Нет"], voterIds: [["u_a"], []], votersVisible: false, closesAt }, ME, Date.parse(closesAt) - 1);
+    expect(before).toMatchObject({ closed: false, canVote: true, votersVisible: false });
+    const after = pollView({ options: ["Да", "Нет"], closesAt }, ME, Date.parse(closesAt));
+    expect(after).toMatchObject({ closed: true, canVote: false, kindLabel: "Опрос завершён" });
+  });
 });
 
 describe("чек-лист", () => {

@@ -8,7 +8,9 @@
   background: var(--color-surface-alt);
 }
 
-@media (min-width: 768px) {
+/* На средней ширине панель остаётся полноэкранным overlay: статичная колонка 360 px
+   ломала пузыри и composer. Рядом с чатом она помещается только на широком desktop. */
+@media (min-width: 1200px) {
   .panel {
     position: static;
     width: 360px;

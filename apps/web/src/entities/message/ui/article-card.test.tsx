@@ -55,10 +55,10 @@ describe("статья в ленте", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it("обычное сообщение «# x» — не заголовок", () => {
+  it("обычное сообщение тоже показывает базовый markdown, но не становится статьёй", () => {
     render(<MessageBubble mine={false} message={msg({ text: "# x\n## тоже нет\n- и не список" })} />);
-    expect(screen.queryByRole("heading")).toBeNull();
-    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.getAllByRole("heading")).toHaveLength(2);
+    expect(screen.getByRole("list")).toBeTruthy();
     expect(screen.queryByText("⭐ Premium")).toBeNull();
   });
 });

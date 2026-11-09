@@ -76,7 +76,7 @@ export const cleanReaction = (emoji: unknown): string => (typeof emoji === "stri
 export function votePoll(m: Message, optionIndex: unknown, userId: string): Message {
   const attachments = m.attachments?.map((a) => {
     if (a.kind !== "poll") return a;
-    if (a.meta?.closed) return a;
+    if (a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now())) return a;
     const options: unknown[] = a.meta?.options ?? [];
     if (!Number.isInteger(optionIndex) || (optionIndex as number) < 0 || (optionIndex as number) >= options.length) return a;
     const index = optionIndex as number;
@@ -103,7 +103,7 @@ export function votePoll(m: Message, optionIndex: unknown, userId: string): Mess
 /** Отзыв голоса; в закрытом опросе и викторине — без изменений. */
 export function retractPollVote(m: Message, userId: string): Message {
   const attachments = m.attachments?.map((a) => {
-    if (a.kind !== "poll" || a.meta?.closed || Number.isInteger(a.meta?.correctIndex)) return a;
+    if (a.kind !== "poll" || a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now()) || Number.isInteger(a.meta?.correctIndex)) return a;
     const voterIds = ((a.meta?.voterIds ?? []) as (string[] | null)[]).map((ids) => (ids ?? []).filter((v) => v !== userId));
     return { ...a, meta: { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) } };
   });

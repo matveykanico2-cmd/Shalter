@@ -81,7 +81,7 @@ export function ChangePasswordDialog({ onDone, onClose }: { onDone: () => void; 
  * «Смена почты» — openChangeEmailDialog: пароль и новый адрес, затем код из письма
  * на новый адрес (openConfirmEmailDialog). onDone — с новой почтой.
  */
-export function ChangeEmailDialog({ currentEmail, onDone, onClose }: { currentEmail?: string; onDone: (email: string | undefined) => void; onClose: () => void }) {
+export function ChangeEmailDialog({ currentEmail, passwordRequired = true, onDone, onClose }: { currentEmail?: string; passwordRequired?: boolean; onDone: (email: string | undefined) => void; onClose: () => void }) {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -134,8 +134,8 @@ export function ChangeEmailDialog({ currentEmail, onDone, onClose }: { currentEm
         setSentTo(res.email ?? address);
       }}
     >
-      <TextField type="password" placeholder="Пароль" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
-      <TextField type="email" placeholder="Новый адрес почты" value={email} onChange={(e) => setEmail(e.target.value)} />
+      {passwordRequired ? <TextField type="password" placeholder="Пароль" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /> : null}
+      <TextField type="email" placeholder="Новый адрес почты" autoFocus={!passwordRequired} value={email} onChange={(e) => setEmail(e.target.value)} />
     </CredentialsForm>
   );
 }

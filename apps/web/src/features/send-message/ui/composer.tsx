@@ -922,8 +922,8 @@ export function Composer(props: Props) {
       {creating === "poll" ? (
         <PollDialog
           onClose={() => setCreating(null)}
-          onCreate={({ question, options, correctIndex, multiple }) =>
-            void sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple } })
+          onCreate={({ question, options, correctIndex, multiple, votersVisible, closesAt }) =>
+            void sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple, votersVisible, closesAt } })
           }
         />
       ) : null}

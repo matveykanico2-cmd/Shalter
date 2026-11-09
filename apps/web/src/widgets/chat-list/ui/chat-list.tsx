@@ -190,9 +190,9 @@ export function ChatList({ meId }: { meId: string }) {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    // Восемь строк с каждой стороны полностью скрывают подгрузку при быстром свайпе, но не
-    // держат десятки тяжёлых превью медиа в DOM на слабом телефоне.
-    overscan: 8,
+    // Пять строк с каждой стороны скрывают подгрузку при быстром свайпе, не удерживая
+    // десятки превью медиа в DOM на слабом телефоне.
+    overscan: 5,
     getItemKey: (i) => rowKey(rows[i]!),
   });
 

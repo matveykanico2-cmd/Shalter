@@ -1,6 +1,8 @@
 // Гостевой вход: POST /api/auth/guest — аккаунт без телефона, почты и пароля.
 import { expect, test } from "vitest";
 import { loginBody, sessionBody } from "../../schemas/auth";
+import { emailChangeSentBody } from "../../schemas/auth";
+import { patchProfileBody } from "../../schemas/users";
 import { Api } from "../../support/client";
 import { expectOk } from "../../support/expect";
 import { useServer } from "../../support/use-server";
@@ -23,4 +25,16 @@ test("создаёт гостя с сессией; каждый вызов — �
   const other = expectOk(await new Api(server().baseUrl).post("/api/auth/guest", {}), loginBody);
   expect(other.user.id).not.toBe(body.user.id);
   expect(other.user.username).not.toBe(body.user.username);
+});
+
+test("гость без пароля может добавить или убрать необязательный телефон и начать привязку почты", async () => {
+  const api = new Api(server().baseUrl);
+  const guest = expectOk(await api.post("/api/auth/guest", { name: "Гость" }), loginBody).user;
+  const withPhone = expectOk(await api.patch(`/api/users/${guest.id}`, { phone: "+79991234567" }), patchProfileBody).user!;
+  expect(withPhone.phone).toBe("+79991234567");
+  const withoutPhone = expectOk(await api.patch(`/api/users/${guest.id}`, { phone: "" }), patchProfileBody).user!;
+  expect(withoutPhone.phone).toBe("");
+
+  const email = `guest-${Date.now()}@test.invalid`;
+  expectOk(await api.post("/api/auth/email/start", { email, password: "" }), emailChangeSentBody);
 });

@@ -751,6 +751,7 @@ describe("опросы, чек-листы, кубики, платные пост
     // Вопрос — заголовок опроса, отдельной строкой текста не дублируется.
     expect(await screen.findAllByText("Что на ужин?")).toHaveLength(1);
     expect(screen.getByText("1 проголосовал")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: `Открыть профиль: ${LENA.name}` }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Суши/ }));
     expect(await screen.findAllByText("50%")).toHaveLength(2);

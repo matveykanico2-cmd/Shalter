@@ -56,7 +56,7 @@ export function getSticker(id: string) {
   return STICKERS.find((s) => s.id === id);
 }
 
-export function renderSticker(s: Sticker | null | undefined, { size = 30, replay = false } = {}): Node {
+export function renderSticker(s: Sticker | null | undefined, { size = 30, replay = false, lazy = false } = {}): Node {
   if (s?.kind === "custom") return renderCustomScene(s.scene, { size, replay });
   // Свой стикер с картинкой (url) — показываем как изображение даже без явного kind.
   if (s?.kind === "image" || (!s?.kind && s?.url)) {
@@ -64,7 +64,7 @@ export function renderSticker(s: Sticker | null | undefined, { size = 30, replay
     img.className = "sticker-image";
     img.src = s.url ?? "";
     img.alt = s.name || "стикер";
-    // Без lazy: стикер на экране сразу, без пустого кадра (картинки паков подгружаются заранее).
+    img.loading = lazy ? "lazy" : "eager";
     img.decoding = "async";
     img.draggable = false;
     img.style.width = `${size}px`;

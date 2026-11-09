@@ -46,15 +46,3 @@ export function uniquePacks<T extends { id: string }>(list: T[]): T[] {
   const seen = new Set<string>();
   return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
 }
-
-const preloaded = new Map<string, HTMLImageElement>();
-/** Подгружает картинки стикеров заранее, чтобы в панели и в чате они появлялись без пустого кадра. */
-export function preloadStickers(urls: (string | undefined)[]) {
-  for (const url of urls) {
-    if (!url || preloaded.has(url)) continue;
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    preloaded.set(url, img);
-  }
-}

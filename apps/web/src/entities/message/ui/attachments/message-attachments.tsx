@@ -31,6 +31,7 @@ type Props = {
   message: Message;
   meId: string;
   nameOf: (userId: string) => string;
+  userOf?: (userId: string) => { id: string; name: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null } | null;
   actions?: AttachmentActions;
   canDownload: boolean;
   /** Открыть просмотр: url фото/видео из этого сообщения. */
@@ -44,7 +45,7 @@ type Props = {
  * Вложения пузыря по порядку, как в MessageBubble (messageBubble.js): два и больше
  * фото/видео — одним альбомом там, где стоит первое из них.
  */
-export function MessageAttachments({ message, meId, nameOf, actions, canDownload, onOpenMedia, onDoubleTap, senderName = null }: Props) {
+export function MessageAttachments({ message, meId, nameOf, userOf, actions, canDownload, onOpenMedia, onDoubleTap, senderName = null }: Props) {
   const atts = attachmentsOf(message);
   const media = atts.filter(isVisualMedia);
   const album = media.length >= 2;
@@ -83,7 +84,7 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
     }
     switch (a.kind) {
       case "poll":
-        out.push(<PollAttachment key={i} message={message} attachment={a} meId={meId} {...actions?.poll} />);
+        out.push(<PollAttachment key={i} message={message} attachment={a} meId={meId} userOf={userOf} {...actions?.poll} />);
         return;
       case "checklist":
         out.push(<ChecklistAttachment key={i} message={message} attachment={a} meId={meId} nameOf={nameOf} {...actions?.checklist} />);

@@ -19,7 +19,6 @@ import {
 import { prepareStickerImage } from "../lib/sticker-image";
 import {
   packSticker,
-  preloadStickers,
   uniqueStickers,
 } from "../lib/sticker-outgoing";
 
@@ -385,11 +384,6 @@ function PackSheet({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(
-    () => preloadStickers((pack?.stickers ?? []).map((s) => s.url)),
-    [pack],
-  );
-
   if (!current && builtin) {
     return <BuiltinPackSheet pack={builtin} focus={focus ?? null} onPick={onBuiltinPick} onClose={onClose} />;
   }
@@ -552,7 +546,8 @@ function PackSheet({
                 >
                   <DomNode
                     key={s.url}
-                    create={() => renderSticker(packSticker(s), { size: 64 })}
+                    viewport
+                    create={() => renderSticker(packSticker(s), { size: 64, lazy: true })}
                   />
                 </button>
               ))}
@@ -629,7 +624,7 @@ function BuiltinPackSheet({
               onClose();
             }}
           >
-            <DomNode create={() => renderSticker(s, { size: 64 })} />
+            <DomNode viewport create={() => renderSticker(s, { size: 64, lazy: true })} />
           </button>
         ))}
       </div>

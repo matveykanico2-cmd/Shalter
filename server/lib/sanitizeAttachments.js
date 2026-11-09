@@ -81,7 +81,11 @@ function sanitizeAttachments(attachments) {
             ? rawCorrect
             : null;
         const multiple = correctIndex === null && a.meta?.multiple === true;
-        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
+        const votersVisible = a.meta?.votersVisible !== false;
+        const closesAtRaw = typeof a.meta?.closesAt === "string" ? Date.parse(a.meta.closesAt) : NaN;
+        const maxClose = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        const closesAt = Number.isFinite(closesAtRaw) && closesAtRaw > Date.now() && closesAtRaw <= maxClose ? new Date(closesAtRaw).toISOString() : null;
+        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false, votersVisible, closesAt };
       } else if (a.kind === "game") {
         // Карточка игры: только ссылка на игру, код и рекорды — на сервере.
         const gameId = typeof a.meta?.gameId === "string" && /^(builtin-[a-z0-9-]{1,32}|g_[A-Za-z0-9_-]{4,40})$/.test(a.meta.gameId) ? a.meta.gameId : null;

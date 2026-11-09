@@ -30,7 +30,7 @@ export function BuiltinStickerPacks({ onPick, onOpen }: { onPick: (s: Sticker) =
                   onPick(s);
                 }}
               >
-                <DomNode create={() => renderSticker(s, { size: 56 })} />
+                <DomNode viewport create={() => renderSticker(s, { size: 56, lazy: true })} />
               </button>
             ))}
           </div>

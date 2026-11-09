@@ -47,6 +47,19 @@ describe("разметка сообщения (как public/js/lib/formatText.j
     });
   });
 
+  it("заголовки и оба вида списков работают в обычном сообщении", () => {
+    expect(parseText("## План\n- первый\n+ второй\n1. третий\n2) четвёртый")).toEqual([
+      { kind: "heading", level: 2, inline: [{ kind: "text", text: "План" }] },
+      { kind: "list", ordered: false, items: [[{ kind: "text", text: "первый" }], [{ kind: "text", text: "второй" }]] },
+      { kind: "list", ordered: true, items: [[{ kind: "text", text: "третий" }], [{ kind: "text", text: "четвёртый" }]] },
+    ]);
+  });
+
+  it("не превращает HTML и опасные схемы в исполняемую разметку", () => {
+    const source = '<img src=x onerror=alert(1)> [опасно](javascript:alert(1)) <script>alert(2)</script>';
+    expect(parseInline(source)).toEqual([{ kind: "text", text: source }]);
+  });
+
   it("ссылки на себя открываются внутри; /имя — профиль", () => {
     expect(internalRoute("https://app.test/chat/c_1", "https://app.test")).toBe("/chat/c_1");
     expect(internalRoute("https://app.test/anna", "https://app.test")).toBe("/u/anna");

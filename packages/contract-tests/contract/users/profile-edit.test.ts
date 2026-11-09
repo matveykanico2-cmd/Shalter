@@ -129,9 +129,10 @@ describe("PATCH /api/users/:id — успешные изменения", () => {
     expect((await patchMe(me, { phone: me.phone, bio: "без смены номера" })).phone).toBe(me.phone);
     expect((await patchMe(me, { phone: formatted, currentPassword: me.password })).phone).toBe(next);
 
-    for (const value of ["12345", "+7abc1234567", "", null]) {
+    for (const value of ["12345", "+7abc1234567"]) {
       expectError(await me.api.patch(`/api/users/${me.id}`, { phone: value }), 400, "Введите номер телефона в формате +79991234567");
     }
+    expect((await patchMe(me, { phone: "", currentPassword: me.password })).phone).toBe("");
     expectError(await me.api.patch(`/api/users/${me.id}`, { phone: other.phone }), 409, "Этот номер уже используется другим аккаунтом");
     expectError(await me.api.patch(`/api/users/${me.id}`, { phone: ADMIN_PHONE }), 403, "Этот номер нельзя установить");
 
