@@ -1,10 +1,13 @@
-import { test } from "vitest";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "vitest";
 
 // Модули сервера — CommonJS, грузим их обычным require.
 const require = createRequire(import.meta.url);
-const { headerFromBuffer, HEADER_MAX } = require("../../../server/lib/fileCrypto");
+const { headerFromBuffer, HEADER_MAX, loadKey } = require("../../../server/lib/fileCrypto");
 
 const MAGIC1 = Buffer.from("SHENC1");
 const MAGIC2 = Buffer.from("SHENC2");
@@ -40,4 +43,16 @@ test("HEADER_MAX вмещает самый длинный заголовок (V2
 test("обрезанный V2 (не хватает байт) не принимается за V2", () => {
   const short = Buffer.concat([MAGIC2, Buffer.alloc(4)]);
   assert.equal(headerFromBuffer(short), null);
+});
+
+test("повреждённый uploads.key не перезаписывается новым ключом", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shalter-file-key-"));
+  const keyPath = join(dir, "uploads.key");
+  writeFileSync(keyPath, "повреждён");
+  try {
+    assert.throws(() => loadKey(dir), /uploads\.key повреждён/);
+    assert.equal(readFileSync(keyPath, "utf8"), "повреждён");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

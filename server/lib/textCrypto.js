@@ -15,7 +15,8 @@ function loadKeys() {
   if (keys) return keys;
   let master = null;
   const fromEnv = process.env.MESSAGES_KEY;
-  if (fromEnv && /^[0-9a-f]{64}$/i.test(fromEnv)) {
+  if (fromEnv) {
+    if (!/^[0-9a-f]{64}$/i.test(fromEnv)) throw new Error("MESSAGES_KEY должен содержать ровно 64 шестнадцатеричных символа");
     master = Buffer.from(fromEnv, "hex");
   } else {
     const dataDir = path.join(process.cwd(), "data");

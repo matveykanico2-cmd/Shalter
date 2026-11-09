@@ -15,26 +15,32 @@ let key = null;
 function loadKey(dataDir) {
   if (key) return key;
   const fromEnv = process.env.UPLOADS_KEY;
-  if (fromEnv && /^[0-9a-f]{64}$/i.test(fromEnv)) {
+  if (fromEnv) {
+    if (!/^[0-9a-f]{64}$/i.test(fromEnv)) throw new Error("UPLOADS_KEY должен содержать ровно 64 шестнадцатеричных символа");
     key = Buffer.from(fromEnv, "hex");
     return key;
   }
   const keyPath = path.join(dataDir, "uploads.key");
-  try {
-    if (fs.existsSync(keyPath)) {
+  if (fs.existsSync(keyPath)) {
+    try {
       key = Buffer.from(fs.readFileSync(keyPath, "utf-8").trim(), "hex");
       if (key.length === 32) return key;
+    } catch (err) {
+      key = null;
+      throw new Error("data/uploads.key не удалось прочитать — восстановите ключ из резервной копии", { cause: err });
     }
-  } catch {
+    key = null;
+    throw new Error("data/uploads.key повреждён — без него загруженные файлы не расшифровать; восстановите ключ из резервной копии");
   }
-  key = crypto.randomBytes(32);
+  const generated = crypto.randomBytes(32);
   try {
     fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(keyPath, key.toString("hex"), { mode: 0o600 });
+    fs.writeFileSync(keyPath, generated.toString("hex"), { mode: 0o600, flag: "wx" });
     console.log("[uploads] создан ключ шифрования data/uploads.key — для настоящей защиты вынесите его в UPLOADS_KEY и удалите файл");
   } catch (err) {
-    console.error("[uploads] не удалось сохранить ключ шифрования:", err.message);
+    throw new Error("не удалось надёжно сохранить ключ шифрования загрузок", { cause: err });
   }
+  key = generated;
   return key;
 }
 

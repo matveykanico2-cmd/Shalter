@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:unit": "vitest run --config vitest.config.ts unit",
+    "test:unit": "vitest run --config vitest.config.ts unit/",
     "test:contract": "vitest run --config vitest.config.ts",
     "test:contract:watch": "vitest --config vitest.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
