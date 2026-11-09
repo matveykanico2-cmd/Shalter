@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
@@ -40,6 +40,10 @@ const NO_FOLDERS: ChatFolder[] = [];
 type Row = { kind: "archive"; chats: ChatSummary[] } | { kind: "chat"; chat: ChatSummary } | { kind: "community"; community: JoinedCommunity } | { kind: "ad"; ad: ServedAd };
 
 const NO_COMMUNITIES: JoinedCommunity[] = [];
+
+function rowKey(row: Row): string {
+  return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : row.kind === "ad" ? `ad:${row.ad.id}` : "archive";
+}
 
 /** Список чатов в оболочке: вкладки, архив, «только непрочитанные». Живёт событиями сокета. */
 export function ChatList({ meId }: { meId: string }) {
@@ -185,12 +189,43 @@ export function ChatList({ meId }: { meId: string }) {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
-    getItemKey: (i) => {
-      const row = rows[i]!;
-      return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : row.kind === "ad" ? `ad:${row.ad.id}` : "archive";
-    },
+    // Восемь строк с каждой стороны полностью скрывают подгрузку при быстром свайпе, но не
+    // держат десятки тяжёлых превью медиа в DOM на слабом телефоне.
+    overscan: 8,
+    getItemKey: (i) => rowKey(rows[i]!),
   });
+
+  // На телефоне колонка списка получает display:none, пока открыт чат. ResizeObserver
+  // виртуализатора в этот момент видит нулевую высоту; после возврата старый scrollTop мог
+  // указывать уже на середину или конец списка. Запоминаем строку, которой коснулись, и её
+  // место в окне, затем восстанавливаем именно её — даже если чат поднялся из-за сообщения.
+  const returnPosition = useRef<{ key: string; top: number } | null>(null);
+  const previousChatId = useRef(currentId);
+  const rememberReturnPosition = (target?: EventTarget | null) => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const slot = target instanceof Element ? target.closest<HTMLElement>("[data-row-key]") : null;
+    const fallback = virtualizer.getVirtualItems()[0];
+    const key = slot?.dataset.rowKey ?? (fallback ? rowKey(rows[fallback.index]!) : null);
+    if (!key) return;
+    const top = slot ? slot.getBoundingClientRect().top - scroller.getBoundingClientRect().top : (fallback?.start ?? 0) - scroller.scrollTop;
+    returnPosition.current = { key, top };
+  };
+  useLayoutEffect(() => {
+    const before = previousChatId.current;
+    previousChatId.current = currentId;
+    if (!before || currentId || !returnPosition.current || !scrollRef.current) return;
+    const saved = returnPosition.current;
+    const index = rows.findIndex((row) => rowKey(row) === saved.key);
+    if (index < 0) return;
+    virtualizer.scrollToIndex(index, { align: "start" });
+    requestAnimationFrame(() => {
+      const scroller = scrollRef.current;
+      const slot = scroller ? [...scroller.querySelectorAll<HTMLElement>("[data-row-key]")].find((el) => el.dataset.rowKey === saved.key) : undefined;
+      if (!scroller || !slot) return;
+      scroller.scrollTop += slot.getBoundingClientRect().top - scroller.getBoundingClientRect().top - saved.top;
+    });
+  }, [currentId, rows, virtualizer]);
 
   // При первой отрисовке или когда список изменился — прокручиваем к верхнему видимому элементу,
   // чтобы пользователь видел начало списка, а не конец (виртуализатор при этом сам не ставит
@@ -335,7 +370,13 @@ export function ChatList({ meId }: { meId: string }) {
           renderChat={(c) => <ChatRow chat={c} meId={meId} onMenu={(at) => setRowMenu({ chat: c, at })} />}
         />
       ) : null}
-      <div ref={scrollRef} className={styles.scroll} hidden={!searching && !!panelCommunity}>
+      <div
+        ref={scrollRef}
+        className={styles.scroll}
+        hidden={!searching && !!panelCommunity}
+        onPointerDownCapture={(e) => rememberReturnPosition(e.target)}
+        onClickCapture={(e) => rememberReturnPosition(e.target)}
+      >
         {searching ? (
           query ? (
             <SearchResults
@@ -364,8 +405,9 @@ export function ChatList({ meId }: { meId: string }) {
               return (
                 <div
                   key={item.key}
-                  ref={virtualizer.measureElement}
+                  ref={row.kind === "chat" ? undefined : virtualizer.measureElement}
                   data-index={item.index}
+                  data-row-key={rowKey(row)}
                   className={[styles.rowSlot, dropAt && row.kind === "chat" && dropAt.id === row.chat.id ? (dropAt.after ? styles.dropAfter : styles.dropBefore) : ""].filter(Boolean).join(" ")}
                   style={{ transform: `translateY(${item.start}px)` }}
                   {...(row.kind === "chat" && row.chat.pinned ? pinnedDrag(row.chat.id) : {})}

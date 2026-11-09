@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { chatCard } from "../../schemas/chats";
 import { okBody } from "../../schemas/common";
-import { banResultBody, byChatBody, communityBody, joinedBody, membersBody, mineBody } from "../../schemas/communities";
+import { banResultBody, byChatBody, communityBody, communityMediaBody, joinedBody, membersBody, mineBody } from "../../schemas/communities";
 import { expectError, expectOk, expectShape } from "../../support/expect";
 import { createChannel, createDm, createGroup, registerUser, sendText } from "../../support/seed";
 import { useServer } from "../../support/use-server";
@@ -48,6 +48,7 @@ describe("без сессии", () => {
       api.post(`/api/communities/${id}/mute`, {}),
       api.post(`/api/communities/${id}/read`),
       api.get(`/api/communities/${id}/members`),
+      api.get(`/api/communities/${id}/media`),
       api.post(`/api/communities/${id}/chats`, {}),
       api.patch(`/api/communities/${id}/chats/c_x0000000`, {}),
       api.delete(`/api/communities/${id}/chats/c_x0000000`),
@@ -77,6 +78,7 @@ describe("без сессии", () => {
       api.post(`/api/communities/${id}/mute`, { forever: true }),
       api.post(`/api/communities/${id}/read`),
       api.get(`/api/communities/${id}/members`),
+      api.get(`/api/communities/${id}/media`),
       api.post(`/api/communities/${id}/chats`, {}),
       api.patch(`/api/communities/${id}/chats/c_x0000000`, { visible: true }),
       api.delete(`/api/communities/${id}/chats/c_x0000000`),
@@ -624,5 +626,28 @@ describe("GET /:id/members", () => {
     const byNick = expectOk(await b.api.get(`/api/communities/${c.id}/members`, { query: { q: b.username.toUpperCase() } }), membersBody).users;
     expect(byNick.map((u) => u.id)).toEqual([b.id]);
     expect(expectOk(await b.api.get(`/api/communities/${c.id}/members`, { query: { q: "никого" } }), membersBody).users).toEqual([]);
+  });
+});
+
+describe("GET /:id/media", () => {
+  test("медиа, файлы и ссылки собираются из всех чатов сообщества", async () => {
+    const { baseUrl } = server();
+    const owner = await registerUser(baseUrl);
+    const member = await registerUser(baseUrl);
+    const outsider = await registerUser(baseUrl);
+    const group = await createGroup(owner, [member]);
+    const channel = await createChannel(owner, [member]);
+    const community = await createCommunity(owner, { chatId: group.id });
+    expectOk(await owner.api.post(`/api/communities/${community.id}/chats`, { chatId: channel.id }), communityBody);
+    const image = { kind: "image", url: "data:image/png;base64,AAAA", size: 10 };
+    const file = { kind: "file", url: "data:text/plain;base64,AAAA", name: "plan.txt", size: 20 };
+    const first = await sendText(owner, group.id, "ссылка http://127.0.0.1/community", { attachments: [image] });
+    const second = await sendText(owner, channel.id, "", { attachments: [file] });
+
+    expectError(await outsider.api.get(`/api/communities/${community.id}/media`), 403, NOT_MEMBER);
+    const result = expectOk(await member.api.get(`/api/communities/${community.id}/media`), communityMediaBody);
+    expect(result.media).toContainEqual({ chatId: group.id, messageId: first.id, createdAt: first.createdAt, senderId: owner.id, attachment: image });
+    expect(result.files).toContainEqual({ chatId: channel.id, messageId: second.id, createdAt: second.createdAt, senderId: owner.id, attachment: file });
+    expect(result.links[0]).toMatchObject({ chatId: group.id, messageId: first.id, text: first.text });
   });
 });

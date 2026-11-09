@@ -14,6 +14,8 @@ import type { CommunityPatch } from "./model/domain.js";
 import type { CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
 
 const MAX_MEMBERS = 200;
+const MAX_MEDIA_MESSAGES = 300;
+const LINK_RE = /https?:\/\/[^\s<]+/i;
 
 // Сообщества (как в tweb, layer 228+): несколько групп и каналов под одной вывеской, со своим
 // членством (выход — только из сообщества) и личными настройками строки в списке чатов —
@@ -255,5 +257,29 @@ export class CommunitiesService {
       if (users.length >= MAX_MEMBERS) break;
     }
     return { users };
+  }
+
+  /** Медиа, файлы и ссылки всех чатов сообщества, в которых состоит участник. */
+  public media(uid: string, id: string) {
+    const community = this.access.load(id, uid, "member");
+    const messages = this.access
+      .myChats(community, uid)
+      .flatMap((chat) => this.messages.listMedia(chat.id, uid))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, MAX_MEDIA_MESSAGES);
+    const media = [];
+    const files = [];
+    const links = [];
+    for (const message of messages) {
+      for (const attachment of message.attachments ?? []) {
+        const item = { chatId: message.chatId, messageId: message.id, createdAt: message.createdAt, senderId: message.senderId, attachment };
+        if (attachment.kind === "image" || attachment.kind === "video") media.push(item);
+        else if (attachment.kind === "file") files.push(item);
+      }
+      if (message.linkPreview || LINK_RE.test(message.text ?? "")) {
+        links.push({ chatId: message.chatId, messageId: message.id, createdAt: message.createdAt, text: message.text, linkPreview: message.linkPreview });
+      }
+    }
+    return { media, files, links };
   }
 }

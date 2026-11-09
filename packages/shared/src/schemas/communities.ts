@@ -2,7 +2,7 @@
 // Все поля view()/chatCard() отдаются всегда — пустые значения приходят как null,
 // поэтому опциональных полей здесь почти нет.
 import { z } from "zod";
-import { genId, isoDate } from "./common";
+import { anyJson, genId, isoDate } from "./common";
 import { publicUser } from "./user";
 
 export const communityRights = z.strictObject({
@@ -122,6 +122,29 @@ export const byChatBody = z.strictObject({
 
 /** GET /:id/members */
 export const membersBody = z.strictObject({ users: z.array(publicUser.extend({ role: communityRole })) });
+
+const communityMediaItem = z.strictObject({
+  chatId: z.string(),
+  messageId: genId("m"),
+  createdAt: isoDate,
+  senderId: z.string(),
+  attachment: z.looseObject({ kind: z.string() }),
+});
+
+/** GET /:id/media — общие вложения и ссылки всех чатов сообщества, доступных участнику. */
+export const communityMediaBody = z.strictObject({
+  media: z.array(communityMediaItem),
+  files: z.array(communityMediaItem),
+  links: z.array(
+    z.strictObject({
+      chatId: z.string(),
+      messageId: genId("m"),
+      createdAt: isoDate,
+      text: z.string(),
+      linkPreview: anyJson.optional(),
+    })
+  ),
+});
 
 /** GET /:id/admins */
 export const adminsBody = z.strictObject({

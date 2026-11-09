@@ -254,7 +254,7 @@ function Profile({ me }: { me: SelfUser }) {
           <AvatarConstructorDialog onDone={(u) => updateSelf(u as Partial<SelfUser>)} onClose={() => setConstructorOpen(false)} />
         </Suspense>
       ) : null}
-      {avatarOpen ? <AvatarViewer user={me} canEdit photosFirst onChange={(u) => updateSelf({ ...(u as Partial<SelfUser>), avatarEmoji: (u as Partial<SelfUser>).avatarEmoji })} onClose={() => setAvatarOpen(false)} /> : null}
+      {avatarOpen ? <AvatarViewer user={me} canEdit onChange={(u) => updateSelf({ ...(u as Partial<SelfUser>), avatarEmoji: (u as Partial<SelfUser>).avatarEmoji })} onClose={() => setAvatarOpen(false)} /> : null}
       {phoneAsk ? (
         <PhonePasswordDialog
           onClose={() => setPhoneAsk(null)}

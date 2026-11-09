@@ -5,6 +5,7 @@ export {
   communityApi,
   type CommunityBan,
   type CommunityChat,
+  type CommunityMedia,
   type CommunityMember,
   communityQueries,
   type CommunityRequest,

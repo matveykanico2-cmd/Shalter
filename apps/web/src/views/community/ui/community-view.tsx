@@ -4,9 +4,11 @@ import { useNavigate, useParams } from "react-router";
 
 import { AddChatFlow, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
 import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
+import { fileSizeLabel } from "@/features/send-message";
 
 import { chatQueries } from "@/entities/chat";
 import { chatMembersLabel, chatsCountLabel, type Community, communityApi, CommunityAvatar, type CommunityChat, communityMembersLabel, communityQueries, useOpenCommunity } from "@/entities/community";
+import { type Attachment, mediaItem } from "@/entities/message";
 import { useSession } from "@/entities/session";
 import { openUserProfile } from "@/entities/user";
 
@@ -14,7 +16,7 @@ import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
-import { Avatar, Button, Dialog, Icon, toast } from "@/shared/ui";
+import { Avatar, Button, Icon, MediaViewer, toast, type ViewerItem } from "@/shared/ui";
 
 import styles from "./community-view.module.css";
 
@@ -55,7 +57,8 @@ function CommunityPage({ community }: { community: Community }) {
   const actions = useCommunityActions();
   const openCommunity = useOpenCommunity();
   const [busy, setBusy] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"add" | "settings" | "members" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "settings" | null>(null);
+  const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">("chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const rights = community.rights;
   const reload = () => void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
@@ -126,7 +129,7 @@ function CommunityPage({ community }: { community: Community }) {
           </Button>
         )}
         {community.isMember ? (
-          <Button variant="secondary" onClick={() => setDialog("members")}>
+          <Button variant="secondary" onClick={() => setTab("members")}>
             <Icon name="Users" size={15} /> Участники
           </Button>
         ) : null}
@@ -159,7 +162,22 @@ function CommunityPage({ community }: { community: Community }) {
           </Button>
         ) : null}
       </div>
-      {community.chats.length ? (
+      {community.isMember ? (
+        <div className={styles.tabs} role="tablist" aria-label="Разделы сообщества">
+          {([
+            ["chats", "Чаты"],
+            ["members", "Участники"],
+            ["media", "Медиа"],
+            ["files", "Файлы"],
+            ["links", "Ссылки"],
+          ] as const).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? `${styles.tab} ${styles.tabActive}` : styles.tab} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {tab === "chats" && community.chats.length ? (
         <div className={styles.chats}>
           {community.chats.map((c) => (
             <div key={c.id} className={styles.chat}>
@@ -180,7 +198,7 @@ function CommunityPage({ community }: { community: Community }) {
             </div>
           ))}
         </div>
-      ) : (
+      ) : tab === "chats" ? (
         <>
           <p className={styles.hint}>{community.addPolicy ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов"}</p>
           <Button variant="link" onClick={() => void navigate("/")}>
@@ -188,8 +206,9 @@ function CommunityPage({ community }: { community: Community }) {
           </Button>
           {dialog === "add" && me ? <AddChatFlow community={community} meId={me.id} onDone={reload} onClose={() => setDialog(null)} /> : null}
         </>
-      )
-      }
+      ) : community.isMember ? (
+        <CommunityProfileTab community={community} tab={tab} />
+      ) : null}
       {creating && me ? (
         <CreateChatDialog
           kind={creating}
@@ -209,24 +228,26 @@ function CommunityPage({ community }: { community: Community }) {
         />
       ) : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
-      {dialog === "members" && me ? <CommunityMembersDialog community={community} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
 
 const roleIcon = (role: string) => (role === "owner" ? "Crown" : role === "admin" ? "Shield" : null);
 
-/** Список всех участников сообщества — открывается со страницы сообщества. */
-function CommunityMembersDialog({ community, onClose }: { community: Community; onClose: () => void }) {
+/** Вкладки профиля сообщества по образцу профиля группы: участники, медиа, файлы, ссылки. */
+function CommunityProfileTab({ community, tab }: { community: Community; tab: "members" | "media" | "files" | "links" }) {
   const [query, setQuery] = useState("");
   const members = useQuery({
     queryKey: ["communities", "members", community.id, query],
     queryFn: () => communityApi.members(community.id, query).then((r) => r.users),
+    enabled: tab === "members",
     staleTime: 0,
   });
+  const shared = useQuery({ ...communityQueries.media(community.id), enabled: tab !== "members" });
+  if (tab !== "members") return <CommunitySharedTab tab={tab} data={shared.data} pending={shared.isPending} />;
   const list = members.data ?? [];
   return (
-    <Dialog title="Участники сообщества" onClose={onClose} className={styles.wide}>
+    <section className={styles.profileTab} aria-label="Участники сообщества">
       <input
         className={styles.search}
         placeholder="Поиск участников"
@@ -255,9 +276,75 @@ function CommunityMembersDialog({ community, onClose }: { community: Community; 
           <p className={styles.caption}>{query ? "Никого не нашлось" : "Участников нет"}</p>
         )}
       </div>
-      <Button variant="link" onClick={onClose}>
-        Назад
-      </Button>
-    </Dialog>
+    </section>
   );
+}
+
+function CommunitySharedTab({ tab, data, pending }: { tab: "media" | "files" | "links"; data: Awaited<ReturnType<typeof communityApi.media>> | undefined; pending: boolean }) {
+  if (tab === "media") {
+    const items = data?.media ?? [];
+    return items.length ? <CommunityMediaGrid items={items} /> : <p className={styles.caption}>{pending ? "Загрузка…" : "Медиа пока нет"}</p>;
+  }
+  if (tab === "files") {
+    const items = data?.files ?? [];
+    if (!items.length) return <p className={styles.caption}>{pending ? "Загрузка…" : "Файлов пока нет"}</p>;
+    return (
+      <div className={styles.filesList}>
+        {items.map((item) => {
+          const file = item.attachment as Attachment;
+          return (
+            <a key={`${item.messageId}:${file.url}`} className={styles.fileRow} href={file.url} target="_blank" rel="noreferrer" download={file.name ?? true}>
+              <span className={styles.fileIcon}><Icon name="File" size={22} /></span>
+              <span className={styles.fileBody}>
+                <strong>{file.name || "Файл"}</strong>
+                <small>{[file.size ? fileSizeLabel(file.size) : "", mediaDate(item.createdAt)].filter(Boolean).join(" · ")}</small>
+              </span>
+              <Icon name="Download" size={18} />
+            </a>
+          );
+        })}
+      </div>
+    );
+  }
+  const links = data?.links ?? [];
+  if (!links.length) return <p className={styles.caption}>{pending ? "Загрузка…" : "Ссылок пока нет"}</p>;
+  return (
+    <div className={styles.linksList}>
+      {links.map((item) => {
+        const preview = item.linkPreview as { url?: string; title?: string; description?: string } | undefined;
+        const url = preview?.url ?? item.text.match(/https?:\/\/\S+/)?.[0];
+        return url ? (
+          <a key={item.messageId} className={styles.linkRow} href={url} target="_blank" rel="noreferrer">
+            <span className={styles.linkIcon}>{(preview?.title ?? url).slice(0, 1).toUpperCase()}</span>
+            <span className={styles.fileBody}>
+              <strong>{preview?.title || url}</strong>
+              {preview?.description ? <small>{preview.description}</small> : null}
+              <small className={styles.linkUrl}>{url}</small>
+            </span>
+          </a>
+        ) : null;
+      })}
+    </div>
+  );
+}
+
+function CommunityMediaGrid({ items }: { items: NonNullable<Awaited<ReturnType<typeof communityApi.media>>>["media"] }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const viewer: ViewerItem[] = items.map((item) => mediaItem(item.attachment as Attachment, { id: item.messageId }));
+  return (
+    <div className={styles.mediaGrid}>
+      {viewer.map((item, index) => (
+        <button key={`${items[index]?.messageId}:${index}`} type="button" className={styles.mediaCell} aria-label={item.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(index)}>
+          {item.kind === "video" && !item.thumbUrl ? <video src={item.url} muted preload="metadata" /> : <img src={item.thumbUrl ?? item.url} alt="" loading="lazy" />}
+          {item.kind === "video" ? <span className={styles.play}><Icon name="Play" size={14} /></span> : null}
+        </button>
+      ))}
+      {open !== null ? <MediaViewer items={viewer} index={open} onClose={() => setOpen(null)} /> : null}
+    </div>
+  );
+}
+
+function mediaDate(iso: string) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "2-digit" });
 }

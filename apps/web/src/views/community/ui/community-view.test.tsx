@@ -109,4 +109,31 @@ describe("страница сообщества", () => {
     fireEvent.click(screen.getByRole("button", { name: "К чатам" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });
+
+  it("профиль участника: вкладки участников, медиа, файлов и ссылок", async () => {
+    fakeApi({
+      "GET /api/communities/cm_city00000000": { body: { community: community({ isMember: true, role: "member", membersCount: 2 }) } },
+      "GET /api/communities/cm_city00000000/members?q=": {
+        body: { users: [{ id: "u_alice0000", name: "Алиса", username: "alice", avatarColor: null, avatarImage: null, avatarEmoji: null, online: true, role: "owner" }] },
+      },
+      "GET /api/communities/cm_city00000000/media": {
+        body: {
+          media: [{ chatId: "c_open", messageId: "m_image0000", createdAt: "2026-11-09T08:00:00.000Z", senderId: "u_alice0000", attachment: { kind: "image", url: "data:image/png;base64,AAAA" } }],
+          files: [{ chatId: "c_open", messageId: "m_file00000", createdAt: "2026-11-09T08:00:00.000Z", senderId: "u_alice0000", attachment: { kind: "file", url: "data:text/plain;base64,AAAA", name: "plan.txt", size: 20 } }],
+          links: [{ chatId: "c_open", messageId: "m_link00000", createdAt: "2026-11-09T08:00:00.000Z", text: "https://shalter.ru", linkPreview: { url: "https://shalter.ru", title: "Shalter" } }],
+        },
+      },
+    });
+    renderAt("cm_city00000000");
+    await screen.findByRole("heading", { name: "Город" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Участники" }));
+    expect(await screen.findByText("Алиса")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Медиа" }));
+    expect(await screen.findByRole("button", { name: "Фото" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Файлы" }));
+    expect(await screen.findByText("plan.txt")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Ссылки" }));
+    expect(await screen.findByText("Shalter")).toBeTruthy();
+  });
 });

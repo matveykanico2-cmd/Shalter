@@ -1,5 +1,6 @@
 export { type PackDraft,type StickerPack, stickerPackQueries } from "./api/sticker-packs";
 export { findBuiltinPack } from "./lib/builtin-packs";
+export { fileSizeLabel } from "./lib/files";
 export { botCommandsOf } from "./lib/slash-commands";
 export { outgoingSticker } from "./lib/sticker-outgoing";
 export { closeStickerPack, openBuiltinStickerPack, openStickerPack, openStickerPreview, useStickerPackView, useStickerView } from "./lib/sticker-pack-store";

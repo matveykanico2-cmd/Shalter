@@ -4,6 +4,7 @@ import type {
   bansBody,
   byChatBody,
   communityBody,
+  communityMediaBody,
   communityRequestedBody,
   communityRights,
   joinedBody,
@@ -21,6 +22,7 @@ export type CommunityChat = Community["chats"][number];
 export type JoinedCommunity = z.infer<typeof joinedBody>["communities"][number];
 export type CommunityRights = z.infer<typeof communityRights>;
 export type CommunityMember = z.infer<typeof membersBody>["users"][number];
+export type CommunityMedia = z.infer<typeof communityMediaBody>;
 export type CommunityAdmin = z.infer<typeof adminsBody>["admins"][number];
 export type CommunityBan = z.infer<typeof bansBody>["users"][number];
 export type CommunityRequest = z.infer<typeof requestsBody>["requests"][number];
@@ -41,6 +43,7 @@ export const communityApi = {
   mute: (id: string, opts: { hours?: number; forever?: boolean; off?: boolean }) => http.post<unknown>(`${path(id)}/mute`, opts),
   read: (id: string) => http.post<unknown>(`${path(id)}/read`),
   members: (id: string, q = "") => http.get<z.infer<typeof membersBody>>(`${path(id)}/members?q=${encodeURIComponent(q)}`),
+  media: (id: string, signal?: AbortSignal) => http.get<CommunityMedia>(`${path(id)}/media`, signal),
   addChat: (id: string, chatId: string, visible = true) => http.post<Body | z.infer<typeof communityRequestedBody>>(`${path(id)}/chats`, { chatId, visible }),
   setChatVisible: (id: string, chatId: string, visible: boolean) => http.patch<Body>(`${path(id)}/chats/${encodeURIComponent(chatId)}`, { visible }),
   removeChat: (id: string, chatId: string) => http.delete<unknown>(`${path(id)}/chats/${encodeURIComponent(chatId)}`),
@@ -83,5 +86,11 @@ export const communityQueries = {
       queryFn: async ({ signal }) => (await http.get<z.infer<typeof byChatBody>>(`/api/communities/by-chat/${encodeURIComponent(chatId)}`, signal)).community,
       staleTime: 30_000,
       retry: false,
+    }),
+  media: (id: string) =>
+    queryOptions({
+      queryKey: [...baseKey, "media", id],
+      queryFn: ({ signal }) => communityApi.media(id, signal),
+      staleTime: 0,
     }),
 };

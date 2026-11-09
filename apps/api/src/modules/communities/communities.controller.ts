@@ -108,6 +108,11 @@ export class CommunitiesController {
     return this.communities.members(req.uid!, id, query);
   }
 
+  @Get(":id/media")
+  public media(@Req() req: Request, @Param("id") id: string) {
+    return this.communities.media(req.uid!, id);
+  }
+
   @Post(":id/chats")
   @HttpCode(200)
   public addChat(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(addChatSchema)) dto: AddChatDto) {
