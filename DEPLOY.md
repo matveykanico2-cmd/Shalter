@@ -308,6 +308,33 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Обновление 2026-11-03: скорость запуска и открытия чатов
+
+Что изменилось для сервера:
+
+- В базе новая таблица `chat_versions` и три триггера на `messages` (версия сообщений
+  чата для счётчиков непрочитанного; строка удалённого чата остаётся, версия только растёт). Создаются сами при первом запуске
+  (`server/db.js`), отдельной миграции нет. Запуск на большой базе не замедляется: таблица
+  заполняется постепенно, по мере новых сообщений.
+- В логе появятся строки `slow request: …` (запрос к API дольше `SLOW_REQUEST_MS`, по
+  умолчанию 500 мс), `event loop delay: …` (процесс стоял дольше `EVENT_LOOP_WARN_MS`,
+  по умолчанию 100 мс, за минуту) и раз в 10 минут `client timing app-ready|chat-open: …`
+  (как быстро у людей открывается приложение и чаты, p50/p90/p99). Переменные необязательны.
+- Service worker сменил версию кэша (`shalter-v5`): у всех один раз заново скачается сборка.
+
+### Шаги (PM2)
+
+```bash
+cd /opt/shalter
+git pull && npm install && npm run build && npm run build:api && npm prune --omit=dev
+pm2 restart shalter --update-env
+# Проверка: таблица и триггеры на месте, через 10–20 минут — замеры клиентов в логе.
+sqlite3 data/app.db "SELECT name FROM sqlite_master WHERE name LIKE 'chat_versions%'"
+pm2 logs shalter --lines 200 --nostream | grep -E "client timing|slow request|event loop delay"
+```
+
+Docker / Dokploy: пересборка образа, переменных добавлять не нужно.
+
 ## Обновление 2026-11-03: регистрация по почте, письма с кодом, вход в приложении на Android
 
 Что изменилось для сервера:

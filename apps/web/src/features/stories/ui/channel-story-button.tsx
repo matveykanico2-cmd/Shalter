@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { lazy, type ReactNode, Suspense, useState } from "react";
 
 import { storyQueries } from "@/entities/story";
 
@@ -8,7 +8,8 @@ import { toast } from "@/shared/ui";
 
 import { postStory } from "../model/post-story";
 
-import { StoryEditor } from "./story-editor";
+// Редактор — отдельным чанком: на старте он не нужен.
+const StoryEditor = lazy(() => import("./story-editor").then((m) => ({ default: m.StoryEditor })));
 
 /**
  * «Добавить историю канала» из правки канала (storyInput в editChatDialog.js): выбор фото и видео,
@@ -52,14 +53,16 @@ export function ChannelStoryButton({ chatId, children }: { chatId: string; child
         }}
       />
       {editing ? (
-        <StoryEditor
-          key={editing.file.name + editing.file.lastModified}
-          file={editing.file}
-          onDone={(result) => {
-            setEditing(null);
-            editing.resolve(result);
-          }}
-        />
+        <Suspense fallback={null}>
+          <StoryEditor
+            key={editing.file.name + editing.file.lastModified}
+            file={editing.file}
+            onDone={(result) => {
+              setEditing(null);
+              editing.resolve(result);
+            }}
+          />
+        </Suspense>
       ) : null}
     </>
   );

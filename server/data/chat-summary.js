@@ -29,6 +29,24 @@ const unreadOfChatStmt = db.prepare(
       AND readByIds NOT LIKE ? AND deletedForIds NOT LIKE ?`
 );
 
+// Чат, где никто ничего не читал, — тысячи строк на каждый список чатов. Поэтому подсчёт
+// помним, пока сообщения чата не менялись (chat_versions ведут триггеры, server/db.js) и
+// граница прочитанного та же. Один процесс на data/ — память общая для всех запросов.
+const chatVersionStmt = db.prepare("SELECT version FROM chat_versions WHERE chatId = ?");
+const unreadMemo = new Map();
+const UNREAD_MEMO_MAX = 50000;
+
+function unreadOf(chatId, userId, since, notDeleted) {
+  const version = chatVersionStmt.get(chatId)?.version ?? 0;
+  const key = `${userId}\u0000${chatId}`;
+  const hit = unreadMemo.get(key);
+  if (hit && hit.version === version && hit.since === since) return hit.result;
+  const result = unreadOfChatStmt.get(notDeleted, chatId, userId, since, notDeleted, notDeleted) ?? { unread: 0, mentions: 0 };
+  if (unreadMemo.size >= UNREAD_MEMO_MAX) unreadMemo.clear();
+  unreadMemo.set(key, { version, since, result });
+  return result;
+}
+
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
   const safeParse = (val, fallback) => {
@@ -59,10 +77,7 @@ async function attachSummaries(chats, userId) {
   for (const chat of chats) {
     const since = [watermarks.get(chat.id) ?? "", chatClears[chat.id] ?? ""].sort().pop();
     try {
-      unreadByChat.set(
-        chat.id,
-        unreadOfChatStmt.get(notDeleted, chat.id, userId, since, notDeleted, notDeleted) ?? { unread: 0, mentions: 0 }
-      );
+      unreadByChat.set(chat.id, unreadOf(chat.id, userId, since, notDeleted));
     } catch { /* непрочитанные = 0 */ }
   }
 

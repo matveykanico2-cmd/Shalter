@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
+import { requestTiming, watchEventLoop } from "./common/middleware/request-timing.js";
 import { RealtimeService } from "./modules/realtime/realtime.service.js";
 import { frontMiddleware } from "./legacy/front.middleware.js";
 import { LegacyFallbackAdapter } from "./legacy/legacy-fallback.adapter.js";
@@ -22,6 +23,9 @@ async function bootstrap() {
   // прокси Shalter из SHALTER_TRUSTED_PROXIES, server/front.js), общий replacer JSON.
   app.set("trust proxy", legacyTrustProxy());
   app.set("json replacer", publicJsonReplacer);
+  // Время ответа API: Server-Timing и лог медленных запросов.
+  app.use(requestTiming());
+  watchEventLoop();
   // Раньше маршрутов Nest — тех же заголовков, cookie, тела и лимитов, что у старого приложения.
   app.use(frontMiddleware());
   await app.init();

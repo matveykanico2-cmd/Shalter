@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { textCrypto } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { chatReads, chats, messages } from "../db/schema.js";
+import { readScanFrom } from "./lib/read-watermark.js";
 import { sealAttachments, sealText, toMessage } from "./lib/message.mapper.js";
 import type { DeletedMessageRefs, Message, MessageRow, MessagesPage, NewMessage, ReadMark } from "./model/domain.js";
 
@@ -284,10 +285,25 @@ export class MessagesRepository {
    * recordTime — записать readAt (личка, если читатель не скрывает время захода).
    */
   public markChatRead(chatId: string, viewerId: string, recordTime: boolean): string[] {
+    // Всё до границы chat_reads этот же метод уже отметил — смотрим только новее неё (с запасом
+    // READ_WATERMARK_MARGIN_MS на сообщения, сохранённые чуть позже своего createdAt), а не весь чат.
+    const watermark = this.db
+      .select({ at: chatReads.lastReadAt })
+      .from(chatReads)
+      .where(and(eq(chatReads.chatId, chatId), eq(chatReads.userId, viewerId)))
+      .get()?.at;
+    const from = readScanFrom(watermark);
     const rows = this.db
       .select({ id: messages.id, senderId: messages.senderId, readByIds: messages.readByIds, readTimes: messages.readTimes })
       .from(messages)
-      .where(and(eq(messages.chatId, chatId), ne(messages.senderId, viewerId), sql`${messages.readByIds} NOT LIKE ${`%"${viewerId}"%`}`))
+      .where(
+        and(
+          eq(messages.chatId, chatId),
+          from ? gte(messages.createdAt, from) : undefined,
+          ne(messages.senderId, viewerId),
+          sql`${messages.readByIds} NOT LIKE ${`%"${viewerId}"%`}`
+        )
+      )
       .all();
     const changedIds: string[] = [];
     const readNow = new Date().toISOString();

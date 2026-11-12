@@ -7,7 +7,8 @@ import { UiLanguageService } from "../ui-language/ui-language.service.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 
-const BOOTSTRAP_LANGUAGE_WAIT_MS = 1000;
+// Страна по IP обычно уже в кэше; иначе геосервис не держит первый экран — язык применится в фоне.
+const BOOTSTRAP_LANGUAGE_WAIT_MS = 150;
 
 // Первый экран клиента одним запросом — как server/routes/bootstrap.js.
 @Injectable()
@@ -22,8 +23,8 @@ export class BootstrapService {
 
   /** Настройки, чаты со сводками без скрытых (как GET /api/chats), папки и id контактов. */
   public async load(uid: string, deviceId: string | null, req: Request) {
-    // Автоязык интерфейса следует за страной IP; геосервис ждём не дольше секунды (иначе — в следующий раз).
-    await this.uiLanguage.refresh(uid, req, BOOTSTRAP_LANGUAGE_WAIT_MS);
+    // Автоязык интерфейса следует за страной IP; не узнали за BOOTSTRAP_LANGUAGE_WAIT_MS — к следующему запуску.
+    await this.uiLanguage.refreshWithin(uid, req, BOOTSTRAP_LANGUAGE_WAIT_MS);
     const settings = this.userSettings.get(uid);
     const chats = this.chats.findListForUser(uid, deviceId);
     const folders = this.folders.findForOwner(uid);

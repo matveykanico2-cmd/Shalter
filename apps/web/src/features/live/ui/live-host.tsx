@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+
 import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -7,7 +9,8 @@ import type { LiveSource } from "../api/live-api";
 import { cancelLiveSource, startLive } from "../model/live-store";
 import { useLive } from "../model/use-live";
 
-import { LiveScreen } from "./live-screen";
+// Экран эфира — отдельным чанком: на старте он не нужен.
+const LiveScreen = lazy(() => import("./live-screen").then((m) => ({ default: m.LiveScreen })));
 
 /** Эфир поверх приложения — как overlay openLiveScreen: выбор «Начать эфир» и экран эфира. */
 export function LiveHost({ me }: { me: SelfUser }) {
@@ -28,7 +31,11 @@ export function LiveHost({ me }: { me: SelfUser }) {
           onClose={cancelLiveSource}
         />
       ) : null}
-      {screen ? <LiveScreen key={screen.streamId} live={live?.stream.id === screen.streamId ? live : null} screen={screen} me={me} /> : null}
+      {screen ? (
+        <Suspense fallback={null}>
+          <LiveScreen key={screen.streamId} live={live?.stream.id === screen.streamId ? live : null} screen={screen} me={me} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

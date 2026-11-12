@@ -1,11 +1,28 @@
 // Service Worker for Shalter - offline caching
 // v4 — клиент apps/web: старый кэш (с public/js) при активации удаляется.
-const CACHE_NAME = 'shalter-v4';
+// v5 — в кэше больше нет ответов API, кроме сеанса и первого экрана (OFFLINE_API).
+const CACHE_NAME = 'shalter-v5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
   '/icons/icon.svg',
 ];
+
+// Answers the app opens with offline (GET /api/auth/session, /api/bootstrap).
+const OFFLINE_API = new Set(['/api/auth/session', '/api/bootstrap']);
+const NAVIGATE_TIMEOUT_MS = 2500;
+
+/** The cached app page after ms - only when the build it points at is cached as a whole. */
+function cachedBuildPageAfter(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms)).then(async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const [page, marker] = await Promise.all([cache.match('/'), cache.match('/__precached')]);
+    const list = marker?.headers.get('x-list');
+    if (!page || !list) return null;
+    const html = await page.clone().text();
+    return html.includes(`content="${list}"`) ? page : null;
+  });
+}
 
 // Install - cache static assets
 self.addEventListener('install', (event) => {
@@ -39,18 +56,37 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== location.origin) return;
 
   // Pages of the app (/, /chat/…, /settings/…) - network first, so a new build shows up at
-  // once; offline - the cached app page. It used to be cache first and kept an old index.html.
+  // once; offline - the cached app page. On a slow network the page waits for the server at
+  // most NAVIGATE_TIMEOUT_MS and then opens from the cache, if the whole build is cached
+  // (precacheBuild) - the network answer still refreshes the cache for the next start.
   if (request.mode === 'navigate') {
+    const network = fetch(request).then((response) => {
+      if (response.ok && url.pathname === '/') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
+      }
+      return response;
+    });
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok && url.pathname === '/') {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
-          }
-          return response;
-        })
+      Promise.race([network, cachedBuildPageAfter(NAVIGATE_TIMEOUT_MS)])
+        .then((response) => response || network)
         .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+    );
+    event.waitUntil(network.catch(() => {}));
+    return;
+  }
+
+  // Build files (/assets/<name>-<hash>.js|css) never change under the same name: from the
+  // cache at once, the network only for the first time.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }))
     );
     return;
   }
@@ -60,8 +96,12 @@ self.addEventListener('fetch', (event) => {
   // (video Range requests, its own HTTP cache).
   if (url.pathname.startsWith('/uploads/')) return;
   
-  // API requests - network first, cache fallback
+  // API requests - only what the app needs to open without a network (who is signed in and
+  // the first screen) is kept, network first. Other answers are not stored: the cache used to
+  // grow with every chat page ever opened. These two are private too: the app deletes them on
+  // sign-out and account switch (clearOfflineApi in apps/web/src/shared/lib/local-cache.ts).
   if (url.pathname.startsWith('/api/')) {
+    if (!OFFLINE_API.has(url.pathname)) return;
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -75,7 +115,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
+
   // Gift scenes - from the cache at once, refreshed in the background: a regenerated
   // scene shows up on the next view without a service worker update.
   if (url.pathname.startsWith('/gift-scenes/') && url.pathname !== '/gift-scenes/index.json') {

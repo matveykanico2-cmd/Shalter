@@ -20,6 +20,7 @@ export { NowPlayingBar } from "./now-playing-bar";
 export { PhoneField } from "./phone-field";
 export { SettingsButton, SettingsPage, SettingsRow, type SettingsRowColor, SettingsSection } from "./settings-list";
 export { useSettingsSubpage, useSettingsSubpageState } from "./settings-subpage";
+export { FeedSkeleton, ListSkeleton, PaneSkeleton } from "./skeleton";
 export { StreamAudio, StreamVideo } from "./stream-media";
 export { TextField } from "./text-field";
 export { Toaster } from "./toast";

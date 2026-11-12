@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ws } from "@/shared/api";
+import { writeCache } from "@/shared/lib/local-cache";
 import { fakeApi, FakeSocket,fakeSocket } from "@/shared/lib/test";
 
 import { App } from "./app";
@@ -72,6 +73,30 @@ describe("вход и оболочка", () => {
     window.history.replaceState(null, "", "/login?reason=revoked");
     render(<App />);
     expect(await screen.findByText("Сеанс на этом устройстве был завершён — войдите снова.")).toBeTruthy();
+  });
+});
+
+describe("сеанс прошлого запуска", () => {
+  const remember = () => writeCache("session", "last", { user: ME, accounts: [] });
+
+  it("оболочка — сразу, не дожидаясь /api/auth/session", async () => {
+    remember();
+    fakeApi({ "GET /api/bootstrap": bootstrap });
+    const answered = fetch;
+    // Сервер о сеансе молчит — приложение всё равно открыто под прошлым.
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === "/api/auth/session" ? new Promise(() => {}) : answered(input, init)
+    );
+    render(<App />);
+    expect(await screen.findByText("Выберите чат")).toBeTruthy();
+  });
+
+  it("сервер ответил, что входа нет, — экран входа", async () => {
+    remember();
+    fakeApi({ "GET /api/auth/session": { body: { user: null, accounts: [] } }, "GET /api/bootstrap": { status: 401, body: { error: "unauthorized" } } });
+    render(<App />);
+    expect(await screen.findByText("Рады видеть вас снова")).toBeTruthy();
+    expect(window.location.pathname).toBe("/login");
   });
 });
 

@@ -455,10 +455,24 @@ function readWatermarksFor(userId) {
 
 // recordTime — запомнить время прочтения (только личка и если читатель не
 // скрывает время захода от отправителя; это решает маршрут).
+// Всё до границы chat_reads этот же код уже отметил — смотрим только новее неё (с запасом на
+// сообщения, сохранённые чуть позже своего createdAt), а не весь чат. Граница не позже «сейчас»:
+// сообщение с датой из будущего (часы сервера откатились, импорт) подняло бы её, и всё, что
+// пришло после, навсегда осталось бы непрочитанным. Так же — в apps/api (readScanFrom).
+const READ_WATERMARK_MARGIN_MS = 10 * 60 * 1000;
+
+function readScanFrom(watermark, nowMs = Date.now()) {
+  const at = watermark ? Date.parse(watermark) : NaN;
+  if (!Number.isFinite(at)) return "";
+  return new Date(Math.min(at, nowMs) - READ_WATERMARK_MARGIN_MS).toISOString();
+}
+
 async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
+  const watermark = db.prepare("SELECT lastReadAt FROM chat_reads WHERE chatId = ? AND userId = ?").get(chatId, viewerId)?.lastReadAt;
+  const from = readScanFrom(watermark);
   const rows = db
-    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
-    .all(chatId, viewerId, `%"${viewerId}"%`);
+    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND createdAt >= ? AND senderId <> ? AND readByIds NOT LIKE ?")
+    .all(chatId, from, viewerId, `%"${viewerId}"%`);
   const changedIds = [];
   const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?), readTimes = ? WHERE id = ?");
   const readNow = new Date().toISOString();

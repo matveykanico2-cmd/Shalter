@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { sessionQueries } from "@/entities/session";
+import { forgetLastSession, sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
@@ -27,6 +27,7 @@ export function useSignOut(meId: string) {
     try {
       const { remaining } = await signOut(uid);
       clearCache();
+      forgetLastSession();
       if (current && remaining.length) {
         // Остался другой аккаунт — он теперь текущий: страница загружается заново под ним.
         window.location.reload();

@@ -31,6 +31,7 @@ import {
   type MessageSender,
   paidMediaQuery,
   type ReplyTarget,
+  storedHistory,
   timeLabel,
   type TopicFilter,
 } from "@/entities/message";
@@ -45,7 +46,8 @@ const HELLO_STICKER: Sticker = DRAWN_STICKERS.find((s) => s.id === "art_hello") 
 
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
-import { DomNode, Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
+import { markChatOpen } from "@/shared/lib/timing";
+import { DomNode, FeedSkeleton, Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
 import { type FeedRow, feedRows, lastEditable } from "../lib/feed-rows";
 import { buildGallery, galleryIndex } from "../lib/gallery";
@@ -104,7 +106,16 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const selection = useMessageSelection();
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
-  const history = useQuery(messageQueries.history(chat.id, topic));
+  // Без непрочитанного — лента прошлого запуска сразу, сервер обновит её поверх.
+  const history = useQuery({
+    ...messageQueries.history(chat.id, topic),
+    placeholderData: () => (topic || chat.unreadCount > 0 ? undefined : storedHistory(chat.id, chat.lastMessage?.id)),
+  });
+  // Сообщения на экране — замер открытия чата (shared/lib/timing).
+  const shown = !history.isPending;
+  useEffect(() => {
+    if (shown) markChatOpen(chat.id);
+  }, [shown, chat.id]);
   const stickerView = useStickerView();
   const openPackBySticker = (sticker: Sticker) => {
     // Встроенные стикеры уходят без packId — их пак ищем по рисунку; стикер без пака (старые
@@ -350,7 +361,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   if (history.isPending) {
     return (
       <div className={styles.feed}>
-        <span className={styles.spinner} aria-label="Загрузка" />
+        <FeedSkeleton />
       </div>
     );
   }

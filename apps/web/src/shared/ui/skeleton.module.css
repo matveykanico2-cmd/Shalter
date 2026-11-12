@@ -1,0 +1,84 @@
+/* Каркасы на время загрузки: серые формы на месте будущего содержимого вместо пустоты. */
+.list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 72px;
+  padding: 0 8px;
+}
+
+.avatar {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+}
+
+.lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.line {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.feed {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+}
+
+.bubble {
+  height: 38px;
+  border-radius: var(--bubble-radius);
+  opacity: 0.55;
+}
+
+.in {
+  align-self: flex-start;
+}
+
+.out {
+  align-self: flex-end;
+}
+
+.pane {
+  flex: 1;
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+.shape {
+  background: var(--color-surface-alt);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.feed .shape {
+  background: var(--color-bubble-in);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shape {
+    animation: none;
+  }
+}

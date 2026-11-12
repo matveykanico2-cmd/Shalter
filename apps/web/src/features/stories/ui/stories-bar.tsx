@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 
 import type { SelfUser } from "@/entities/session";
 import { hasUnseen, openStoryViewer, type StoryGroup, storyQueries } from "@/entities/story";
@@ -12,7 +12,9 @@ import { Avatar, Icon, toast } from "@/shared/ui";
 import { postStory, postTextStory } from "../model/post-story";
 
 import styles from "./stories-bar.module.css";
-import { StoryEditor } from "./story-editor";
+
+// Редактор — отдельным чанком: на старте он не нужен.
+const StoryEditor = lazy(() => import("./story-editor").then((m) => ({ default: m.StoryEditor })));
 
 const NO_GROUPS: StoryGroup[] = [];
 
@@ -207,14 +209,16 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         )
       )}
       {editing ? (
-        <StoryEditor
-          key={editing.file ? editing.file.name + editing.file.lastModified : "text"}
-          file={editing.file}
-          onDone={(result) => {
-            setEditing(null);
-            editing.resolve(result);
-          }}
-        />
+        <Suspense fallback={null}>
+          <StoryEditor
+            key={editing.file ? editing.file.name + editing.file.lastModified : "text"}
+            file={editing.file}
+            onDone={(result) => {
+              setEditing(null);
+              editing.resolve(result);
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

@@ -1583,4 +1583,34 @@ CREATE TABLE IF NOT EXISTS star_reaction_requests (
 );
 `);
 
+// Версия сообщений чата: растёт при любой правке сообщений, от которой зависят счётчики
+// непрочитанного (новое, удалённое, прочитанное, удалённое «у себя», упоминания, ветки).
+// По ней data/chat-summary.js не пересчитывает непрочитанные чатов, где ничего не менялось:
+// на больших чатах это просмотр тысяч строк. Ведут её триггеры — любой путь записи
+// (оба бэкенда, фоновый процесс) учтён сам.
+db.exec(`
+CREATE TABLE IF NOT EXISTS chat_versions (
+  chatId TEXT PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 0
+);
+CREATE TRIGGER IF NOT EXISTS chat_versions_msg_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO chat_versions (chatId, version) VALUES (new.chatId, 1)
+    ON CONFLICT(chatId) DO UPDATE SET version = version + 1;
+END;
+CREATE TRIGGER IF NOT EXISTS chat_versions_msg_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO chat_versions (chatId, version) VALUES (old.chatId, 1)
+    ON CONFLICT(chatId) DO UPDATE SET version = version + 1;
+END;
+CREATE TRIGGER IF NOT EXISTS chat_versions_msg_au
+  AFTER UPDATE OF chatId, senderId, createdAt, threadRootId, readByIds, deletedForIds, mentionedUserIds ON messages BEGIN
+  INSERT INTO chat_versions (chatId, version) VALUES (old.chatId, 1)
+    ON CONFLICT(chatId) DO UPDATE SET version = version + 1;
+  INSERT INTO chat_versions (chatId, version) SELECT new.chatId, 1 WHERE new.chatId IS NOT old.chatId
+    ON CONFLICT(chatId) DO UPDATE SET version = version + 1;
+END;
+-- Строка удалённого чата остаётся: версия никогда не уменьшается, иначе чат с тем же id,
+-- дойдя до прежней версии, получил бы из памяти chat-summary.js чужие счётчики.
+DROP TRIGGER IF EXISTS chat_versions_chat_ad;
+`);
+
 module.exports = db;

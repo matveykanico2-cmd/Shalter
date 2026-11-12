@@ -9,6 +9,7 @@ import { type Settings, settingsQueries } from "@/entities/settings";
 
 import { http } from "@/shared/api";
 import { readCache, writeCache } from "@/shared/lib/local-cache";
+import { persistQueries } from "@/shared/lib/persist-queries";
 
 type Bootstrap = z.infer<typeof bootstrapBody>;
 
@@ -52,25 +53,15 @@ const PERSIST_DELAY_MS = 1000;
 
 /** Каждое обновление списка или папок — в localStorage (не чаще раза в секунду). Возвращает отписку. */
 export function persistChats(client: QueryClient, userId: string) {
-  const listKey = chatQueries.list().queryKey;
-  const foldersKey = chatQueries.folders().queryKey;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const save = () => {
-    timer = undefined;
-    const chats = client.getQueryData(listKey);
-    if (chats) writeCache("chats", userId, { chats, folders: client.getQueryData(foldersKey) ?? [] } satisfies CachedChats);
-  };
-  const off = client.getQueryCache().subscribe((e) => {
-    if (e.type !== "updated" || e.action.type !== "success") return;
-    const hash = e.query.queryHash;
-    if (hash !== JSON.stringify(listKey) && hash !== JSON.stringify(foldersKey)) return;
-    timer ??= setTimeout(save, PERSIST_DELAY_MS);
-  });
-  return () => {
-    off();
-    if (timer) {
-      clearTimeout(timer);
-      save();
-    }
-  };
+  const listHash = JSON.stringify(chatQueries.list().queryKey);
+  const foldersHash = JSON.stringify(chatQueries.folders().queryKey);
+  return persistQueries(
+    client,
+    (query) => (query.queryHash === listHash || query.queryHash === foldersHash ? "chats" : null),
+    () => {
+      const chats = client.getQueryData(chatQueries.list().queryKey);
+      if (chats) writeCache("chats", userId, { chats, folders: client.getQueryData(chatQueries.folders().queryKey) ?? [] } satisfies CachedChats);
+    },
+    PERSIST_DELAY_MS
+  );
 }

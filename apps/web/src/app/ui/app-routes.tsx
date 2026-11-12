@@ -14,6 +14,7 @@ import type { SelfUser } from "@/entities/session";
 
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
+import { ListSkeleton, PaneSkeleton } from "@/shared/ui";
 
 import { AtUsername } from "./at-username";
 
@@ -35,7 +36,8 @@ const CommunityView = lazy(() => import("@/views/community").then((m) => ({ defa
 const FolderInviteView = lazy(() => import("@/views/folder-invite").then((m) => ({ default: m.FolderInviteView })));
 const QrScanView = lazy(() => import("@/views/qr-scan").then((m) => ({ default: m.QrScanView })));
 
-const lazyView = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
+// Пока код экрана грузится — фон приложения, а не пустое место.
+const lazyView = (node: ReactNode) => <Suspense fallback={<PaneSkeleton />}>{node}</Suspense>;
 
 /** Боковые разделы: на компьютере — в колонке списка чатов, на телефоне — во весь экран. */
 const sideRoutes = () => [
@@ -96,7 +98,7 @@ export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: bo
         mainOpen={!side && location.pathname !== "/"}
         // Список чатов остаётся смонтированным под боковой панелью (как .side-open): события
         // сокета, прокрутка и вкладки не теряются, пока открыты настройки или контакты.
-        sidebar={chatsReady ? <ChatList meId={user.id} /> : null}
+        sidebar={chatsReady ? <ChatList meId={user.id} /> : <ListSkeleton label="Загружаем чаты" />}
         side={side ? <Routes>{sideRoutes()}</Routes> : null}
         main={<Routes location={side ? shownMain : location}>{mainRoutes()}</Routes>}
       />

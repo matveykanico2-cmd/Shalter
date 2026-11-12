@@ -46,3 +46,9 @@ export const aiState = z.strictObject({ type: z.literal("ai:state"), chatId: z.s
 
 /** Сообщество изменилось — перечитать его (modules/communities). */
 export const communityUpdated = z.strictObject({ type: z.literal("community:updated"), communityId: z.string() });
+
+/** Настройки сменил сервер (автоязык интерфейса узнал страну уже после ответа /api/bootstrap). */
+export const settingsUpdated = z.strictObject({
+  type: z.literal("settings:updated"),
+  settings: z.strictObject({ uiLanguage: z.string(), uiLanguageAuto: z.boolean() }).partial(),
+});

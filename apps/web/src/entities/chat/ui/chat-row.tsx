@@ -6,6 +6,7 @@ import { hasMediaPreview, MediaPreview } from "@/entities/message/@x/chat";
 import { SafetyBadge } from "@/entities/safety-label/@x/chat";
 import { ProfileStatusBadge } from "@/entities/user/@x/chat";
 
+import { startChatOpen } from "@/shared/lib/timing";
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, EmojiText, Icon } from "@/shared/ui";
 
@@ -111,7 +112,11 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
       ) : null}
     <button
       type="button"
-      onClick={() => void navigate(`/chat/${chat.id}`)}
+      onClick={() => {
+        // Уже открытый чат не открывается заново — и замера нет.
+        if (!active) startChatOpen(chat.id);
+        void navigate(`/chat/${chat.id}`);
+      }}
       aria-current={active ? "page" : undefined}
       className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
       style={shift ? { transform: `translateX(${shift}px)` } : undefined}

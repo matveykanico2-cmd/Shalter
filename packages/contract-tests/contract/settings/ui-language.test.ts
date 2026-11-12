@@ -12,6 +12,7 @@ import { Api } from "../../support/client";
 import { expectOk } from "../../support/expect";
 import { login, registerUser, uniq, uniqPhone } from "../../support/seed";
 import { useServer } from "../../support/use-server";
+import { connectWs } from "../../support/ws";
 import { json, useTlsEgress } from "../push/tls";
 
 const IPWHO = "ipwho.is";
@@ -113,10 +114,29 @@ describe("автоматический язык интерфейса", () => {
     country("81.2.69.2", "DE");
     const { api } = await registerFrom("81.2.69.2");
     country("2.2.2.2", "JP");
-    expect(expectOk(await api.get("/api/bootstrap", from("2.2.2.2")), bootstrapBody).settings).toMatchObject({ uiLanguage: "ja", uiLanguageAuto: true });
+    // Геосервис не держит первый экран: не ответил сразу — язык приходит к следующему /api/bootstrap.
+    await expect
+      .poll(async () => expectOk(await api.get("/api/bootstrap", from("2.2.2.2")), bootstrapBody).settings)
+      .toMatchObject({ uiLanguage: "ja", uiLanguageAuto: true });
     expect(expectOk(await api.get("/api/bootstrap"), bootstrapBody).settings).toMatchObject({ uiLanguage: "ja" });
     egress.site().routes.set(`${IPWHO}/3.3.3.3`, json({ error: "boom" }, 500));
     expect(expectOk(await api.get("/api/bootstrap", from("3.3.3.3", { "accept-language": "fr" })), bootstrapBody).settings).toMatchObject({ uiLanguage: "ja" });
+  });
+
+  test("/api/bootstrap не ждёт медленный геосервис: ответ сразу, язык — к следующему запуску", async () => {
+    const { api } = await registerFrom("81.2.69.3");
+    const socket = await connectWs(api);
+    const reply = json({ success: true, country_code: "IT" });
+    egress.site().routes.set(`${IPWHO}/2.2.6.6`, (hit, res) => void setTimeout(() => reply(hit, res), 1500));
+    const started = Date.now();
+    const first = expectOk(await api.get("/api/bootstrap", from("2.2.6.6")), bootstrapBody);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(first.settings).toMatchObject({ uiLanguage: "ru", uiLanguageAuto: true });
+    // Страна пришла позже — открытый клиент узнаёт новый язык сразу, не дожидаясь следующего запуска.
+    const updated = await socket.waitFor("settings:updated", () => true, 5000);
+    expect(updated.settings).toEqual({ uiLanguage: "it", uiLanguageAuto: true });
+    socket.close();
+    await expect.poll(async () => expectOk(await api.get("/api/bootstrap", from("2.2.6.6")), bootstrapBody).settings, { timeout: 5000 }).toMatchObject({ uiLanguage: "it" });
   });
 
   test("вход из другой страны — язык меняется к следующему /api/bootstrap", async () => {

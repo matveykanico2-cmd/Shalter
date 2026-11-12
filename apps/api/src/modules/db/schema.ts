@@ -301,6 +301,12 @@ export const vapidKeys = sqliteTable("vapid_keys", {
   privateKey: text().notNull(),
 });
 
+// Версия сообщений чата для счётчиков непрочитанного — ведут триггеры server/db.js, код не пишет.
+export const chatVersions = sqliteTable("chat_versions", {
+  chatId: text().primaryKey(),
+  version: integer().default(0).notNull(),
+});
+
 export const chatReads = sqliteTable("chat_reads", {
   chatId: text().notNull(),
   userId: text().notNull(),

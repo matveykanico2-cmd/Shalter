@@ -21,6 +21,7 @@ import { applyUpdate, useAppUpdate } from "@/shared/lib/app-update";
 import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { useTimeFormat } from "@/shared/lib/time-format";
+import { markAppReady } from "@/shared/lib/timing";
 import { Icon, Menu } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
@@ -48,6 +49,11 @@ export function ChatList({ meId }: { meId: string }) {
   useTimeFormat();
   const folders = useChatFolders().data ?? NO_FOLDERS;
   const chats = chatsQuery.data;
+  // Список на экране — замер запуска приложения (shared/lib/timing).
+  const listed = !!chats;
+  useEffect(() => {
+    if (listed) markAppReady();
+  }, [listed]);
   const connection = useConnectionTitle();
   const currentId = useMatch("/chat/:chatId")?.params.chatId;
 

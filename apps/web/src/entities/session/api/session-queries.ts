@@ -5,6 +5,8 @@ import type { z } from "zod";
 
 import { http } from "@/shared/api";
 
+import { writeLastSession } from "../lib/last-session";
+
 export type Session = z.infer<typeof sessionBody>;
 export type SelfUser = NonNullable<Session["user"]>;
 export type GuestLanguage = z.infer<typeof geoLanguageBody>;
@@ -17,7 +19,11 @@ export const sessionQueries = {
   current: () =>
     queryOptions({
       queryKey: [...baseKey, "current"],
-      queryFn: ({ signal }) => http.get<Session>("/api/auth/session", signal),
+      queryFn: async ({ signal }) => {
+        const session = await http.get<Session>("/api/auth/session", signal);
+        writeLastSession(session);
+        return session;
+      },
       staleTime: Infinity,
     }),
   /** Язык интерфейса до входа — по стране IP, языку браузера или русский (GET /api/geo/language). */

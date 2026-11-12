@@ -1,3 +1,5 @@
+import { forgetLastSession } from "@/entities/session";
+
 import { ws } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { toast } from "@/shared/ui";
@@ -19,6 +21,8 @@ export async function switchAccount(userId: string, { to }: { to?: string } = {}
     toast(errorText(err, "Не удалось переключить аккаунт"), { error: true });
     return;
   }
+  // Иначе страница откроется под прежним аккаунтом и запишет данные нового в его кэш.
+  forgetLastSession();
   if (to) window.location.href = to;
   else window.location.reload();
 }
