@@ -2,6 +2,7 @@ import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-quer
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, useLocation, useSearchParams } from "react-router";
 
+import { resumeOutbox } from "@/features/send-message";
 import { rememberPendingShare } from "@/features/share-inbox";
 
 import { chatQueries } from "@/entities/chat";
@@ -58,6 +59,10 @@ function SignedIn({ user, confirmed }: { user: SelfUser; confirmed: boolean }) {
     void loadStoredHistories(user.id);
   }, [user.id]);
   useEffect(() => (confirmed ? persistHistories(client, user.id, (chatId) => keepsHistory(client, chatId)) : undefined), [client, user.id, confirmed]);
+  // Не ушедшее в прошлый раз (закрыли приложение без сети) — досылаем, когда сервер подтвердил вход.
+  useEffect(() => {
+    if (confirmed) void resumeOutbox(client, user.id);
+  }, [client, user.id, confirmed]);
   const boot = useQuery(bootstrapQuery(client, user.id));
   useAppearance(!boot.isPending);
   return (

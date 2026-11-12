@@ -170,6 +170,7 @@ export const messages = sqliteTable("messages", {
   effect: text(),
   visibleToId: text(),
   photoSuggestion: integer().default(0).notNull(),
+  clientId: text(),
 });
 
 export const contacts = sqliteTable("contacts", {

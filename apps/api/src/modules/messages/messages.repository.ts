@@ -50,6 +50,17 @@ export class MessagesRepository {
     return this.toMessage(this.db.select().from(messages).where(eq(messages.id, id)).get());
   }
 
+  /** Сообщение, уже сохранённое по этой отправке клиента (chatId, senderId, clientId). */
+  public findByClientId(chatId: string, senderId: string, clientId: string): Message | undefined {
+    return this.toMessage(
+      this.db
+        .select()
+        .from(messages)
+        .where(and(eq(messages.chatId, chatId), eq(messages.senderId, senderId), eq(messages.clientId, clientId)))
+        .get()
+    );
+  }
+
   /** Страница ленты (без ответов в ветках), скрытое у viewerId и очищенное до clearedBefore не входит. */
   public findPage(chatId: string, viewerId: string, clearedBefore: string | undefined, query: PageQuery): MessagesPage {
     const { limit, before, beforeId, topic } = query;
@@ -201,6 +212,7 @@ export class MessagesRepository {
         effect: message.effect ?? null,
         visibleToId: message.visibleToId ?? null,
         photoSuggestion: message.photoSuggestion ? 1 : 0,
+        clientId: message.clientId ?? null,
       })
       .run();
     return this.findById(id)!;

@@ -63,6 +63,8 @@ export interface Message {
 /** Новое сообщение (addMessage в server/data/messages.js); null и undefined — пусто. */
 export interface NewMessage {
   id: string;
+  /** Метка отправки клиента (повтор той же отправки — то же сообщение); наружу не отдаётся. */
+  clientId?: string | null;
   chatId: string;
   senderId: string;
   type?: string;

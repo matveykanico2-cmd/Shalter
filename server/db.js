@@ -796,6 +796,10 @@ if (!existingMessageColumns.has("mentionedUserIds")) db.exec("ALTER TABLE messag
 if (!existingMessageColumns.has("threadRootId")) db.exec("ALTER TABLE messages ADD COLUMN threadRootId TEXT");
 if (!existingMessageColumns.has("storyReply")) db.exec("ALTER TABLE messages ADD COLUMN storyReply TEXT");
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_threadRoot ON messages(threadRootId)");
+// Метка отправки клиента: повтор той же отправки (обрыв связи, очередь исходящих после
+// перезапуска приложения, перезапуск сервера) возвращает уже сохранённое сообщение, а не дубль.
+if (!existingMessageColumns.has("clientId")) db.exec("ALTER TABLE messages ADD COLUMN clientId TEXT");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client ON messages(chatId, senderId, clientId) WHERE clientId IS NOT NULL");
 
 // Колонка avatarEmoji добавилась позже — мигрируем старые базы.
 const existingChatColumns = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));

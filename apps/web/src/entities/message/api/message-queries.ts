@@ -3,6 +3,7 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { http } from "@/shared/api";
 
 import { mergeLatest, prependOlder } from "../lib/history";
+import { withPending } from "../model/pending-source";
 import type { History, HistoryPage, Message } from "../model/types";
 
 const baseKey = ["messages"] as const;
@@ -47,7 +48,8 @@ export const messageQueries = {
       queryKey: historyKey(chatId, topic),
       queryFn: async ({ signal, client }): Promise<History> => {
         const page = await http.get<HistoryPage>(historyPath(chatId, topic), signal);
-        return mergeLatest(client.getQueryData<History>(historyKey(chatId, topic)), page);
+        const merged = mergeLatest(client.getQueryData<History>(historyKey(chatId, topic)), page);
+        return withPending(merged, chatId, (m) => inTopic(m, topic));
       },
       retry: 3,
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),

@@ -155,7 +155,7 @@ describe("статьи", () => {
     const sent = calls.find((c) => c.key === SEND)!.body as Record<string, unknown>;
     expect(sent).toMatchObject({ text: "# Кофе\n\n**Зёрна** — арабика.\n- обжарка", article: true, attachments: [{ kind: "image", url: "/uploads/cover" }] });
     expect(String(sent.text)).toMatch(/^# Кофе/);
-    expect(sent.clientId).toMatch(/^local_/);
+    expect(sent.clientId).toMatch(/^c_/);
   });
 
   it("отказ сервера — окно снова с черновиком и причиной над полем", async () => {

@@ -58,6 +58,11 @@ const BLUR_RE = /^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/;
 
 const asRecord = (value: unknown): Record<string, any> => (value ?? {}) as Record<string, any>;
 
+/** clientId клиента как ключ повтора: непустая строка до 100 знаков (как в server/lib/sendOnce.js), иначе нет ключа. */
+export function clientSendKey(clientId: unknown): string | undefined {
+  return typeof clientId === "string" && clientId.length > 0 && clientId.length <= 100 ? clientId : undefined;
+}
+
 // Отправка сообщения: все проверки «можно ли этому человеку сюда писать» (общие с
 // отложенными), платный пост, доставка участникам, ботам и в пуш.
 @Injectable()
@@ -82,10 +87,15 @@ export class MessageSendService {
       throw new ApiError(400, "empty message");
     }
     const { clientId, ...fields } = dto;
+    const sendKey = clientSendKey(clientId);
     return sendOnce(uid, chat.id, clientId, async () => {
+      // Уже сохранено этой отправкой (повтор после обрыва, из очереди после перезапуска
+      // приложения или сервера) — то же сообщение, без повторной рассылки и списания звёзд.
+      const saved = sendKey ? this.messages.findByClientId(chat.id, uid, sendKey) : undefined;
+      if (saved) return { message: saved };
       const { charged } = await this.gate(chat, uid, fields);
       const paid = this.preparePaidMedia(chat, uid, fields);
-      const message = await this.deliver(chat, uid, fields, { paidStars: charged, paid });
+      const message = await this.deliver(chat, uid, fields, { paidStars: charged, paid, clientId: sendKey });
       // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог вернуться
       // в списке чатов, если очистка с клиента разошлась с сохранением).
       if (this.userSettings.get(uid).drafts?.[chat.id]) this.userSettings.setDraft(uid, chat.id, "");
@@ -275,7 +285,12 @@ export class MessageSendService {
   }
 
   /** Сохраняет сообщение и рассылает его: участникам по WS, ботам, ИИ, в пуш; фоном — превью. */
-  public async deliver(chat: Chat, senderId: string, body: MessageDraft, { paidStars = 0, paid = null as PaidPost | null } = {}): Promise<Message> {
+  public async deliver(
+    chat: Chat,
+    senderId: string,
+    body: MessageDraft,
+    { paidStars = 0, paid = null as PaidPost | null, clientId = undefined as string | undefined } = {}
+  ): Promise<Message> {
     let forwardedFrom = body.forwardedFrom as ForwardedFrom | undefined;
     if (forwardedFrom?.senderId) {
       const linkAllowed = forwardedFrom.senderId === senderId || this.privacy.allowsUser(forwardedFrom.senderId, "forwards", senderId);
@@ -297,6 +312,7 @@ export class MessageSendService {
 
     const message = this.messages.create({
       id: genId("m"),
+      clientId: clientId ?? null,
       chatId: chat.id,
       senderId,
       type: body.sticker ? "sticker" : body.article === true ? "article" : "text",

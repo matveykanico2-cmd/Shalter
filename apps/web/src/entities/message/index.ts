@@ -27,6 +27,7 @@ export { justReacted, noteReacted } from "./lib/reactions-anim";
 export type { Attachment, MediaItem } from "./model/attachment";
 export { historyCache } from "./model/history-cache";
 export { type MessageLinkHandlers, MessageLinks } from "./model/message-links";
+export { setPendingSource } from "./model/pending-source";
 export { loadStoredHistories, persistHistories, storedHistory } from "./model/stored-histories";
 export type { FeedMessage, History, HistoryPage, Message, ReplyTarget } from "./model/types";
 export { ReactionGlyph } from "./ui/animated";

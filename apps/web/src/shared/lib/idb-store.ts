@@ -2,8 +2,9 @@
 // база на устройство. Без IndexedDB (старый браузер, приватный режим, jsdom) всё молча
 // пропускается — приложение просто открывается медленнее.
 const DB_NAME = "shalter-cache";
-const DB_VERSION = 1;
-const STORES = ["histories"] as const;
+// 2 — очередь исходящих (features/send-message, outbox).
+const DB_VERSION = 2;
+const STORES = ["histories", "outbox"] as const;
 
 export type IdbStoreName = (typeof STORES)[number];
 

@@ -26,23 +26,27 @@ export type PaidMediaRequest = { stars: number; blur?: string; width?: number; h
  */
 export type SendOptions = { silent?: true; effect?: string; anonymous?: true; paidMedia?: PaidMediaRequest; article?: true; sticker?: Sticker };
 
-type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
+export type SendBody = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 
 /**
  * Сообщение в чат (POST /api/chats/:id/messages) или пост канала (POST /api/posts/:id/publish).
  * clientId — метка отправки: повтор после обрыва сети сервер узнаёт и не создаёт дубль.
  */
-export function sendMessage(chatId: string, body: Body, channel: boolean) {
+export function sendMessage(chatId: string, body: SendBody, channel: boolean, signal?: AbortSignal) {
   if (channel) {
-    return http.post<SendResult>(`/api/posts/${encodeURIComponent(chatId)}/publish`, {
-      text: body.text,
-      attachments: body.attachments ?? [],
-      clientId: body.clientId,
-      ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
-    });
+    return http.post<SendResult>(
+      `/api/posts/${encodeURIComponent(chatId)}/publish`,
+      {
+        text: body.text,
+        attachments: body.attachments ?? [],
+        clientId: body.clientId,
+        ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
+      },
+      signal
+    );
   }
   const { attachments, sticker, ...rest } = body;
-  return http.post<SendResult>(`${chatPath(chatId)}/messages`, { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) });
+  return http.post<SendResult>(`${chatPath(chatId)}/messages`, { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) }, signal);
 }
 
 export const saveDraft = (chatId: string, text: string) => http.post<unknown>(`${chatPath(chatId)}/draft`, { text });

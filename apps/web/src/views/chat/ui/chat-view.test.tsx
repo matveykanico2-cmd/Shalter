@@ -175,7 +175,7 @@ describe("открытый чат", () => {
     await waitFor(() => expect(bubbles()).toEqual(["m_1", sent.id]));
     const send = calls.find((c) => c.key === "POST /api/chats/c_1/messages")!;
     expect(send.body).toMatchObject({ text: "новое", replyToId: null });
-    expect(String((send.body as { clientId: string }).clientId)).toMatch(/^local_/);
+    expect(String((send.body as { clientId: string }).clientId)).toMatch(/^c_/);
     await waitFor(() => expect(calls.filter((c) => c.key === HISTORY).length).toBeGreaterThan(1));
   });
 
