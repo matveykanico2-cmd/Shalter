@@ -53,4 +53,18 @@ describe("разметка сообщения (как public/js/lib/formatText.j
     expect(internalRoute("https://app.test/settings", "https://app.test")).toBe("/settings");
     expect(internalRoute("https://other.test/anna", "https://app.test")).toBeNull();
   });
+
+  it("XSS: ссылки только http(s), javascript: и data: остаются текстом; HTML не разбирается", () => {
+    const inline = (text: string) => parseText(text).flatMap((b) => (b.kind === "line" ? b.inline : []));
+    expect(inline("[жми](javascript:alert(1))").some((i) => i.kind === "link")).toBe(false);
+    expect(inline("[жми](data:text/html,<script>alert(1)</script>)").some((i) => i.kind === "link")).toBe(false);
+    expect(inline("<img src=x onerror=alert(1)>")).toEqual([{ kind: "text", text: "<img src=x onerror=alert(1)>" }]);
+  });
+
+  it("Markdown в сообщении: заголовок, маркированный и нумерованный список, «#тег» — хештег", () => {
+    const blocks = parseText("# Обновление\n- быстрее\n- надёжнее\n3. третий\n4. четвёртый\n#shalter", { markdown: true });
+    expect(blocks.map((b) => b.kind)).toEqual(["heading", "list", "list", "line"]);
+    expect(blocks[2]).toMatchObject({ kind: "list", ordered: true, start: 3 });
+    expect(blocks[3]).toMatchObject({ kind: "line", inline: [{ kind: "hashtag", text: "#shalter" }] });
+  });
 });

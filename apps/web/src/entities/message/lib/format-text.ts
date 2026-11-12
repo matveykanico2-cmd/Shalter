@@ -13,17 +13,18 @@ export type Block =
   | { kind: "code"; code: string; lang: string }
   | { kind: "quote"; lines: Inline[][] }
   | { kind: "table"; header: Inline[][] | null; rows: Inline[][][] }
-  // Только в теле статьи (parseText(text, { markdown: true })): «## …» и списки «- …».
+  // Markdown (parseText(text, { markdown: true }), сообщения и статьи): «# …» и списки «- …», «1. …».
   | { kind: "heading"; level: 2 | 3 | 4 | 5 | 6; inline: Inline[] }
-  | { kind: "list"; items: Inline[][] };
+  | { kind: "list"; items: Inline[][]; ordered?: true; start?: number };
 
 /** Цитата длиннее этого сворачивается. */
 export const QUOTE_COLLAPSE_LINES = 4;
 const MAX_TABLE_COLS = 10;
 
 /**
- * markdown — тело статьи: ещё заголовки «## »…«###### » и списки «- »/«* ». В обычных
- * сообщениях их нет: «# привет» остаётся текстом с хештегом.
+ * markdown — ещё заголовки «# »…«###### » (с пробелом после решёток: «#привет» — хештег) и
+ * списки «- »/«* » и «1. »/«1) ». Сообщения и тело статьи рисуются с ним; без него — подпись
+ * истории и прочие места, где нужна только строчная разметка.
  */
 export function parseText(text: string, { markdown = false }: { markdown?: boolean } = {}): Block[] {
   // ```блок кода``` — может занимать несколько строк, внутри разметка не работает.
@@ -59,6 +60,14 @@ export function parseText(text: string, { markdown = false }: { markdown?: boole
           out.push({ kind: "list", items });
           continue;
         }
+        const first = ORDERED_RE.exec(lines[i]!);
+        if (first) {
+          const items: Inline[][] = [];
+          while (i < lines.length && ORDERED_RE.test(lines[i]!)) items.push(parseInline(lines[i++]!.replace(ORDERED_RE, "")));
+          i--;
+          out.push({ kind: "list", items, ordered: true, start: Number(first[1]) });
+          continue;
+        }
       }
       // Таблица: строки вида «| a | b |», вторая может быть разделителем «|---|---|».
       if (isTableRow(lines[i]!) && isTableRow(lines[i + 1] ?? "")) {
@@ -76,6 +85,7 @@ export function parseText(text: string, { markdown = false }: { markdown?: boole
 
 const HEADING_RE = /^(#{1,6}) +(\S.*)$/;
 const LIST_RE = /^[-*] +/;
+const ORDERED_RE = /^(\d{1,4})[.)] +/;
 
 const isQuoteLine = (line: string) => line.startsWith("> ") || line === ">";
 

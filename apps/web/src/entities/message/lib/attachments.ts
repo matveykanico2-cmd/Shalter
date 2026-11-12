@@ -80,7 +80,7 @@ export function mediaItem(a: Attachment, m: Pick<Message, "id">): Omit<MediaItem
   if (a.kind === "video") {
     const localVideo = a.thumbUrl?.startsWith("blob:") ? a.thumbUrl : undefined;
     const poster = a.posterUrl || (localVideo ? undefined : a.thumbUrl);
-    if (a.previewPending) return { kind: "video", url: localVideo ?? a.url!, name: a.name, thumbUrl: poster, messageId: m.id };
+    if (a.previewPending) return { kind: "video", url: localVideo ?? a.url!, name: a.name, thumbUrl: poster, processing: !localVideo, messageId: m.id };
     return {
       kind: "video",
       url: a.previewUrl || a.url!,

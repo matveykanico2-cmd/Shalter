@@ -13,6 +13,8 @@ export type ViewerItem = {
   originalUrl?: string;
   /** Запасной адрес видео (оригинал), если копия не играет. */
   fallbackUrl?: string;
+  /** Видео: сжатая копия ещё готовится — показан оригинал, который браузер может не уметь играть. */
+  processing?: boolean;
   author?: string;
   time?: string;
   caption?: string;
@@ -27,7 +29,9 @@ type Props = {
 };
 
 const MAX_ZOOM = 5;
-type Load = "loading" | "ready" | "failed";
+// unsupported — файл пришёл, но браузер не умеет его показать (видео HEVC на Linux и Windows:
+// без ошибки играет только звук на чёрном экране).
+type Load = "loading" | "ready" | "failed" | "unsupported";
 
 /**
  * Просмотр фото и видео — как openMediaViewer в public/js/components/mediaViewer.js:
@@ -133,12 +137,24 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
     else if (view.scale === 1 && Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
   };
 
-  const sources = item.kind === "video" ? [item.url, item.fallbackUrl].filter((u): u is string => !!u) : [item.url];
+  // Фото, которое браузер не открыл (HEIC в Chrome), — хотя бы его JPEG-превью из ленты.
+  const sources = (item.kind === "video" ? [item.url, item.fallbackUrl] : [item.url, item.thumbUrl !== item.url && !item.thumbUrl?.startsWith("blob:") ? item.thumbUrl : undefined]).filter(
+    (u): u is string => !!u
+  );
   const bust = attempt > sources.length - 1 ? `${sources[0]!.includes("?") ? "&" : "?"}r=${attempt}` : "";
   const src = attempt > sources.length - 1 ? `${sources[0]}${bust}` : sources[attempt]!;
   const onError = () => {
     if (attempt + 1 < sources.length) setAttempt(attempt + 1);
     else setLoad("failed");
+  };
+  // Видео без картинки: браузер не знает кодек (HEVC) — следующий адрес или понятное объяснение.
+  const onVideoMeta = (video: HTMLVideoElement) => {
+    if (video.videoWidth > 0 || video.videoHeight > 0) return;
+    if (attempt + 1 < sources.length) setAttempt(attempt + 1);
+    else {
+      video.pause();
+      setLoad("unsupported");
+    }
   };
   const retry = () => {
     setLoad("loading");
@@ -220,9 +236,14 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
               autoPlay
               playsInline
               preload="auto"
-              onLoadedData={() => setLoad("ready")}
-              onCanPlay={() => setLoad("ready")}
-              onWaiting={() => setLoad("loading")}
+              onLoadedMetadata={(e) => onVideoMeta(e.currentTarget)}
+              onLoadedData={(e) => {
+                if (e.currentTarget.videoWidth > 0 || e.currentTarget.videoHeight > 0) setLoad("ready");
+              }}
+              onCanPlay={(e) => {
+                if (e.currentTarget.videoWidth > 0 || e.currentTarget.videoHeight > 0) setLoad("ready");
+              }}
+              onWaiting={() => setLoad((l) => (l === "unsupported" ? l : "loading"))}
               onError={onError}
             />
           ) : (
@@ -243,6 +264,30 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
             </>
           )}
           {load === "loading" ? <span className={styles.spinner} aria-label="Загрузка" /> : null}
+          {load === "unsupported" ? (
+            <div className={styles.fail} role="alert">
+              <Icon name={item.processing ? "Clock" : "Video"} size={28} />
+              <span>
+                {item.processing
+                  ? "Видео ещё обрабатывается — через минуту оно откроется здесь."
+                  : "Этот браузер не умеет показывать видео в таком формате. Скачайте файл, чтобы посмотреть его."}
+              </span>
+              <div className={styles.failActions}>
+                {item.processing ? (
+                  <button type="button" onClick={retry}>
+                    Повторить
+                  </button>
+                ) : canDownload ? (
+                  <a className={styles.failLink} href={download} download={item.name || "video"}>
+                    Скачать
+                  </a>
+                ) : null}
+                <button type="button" className={styles.secondary} onClick={onClose}>
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          ) : null}
           {load === "failed" ? (
             <div className={styles.fail}>
               <Icon name="RotateCw" size={28} />

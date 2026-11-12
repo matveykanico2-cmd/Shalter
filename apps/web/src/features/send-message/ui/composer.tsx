@@ -16,7 +16,7 @@ import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/record
 import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
 import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
-import { fitTextarea } from "../lib/autosize";
+import { fitTextarea, rowsHeight } from "../lib/autosize";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
@@ -63,7 +63,8 @@ export type ComposerHandle = {
 // сервер — когда набор затих.
 const TYPING_PING_MS = 2500;
 const DRAFT_SAVE_MS = 600;
-const MAX_ROWS_HEIGHT = 200;
+/** Поле растёт до шести строк, дальше — прокрутка внутри поля. */
+const MAX_ROWS = 6;
 
 const NO_PEOPLE: PickedContact[] = [];
 const NO_IDS: string[] = [];
@@ -195,7 +196,7 @@ export function Composer(props: Props) {
   const isRecording = !!recording;
   useLayoutEffect(() => {
     const el = textarea.current;
-    if (el) fitTextarea(el, MAX_ROWS_HEIGHT);
+    if (el) fitTextarea(el, rowsHeight(el, MAX_ROWS));
   }, [text, isRecording]);
   // Поворот экрана и другая ширина поля — высота заново, раз в кадр и только при новой ширине
   // (своя смена высоты наблюдателя не будит).
@@ -208,7 +209,7 @@ export function Composer(props: Props) {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        if (textarea.current) fitTextarea(textarea.current, MAX_ROWS_HEIGHT);
+        if (textarea.current) fitTextarea(textarea.current, rowsHeight(textarea.current, MAX_ROWS));
       });
     };
     const observer =

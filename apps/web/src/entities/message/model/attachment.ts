@@ -47,6 +47,8 @@ export type MediaItem = {
   /** Видео: оригинал, если в ленте показана сжатая копия. */
   originalUrl?: string;
   fallbackUrl?: string;
+  /** Сжатая копия видео ещё готовится. */
+  processing?: boolean;
   messageId: string;
   author?: string;
   time?: string;

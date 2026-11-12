@@ -83,3 +83,14 @@ export function fitTextarea(el: HTMLTextAreaElement, max: number): void {
     el.scrollTop = el.scrollHeight;
   }
 }
+
+/**
+ * Предел высоты поля — rows строк его шрифта плюс отступы (ТЗ: растёт до 5–6 строк, дальше
+ * прокрутка внутри). Строка считается от computed line-height, поэтому верно и при 16 px на телефоне.
+ */
+export function rowsHeight(el: HTMLTextAreaElement, rows: number): number {
+  const cs = getComputedStyle(el);
+  const fontSize = parseFloat(cs.fontSize) || 15;
+  const line = parseFloat(cs.lineHeight) || fontSize * 1.35;
+  return Math.ceil(line * rows + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0));
+}

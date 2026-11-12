@@ -55,10 +55,11 @@ describe("статья в ленте", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it("обычное сообщение «# x» — не заголовок", () => {
-    render(<MessageBubble mine={false} message={msg({ text: "# x\n## тоже нет\n- и не список" })} />);
-    expect(screen.queryByRole("heading")).toBeNull();
-    expect(screen.queryByRole("list")).toBeNull();
+  it("обычное сообщение с «# x» и списками — Markdown в пузыре, но не статья; «#тег» — хештег", () => {
+    render(<MessageBubble mine={false} message={msg({ text: "# Заголовок\n- пункт\n1. первый\n2. второй\n#тег" })} />);
+    expect(screen.getByRole("heading", { name: "Заголовок" })).toBeTruthy();
+    expect(screen.getAllByRole("list")).toHaveLength(2);
+    expect(screen.getByText("#тег")).toBeTruthy();
     expect(screen.queryByText("⭐ Premium")).toBeNull();
   });
 });

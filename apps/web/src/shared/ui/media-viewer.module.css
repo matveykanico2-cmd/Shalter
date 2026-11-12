@@ -133,8 +133,13 @@
   gap: 8px;
 }
 
-.failActions button {
+.failActions button,
+.failLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 8px 16px;
+  text-decoration: none;
   border: none;
   border-radius: 999px;
   background: #fff;

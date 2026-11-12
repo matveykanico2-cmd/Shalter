@@ -22,8 +22,8 @@ const HIGHLIGHT_LIMIT = 20_000;
  * formatText в public/js/lib/formatText.js. meta — время с галочками: встаёт в конец
  * последней строки.
  */
-export function MessageText({ text, meta, customEmoji, markdown = false }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean }) {
-  // markdown — тело статьи: ещё заголовки «## …» и списки.
+export function MessageText({ text, meta, customEmoji, markdown = true }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean }) {
+  // markdown — ещё заголовки «# …» и списки «- …», «1. …» (в сообщениях и статьях).
   const blocks = useMemo(() => parseText(text, { markdown }), [text, markdown]);
   const lastLine = blocks.at(-1)?.kind === "line" ? blocks.length - 1 : -1;
   return (
@@ -60,16 +60,20 @@ function BlockView({ block, tail }: { block: Block; tail?: ReactNode }) {
         </Tag>
       );
     }
-    case "list":
-      return (
-        <ul className={styles.list}>
-          {block.items.map((item, i) => (
-            <li key={i}>
-              <InlineList items={item} />
-            </li>
-          ))}
-        </ul>
+    case "list": {
+      const items = block.items.map((item, i) => (
+        <li key={i}>
+          <InlineList items={item} />
+        </li>
+      ));
+      return block.ordered ? (
+        <ol className={styles.list} start={block.start}>
+          {items}
+        </ol>
+      ) : (
+        <ul className={styles.list}>{items}</ul>
       );
+    }
     case "table":
       return (
         <span className={`${styles.block} ${styles.tableWrap}`}>

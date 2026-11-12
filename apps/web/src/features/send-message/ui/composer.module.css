@@ -64,7 +64,8 @@
   min-width: 0;
   flex: 1;
   min-height: 46px;
-  max-height: 200px;
+  /* Предел — 6 строк (rowsHeight в lib/autosize.ts); тут запас на случай без JS-подгонки. */
+  max-height: calc(6 * 1.35em + 24px);
   padding: 12px 16px 12px 0;
   border: none;
   background: none;
@@ -385,6 +386,13 @@
 @media (max-width: 620px) {
   .secondary {
     display: none;
+  }
+}
+
+/* На телефоне 16 px: iOS Safari увеличивает страницу при фокусе на поле с шрифтом меньше. */
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
   }
 }
 
