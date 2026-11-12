@@ -44,7 +44,7 @@ describe("PATCH /:messageId — правка", () => {
     expectError(await b.api.patch(path, { text: "чужое" }), 403, "forbidden");
     expectError(await a.api.patch(path, {}), 400, "Некорректный текст");
     expectError(await a.api.patch(path, { text: 42 }), 400, "Некорректный текст");
-    expectError(await a.api.patch(path, { text: "я".repeat(4097) }), 400, "Сообщение длиннее 4096 символов");
+    expectError(await a.api.patch(path, { text: "я".repeat(20001) }), 400, "Сообщение длиннее 20000 символов");
     expectError(await a.api.patch(path, { text: "   " }), 400, "Сообщение не может быть пустым");
     expectError(await outsider.api.patch(path, { text: "x" }), 404, "not found");
     // Сообщение есть, но в другом чате.

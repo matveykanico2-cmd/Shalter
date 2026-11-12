@@ -1868,14 +1868,22 @@ describe("варианты отправки", () => {
   const type = (value: string) => fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value } });
   const sendMenu = () => fireEvent.contextMenu(screen.getByRole("button", { name: /^Отправить \(/ }));
 
-  it("длинный текст — несколькими сообщениями", async () => {
+  it("длинный текст — одним сообщением, переносы и отступы как набраны; длиннее 20 000 — не уходит, ошибка и счётчик", async () => {
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([msg("привет")]), ...sendRoute, ...typingRoutes });
     renderChat();
     await screen.findByText("привет");
-    type(`${"а".repeat(3000)}\n${"б".repeat(3000)}`);
+    const text = `  ${"а".repeat(3000)}\n\n    ${"б".repeat(3000)} 👋`;
+    type(text);
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Сообщение" }), { key: "Enter" });
-    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(2));
-    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages").map((c) => String((c.body as { text: string }).text).length)).toEqual([3000, 3000]);
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
+    expect((calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body as { text: string }).text).toBe(text);
+
+    type("я".repeat(20_001));
+    expect(screen.getByText(/20\s001 \/ 20\s000/)).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Сообщение" }), { key: "Enter" });
+    expect(await screen.findByText(/сократите на 1/)).toBeTruthy();
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1);
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toHaveLength(20_001);
   });
 
   it("правой кнопкой: без звука; в личке — с эффектом", async () => {

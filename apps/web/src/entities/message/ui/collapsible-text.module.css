@@ -1,0 +1,30 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.body {
+  min-width: 0;
+}
+
+/* Высота свёрнутого — в строках текста, низ плавно растворяется. */
+.collapsed {
+  max-height: 18lh;
+  max-height: calc(18 * 1.35em);
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 75%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent);
+}
+
+.toggle {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--accent-line, var(--color-accent));
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}

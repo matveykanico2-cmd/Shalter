@@ -26,9 +26,10 @@ import { buildAppUrl, buildInitData, sameApp, validateAppUrl } from "./lib/mini-
 import type { Bot } from "./model/domain.js";
 import type { AppDataDto, BroadcastDto, CommandsDto, CreateBotDto, OpenAppDto, PatchBotDto } from "./model/schemas/bot.schema.js";
 import { BroadcastCooldownStore } from "./stores/broadcast-cooldown.store.js";
+import { MAX_MESSAGE_TEXT } from "../messages/lib/message-content.js";
 
 const BOT_NAME_MAX = 60;
-const BROADCAST_MAX_TEXT = 4096;
+const BROADCAST_MAX_TEXT = MAX_MESSAGE_TEXT;
 const APP_CODE_MAX = 200_000;
 const APP_DATA_LIMIT = 4096;
 

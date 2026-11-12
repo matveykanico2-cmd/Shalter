@@ -59,8 +59,9 @@ const IMAGE_RATE_MAX = SHALTER_AI_IMAGES_PER_MIN;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 // Сколько раз дозапрашиваем продолжение, если модель упёрлась в лимит длины.
 const MAX_CONTINUATIONS = 2;
-// Как в Telegram: 4096 символов на сообщение — длинный ответ шлём несколькими.
-const MESSAGE_CHUNK = 3900;
+// Лимит сообщения — 20 000 символов (MAX_MESSAGE_TEXT в apps/api): ответ остаётся одним
+// сообщением, делим только то, что длиннее лимита.
+const MESSAGE_CHUNK = 20000;
 
 const SYSTEM_PROMPT =
   "Ты — Shalter AI, ИИ-ассистент мессенджера Shalter. Отвечай на языке пользователя (по умолчанию — по-русски), " +

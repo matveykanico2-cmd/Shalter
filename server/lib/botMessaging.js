@@ -76,7 +76,8 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
     chatId,
     senderId: botUserId,
     type: "text",
-    text: String(text).slice(0, 4096),
+    // Тот же лимит, что у сообщений (MAX_MESSAGE_TEXT в apps/api/src/modules/messages/lib/message-content.ts).
+    text: String(text).slice(0, 20000),
     createdAt: new Date().toISOString(),
     replyToId: reply?.chatId === chat.id ? reply.id : null,
     keyboard: normalizeKeyboard(keyboard),

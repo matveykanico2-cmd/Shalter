@@ -23,7 +23,7 @@ async function premiumUser(): Promise<TestUser> {
 const ARTICLE = "# Заголовок\n\nПервый абзац.\n\n- пункт\n- пункт";
 
 describe("отправка", () => {
-  test("Premium: type article, текст как есть, длиннее 4096 — можно", async () => {
+  test("Premium: type article, текст как есть, длиннее 4096 — можно (лимит 20000, как у сообщений)", async () => {
     const author = await premiumUser();
     const reader = await registerUser(server().baseUrl);
     const dm = await createDm(author, reader);
@@ -33,8 +33,8 @@ describe("отправка", () => {
     const long = `# Длинная\n\n${"а".repeat(15000)}`;
     expect(expectOk(await author.api.post(msgs(dm.id), { text: long, article: true }), sendResult).message.text).toBe(long);
     expectError(await author.api.post(msgs(dm.id), { text: `# Слишком\n${"а".repeat(20000)}`, article: true }), 400, "Сообщение длиннее 20000 символов");
-    // Обычное сообщение — по-прежнему до 4096.
-    expectError(await author.api.post(msgs(dm.id), { text: "а".repeat(4097) }), 400, "Сообщение длиннее 4096 символов");
+    // Обычное сообщение — тот же лимит 20000.
+    expectError(await author.api.post(msgs(dm.id), { text: "а".repeat(20001) }), 400, "Сообщение длиннее 20000 символов");
 
     const history = (await reader.api.get(msgs(dm.id))).body.messages;
     expect(history.find((m: { id: string }) => m.id === sent.id)).toMatchObject({ type: "article", text: ARTICLE });

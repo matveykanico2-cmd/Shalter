@@ -43,6 +43,7 @@ import type {
   UpdatesQueryDto,
 } from "./model/schemas/bot-api.schema.js";
 import { NEW_DIALOGS_PER_HOUR, NewDialogsStore } from "./stores/new-dialogs.store.js";
+import { MAX_MESSAGE_TEXT } from "../messages/lib/message-content.js";
 
 const LONG_POLL_STEP_MS = 250;
 
@@ -91,7 +92,7 @@ export class BotApiMessagesService {
   public editText(bot: Bot, dto: EditTextDto) {
     const found = this.access.ownMessage(bot, dto.messageId);
     if (found.message.forwardedFrom) throw new ApiError(400, "Forwarded messages can't be edited");
-    const message = this.messages.mutate(found.message.id, (m) => editText(m, dto.text.slice(0, 4096)));
+    const message = this.messages.mutate(found.message.id, (m) => editText(m, dto.text.slice(0, MAX_MESSAGE_TEXT)));
     this.realtime.broadcastToUsers(audienceOf(found.chat, found.message), { type: "message:updated", chatId: found.chat.id, message });
     return { message };
   }

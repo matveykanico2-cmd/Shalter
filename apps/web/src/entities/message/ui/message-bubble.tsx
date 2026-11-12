@@ -10,6 +10,7 @@ import { isArticle } from "../lib/article";
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
 import { keyboardOf } from "../lib/keyboard";
+import { isLongText } from "../lib/long-text";
 import { hasMediaPreview } from "../lib/media-preview";
 import { playMessageEffect, shouldPlayEffect } from "../lib/message-effect";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
@@ -23,6 +24,7 @@ import { type AttachmentActions, MessageAttachments } from "./attachments/messag
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
 import { ArticleCard } from "./article-card";
+import { CollapsibleText } from "./collapsible-text";
 import { MessageKeyboard } from "./keyboard";
 import { MediaPreview } from "./media-preview";
 import styles from "./message-bubble.module.css";
@@ -208,8 +210,10 @@ export function MessageBubble(props: Props) {
   const mediaOnly = !isCall && !article && isMediaOnly(m);
   const preview = article ? null : linkPreviewOf(m);
   const summary = props.summary;
-  // Под текстом ещё что-то (карточка ссылки, сводка) — время уходит в свою строку.
-  const below = !!preview || summary !== undefined || !!props.metaApart;
+  // Очень длинный текст свёрнут — время под кнопкой «Показать полностью», а не в спрятанном низу.
+  const longText = !!text && isLongText(text);
+  // Под текстом ещё что-то (карточка ссылки, сводка, кнопка разворота) — время уходит в свою строку.
+  const below = !!preview || summary !== undefined || !!props.metaApart || longText;
 
   const meta = (
     <span className={styles.meta}>
@@ -364,14 +368,10 @@ export function MessageBubble(props: Props) {
     );
   } else if (text && jumbo) body.push(<JumboEmoji key="text" messageId={m.id} text={text} count={jumbo} />);
   else if (text) {
-    body.push(
-      <MessageText
-        key="text"
-        text={text}
-        customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined}
-        meta={reactions.length || below ? null : meta}
-      />
+    const textNode = (
+      <MessageText key="text" text={text} customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined} meta={reactions.length || below ? null : meta} />
     );
+    body.push(longText ? <CollapsibleText key="text">{textNode}</CollapsibleText> : textNode);
     if (inlineStickers?.length) body.push(<InlineStickers key="inline-stickers" stickers={inlineStickers} onStickerClick={props.onStickerClick} />);
   }
   // Нет текста, но есть инлайн-стикеры — только картинки в строке.

@@ -20,7 +20,7 @@ import { fitTextarea } from "../lib/autosize";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
-import { splitLongText } from "../lib/long-text";
+import { COUNTER_FROM, MAX_TEXT, outgoingText, overLimit, overLimitText } from "../lib/long-text";
 import { playSendPlane } from "../lib/send-plane";
 import { type BotCommand, parseSlashCommand, suggestSlashCommands } from "../lib/slash-commands";
 import { type Edit, formatShortcut, linkSelection, quoteSelection, wrapSelection } from "../lib/text-format";
@@ -332,7 +332,10 @@ export function Composer(props: Props) {
   };
 
   const submit = (options: SendOptions = {}, typed = text) => {
-    let value = typed.trim();
+    let value = outgoingText(typed);
+    // Длиннее лимита — не отправляем и не режем: человек сам решает, что сократить.
+    const over = overLimit(value);
+    if (over) return setError(overLimitText(over));
     if (editing) {
       if (!value) return;
       if (value !== (editing.text ?? "").trim()) onSaveEdit?.(editing, value);
@@ -362,22 +365,13 @@ export function Composer(props: Props) {
     const reply = replyTo;
     clearInput();
     onSent?.();
-    // Длиннее 4096 знаков — несколькими сообщениями; ответ и эффект — у первого.
-    void (async () => {
-      const parts = splitLongText(value);
-      for (const [i, part] of parts.entries()) {
-        try {
-          const inlineAtts: OutgoingAttachment[] = i === 0 && inlineStickers.length ? inlineStickers.map((s) => ({ kind: "sticker", url: s.url ?? "", emoji: s.emoji ?? "", packId: s.packId ?? "", inline: true })) : [];
-          await send(part, i === 0 ? reply : null, inlineAtts, undefined, i === 0 ? options : options.silent ? { silent: true } : {});
-        } catch (err) {
-          // Не ушло — текст возвращаем, если человек ещё не начал новое сообщение.
-          const left = parts.slice(i).join("\n");
-          setText((current) => current || left);
-          setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
-          return;
-        }
-      }
-    })();
+    // Одно отправленное — всегда одно сообщение, какой бы длины ни было (до MAX_TEXT).
+    const inlineAtts: OutgoingAttachment[] = inlineStickers.map((s) => ({ kind: "sticker", url: s.url ?? "", emoji: s.emoji ?? "", packId: s.packId ?? "", inline: true }));
+    void send(value, reply, inlineAtts, undefined, options).catch((err: unknown) => {
+      // Не ушло (отказ сервера) — текст возвращаем, если человек ещё не начал новое сообщение.
+      setText((current) => current || value);
+      setError(errorText(err, "Не удалось отправить сообщение"));
+    });
   };
 
   // Поле очищено отправкой или отложенной отправкой: ответ, черновик, Hugo — тоже.
@@ -722,6 +716,11 @@ export function Composer(props: Props) {
       {error ? (
         <p className={styles.error} role="status">
           <EmojiText text={error} />
+        </p>
+      ) : null}
+      {text.length >= COUNTER_FROM ? (
+        <p className={text.length > MAX_TEXT ? `${styles.counter} ${styles.counterOver}` : styles.counter} aria-live="polite">
+          {text.length.toLocaleString("ru-RU")} / {MAX_TEXT.toLocaleString("ru-RU")}
         </p>
       ) : null}
       {editing ? (

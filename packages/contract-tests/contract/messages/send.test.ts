@@ -47,12 +47,17 @@ describe("POST /api/chats/:id/messages — проверки", () => {
     expect(expectOk(await a.api.get(msgs(dm.id)), historyPage).messages).toEqual([]);
   });
 
-  test("длина текста: 4096 можно, 4097 — 400", async () => {
+  test("длина текста: 20000 можно одним сообщением (переносы, пробелы, эмодзи как есть), 20001 — 400", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);
     const dm = await createDm(a, b);
-    expectOk(await a.api.post(msgs(dm.id), { text: "я".repeat(4096) }), sendResult);
-    expectError(await a.api.post(msgs(dm.id), { text: "я".repeat(4097) }), 400, "Сообщение длиннее 4096 символов");
+    const line = "  строка с отступом 👋 **жирный** `код`\n";
+    const text = line.repeat(Math.floor(20000 / line.length)).padEnd(20000, "я");
+    expect(text).toHaveLength(20000);
+    const sent = expectOk(await a.api.post(msgs(dm.id), { text }), sendResult).message;
+    expect(sent.text).toBe(text);
+    expect(expectOk(await b.api.get(msgs(dm.id)), historyPage).messages.at(-1)?.text).toBe(text);
+    expectError(await a.api.post(msgs(dm.id), { text: "я".repeat(20001) }), 400, "Сообщение длиннее 20000 символов");
   });
 
   test("текст не строкой — 400 Некорректный текст", async () => {
@@ -183,7 +188,7 @@ describe("clientId — повтор отправки не создаёт дуб�
     const [a, b] = await registerUsers(baseUrl, 2);
     const dm = await createDm(a, b);
     const clientId = uniq("cid");
-    expectError(await a.api.post(msgs(dm.id), { text: "я".repeat(4097), clientId }), 400, "Сообщение длиннее 4096 символов");
+    expectError(await a.api.post(msgs(dm.id), { text: "я".repeat(20001), clientId }), 400, "Сообщение длиннее 20000 символов");
     // Отказ не кэшируется — исправленный повтор с тем же clientId проходит,
     // а дальше clientId уже держит успешную отправку.
     const sent = expectOk(await a.api.post(msgs(dm.id), { text: "короткий", clientId }), sendResult);

@@ -289,7 +289,7 @@ describe("POST /:id/broadcast — рассылка", () => {
     expectError(await other.api.post(`/api/bots/${b.id}/broadcast`, { text: "x" }), 404, "not found");
     expectError(await send("   "), 400, "Введите текст рассылки");
     expectError(await send(undefined), 400, "Введите текст рассылки");
-    expectError(await send("x".repeat(4097)), 400, "Не длиннее 4096 символов");
+    expectError(await send("x".repeat(20001)), 400, "Не длиннее 20000 символов");
 
     expect(expectOk(await send("никому"), broadcastBody)).toEqual({ ok: true, sent: 0 });
     // Ничего не ушло — ждать минуту не нужно.

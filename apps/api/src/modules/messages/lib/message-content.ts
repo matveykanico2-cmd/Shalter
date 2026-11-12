@@ -3,8 +3,11 @@ import type { Message } from "../model/domain.js";
 
 // Что можно положить в сообщение, и как оно выглядит в уведомлении (server/routes/messages.js).
 
-/** Как в Telegram: 4096 символов текста (подпись к медиа — тоже). */
-export const MAX_MESSAGE_TEXT = 4096;
+/**
+ * Один лимит на текст сообщения, подпись к медиа, пост, отложенное, правку и Bot API: 20 000
+ * символов. Длиннее — отказ, текст не режется и не делится на несколько сообщений.
+ */
+export const MAX_MESSAGE_TEXT = 20000;
 /** Статья (Premium): markdown, первая строка — «# Заголовок»; обложка — вложение-картинка. */
 export const MAX_ARTICLE_TEXT = 20000;
 export const textLimit = (isArticle: boolean) => (isArticle ? MAX_ARTICLE_TEXT : MAX_MESSAGE_TEXT);

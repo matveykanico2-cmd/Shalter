@@ -67,7 +67,7 @@ describe("sendMessage", () => {
     const m = expectOk(
       await b.client.post("sendMessage", {
         chatId: dm.id,
-        text: "x".repeat(5000),
+        text: "x".repeat(20500),
         replyToId: own.id,
         keyboard: [
           [
@@ -88,7 +88,7 @@ describe("sendMessage", () => {
       messageEnvelope,
     ).message;
     expect(m).toMatchObject({ chatId: dm.id, senderId: b.id, type: "text", replyToId: own.id, readByIds: [] });
-    expect(m.text).toHaveLength(4096);
+    expect(m.text).toHaveLength(20000);
     expect(m.keyboard).toEqual([
       [
         { text: "Да", action: "yes" },

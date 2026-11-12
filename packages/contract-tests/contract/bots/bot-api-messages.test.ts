@@ -100,8 +100,8 @@ describe("editMessageText / deleteMessage — только свои", () => {
     expectError(await b.client.post("editMessageText", { messageId: human.id, text: "x" }), 403, "Bot can only touch its own messages");
     expectError(await b.client.post("editMessageText", { messageId: fwd.id, text: "x" }), 400, "Forwarded messages can't be edited");
 
-    const edited = expectOk(await b.client.post("editMessageText", { messageId: own.id, text: "с".repeat(5000) }), messageEnvelope).message;
-    expect(edited.text).toHaveLength(4096);
+    const edited = expectOk(await b.client.post("editMessageText", { messageId: own.id, text: "с".repeat(20500) }), messageEnvelope).message;
+    expect(edited.text).toHaveLength(20000);
     expect(edited.editedAt).toBeDefined();
     const ev = expectShape(wsMessageUpdated, await userWs.waitFor("message:updated", (e) => e.message?.id === own.id));
     expect(ev).toEqual({ type: "message:updated", chatId: dm.id, message: edited });

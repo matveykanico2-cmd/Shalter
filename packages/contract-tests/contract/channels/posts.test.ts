@@ -74,7 +74,7 @@ describe("POST /api/posts/:channelId/publish", () => {
     expectError(await publish(reader, channel.id, { text: "x" }), 403, "Публиковать могут только администраторы канала");
     expectError(await publish(owner, channel.id, {}), 400, "empty post");
     expectError(await publish(owner, channel.id, { text: "   ", attachments: [] }), 400, "empty post");
-    expectError(await publish(owner, channel.id, { text: "x".repeat(4097) }), 400, "Пост длиннее 4096 символов");
+    expectError(await publish(owner, channel.id, { text: "x".repeat(20001) }), 400, "Пост длиннее 20000 символов");
     expectOk(await publish(owner, channel.id, { text: "x".repeat(4096) }), messageEnvelope);
     // Админ (не владелец) публикует.
     expectOk(await publish(admin, channel.id, { text: "от админа" }), messageEnvelope);

@@ -17,6 +17,7 @@ import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import type { PublishPostDto } from "./model/schemas/post.schema.js";
 import { PostViewsRepository } from "./post-views.repository.js";
+import { MAX_MESSAGE_TEXT } from "../messages/lib/message-content.js";
 
 type PaidPost = ReturnType<MessageSendService["preparePaidMedia"]>;
 
@@ -50,7 +51,7 @@ export class PostsService {
     if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
     const text = body.text as string | null | undefined;
     if (!text?.trim() && !(body.attachments as { length?: number } | null | undefined)?.length) throw new ApiError(400, "empty post");
-    if (typeof text === "string" && text.length > 4096) throw new ApiError(400, "Пост длиннее 4096 символов");
+    if (typeof text === "string" && text.length > MAX_MESSAGE_TEXT) throw new ApiError(400, `Пост длиннее ${MAX_MESSAGE_TEXT} символов`);
 
     const paid = this.sender.preparePaidMedia(chat, uid, body);
     const post = await sendOnce(uid, chat.id, body.clientId, async () => this.publishPost(chat, uid, body, paid));

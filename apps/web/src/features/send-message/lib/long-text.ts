@@ -1,18 +1,17 @@
-// Длинный текст — несколькими сообщениями, как splitLongText в public/js/views/chatView.js:
-// режем по строке, иначе по пробелу, иначе ровно по пределу.
-export const MAX_TEXT = 4096;
+// Длина сообщения: один лимит с сервером (MAX_MESSAGE_TEXT в apps/api,
+// modules/messages/lib/message-content.ts). Длиннее — не отправляем и показываем, на сколько
+// сократить: текст не режется и не делится на несколько сообщений.
+export const MAX_TEXT = 20_000;
+/** С какой длины показывать счётчик у поля ввода. */
+export const COUNTER_FROM = MAX_TEXT - 1_000;
 
-export function splitLongText(text: string, max = MAX_TEXT) {
-  const parts: string[] = [];
-  let rest = text;
-  while (rest.length > max) {
-    const slice = rest.slice(0, max);
-    let cut = slice.lastIndexOf("\n");
-    if (cut < max / 2) cut = slice.lastIndexOf(" ");
-    if (cut < max / 2) cut = max;
-    parts.push(rest.slice(0, cut));
-    rest = rest.slice(cut).replace(/^\s+/, "");
-  }
-  if (rest) parts.push(rest);
-  return parts;
-}
+/** На сколько символов текст длиннее лимита (0 — помещается). */
+export const overLimit = (text: string, max = MAX_TEXT) => Math.max(0, text.length - max);
+
+export const overLimitText = (over: number, max = MAX_TEXT) => `Сообщение длиннее ${max.toLocaleString("ru-RU")} символов — сократите на ${over.toLocaleString("ru-RU")}`;
+
+/**
+ * Текст к отправке: пустые строки в начале и пробелы в конце убираем, а отступ первой строки,
+ * переносы и пробелы внутри — как набрали (код, стихи, списки).
+ */
+export const outgoingText = (typed: string) => typed.replace(/^(?:[ \t]*\r?\n)+/, "").replace(/\s+$/, "");

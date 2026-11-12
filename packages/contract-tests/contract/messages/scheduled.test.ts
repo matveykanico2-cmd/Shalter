@@ -75,7 +75,7 @@ describe("отложенные сообщения", () => {
       expectError(await a.api.post(sched(dm.id), { text: "x", sendAt }), 400, "Время отправки должно быть в будущем");
     }
     expectError(await a.api.post(sched(group.id), { text: "x", whenOnline: true }), 400, "«Когда будет в сети» — только в личных чатах");
-    expectError(await a.api.post(sched(dm.id), { text: "я".repeat(4097), sendAt: inHour() }), 400, "Сообщение длиннее 4096 символов");
+    expectError(await a.api.post(sched(dm.id), { text: "я".repeat(20001), sendAt: inHour() }), 400, "Сообщение длиннее 20000 символов");
     // Те же права, что у обычной отправки.
     expectError(await b.api.post(sched(channel.id), { text: "x", sendAt: inHour() }), 403, "Публиковать в канале могут только администраторы");
     expectError(await outsider.api.post(sched(dm.id), { text: "x", sendAt: inHour() }), 404, "not found");
@@ -99,8 +99,8 @@ describe("отложенные сообщения", () => {
     expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: 5 }), 400, "Некорректный текст");
     // Правка проверяет пустоту и длину, как правка отправленного сообщения.
     expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "  " }), 400, "Сообщение не может быть пустым");
-    expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(4097) }), 400, "Сообщение длиннее 4096 символов");
-    expect(expectOk(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(4096) }), scheduledEnvelope).scheduled.text).toHaveLength(4096);
+    expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(20001) }), 400, "Сообщение длиннее 20000 символов");
+    expect(expectOk(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(20000) }), scheduledEnvelope).scheduled.text).toHaveLength(20000);
     expectError(await new Api(baseUrl).patch(sched(dm.id, `/${s.id}`), { text: "y" }), 401, "unauthorized");
   });
 
