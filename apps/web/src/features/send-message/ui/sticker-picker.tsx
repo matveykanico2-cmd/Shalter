@@ -1,8 +1,10 @@
 import type { Sticker as PackStickerT } from "@shalter/shared/schemas/stickers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { type BuiltinStickerPack, renderSticker, type Sticker } from "@/shared/lib/anim";
+import { useLongPress } from "@/shared/lib/use-long-press";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
 import { sendTyping } from "../api/send-message";
@@ -151,12 +153,24 @@ function StickerPanel({
     onPick(outgoingSticker(s));
     closeStickerPack();
   };
+  // Долгое нажатие (правый клик) — стикер крупно, без отправки.
+  const [preview, setPreview] = useState<PackStickerT | null>(null);
 
   const body = useRef<HTMLDivElement>(null);
   const jump = (id: string) => body.current?.querySelector<HTMLElement>(`[data-pack="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
 
   return (
     <div className={styles.panel}>
+      {preview ? (
+        <StickerPreview
+          sticker={preview}
+          onClose={() => setPreview(null)}
+          onSend={() => {
+            setPreview(null);
+            pick(preview);
+          }}
+        />
+      ) : null}
       {/* Вкладки паков, как в Telegram: обложка пака — прокрутка к нему; в конце — управление. */}
       <div className={styles.tabs} role="toolbar" aria-label="Стикерпаки">
         {list.map((pack) => (
@@ -186,20 +200,7 @@ function StickerPanel({
               </button>
               <div className={styles.items}>
                 {pack.stickers.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={styles.item}
-                    title={s.emoji || "Стикер"}
-                    aria-label={s.emoji || "Стикер"}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      pick(s);
-                    }}
-                  >
-                    <DomNode key={s.url} create={() => renderSticker(packSticker(s), { size: 56 })} />
-                  </button>
+                  <StickerTile key={s.id} sticker={s} onPick={pick} onPreview={setPreview} />
                 ))}
               </div>
             </section>
@@ -213,5 +214,66 @@ function StickerPanel({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** Стикер в панели: нажатие — отправить, долгое нажатие или правый клик — посмотреть крупно. */
+function StickerTile({ sticker, onPick, onPreview }: { sticker: PackStickerT; onPick: (s: PackStickerT) => void; onPreview: (s: PackStickerT) => void }) {
+  const hold = useLongPress(() => onPreview(sticker));
+  return (
+    <button
+      type="button"
+      className={styles.item}
+      title={sticker.emoji || "Стикер"}
+      aria-label={sticker.emoji || "Стикер"}
+      onPointerDown={hold.onPointerDown}
+      onPointerMove={hold.onPointerMove}
+      onPointerUp={hold.onPointerUp}
+      onPointerCancel={hold.onPointerCancel}
+      onPointerLeave={hold.onPointerLeave}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (!hold.swallow(e)) onPreview(sticker);
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!hold.swallow(e)) onPick(sticker);
+      }}
+    >
+      <DomNode key={sticker.url} create={() => renderSticker(packSticker(sticker), { size: 56 })} />
+    </button>
+  );
+}
+
+/** Предпросмотр: стикер крупно с эмодзи; «Отправить» или нажатие мимо — закрыть. */
+function StickerPreview({ sticker, onClose, onSend }: { sticker: PackStickerT; onClose: () => void; onSend: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div
+      className={styles.preview}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Стикер ${sticker.emoji || ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className={styles.previewCard}>
+        <DomNode key={sticker.url} create={() => renderSticker(packSticker(sticker), { size: 200, replay: true })} />
+        {sticker.emoji ? <span className={styles.previewEmoji}>{sticker.emoji}</span> : null}
+        <button type="button" className={styles.previewSend} onClick={onSend}>
+          Отправить
+        </button>
+      </div>
+    </div>,
+    document.body
   );
 }

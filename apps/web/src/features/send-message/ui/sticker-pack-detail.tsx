@@ -105,7 +105,8 @@ export function StickerGridEditor({
   onChange,
 }: {
   pack: StickerPack;
-  onChange: (pack: StickerPack) => void;
+  /** saved — сервер уже сохранил (можно перечитать список паков); false — пока только на экране. */
+  onChange: (pack: StickerPack, saved: boolean) => void;
 }) {
   const [uploading, setUploading] = useState(0);
   const [painting, setPainting] = useState(false);
@@ -118,15 +119,14 @@ export function StickerGridEditor({
   }, [pack]);
   const queue = useRef(Promise.resolve());
 
-  const commit = (stickers: Sticker[]) => {
+  /** Новый список стикеров; save — сервер уже сохранил (список паков перечитываем только тогда). */
+  const commit = (stickers: Sticker[], { save = true } = {}) => {
     const list = uniqueStickers(stickers);
-    const next = {
-      ...latest.current,
-      stickers: list,
-      stickerCount: list.length,
-    };
+    const base = { ...latest.current, stickers: list, stickerCount: list.length };
+    // Обложка — как на сервере: выбранный стикер, иначе первый (после перестановки — новый первый).
+    const next = { ...base, cover: coverSticker(base)?.url ?? null };
     latest.current = next;
-    onChange(next);
+    onChange(next, save);
   };
 
   const addFiles = (files: File[]) => {
@@ -179,103 +179,141 @@ export function StickerGridEditor({
       });
       const next = { ...latest.current, coverStickerId: saved.coverStickerId ?? s.id, cover: saved.cover ?? s.url };
       latest.current = next;
-      onChange(next);
+      onChange(next, true);
     } catch (err) {
       setError(errorText(err, "Не удалось сменить обложку"));
     }
   };
 
-  const move = async (s: Sticker, delta: number) => {
+  const moveTo = async (s: Sticker, target: number) => {
     const list = [...latest.current.stickers];
     const idx = list.findIndex((x) => x.id === s.id);
-    const target = Math.min(Math.max(0, idx + delta), list.length - 1);
-    if (idx < 0 || target === idx) return;
+    const to = Math.min(Math.max(0, target), list.length - 1);
+    if (idx < 0 || to === idx) return;
     const [moved] = list.splice(idx, 1);
     if (!moved) return;
-    list.splice(target, 0, moved);
-    commit(list.map((x, i) => ({ ...x, position: i })));
+    list.splice(to, 0, moved);
+    // Сразу на экране; список паков (обложки во вкладках) — когда сервер сохранил порядок,
+    // иначе перезапрос успевал раньше и возвращал прежнюю обложку.
+    commit(
+      list.map((x, i) => ({ ...x, position: i })),
+      { save: false }
+    );
     try {
-      await Promise.all(
-        list.map((x, i) =>
-          x.position === i
-            ? null
-            : updateSticker(latest.current.id, x.id, { position: i }),
-        ),
-      );
+      await Promise.all(list.map((x, i) => (x.position === i ? null : updateSticker(latest.current.id, x.id, { position: i }))));
+      commit(latest.current.stickers);
     } catch (err) {
       setError(errorText(err, "Не удалось сохранить порядок"));
     }
   };
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const cover = coverSticker(pack);
+  const selectedIndex = pack.stickers.findIndex((x) => x.id === selectedId);
+  const selected = selectedIndex >= 0 ? pack.stickers[selectedIndex] : undefined;
+
   return (
     <div className={styles.editor}>
       <p className={styles.hint}>
-        У каждого стикера свой эмодзи — по нему стикер находится в поиске и
-        подсказках. Обложка пака — отмеченный звездой стикер (по умолчанию
-        первый).
+        Нажмите на стикер, чтобы поменять эмодзи, порядок или сделать его обложкой. На компьютере
+        стикеры можно перетаскивать. Обложка пака отмечена звездой (по умолчанию — первый стикер).
       </p>
-      <div className={styles.editGrid}>
+      <div className={styles.editGrid} role="list" aria-label="Стикеры пака">
         {pack.stickers.map((s, i) => (
-          <div key={s.id} className={styles.stickerCell}>
-            <DomNode
-              key={s.url}
-              create={() => renderSticker(packSticker(s), { size: 56 })}
-            />
+          <div
+            key={s.id}
+            role="listitem"
+            className={[styles.editCell, s.id === selectedId ? styles.editCellSelected : "", s.id === dragId ? styles.editCellDragging : ""].filter(Boolean).join(" ")}
+            draggable
+            onDragStart={(e) => {
+              setDragId(s.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={() => setDragId(null)}
+            onDragOver={(e) => {
+              if (dragId && dragId !== s.id) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const dragged = pack.stickers.find((x) => x.id === dragId);
+              setDragId(null);
+              if (dragged) void moveTo(dragged, i);
+            }}
+          >
+            <button
+              type="button"
+              className={styles.editPick}
+              aria-pressed={s.id === selectedId}
+              aria-label={`Стикер ${s.emoji || ""}${cover?.id === s.id ? ", обложка" : ""}`}
+              onClick={() => setSelectedId((cur) => (cur === s.id ? null : s.id))}
+            >
+              <DomNode key={s.url} create={() => renderSticker(packSticker(s), { size: 52 })} />
+              <span className={styles.editEmoji}>{s.emoji}</span>
+              {cover?.id === s.id ? (
+                <span className={styles.coverMark} aria-hidden="true">
+                  <Icon name="Star" size={12} />
+                </span>
+              ) : null}
+            </button>
+          </div>
+        ))}
+      </div>
+      {selected ? (
+        <div className={styles.editBar}>
+          <label className={styles.editBarEmoji}>
+            <span>Эмодзи</span>
             <input
+              key={selected.id}
               className={styles.emojiInput}
               aria-label="Эмодзи стикера"
-              defaultValue={s.emoji}
+              defaultValue={selected.emoji}
               maxLength={8}
-              onBlur={(e) => void setEmoji(s, e.target.value)}
+              onBlur={(e) => void setEmoji(selected, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
               }}
             />
-            <div className={styles.cellControls}>
-              <button
-                type="button"
-                className={styles.moveBtn}
-                title="Раньше"
-                aria-label="Раньше"
-                disabled={i === 0}
-                onClick={() => void move(s, -1)}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className={styles.moveBtn}
-                title="Позже"
-                aria-label="Позже"
-                disabled={i === pack.stickers.length - 1}
-                onClick={() => void move(s, 1)}
-              >
-                →
-              </button>
-              <button
-                type="button"
-                className={styles.moveBtn}
-                title="Сделать обложкой"
-                aria-label="Сделать обложкой"
-                aria-pressed={coverSticker(pack)?.id === s.id}
-                disabled={coverSticker(pack)?.id === s.id}
-                onClick={() => void makeCover(s)}
-              >
-                <Icon name="Star" size={11} />
-              </button>
-              <button
-                type="button"
-                className={styles.removeBtn}
-                title="Убрать из пака"
-                aria-label={`Убрать «${s.emoji || "стикер"}»`}
-                onClick={() => void remove(s)}
-              >
-                <Icon name="X" size={11} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          </label>
+          <button type="button" className={styles.editAction} aria-label="Раньше" disabled={selectedIndex === 0} onClick={() => void moveTo(selected, selectedIndex - 1)}>
+            <Icon name="ChevronLeft" size={20} />
+            <span>Раньше</span>
+          </button>
+          <button
+            type="button"
+            className={styles.editAction}
+            aria-label="Позже"
+            disabled={selectedIndex === pack.stickers.length - 1}
+            onClick={() => void moveTo(selected, selectedIndex + 1)}
+          >
+            <span>Позже</span>
+            <Icon name="ChevronRight" size={20} />
+          </button>
+          <button
+            type="button"
+            className={styles.editAction}
+            aria-label="Сделать обложкой"
+            aria-pressed={cover?.id === selected.id}
+            disabled={cover?.id === selected.id}
+            onClick={() => void makeCover(selected)}
+          >
+            <Icon name="Star" size={18} />
+            <span>{cover?.id === selected.id ? "Обложка" : "Обложкой"}</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.editAction} ${styles.editActionDanger}`}
+            aria-label={`Убрать «${selected.emoji || "стикер"}»`}
+            onClick={() => {
+              setSelectedId(null);
+              void remove(selected);
+            }}
+          >
+            <Icon name="Trash" size={18} />
+            <span>Убрать</span>
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <p className={styles.errorText} role="alert">
           {error}
@@ -509,9 +547,9 @@ function PackSheet({
           />
           <StickerGridEditor
             pack={current}
-            onChange={(next) => {
+            onChange={(next, saved) => {
               setCurrent(next);
-              reload();
+              if (saved) reload();
             }}
           />
           {error ? (

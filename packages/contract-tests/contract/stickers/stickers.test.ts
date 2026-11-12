@@ -64,6 +64,15 @@ describe("свой пак", () => {
     expect(expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack.stickerCount).toBe(0);
   });
 
+  test("без файла или эмодзи — понятная ошибка, а не технический текст", async () => {
+    const me = await registerUser(server().baseUrl);
+    const pack = await newPack(me);
+    const png = await uploadedUrl(me, "png");
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { file: png }), 400, "Выберите эмодзи для стикера");
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { file: png, emoji: "" }), 400, "Выберите эмодзи для стикера");
+    expectError(await me.api.post(`${PACKS}/${pack.id}/stickers`, { emoji: "😀" }), 400, "Сначала загрузите файл");
+  });
+
   test("чужой неприкреплённый файл в стикер не добавить — иначе его увидел бы любой", async () => {
     const [me, other] = await registerUsers(server().baseUrl, 2);
     const theirs = await uploadedUrl(other, "webp");
@@ -142,6 +151,18 @@ describe("обложка пака", () => {
     expect(expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack).toMatchObject({ coverStickerId: null, cover: first.file });
 
     expect(expectOk(await me.api.patch(`${PACKS}/${pack.id}`, { coverStickerId: null }), packBody).pack.cover).toBe(first.file);
+  });
+
+  test("без выбранной обложки — после перестановки обложка сама становится новым первым стикером", async () => {
+    const me = await registerUser(server().baseUrl);
+    const pack = await newPack(me);
+    const first = await addSticker(me, pack.id, "🐱");
+    const second = await addSticker(me, pack.id, "🐶");
+    expect((await me.api.patch(`${PACKS}/${pack.id}/stickers/${second.sticker.id}`, { position: 0 })).status).toBe(200);
+    expect((await me.api.patch(`${PACKS}/${pack.id}/stickers/${first.sticker.id}`, { position: 1 })).status).toBe(200);
+    const after = expectOk(await me.api.get(`${PACKS}/${pack.id}`), packBody).pack;
+    expect(after.stickers.map((s) => s.id)).toEqual([second.sticker.id, first.sticker.id]);
+    expect(after).toMatchObject({ coverStickerId: null, cover: second.file });
   });
 });
 

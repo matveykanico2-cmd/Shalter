@@ -48,10 +48,13 @@ export type PatchPackDto = z.infer<typeof patchPackSchema>;
 
 export const addStickerSchema = requestBody({
   file: z
-    .string()
+    .string({ error: "Сначала загрузите файл" })
     .refine((v) => /^\/uploads\//.test(v), { error: "Сначала загрузите файл" })
     .refine((v) => /\.(png|webp)$/i.test(v), { error: "Стикер должен быть PNG или WebP" }),
-  emoji: z.string().min(1).max(MAX_EMOJI),
+  emoji: z
+    .string({ error: "Выберите эмодзи для стикера" })
+    .min(1, { error: "Выберите эмодзи для стикера" })
+    .max(MAX_EMOJI, { error: "Слишком длинный эмодзи — выберите один" }),
   position: z.unknown().optional().transform((v) => (v == null ? undefined : Number(v))),
 });
 export type AddStickerDto = z.infer<typeof addStickerSchema>;

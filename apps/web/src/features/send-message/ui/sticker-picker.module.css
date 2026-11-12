@@ -97,7 +97,7 @@
 /* Сетка стикеров — только стикер на мягкой подсветке при наведении. */
 .items {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
 }
 
@@ -246,7 +246,7 @@
 /* Сетка стикеров в листе пака. */
 .stickerGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   margin-bottom: 8px;
 }
@@ -520,10 +520,127 @@
   flex-direction: column;
   gap: 8px;
 }
+/* Редактор пака: 5 в ряд, как сетка стикеров в панели. */
 .editGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.editCell {
+  border-radius: 14px;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.editCellDragging {
+  opacity: 0.4;
+}
+
+.editPick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 76px;
+  padding: 6px 2px 4px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.editPick:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+}
+
+.editCellSelected .editPick {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
+.editEmoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.coverMark {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Действия с выбранным стикером — крупные кнопки под сеткой (касание 44 px). */
+.editBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  animation: editBarIn 0.16s ease-out;
+}
+
+@keyframes editBarIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editBar {
+    animation: none;
+  }
+}
+
+.editBarEmoji {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.editAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.editAction:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.editActionDanger {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
 }
 .editGrid .stickerCell {
   display: flex;
@@ -534,6 +651,7 @@
 }
 .emojiInput {
   width: 56px;
+  min-height: 44px;
   text-align: center;
   font-size: 16px;
   border: 1px solid var(--color-border, transparent);
@@ -560,4 +678,62 @@
 .editGrid .moveBtn,
 .editGrid .removeBtn {
   opacity: 1;
+}
+
+/* Предпросмотр стикера по долгому нажатию: крупно поверх всего, мягкое появление. */
+.preview {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  animation: previewFade 0.16s ease-out;
+}
+
+.previewCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: previewPop 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.previewEmoji {
+  font-size: 28px;
+}
+
+.previewSend {
+  min-width: 140px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 22px;
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@keyframes previewFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes previewPop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview,
+  .previewCard {
+    animation: none;
+  }
 }

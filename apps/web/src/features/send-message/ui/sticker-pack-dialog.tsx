@@ -276,9 +276,9 @@ export function StickerPackDialog({ onClose }: { onClose: () => void }) {
           />
           <StickerGridEditor
             pack={editingPack}
-            onChange={(next) => {
+            onChange={(next, saved) => {
               setDraft(next);
-              void refresh();
+              if (saved) void refresh();
             }}
           />
           {error ? (
