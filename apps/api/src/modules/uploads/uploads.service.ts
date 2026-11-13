@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { Injectable } from "@nestjs/common";
+import type { Readable } from "node:stream";
 import type { Request } from "express";
 import { ApiError } from "../../common/errors/api-error.js";
 import { createEncryptStream, fileCompression, serveUpload, storage, uploadLimits } from "../../legacy/legacy.js";
@@ -24,11 +25,19 @@ export class UploadsService {
   }
 
   /** Тип файла уже проверен схемой. */
-  public async receive(uid: string, req: Request, { kind, name, mimeType }: UploadQueryDto): Promise<UploadResult> {
+  public receive(uid: string, req: Request, query: UploadQueryDto): Promise<UploadResult> {
+    return this.store(uid, req, query, Number(req.headers["content-length"]));
+  }
+
+  /**
+   * Байты из source — в хранилище: шифрование, сжатие, дедупликация по sha256. Источник —
+   * тело запроса (обычная загрузка) или собранный по частям файл (UploadSessionsService).
+   */
+  public async store(uid: string, source: Readable, { kind, name, mimeType }: UploadQueryDto, declared: number): Promise<UploadResult> {
     const limits = uploadLimits();
+    const req = source;
 
     const limit = limits.limitFor(kind);
-    const declared = Number(req.headers["content-length"]);
     if (Number.isFinite(declared) && declared > limit) throw new ApiError(413, limits.tooLargeError(kind));
 
     const id = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}`;

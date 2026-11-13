@@ -8,6 +8,7 @@ import { useSession } from "@/entities/session";
 import { useSettings } from "@/entities/settings";
 import { ContactPicker, type PickedContact } from "@/entities/user";
 
+import { UPLOAD_CANCELLED } from "@/shared/api";
 import type { Sticker } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
@@ -15,9 +16,9 @@ import { blurThumb } from "@/shared/lib/image";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
 import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
-import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
+import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendBody, type SendOptions, sendTyping } from "../api/send-message";
 import { fitTextarea, rowsHeight } from "../lib/autosize";
-import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
+import { checkSize, chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
 import { COUNTER_FROM, MAX_TEXT, outgoingText, overLimit, overLimitText } from "../lib/long-text";
@@ -436,11 +437,56 @@ export function Composer(props: Props) {
   // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
   // (по 10 вложений; подпись — у первого).
   const sendMedia = async ({ picks, spoiler, paidStars, caption: typedCaption }: MediaSendChoice) => {
-    // Платный пост: размытая миниатюра первого фото или видео — её видят до оплаты; готовится, пока идёт загрузка.
+    // Платный пост: размытая миниатюра первого фото или видео — её видят до оплаты.
     const firstMedia = picks.find((p) => p.kind === "image" || p.kind === "video");
     const blur = paidStars && firstMedia ? blurThumb(firstMedia.file).catch(() => ({})) : null;
     setPicked(null);
     setError(null);
+    const caption = outgoingText(typedCaption);
+    const over = overLimit(caption);
+    if (over) return setError(overLimitText(over));
+    // Ответ в ветке — как раньше: сначала загрузка (плитки над полем), потом сообщение.
+    if (thread) return sendMediaUploadedFirst({ picks, spoiler, caption, blur, paidStars });
+    // Слишком большие файлы не начинаются вовсе.
+    const sizeErrors = picks.map((p) => checkSize(p.file, p.kind)).filter((e): e is string => !!e);
+    const ok = picks.filter((p) => !checkSize(p.file, p.kind));
+    if (sizeErrors.length) setError(sizeErrors[0]!);
+    if (!ok.length) return;
+    // Цена — в теле сразу (пост не уйдёт бесплатным, даже если приложение закроют), размытая
+    // миниатюра готовится параллельно с загрузкой и дописывается перед отправкой.
+    const first: SendOptions & { extra?: Promise<Partial<SendBody>> } = {
+      ...takeAsGroup(),
+      ...(paidStars ? { paidMedia: { stars: paidStars }, extra: (blur ?? Promise.resolve({})).then((b) => ({ paidMedia: { stars: paidStars, ...b } })) } : {}),
+    };
+    const reply = replyTo;
+    setText("");
+    onCancelReply();
+    clearDraft();
+    onSent?.();
+    // Сообщение с превью в ленте сразу, файлы грузятся в фоне (очередь исходящих); по 10 вложений,
+    // подпись — у первого: фото с подписью уходят одним сообщением.
+    for (const [i, part] of chunks(ok, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
+      const files = part.map((p) => ({ file: p.file, kind: p.kind, ...(spoiler && (p.kind === "image" || p.kind === "video") ? { spoiler: true } : {}) }));
+      void send(i === 0 ? caption : "", i === 0 ? reply : null, [], undefined, { ...(i === 0 ? first : {}), files }).catch((err: unknown) => {
+        if (err instanceof Error && err.message === UPLOAD_CANCELLED) return;
+        setError(errorText(err, "Не удалось отправить сообщение"));
+      });
+    }
+  };
+
+  const sendMediaUploadedFirst = async ({
+    picks,
+    spoiler,
+    caption,
+    blur,
+    paidStars,
+  }: {
+    picks: MediaSendChoice["picks"];
+    spoiler: boolean;
+    caption: string;
+    blur: Promise<object> | null;
+    paidStars: number;
+  }) => {
     const { uploaded, error: uploadError, total } = await uploads.upload(picks);
     if (uploadError) {
       setError(
@@ -452,7 +498,6 @@ export function Composer(props: Props) {
     if (!uploaded.length) return;
     const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
     const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
-    const caption = typedCaption.trim();
     const reply = replyTo;
     const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
     setText("");
@@ -461,7 +506,7 @@ export function Composer(props: Props) {
     onSent?.();
     for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
       await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 ? first : {}).catch((err: unknown) => {
-        setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+        setError(errorText(err, "Не удалось отправить сообщение"));
       });
     }
   };

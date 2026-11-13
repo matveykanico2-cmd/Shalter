@@ -19,6 +19,9 @@ export type Attachment = {
   waveform?: number[];
   transcript?: string;
   meta?: Record<string, unknown>;
+  /** Своё ещё не отправленное (очередь исходящих): доля загруженного 0..1 и пауза. Только на клиенте. */
+  uploadProgress?: number;
+  uploadState?: "uploading" | "paused";
   /** Инлайн-стикер в тексте сообщения */
   emoji?: string;
   packId?: string;

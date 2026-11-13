@@ -62,6 +62,8 @@ const MAX_CONTINUATIONS = 2;
 // Лимит сообщения — 20 000 символов (MAX_MESSAGE_TEXT в apps/api): ответ остаётся одним
 // сообщением, делим только то, что длиннее лимита.
 const MESSAGE_CHUNK = 20000;
+// Код длиннее этого дополнительно приходит файлом — его удобнее скачать, чем копировать.
+const LONG_CODE_AS_FILE = 3900;
 
 const SYSTEM_PROMPT =
   "Ты — Shalter AI, ИИ-ассистент мессенджера Shalter. Отвечай на языке пользователя (по умолчанию — по-русски), " +
@@ -1683,7 +1685,7 @@ async function replyOnce(chat, userId, { wantFile = null } = {}) {
   for (const part of rest) await sendMessageAndBroadcast(chat, SHALTER_AI_ID, part);
   // Длинный код (не влез в одно сообщение и разрезан) — ещё и файлом целиком: так его
   // удобно сохранить, а не склеивать из кусков.
-  const longCode = text ? [...text.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].find((b) => b[2].length > MESSAGE_CHUNK) : null;
+  const longCode = text ? [...text.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].find((b) => b[2].length > LONG_CODE_AS_FILE) : null;
   if (longCode) {
     const ext = LANG_EXT[longCode[1].trim().toLowerCase()] ?? "txt";
     await sendFileReply(chat, { name: `code.${ext}`, ext, content: `${longCode[2].replace(/\s+$/, "")}\n` }, "📄 Код целиком — файлом").catch((err) =>

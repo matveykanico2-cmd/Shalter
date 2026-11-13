@@ -29,3 +29,14 @@ export const uploadLimits = z.strictObject({
 });
 
 export type UploadResult = z.infer<typeof uploadResult>;
+
+/** Загрузка частями (POST/GET /api/uploads/sessions): сколько байт принято и какими частями слать. */
+export const uploadSession = z.strictObject({
+  id: z.string().regex(/^[0-9a-f]{32}$/),
+  received: z.number().int().nonnegative(),
+  size: z.number().int().positive(),
+  chunkSize: z.number().int().positive(),
+});
+
+/** PUT /api/uploads/sessions/:id — часть принята. */
+export const uploadSessionChunk = z.strictObject({ id: z.string(), received: z.number().int().nonnegative(), size: z.number().int().positive() });

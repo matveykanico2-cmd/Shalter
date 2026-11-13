@@ -3,7 +3,7 @@ export { findBuiltinPack } from "./lib/builtin-packs";
 export { botCommandsOf } from "./lib/slash-commands";
 export { outgoingSticker } from "./lib/sticker-outgoing";
 export { closeStickerPack, openBuiltinStickerPack, openStickerPack, openStickerPreview, useStickerPackView, useStickerView } from "./lib/sticker-pack-store";
-export { resumeOutbox } from "./model/outbox";
+export { cancelOutgoing, pauseOutgoing, resumeOutbox, resumeOutgoing } from "./model/outbox";
 export { useAiReply } from "./model/use-ai-reply";
 export { useSendMessage } from "./model/use-send-message";
 export { Composer, type ComposerHandle } from "./ui/composer";

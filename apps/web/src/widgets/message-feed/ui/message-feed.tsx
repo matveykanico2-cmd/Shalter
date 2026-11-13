@@ -15,7 +15,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
-import { closeStickerPack, Composer, findBuiltinPack, openBuiltinStickerPack, openStickerPack, openStickerPreview, outgoingSticker, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
+import { cancelOutgoing, closeStickerPack, Composer, findBuiltinPack, openBuiltinStickerPack, openStickerPack, openStickerPreview, outgoingSticker, pauseOutgoing, resumeOutgoing, type StickerPack, StickerPackDetail, stickerPackQueries, useSendMessage, useStickerView } from "@/features/send-message";
 import { useSuggestedPhoto } from "@/features/suggested-photo";
 import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
@@ -178,8 +178,13 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
       },
       checklist: { onToggle: actions.toggleChecklist, onAdd: actions.addChecklistItems },
       onUnlockPaid: actions.unlockPaid,
+      upload: {
+        onPause: (m) => pauseOutgoing(client, m.id),
+        onResume: (m) => resumeOutgoing(m.id),
+        onCancel: (m) => cancelOutgoing(client, m.id),
+      },
     }),
-    [actions, chat, meId]
+    [actions, chat, meId, client]
   );
   const nameOf = useCallback((userId: string) => senders({ senderId: userId })?.name ?? "участник", [senders]);
   const userOf = useCallback((userId: string) => senders({ senderId: userId }), [senders]);

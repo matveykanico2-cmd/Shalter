@@ -652,7 +652,9 @@ describe("отправка файлов", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    // Сообщение в ленте сразу — с превью и прогрессом загрузки, поле уже пустое.
+    expect(screen.getByRole("progressbar", { name: "Загрузка файлов" })).toBeTruthy();
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("");
     expect(FakeXhr.requests.map((x) => x.params.kind)).toEqual(["image", "image"]);
     act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
     act(() => FakeXhr.requests[1]!.respond(200, { url: "/uploads/b", name: "2.png" }));
@@ -696,7 +698,7 @@ describe("отправка файлов", () => {
     await waitFor(() => expect(calls.find((c) => c.key === "POST /api/posts/c_1/publish")?.body).toMatchObject({ attachments: [{ kind: "image", url: "/uploads/a" }], paidMedia: { stars: 50 } }));
   });
 
-  it("без сжатия — файлом; отменённое не отправляется; ошибка загрузки — над полем", async () => {
+  it("без сжатия — файлом; отмена из пузыря — ничего не уходит; ошибка загрузки — над полем", async () => {
     fakeXhr();
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
     renderChat();
@@ -710,11 +712,24 @@ describe("отправка файлов", () => {
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
     expect(FakeXhr.requests.map((x) => x.params.kind)).toEqual(["file", "file"]);
 
-    fireEvent.click(screen.getAllByTitle("Отменить")[0]!);
-    act(() => FakeXhr.requests[1]!.respond(413, {}));
+    // Пауза и продолжение — из самого пузыря.
+    fireEvent.click(screen.getByRole("button", { name: "Приостановить загрузку" }));
+    await waitFor(() => expect(FakeXhr.requests.every((x) => x.aborted)).toBe(true));
+    expect(await screen.findByText(/Пауза/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить загрузку" }));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(4));
+
+    fireEvent.click(screen.getByRole("button", { name: "Отменить отправку" }));
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(false);
+
+    pick("attach-media", [png("3.png")]);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(5));
+    act(() => FakeXhr.requests[4]!.respond(413, {}));
     expect(await screen.findByText("Файл слишком большой для сервера")).toBeTruthy();
     expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(false);
-    expect(screen.queryByRole("listitem")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
   });
 });
 

@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type FeedMessage, type History, messageQueries } from "@/entities/message";
 
+import { CHUNKED_FROM } from "@/shared/api";
 import { clearCache } from "@/shared/lib/local-cache";
-import { fakeApi } from "@/shared/lib/test";
+import { fakeApi, FakeXhr, fakeXhr } from "@/shared/lib/test";
 
 import { enqueue, isRetryable, type OutboxEntry, resumeOutbox } from "./outbox";
 
@@ -105,5 +106,41 @@ describe("очередь исходящих", () => {
     expect(isRetryable(new DOMException("timeout", "TimeoutError"))).toBe(true);
     for (const s of [500, 502, 503, 429, 408]) expect(isRetryable(new ApiError(s, "x", null))).toBe(true);
     for (const s of [400, 401, 403, 404, 413]) expect(isRetryable(new ApiError(s, "x", null))).toBe(false);
+  });
+
+  it("с файлами: пузырь с превью и прогрессом сразу, сообщение уходит после загрузки с подписью и спойлером", async () => {
+    fakeXhr();
+    const api = fakeApi({ "POST /api/chats/c1/messages": (b) => ({ body: serverMessage("m_f", String(b.text)) }), "POST /api/chats/c1/typing": { body: { ok: true } } });
+    const client = new QueryClient();
+    client.setQueryData(messageQueries.history("c1").queryKey, empty());
+    const photo = new File(["x"], "1.png", { type: "image/png" });
+    const sent = enqueue(client, { ...entry("c_f", "море"), files: [{ file: photo, kind: "image", spoiler: true }] });
+    expect((feed(client)[0]!.attachments as { uploadProgress?: number; url?: string }[])[0]).toMatchObject({ uploadProgress: 0, url: expect.stringMatching(/^blob:/) });
+    await vi.waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    FakeXhr.requests[0]!.respond(200, { url: "/uploads/sha_1.png", name: "1.png" });
+    await sent;
+    const post = api.calls.find((c) => c.key === "POST /api/chats/c1/messages")!.body as { text: string; attachments: unknown[] };
+    expect(post).toMatchObject({ text: "море", attachments: [{ kind: "image", url: "/uploads/sha_1.png", spoiler: true }] });
+    expect(api.calls.map((c) => c.key)).toContain("POST /api/chats/c1/typing");
+  });
+
+  it("перезапуск посреди загрузки частями: файл из IndexedDB, продолжение с той же сессии", async () => {
+    fakeXhr();
+    fakeApi({ "POST /api/chats/c1/messages": { body: serverMessage("m_big", "") }, "POST /api/chats/c1/typing": { body: { ok: true } } });
+    const big = new File([new Uint8Array(CHUNKED_FROM + 1)], "clip.mp4", { type: "video/mp4" });
+    stored.set("c_big", { ...entry("c_big", ""), files: [{ file: big, kind: "video", sessionId: "c".repeat(32) }] });
+    const client = new QueryClient();
+    client.setQueryData(messageQueries.history("c1").queryKey, empty());
+    await resumeOutbox(client, "me");
+    await vi.waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    expect([FakeXhr.requests[0]!.method, FakeXhr.requests[0]!.url]).toEqual(["GET", `/api/uploads/sessions/${"c".repeat(32)}`]);
+    FakeXhr.requests[0]!.respond(200, { id: "c".repeat(32), received: CHUNKED_FROM, size: CHUNKED_FROM + 1, chunkSize: CHUNKED_FROM });
+    await vi.waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
+    expect(FakeXhr.requests[1]!.params.offset).toBe(String(CHUNKED_FROM));
+    FakeXhr.requests[1]!.respond(200, { received: CHUNKED_FROM + 1, size: CHUNKED_FROM + 1 });
+    await vi.waitFor(() => expect(FakeXhr.requests).toHaveLength(3));
+    FakeXhr.requests[2]!.respond(200, { url: "/uploads/sha_big.mp4", name: "clip.mp4" });
+    await vi.waitFor(() => expect(feed(client).map((m) => m.id)).toEqual(["m_big"]));
+    expect(stored.has("c_big")).toBe(false);
   });
 });

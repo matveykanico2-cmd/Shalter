@@ -14,7 +14,7 @@ import { playSentSound } from "@/shared/lib/media/sounds";
 import { type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
 import { retryOffline } from "../lib/retry-offline";
 
-import { enqueue, newClientId } from "./outbox";
+import { enqueue, newClientId, type OutboxEntry, type OutboxFile } from "./outbox";
 
 /**
  * topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения.
@@ -24,7 +24,7 @@ import { enqueue, newClientId } from "./outbox";
 export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null, threadRootId?: string, postId?: string) {
   const client = useQueryClient();
   return useCallback(
-    async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, options: SendOptions = {}) => {
+    async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, { files, extra, ...options }: SendOptions & { files?: OutboxFile[]; extra?: OutboxEntry["extra"] } = {}) => {
       const localId = newClientId();
       const topic = topicId ?? replyTo?.topicId ?? null;
       if (threadRootId) {
@@ -61,7 +61,8 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
       } satisfies Message;
       const body = { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options };
       try {
-        const message = await enqueue(client, { userId: meId, chatId, channel, body, pending, createdAt: Date.now() });
+        // files — фото, видео, файлы: грузятся в фоне, пузырь с превью в ленте сразу.
+        const message = await enqueue(client, { userId: meId, chatId, channel, body, pending, createdAt: Date.now(), ...(files?.length ? { files } : {}), ...(extra ? { extra } : {}) });
         // «Отправлено» — если звук в настройках не выключен (playSentSound в chatView.js).
         if ((client.getQueryData(settingsQueries.current().queryKey)?.notifications as { sound?: boolean } | undefined)?.sound !== false) playSentSound();
         return message;

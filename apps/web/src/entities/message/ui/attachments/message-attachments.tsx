@@ -25,6 +25,8 @@ export type AttachmentActions = {
   poll?: PollActions;
   checklist?: ChecklistActions;
   onUnlockPaid?: (m: Message, meta: { stars: number; label: string }) => void;
+  /** Своё сообщение с файлами, которые ещё грузятся: пауза, продолжение, отмена. */
+  upload?: { onPause: (m: Message) => void; onResume: (m: Message) => void; onCancel: (m: Message) => void };
 };
 
 type Props = {
@@ -111,7 +113,35 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
     }
     out.push(<AttachmentView key={i} attachment={a} message={message} canDownload={canDownload} senderName={senderName} />);
   });
+  const uploading = atts.filter((a) => a.uploadProgress !== undefined);
+  if (uploading.some((a) => (a.uploadProgress ?? 1) < 1)) out.push(<UploadBar key="upload" message={message} files={uploading} actions={actions?.upload} />);
   return out;
+}
+
+/** Загрузка файлов своего сообщения: общий прогресс по байтам, пауза и отмена (кнопки 44 px). */
+function UploadBar({ message, files, actions }: { message: Message; files: Attachment[]; actions?: AttachmentActions["upload"] }) {
+  const total = files.reduce((sum, a) => sum + (a.size ?? 1), 0);
+  const done = files.reduce((sum, a) => sum + (a.size ?? 1) * (a.uploadProgress ?? 0), 0);
+  const percent = Math.floor((done / Math.max(1, total)) * 100);
+  const isPaused = files.some((a) => a.uploadState === "paused");
+  return (
+    <div className={styles.uploadBar}>
+      <div className={styles.uploadTrack} role="progressbar" aria-label="Загрузка файлов" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+        <span className={styles.uploadFill} style={{ width: `${percent}%` }} />
+      </div>
+      <span className={styles.uploadText}>{isPaused ? `Пауза · ${percent}%` : `Загрузка · ${percent}%`}</span>
+      {actions ? (
+        <>
+          <button type="button" className={styles.uploadButton} aria-label={isPaused ? "Продолжить загрузку" : "Приостановить загрузку"} onClick={() => (isPaused ? actions.onResume(message) : actions.onPause(message))}>
+            <Icon name={isPaused ? "Play" : "Pause"} size={16} />
+          </button>
+          <button type="button" className={styles.uploadButton} aria-label="Отменить отправку" onClick={() => actions.onCancel(message)}>
+            <Icon name="X" size={16} />
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 function Album({ media, tile }: { media: Attachment[]; tile: (a: Attachment, i: number, inAlbum: boolean) => ReactNode }) {
