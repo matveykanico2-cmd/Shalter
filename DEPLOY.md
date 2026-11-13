@@ -308,6 +308,39 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
+## Обновление 2026-11-13: доставка сообщений, звонки, загрузка файлов частями
+
+Что изменилось для сервера (отдельных миграций и новых переменных нет — всё делает
+`server/db.js` при запуске):
+
+- В `messages` новая колонка `clientId` и уникальный индекс `idx_messages_client`
+  (защита от дублей при повторной отправке). На большой базе `ALTER TABLE … ADD COLUMN`
+  без значения по умолчанию выполняется мгновенно, индекс — по строкам с `clientId`
+  (у старых их нет), тоже быстро.
+- Загрузка файлов частями: временные зашифрованные части лежат в `data/upload-sessions/`
+  (создаётся сама, очищается при запуске и через сутки). Места на диске нужно столько же,
+  сколько при обычной загрузке крупного файла. Конфиг nginx менять не нужно:
+  `location ^~ /api/uploads` уже покрывает `/api/uploads/sessions` (размер, без буферизации).
+- Лимит текста сообщения — 20 000 символов (было 4096); тело JSON в nginx (25m) с запасом.
+- Звонки: `call:answered` теперь получают все участники звонка — для TURN ничего не меняется.
+
+### Шаги (PM2)
+
+```bash
+cd /opt/shalter
+sqlite3 data/app.db ".backup 'data/app-backup-2026-11-13.db'"   # резервная копия перед выкладкой
+git pull && npm install && npm run build && npm run build:api && npm prune --omit=dev
+pm2 restart shalter --update-env
+# Проверка: колонка и индекс на месте.
+sqlite3 data/app.db "SELECT name FROM pragma_table_info('messages') WHERE name='clientId'; SELECT name FROM sqlite_master WHERE name='idx_messages_client';"
+```
+
+Docker / Dokploy: резервная копия тома (`docker exec <контейнер> sqlite3 /app/data/app.db ".backup '/app/data/app-backup-2026-11-13.db'"`),
+затем пересборка образа; переменных добавлять не нужно.
+
+**Откат:** вернуть предыдущий коммит и пересобрать. Колонка `clientId` и индекс старой
+версии не мешают (она их не читает); резервная копия — на случай, если нужна база до выкладки.
+
 ## Обновление 2026-11-03: скорость запуска и открытия чатов
 
 Что изменилось для сервера:
