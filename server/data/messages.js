@@ -439,12 +439,13 @@ function markRead(id, userId) {
   return mutate(id, (m) => (m.readByIds.includes(userId) ? m : { ...m, readByIds: [...m.readByIds, userId] }));
 }
 
-function setReadWatermark(chatId, userId, at) {
+// lastReadAt только растёт; lastReadRowid — последняя просмотренная строка чата (как есть).
+function setReadWatermark(chatId, userId, at, rowid = null) {
   db.prepare(
-    `INSERT INTO chat_reads (chatId, userId, lastReadAt) VALUES (?, ?, ?)
-     ON CONFLICT(chatId, userId) DO UPDATE SET lastReadAt = excluded.lastReadAt
-     WHERE excluded.lastReadAt > chat_reads.lastReadAt`
-  ).run(chatId, userId, at);
+    `INSERT INTO chat_reads (chatId, userId, lastReadAt, lastReadRowid) VALUES (?, ?, ?, ?)
+     ON CONFLICT(chatId, userId) DO UPDATE SET lastReadAt = MAX(chat_reads.lastReadAt, excluded.lastReadAt),
+       lastReadRowid = COALESCE(excluded.lastReadRowid, chat_reads.lastReadRowid)`
+  ).run(chatId, userId, at, rowid);
 }
 
 function readWatermarksFor(userId) {
@@ -468,11 +469,13 @@ function readScanFrom(watermark, nowMs = Date.now()) {
 }
 
 async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
-  const watermark = db.prepare("SELECT lastReadAt FROM chat_reads WHERE chatId = ? AND userId = ?").get(chatId, viewerId)?.lastReadAt;
-  const from = readScanFrom(watermark);
+  const mark = db.prepare("SELECT lastReadAt, lastReadRowid FROM chat_reads WHERE chatId = ? AND userId = ?").get(chatId, viewerId);
+  const from = readScanFrom(mark?.lastReadAt);
+  // Новее границы по времени ИЛИ вставлено после прошлого прохода (rowid) — так же в apps/api.
+  const rowFrom = mark?.lastReadRowid ?? 0;
   const rows = db
-    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND createdAt >= ? AND senderId <> ? AND readByIds NOT LIKE ?")
-    .all(chatId, from, viewerId, `%"${viewerId}"%`);
+    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND (createdAt >= ? OR rowid >= ?) AND senderId <> ? AND readByIds NOT LIKE ?")
+    .all(chatId, from, rowFrom, viewerId, `%"${viewerId}"%`);
   const changedIds = [];
   const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?), readTimes = ? WHERE id = ?");
   const readNow = new Date().toISOString();
@@ -490,8 +493,8 @@ async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
     }
   });
   txn();
-  const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ?").get(chatId)?.at;
-  if (newest) setReadWatermark(chatId, viewerId, newest);
+  const newest = db.prepare("SELECT MAX(createdAt) AS at, MAX(rowid) AS rowid FROM messages WHERE chatId = ?").get(chatId);
+  if (newest?.at) setReadWatermark(chatId, viewerId, newest.at, newest.rowid);
   return changedIds;
 }
 

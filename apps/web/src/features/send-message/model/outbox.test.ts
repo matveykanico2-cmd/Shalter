@@ -7,7 +7,7 @@ import { CHUNKED_FROM } from "@/shared/api";
 import { clearCache } from "@/shared/lib/local-cache";
 import { fakeApi, FakeXhr, fakeXhr } from "@/shared/lib/test";
 
-import { enqueue, isRetryable, type OutboxEntry, resumeOutbox } from "./outbox";
+import { enqueue, isRetryable, type OutboxEntry, pauseOutgoing, resumeOutbox } from "./outbox";
 
 const stored = vi.hoisted(() => new Map<string, unknown>());
 vi.mock("@/shared/lib/idb-store", () => ({
@@ -142,5 +142,18 @@ describe("очередь исходящих", () => {
     FakeXhr.requests[2]!.respond(200, { url: "/uploads/sha_big.mp4", name: "clip.mp4" });
     await vi.waitFor(() => expect(feed(client).map((m) => m.id)).toEqual(["m_big"]));
     expect(stored.has("c_big")).toBe(false);
+  });
+
+  it("приостановленная загрузка видео не держит текст, отправленный после неё", async () => {
+    fakeXhr();
+    const api = fakeApi({ "POST /api/chats/c1/messages": (b) => ({ body: serverMessage(`m_${String(b.clientId)}`, String(b.text)) }), "POST /api/chats/c1/typing": { body: { ok: true } } });
+    const client = new QueryClient();
+    client.setQueryData(messageQueries.history("c1").queryKey, empty());
+    const video = new File(["v"], "v.mp4", { type: "video/mp4" });
+    void enqueue(client, { ...entry("c_vid", ""), files: [{ file: video, kind: "video" }] }).catch(() => {});
+    await vi.waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    pauseOutgoing(client, "c_vid");
+    await enqueue(client, entry("c_txt", "ок"));
+    expect(api.calls.filter((c) => c.key === "POST /api/chats/c1/messages").map((c) => (c.body as { clientId: string }).clientId)).toEqual(["c_txt"]);
   });
 });

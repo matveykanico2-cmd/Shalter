@@ -481,6 +481,13 @@ export const createEncryptStream = (dataDir: string, out: NodeJS.WritableStream)
     out
   );
 
+/** Шифрование временных частей загрузки частями (server/lib/uploadParts.js). */
+interface UploadParts {
+  partCipherAt: (key: Buffer, iv: Buffer, offset: number, mode?: "cipher" | "decipher") => import("node:crypto").Cipheriv | import("node:crypto").Decipheriv;
+  newPartKey: () => { key: Buffer; iv: Buffer };
+}
+export const uploadParts = (): UploadParts => legacyModule<UploadParts>("lib/uploadParts.js");
+
 // Сжатие brotli с меткой в начале файла (server/lib/fileCompression.js).
 interface FileCompression {
   MAGIC: Buffer;

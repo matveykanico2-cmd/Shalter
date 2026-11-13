@@ -2,6 +2,7 @@
 // строго по порядку (offset = принятое), обрыв не начинает файл заново, завершение отдаёт
 // тот же ответ, что POST /api/uploads, и файл скачивается байт в байт.
 import { randomBytes } from "node:crypto";
+import http from "node:http";
 import { describe, expect, test } from "vitest";
 import { uploadResult, uploadSession, uploadSessionChunk } from "../../schemas/uploads";
 import type { Api } from "../../support/client";
@@ -53,6 +54,22 @@ describe("/api/uploads/sessions", () => {
     expectError(await a.api.post("/api/uploads/sessions", undefined, { query: { kind: "avatar", name: "a.png", size: 21 * 1024 * 1024 } }), 413);
     expect((await a.api.delete(`/api/uploads/sessions/${id}`)).status).toBe(200);
     expectError(await a.api.get(`/api/uploads/sessions/${id}`), 404, "Загрузка не найдена — начните заново");
+  });
+
+  test("часть «повисла» (клиент бросил запрос, сервер не заметил) — новая часть с того же места проходит, без вечного 409", async () => {
+    const [a] = await registerUsers(server().baseUrl, 1);
+    const bytes = randomBytes(10);
+    const { id } = expectOk(await a.api.post("/api/uploads/sessions", undefined, { query: { kind: "file", name: "h.bin", size: 10 } }), uploadSession);
+    // Половина части и тишина: соединение открыто, тело не дописано.
+    const url = new URL(`/api/uploads/sessions/${id}?offset=0`, server().baseUrl);
+    const hanging = http.request(url, { method: "PUT", headers: { cookie: a.api.cookieHeader(), "content-type": "application/octet-stream", "content-length": "10" } });
+    hanging.on("error", () => {});
+    hanging.write(bytes.subarray(0, 5));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(expectOk(await put(a.api, id, 0, bytes), uploadSessionChunk).received).toBe(10);
+    const done = expectOk(await a.api.post(`/api/uploads/sessions/${id}/complete`), uploadResult);
+    expect((await download(a.api, done.url)).bytes.equals(bytes)).toBe(true);
+    hanging.destroy();
   });
 
   test("без сессии входа — 401", async () => {

@@ -295,6 +295,8 @@ export function cancelOutgoing(client: QueryClient, clientId: string) {
 function fail(client: QueryClient, entry: OutboxEntry, err: unknown) {
   const id = entry.body.clientId;
   forget(entry);
+  // Начатые загрузки частями больше не нужны — освобождаем место на сервере.
+  for (const f of entry.files ?? []) if (f.sessionId) cancelUploadSession(f.sessionId);
   historyCache.dropPending(client, entry.chatId, id);
   const waiter = waiters.get(id);
   waiters.delete(id);
@@ -305,15 +307,6 @@ function fail(client: QueryClient, entry: OutboxEntry, err: unknown) {
 
 async function deliver(client: QueryClient, entry: OutboxEntry, gen: number) {
   const id = entry.body.clientId;
-  const upload = uploads.get(id);
-  if (upload) {
-    try {
-      await upload;
-    } catch (err) {
-      if (gen === generation && entries.has(id)) fail(client, entry, err);
-      return;
-    }
-  }
   if (entry.extra) {
     const more = await entry.extra.catch(() => ({}));
     entry.extra = undefined;
@@ -340,10 +333,28 @@ async function deliver(client: QueryClient, entry: OutboxEntry, gen: number) {
   }
 }
 
-/** Поставить в очередь своего чата: следующее уйдёт только после предыдущего. */
+/**
+ * Поставить в очередь своего чата: следующее уйдёт только после предыдущего. Сообщение с
+ * файлами встаёт в очередь, когда файлы загрузились: долгая (или приостановленная) загрузка
+ * не держит текст, отправленный после неё, — как в Telegram, он уходит раньше.
+ */
 function schedule(client: QueryClient, entry: OutboxEntry) {
   const gen = generation;
+  const id = entry.body.clientId;
   startUploads(client, entry);
+  const upload = uploads.get(id);
+  if (!upload) return appendToQueue(client, entry, gen);
+  upload.then(
+    () => {
+      if (gen === generation && entries.has(id)) appendToQueue(client, entry, gen);
+    },
+    (err: unknown) => {
+      if (gen === generation && entries.has(id)) fail(client, entry, err);
+    }
+  );
+}
+
+function appendToQueue(client: QueryClient, entry: OutboxEntry, gen: number) {
   const prev = queues.get(entry.chatId) ?? Promise.resolve();
   const next = prev.then(() => deliver(client, entry, gen));
   queues.set(entry.chatId, next);

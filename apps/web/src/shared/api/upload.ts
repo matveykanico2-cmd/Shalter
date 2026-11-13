@@ -97,9 +97,10 @@ export function cancelUploadSession(id: string) {
 }
 
 function failure(status: number, body: { error?: string }) {
-  if (body.error) return new UploadError(body.error, status >= 500);
+  // 429 — подождать и повторить (не отказ по существу).
+  if (body.error) return new UploadError(body.error, status >= 500 || status === 429);
   if (status === 413) return new UploadError("Файл слишком большой для сервера");
-  if (status === 429) return new UploadError("Слишком много загрузок подряд — подождите минуту");
+  if (status === 429) return new UploadError("Слишком много загрузок подряд — подождите минуту", true);
   if (status === 401) return new UploadError("Сессия истекла — войдите заново");
   if (status === 502 || status === 503 || status === 504) return new UploadError("Сервер временно недоступен — попробуйте ещё раз", true);
   return new UploadError(`Не удалось загрузить файл (ошибка ${status})`, status >= 500);
@@ -204,13 +205,24 @@ async function sendChunked(file: File, kind: UploadKind, session: UploadSessionR
     chunk = Number(reply.body.chunkSize) || chunk;
     offset = 0;
   };
-  if (session.id) {
-    const reply = await xhrSend("GET", sessionPath(session.id), null, undefined, signal).catch(() => null);
-    if (reply?.status === 200 && Number(reply.body.size) === size) {
-      offset = Number(reply.body.received) || 0;
-      chunk = Number(reply.body.chunkSize) || chunk;
-    } else {
-      session.id = undefined;
+  // Начатая сессия: спрашиваем, сколько принято. Сбой сети — повторяем (сессию не бросаем:
+  // брошенные копились бы на сервере), 404 или чужой размер — начинаем заново.
+  for (let failures = 0; session.id; ) {
+    try {
+      const reply = await xhrSend("GET", sessionPath(session.id), null, undefined, signal);
+      if (reply.status === 200 && Number(reply.body.size) === size) {
+        offset = Number(reply.body.received) || 0;
+        chunk = Number(reply.body.chunkSize) || chunk;
+        break;
+      }
+      if (reply.status === 404 || reply.status === 200) {
+        session.id = undefined;
+        break;
+      }
+      throw failure(reply.status, reply.body as { error?: string });
+    } catch (err) {
+      if (signal?.aborted || !(err instanceof UploadError) || !err.retryable || ++failures > CHUNK_RETRIES) throw err;
+      await backoff(failures - 1, signal);
     }
   }
   if (!session.id) await open();
@@ -226,8 +238,11 @@ async function sendChunked(file: File, kind: UploadKind, session: UploadSessionR
           session.id = undefined;
           return uploaded;
         }
-        if (reply.status === 409 && typeof reply.body.received === "number") offset = reply.body.received;
-        else if (reply.status === 404) await open();
+        if (reply.status === 409 && typeof reply.body.received === "number") {
+          // Сервер ещё дописывает прежнюю часть — подождать, а не долбить запросами.
+          if (reply.body.received === offset) throw new UploadError("Сервер ещё принимает часть", true);
+          offset = reply.body.received;
+        } else if (reply.status === 404) await open();
         else throw failure(reply.status, reply.body as { error?: string });
         continue;
       }
@@ -238,6 +253,8 @@ async function sendChunked(file: File, kind: UploadKind, session: UploadSessionR
         offset = Number(reply.body.received);
         failures = 0;
       } else if (reply.status === 409 && typeof reply.body.received === "number") {
+        // Расхождение без продвижения (прежняя часть ещё на сервере) — с паузой, как сбой.
+        if (reply.body.received === from) throw new UploadError("Сервер ещё принимает часть", true);
         offset = reply.body.received;
       } else if (reply.status === 404) {
         await open();

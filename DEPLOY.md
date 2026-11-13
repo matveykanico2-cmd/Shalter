@@ -317,6 +317,9 @@ or connect the moment a real visitor (not you on localhost) opens it.
   (защита от дублей при повторной отправке). На большой базе `ALTER TABLE … ADD COLUMN`
   без значения по умолчанию выполняется мгновенно, индекс — по строкам с `clientId`
   (у старых их нет), тоже быстро.
+- В `chat_reads` новая колонка `lastReadRowid` (до какой строки чата дошла отметка
+  прочтения). У существующих строк она пустая — первое прочтение каждого чата после выкладки
+  один раз просмотрит его целиком, дальше как раньше.
 - Загрузка файлов частями: временные зашифрованные части лежат в `data/upload-sessions/`
   (создаётся сама, очищается при запуске и через сутки). Места на диске нужно столько же,
   сколько при обычной загрузке крупного файла. Конфиг nginx менять не нужно:
@@ -332,7 +335,7 @@ sqlite3 data/app.db ".backup 'data/app-backup-2026-11-13.db'"   # резервн
 git pull && npm install && npm run build && npm run build:api && npm prune --omit=dev
 pm2 restart shalter --update-env
 # Проверка: колонка и индекс на месте.
-sqlite3 data/app.db "SELECT name FROM pragma_table_info('messages') WHERE name='clientId'; SELECT name FROM sqlite_master WHERE name='idx_messages_client';"
+sqlite3 data/app.db "SELECT name FROM pragma_table_info('messages') WHERE name='clientId'; SELECT name FROM sqlite_master WHERE name='idx_messages_client'; SELECT name FROM pragma_table_info('chat_reads') WHERE name='lastReadRowid';"
 ```
 
 Docker / Dokploy: резервная копия тома (`docker exec <контейнер> sqlite3 /app/data/app.db ".backup '/app/data/app-backup-2026-11-13.db'"`),

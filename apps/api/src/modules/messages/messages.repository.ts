@@ -299,19 +299,21 @@ export class MessagesRepository {
   public markChatRead(chatId: string, viewerId: string, recordTime: boolean): string[] {
     // Всё до границы chat_reads этот же метод уже отметил — смотрим только новее неё (с запасом
     // READ_WATERMARK_MARGIN_MS на сообщения, сохранённые чуть позже своего createdAt), а не весь чат.
-    const watermark = this.db
-      .select({ at: chatReads.lastReadAt })
+    // И всё, что вставлено после прошлого прохода (rowid), даже если createdAt ниже границы.
+    const mark = this.db
+      .select({ at: chatReads.lastReadAt, rowid: chatReads.lastReadRowid })
       .from(chatReads)
       .where(and(eq(chatReads.chatId, chatId), eq(chatReads.userId, viewerId)))
-      .get()?.at;
-    const from = readScanFrom(watermark);
+      .get();
+    const from = readScanFrom(mark?.at);
+    const rowFrom = mark?.rowid ?? 0;
     const rows = this.db
       .select({ id: messages.id, senderId: messages.senderId, readByIds: messages.readByIds, readTimes: messages.readTimes })
       .from(messages)
       .where(
         and(
           eq(messages.chatId, chatId),
-          from ? gte(messages.createdAt, from) : undefined,
+          from ? or(gte(messages.createdAt, from), sql`${messages}.rowid >= ${rowFrom}`) : undefined,
           ne(messages.senderId, viewerId),
           sql`${messages.readByIds} NOT LIKE ${`%"${viewerId}"%`}`
         )
@@ -334,15 +336,22 @@ export class MessagesRepository {
         changedIds.push(row.id);
       }
     });
-    const newest = this.db.select({ at: sql<string | null>`MAX(${messages.createdAt})` }).from(messages).where(eq(messages.chatId, chatId)).get()?.at;
-    if (newest) {
+    const newest = this.db
+      .select({ at: sql<string | null>`MAX(${messages.createdAt})`, rowid: sql<number | null>`MAX(${messages}.rowid)` })
+      .from(messages)
+      .where(eq(messages.chatId, chatId))
+      .get();
+    if (newest?.at) {
+      // lastReadAt только растёт (как setReadWatermark в server/data/messages.js), lastReadRowid — последняя строка.
       this.db
         .insert(chatReads)
-        .values({ chatId, userId: viewerId, lastReadAt: newest })
+        .values({ chatId, userId: viewerId, lastReadAt: newest.at, lastReadRowid: newest.rowid })
         .onConflictDoUpdate({
           target: [chatReads.chatId, chatReads.userId],
-          set: { lastReadAt: sql`excluded.lastReadAt` },
-          setWhere: sql`excluded.lastReadAt > ${chatReads.lastReadAt}`,
+          set: {
+            lastReadAt: sql`MAX(${chatReads.lastReadAt}, excluded.lastReadAt)`,
+            lastReadRowid: sql`COALESCE(excluded.lastReadRowid, ${chatReads.lastReadRowid})`,
+          },
         })
         .run();
     }

@@ -312,6 +312,7 @@ export const chatReads = sqliteTable("chat_reads", {
   chatId: text().notNull(),
   userId: text().notNull(),
   lastReadAt: text().notNull(),
+  lastReadRowid: integer(),
 },
 (table) => [
   primaryKey({ columns: [table.chatId, table.userId], name: "chat_reads_chatId_userId_pk" }),

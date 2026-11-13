@@ -6,7 +6,7 @@ import { ChatsRepository } from "../chats/chats.repository.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
 import { incrementViews, setAnchorForPost, setDiscussionAnchor } from "../messages/lib/message-edits.js";
-import { MessageSendService } from "../messages/message-send.service.js";
+import { clientSendKey, MessageSendService } from "../messages/message-send.service.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import type { Message } from "../messages/model/domain.js";
 import type { SendMessageDto } from "../messages/model/schemas/message.schema.js";
@@ -54,13 +54,20 @@ export class PostsService {
     if (typeof text === "string" && text.length > MAX_MESSAGE_TEXT) throw new ApiError(400, `Пост длиннее ${MAX_MESSAGE_TEXT} символов`);
 
     const paid = this.sender.preparePaidMedia(chat, uid, body);
-    const post = await sendOnce(uid, chat.id, body.clientId, async () => this.publishPost(chat, uid, body, paid));
+    // Повтор той же публикации (очередь исходящих после перезапуска приложения или сервера,
+    // позже 10 минут памяти sendOnce) — тот же пост из базы, без второй рассылки и пуша.
+    const sendKey = clientSendKey(body.clientId);
+    const post = await sendOnce(uid, chat.id, body.clientId, async () => {
+      const saved = sendKey ? this.messages.findByClientId(chat.id, uid, sendKey) : undefined;
+      return saved ?? this.publishPost(chat, uid, body, paid, sendKey);
+    });
     return { message: post };
   }
 
-  private publishPost(chat: Chat, uid: string, body: PublishPostDto, paid: PaidPost): Message {
+  private publishPost(chat: Chat, uid: string, body: PublishPostDto, paid: PaidPost, clientId?: string): Message {
     let post = this.messages.create({
       id: genId("m"),
+      clientId: clientId ?? null,
       chatId: chat.id,
       senderId: uid,
       type: "text",

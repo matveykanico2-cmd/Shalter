@@ -35,7 +35,6 @@ export class UploadsService {
    */
   public async store(uid: string, source: Readable, { kind, name, mimeType }: UploadQueryDto, declared: number): Promise<UploadResult> {
     const limits = uploadLimits();
-    const req = source;
 
     const limit = limits.limitFor(kind);
     if (Number.isFinite(declared) && declared > limit) throw new ApiError(413, limits.tooLargeError(kind));
@@ -61,23 +60,23 @@ export class UploadsService {
     let aborted = false;
     try {
       await new Promise((resolve, reject) => {
-        req.on("data", (chunk: Buffer) => {
+        source.on("data", (chunk: Buffer) => {
           if (aborted) return;
           written += chunk.length;
           digest.update(chunk);
           if (written > limit) {
             aborted = true;
             abort();
-            req.destroy();
+            source.destroy();
             reject(Object.assign(new Error(limits.tooLargeError(kind)), { status: 413 }));
           }
         });
-        req.on("aborted", () => {
+        source.on("aborted", () => {
           aborted = true;
           abort();
           reject(Object.assign(new Error("Загрузка прервана"), { status: 400 }));
         });
-        req.on("error", reject);
+        source.on("error", reject);
         done().then(resolve, reject);
         if (cipher) {
           cipher.on("error", reject);
@@ -86,9 +85,9 @@ export class UploadsService {
         if (compressor) {
           sink.write(compression.MAGIC);
           compressor.on("error", reject);
-          req.pipe(compressor).pipe(sink);
+          source.pipe(compressor).pipe(sink);
         } else {
-          req.pipe(sink);
+          source.pipe(sink);
         }
       });
     } catch (err) {

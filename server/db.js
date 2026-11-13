@@ -1617,4 +1617,10 @@ END;
 DROP TRIGGER IF EXISTS chat_versions_chat_ad;
 `);
 
+// До какой строки (порядок вставки, rowid) отметка прочтения уже прошла: сообщение, чей
+// createdAt оказался ниже границы lastReadAt (импорт, сохранено сильно позже своего времени),
+// всё равно будет отмечено — его rowid новее. NULL у старых строк — первый проход по чату целиком.
+const chatReadsCols = new Set(db.prepare("PRAGMA table_info(chat_reads)").all().map((c) => c.name));
+if (!chatReadsCols.has("lastReadRowid")) db.exec("ALTER TABLE chat_reads ADD COLUMN lastReadRowid INTEGER");
+
 module.exports = db;
