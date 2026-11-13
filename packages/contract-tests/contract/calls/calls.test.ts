@@ -207,7 +207,7 @@ describe("POST /api/calls — звонок в группе", () => {
 });
 
 describe("POST /api/calls/:id/answer", () => {
-  test("call:answered приходит только на устройства ответившего (чтобы перестали звонить)", async () => {
+  test("call:answered — всем участникам с byUserId: устройства ответившего перестают звонить, звонящий перестаёт ждать", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);
     const aWs = await open(a.api);
@@ -217,11 +217,10 @@ describe("POST /api/calls/:id/answer", () => {
     const call = await startCall(a, dm.id);
 
     expectOk(await b.api.post(`/api/calls/${call.id}/answer`), okBody);
-    for (const ws of [bWs, bPhone]) {
+    for (const ws of [bWs, bPhone, aWs]) {
       const e = expectShape(callAnswered, await ws.waitFor("call:answered", (e) => e.callId === call.id), "call:answered");
-      expect(e).toEqual({ type: "call:answered", callId: call.id });
+      expect(e).toEqual({ type: "call:answered", callId: call.id, byUserId: b.id });
     }
-    await aWs.expectNone("call:answered", () => true, 300);
   });
 
   test("посторонний или несуществующий звонок — 404 без событий", async () => {

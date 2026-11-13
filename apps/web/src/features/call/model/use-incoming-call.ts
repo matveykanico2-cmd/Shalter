@@ -23,6 +23,10 @@ let primed = false;
  */
 export function useIncomingCall(meId: string) {
   const [ringing, setRinging] = useState<RingingCall | null>(null);
+  const ringingRef = useRef(ringing);
+  useEffect(() => {
+    ringingRef.current = ringing;
+  });
   const dismiss = () => setRinging(null);
 
   const offer = (call: RingingCall) => {
@@ -39,13 +43,15 @@ export function useIncomingCall(meId: string) {
   useWsEvent("call:updated", (e) => {
     if (e.call.id === ringing?.id && e.call.status !== "ongoing") dismiss();
   });
-  // Ответили на другом устройстве.
+  // Ответили на другом своём устройстве (ответ другого участника группового звонка — не нам).
   useWsEvent("call:answered", (e) => {
-    if (e.callId === ringing?.id) dismiss();
+    if (e.callId === ringing?.id && e.byUserId === meId) dismiss();
   });
 
   const tick = async (force: boolean) => {
-    if (!force && primed && ws.isOpen()) return;
+    // С сокетом опрос не нужен — кроме времени, пока звонит: пропущенная отмена иначе держала
+    // баннер и рингтон до минуты после того, как звонящий положил трубку.
+    if (!force && primed && ws.isOpen() && !ringingRef.current) return;
     // Без сети опрос просто пропускаем.
     const res = await callApi.list().catch(() => null);
     if (!res) return;

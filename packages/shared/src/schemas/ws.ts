@@ -19,7 +19,8 @@ export const presenceUpdate = z.strictObject({
 });
 
 export const callIncoming = z.strictObject({ type: z.literal("call:incoming"), call: callWithCaller });
-export const callAnswered = z.strictObject({ type: z.literal("call:answered"), callId: z.string() });
+/** Ответили (byUserId — кто): устройства ответившего перестают звонить, звонящий — ждать ответа. */
+export const callAnswered = z.strictObject({ type: z.literal("call:answered"), callId: z.string(), byUserId: z.string() });
 export const callUpdated = z.strictObject({ type: z.literal("call:updated"), call });
 export const callParticipantsUpdated = z.strictObject({ type: z.literal("call:participants-updated"), call });
 export const callSignal = z.strictObject({ type: z.literal("call:signal"), signal });

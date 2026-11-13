@@ -32,6 +32,33 @@ afterEach(async () => {
 });
 
 describe("звонок", () => {
+  it("ответили (call:answered от собеседника) — гудки и таймер «нет ответа» стоп, «Соединение…», трубку сам не кладёт", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { calls } = fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+      await placeCall("c_1", "audio", ME);
+      expect(getCall()?.phase).toBe("ringing");
+      FakeSocket.last().receive({ type: "call:answered", callId: "cl_1", byUserId: BORIS.id });
+      expect(getCall()?.phase).toBe("connecting");
+      // Раньше через 45 с без соединения ICE звонящий сам сбрасывал уже принятый звонок.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(calls.some((c) => c.key === "PATCH /api/calls/cl_1" && (c.body as { status: string }).status === "missed")).toBe(false);
+      expect(getCall()?.phase).toBe("connecting");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("положить трубку без сети: экран и устройства освобождаются сразу, не дожидаясь сервера", async () => {
+    fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute });
+    await placeCall("c_1", "audio", ME);
+    const track = getCall()!.localStream!.getAudioTracks()[0]!;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    expect(await hangup()).toBe("c_1");
+    expect(getCall()).toBeNull();
+    expect(track.readyState).toBe("ended");
+  });
+
   it("исходящий: звонок, offer собеседнику по сокету, ответ — разговор, сброс — «завершён» с длительностью", async () => {
     const { calls } = fakeApi({
       "POST /api/calls": { body: { call: CALL } },

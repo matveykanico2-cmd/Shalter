@@ -6,7 +6,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, VolumeControl } from "@/shared/ui";
 
 import { callApi, type CallPeer } from "../api/call-api";
-import { formatElapsed } from "../lib/format";
+import { callStatusText, qualityText } from "../lib/format";
 import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleMute, toggleScreenShare } from "../model/call-store";
 import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
@@ -241,7 +241,14 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           </button>
           <div className={styles.headerCenter}>
             <p className={styles.title}>{s.chatTitle}</p>
-            <p className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
+            <p className={styles.timer} aria-live="polite">
+              {callStatusText(s)}
+            </p>
+            {qualityText(s.quality) ? (
+              <p className={s.quality === "poor" ? `${styles.quality} ${styles.qualityPoor}` : styles.quality} role="status">
+                <Icon name="Wifi" size={12} /> {qualityText(s.quality)}
+              </p>
+            ) : null}
           </div>
           <div className={styles.headerActions}>
             {stageMode ? null : (

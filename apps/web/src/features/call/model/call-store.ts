@@ -9,7 +9,13 @@ import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
 
-export type CallPhase = "ringing" | "connected" | "ended";
+/**
+ * ringing — вызов, ждём ответа (у звонящего гудки); connecting — ответили, WebRTC соединяется;
+ * connected — разговор; ended — завершён (экран на мгновение «Звонок завершён»).
+ */
+export type CallPhase = "ringing" | "connecting" | "connected" | "ended";
+/** Качество связи по getStats: задержка и потери пакетов. */
+export type CallQuality = "good" | "fair" | "poor";
 export type PeerMedia = { camera: boolean; sharing: boolean };
 
 /** Снимок звонка для экранов (useCall). */
@@ -36,6 +42,9 @@ export type CallState = {
   /** Камера того, кто показывает экран (второй видеоканал). */
   remoteCamStreams: Record<string, MediaStream>;
   connectedPeers: Record<string, boolean>;
+  /** Соединение с кем-то оборвалось и восстанавливается. */
+  reconnecting: boolean;
+  quality: CallQuality | null;
   minimized: boolean;
   localStream: MediaStream | null;
   mediaError: string | null;
@@ -60,6 +69,9 @@ const CONNECT_TIMEOUT_MS = 20_000;
 const RESTART_GRACE_MS = 10_000;
 const NO_ANSWER_MS = 45_000;
 const POLL_MS = 1000;
+/** Обрыв (disconnected) дольше — перезапуск ICE, не дожидаясь failed (Chrome ждёт ~30 с). */
+const DISCONNECT_RESTART_MS = 4000;
+const STATS_MS = 2000;
 
 let iceServers = STUN_FALLBACK;
 let state: State | null = null;
@@ -164,11 +176,14 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     }
     if (!restarted) {
       restarted = true;
-      try {
-        pc.restartIce();
-        iceRestartPending = true; // нужен новый offer — иначе рестарт не дойдёт до пира
-      } catch {
-        // Старый браузер без restartIce.
+      // Перезапуск ведёт тот, кто шлёт offer: встречные offer с двух сторон ломали согласование.
+      if (shouldOffer(otherUserId)) {
+        try {
+          pc.restartIce();
+          iceRestartPending = true; // нужен новый offer — иначе рестарт не дойдёт до пира
+        } catch {
+          // Старый браузер без restartIce.
+        }
       }
       setTimeout(handleStuck, RESTART_GRACE_MS);
       return;
@@ -201,17 +216,30 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     notify();
   };
   const looksConnected = () => pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed";
+  let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
   const onStateChange = () => {
     if (!state) return;
     state.connectedPeers = { ...state.connectedPeers, [otherUserId]: looksConnected() };
+    const dropped = pc.connectionState === "disconnected" || pc.iceConnectionState === "disconnected";
+    if (dropped && !disconnectTimer && state.phase === "connected") {
+      // Сменилась сеть или пропал Wi-Fi: «Восстанавливаем связь…» и перезапуск ICE, если не вернулось само.
+      disconnectTimer = setTimeout(() => {
+        disconnectTimer = undefined;
+        if (state && !looksConnected() && pc.connectionState !== "closed") handleStuck();
+      }, DISCONNECT_RESTART_MS);
+    }
+    state.reconnecting = Object.entries(state.connectedPeers).some(([id, ok]) => !ok && state!.peers.has(id)) && state.phase === "connected";
     if (looksConnected()) {
       clearTimeout(watchdog);
+      clearTimeout(disconnectTimer);
+      disconnectTimer = undefined;
       // Следующий обрыв (сменилась сеть) снова получит перезапуск ICE, а не сразу ошибку.
       restarted = false;
       tunePeer(pc);
       state.connectionError = null;
-      if (state.phase === "ringing") {
+      if (state.phase === "ringing" || state.phase === "connecting") {
         state.phase = "connected";
+        clearTimeout(noAnswerTimer);
         stopRingtone();
       }
     } else if (pc.connectionState === "failed" || pc.iceConnectionState === "failed") {
@@ -289,6 +317,7 @@ async function handleSignal(sig: Signal) {
       sendSignal(sig.fromUserId, "answer", answer);
       tunePeer(pc);
     } else if (sig.kind === "answer") {
+      markAnswered();
       const pc = state.peers.get(sig.fromUserId);
       await pc?.setRemoteDescription(new RTCSessionDescription(data));
       if (pc) tunePeer(pc);
@@ -338,6 +367,63 @@ function removePeer(userId: string) {
   }
 }
 
+/** Собеседник ответил: гудки и ожидание ответа кончились, дальше соединяется WebRTC. */
+function markAnswered() {
+  if (!state || state.phase !== "ringing") return;
+  clearTimeout(noAnswerTimer);
+  stopRingtone();
+  state.phase = "connecting";
+  notify();
+}
+
+/**
+ * Качество связи раз в STATS_MS по getStats: задержка (RTT активной пары кандидатов) и доля
+ * потерянных входящих пакетов. Хуже всех пиров — то, что показываем.
+ */
+function watchQuality() {
+  let prev = new Map<string, { lost: number; received: number }>();
+  const timer = setInterval(() => {
+    const s = state;
+    if (!s || s.phase !== "connected") return;
+    void Promise.all(
+      [...s.peers.entries()].map(async ([id, pc]) => {
+        const report = await pc.getStats().catch(() => null);
+        if (!report) return null;
+        let rtt = 0;
+        let lost = 0;
+        let received = 0;
+        report.forEach((r: { type: string; state?: string; nominated?: boolean; currentRoundTripTime?: number; packetsLost?: number; packetsReceived?: number }) => {
+          if (r.type === "candidate-pair" && r.state === "succeeded" && r.nominated && r.currentRoundTripTime) rtt = Math.max(rtt, r.currentRoundTripTime);
+          if (r.type === "inbound-rtp") {
+            lost += r.packetsLost ?? 0;
+            received += r.packetsReceived ?? 0;
+          }
+        });
+        const before = prev.get(id) ?? { lost: 0, received: 0 };
+        const dLost = Math.max(0, lost - before.lost);
+        const dTotal = dLost + Math.max(0, received - before.received);
+        return { id, rtt, lossRate: dTotal ? dLost / dTotal : 0, lost, received };
+      })
+    ).then((rows) => {
+      if (state !== s) return;
+      const next = new Map<string, { lost: number; received: number }>();
+      let worst: CallQuality | null = null;
+      for (const row of rows) {
+        if (!row) continue;
+        next.set(row.id, { lost: row.lost, received: row.received });
+        const q: CallQuality = row.rtt > 0.4 || row.lossRate > 0.08 ? "poor" : row.rtt > 0.2 || row.lossRate > 0.02 ? "fair" : "good";
+        if (!worst || q === "poor" || (q === "fair" && worst === "good")) worst = q;
+      }
+      prev = next;
+      if (worst !== s.quality) {
+        s.quality = worst;
+        notify();
+      }
+    });
+  }, STATS_MS);
+  return () => clearInterval(timer);
+}
+
 type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean };
 
 async function join({ call, chatTitle, chatType, participants, me, isRoom = false }: JoinInput) {
@@ -354,7 +440,8 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     others,
     me,
     isRoom,
-    phase: "ringing",
+    // Входящий, на который ответили (или вход по ссылке), — сразу соединение, а не «Вызов…».
+    phase: isRoom || call.callerId === me.id ? "ringing" : "connecting",
     elapsed: 0,
     muted: false,
     cameraOn: call.kind === "video",
@@ -370,6 +457,8 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     remoteStreams: {},
     remoteCamStreams: {},
     connectedPeers: {},
+    reconnecting: false,
+    quality: null,
     minimized: false,
     localStream: null,
     mediaError: null,
@@ -425,6 +514,10 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       if (state && msg.call.id === state.call.id && msg.call.status !== "ongoing" && state.phase !== "ended") endLocally();
     }),
     ws.on("call:participants-updated", (msg) => void onParticipants(msg.call)),
+    ws.on("call:answered", (msg) => {
+      if (state && msg.callId === state.call.id && msg.byUserId !== state.me.id) markAnswered();
+    }),
+    watchQuality(),
   ];
 
   try {
@@ -726,28 +819,32 @@ function endLocally() {
   }, 600);
 }
 
-/** Положить трубку. Возвращает чат звонка — туда уходит экран. */
-export async function hangup(): Promise<string | null> {
+/**
+ * Положить трубку. Экран, микрофон, камера, звуки и соединения освобождаются сразу, сервер
+ * узнаёт в фоне: без сети запрос мог висеть, и окно звонка оставалось открытым.
+ * Возвращает чат звонка — туда уходит экран.
+ */
+export function hangup(): Promise<string | null> {
   clearTimeout(noAnswerTimer);
   const s = state;
-  if (!s) return null;
+  if (!s) return Promise.resolve(null);
   const { call, others, elapsed } = s;
   const answered = s.phase === "connected";
   others.forEach((p) => sendSignal(p.id, "end", null));
   s.phase = "ended";
   stopRingtone();
+  release(s);
+  if (state === s) state = null;
   notify();
   // Из группового звонка уходят, а не завершают его за всех.
   const leaveOnly = !s.isRoom && s.chatType === "group" && (answered || call.callerId !== s.me.id);
-  if (leaveOnly) await callApi.leave(call.id).catch(() => {});
-  else if (s.isRoom) await callApi.leaveRoom(call.chatId).catch(() => {});
-  else await callApi.patch(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 }).catch(() => {});
-  release(s);
-  if (state === s) {
-    state = null;
-    notify();
-  }
-  return call.chatId;
+  const report = leaveOnly
+    ? callApi.leave(call.id)
+    : s.isRoom
+      ? callApi.leaveRoom(call.chatId)
+      : callApi.patch(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 });
+  void report.catch(() => {});
+  return Promise.resolve(call.chatId);
 }
 
 /** Отклонить входящий; из группового (больше двух) — только выйти. */

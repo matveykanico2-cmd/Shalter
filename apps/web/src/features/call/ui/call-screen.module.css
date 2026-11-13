@@ -93,6 +93,19 @@
   font-size: 14px;
 }
 
+.quality {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0;
+  color: #ffd166;
+  font-size: 12px;
+}
+
+.qualityPoor {
+  color: #ff7b72;
+}
+
 .invite {
   gap: 6px;
   padding: 8px 12px;

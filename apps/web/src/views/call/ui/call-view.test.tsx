@@ -91,7 +91,8 @@ describe("звонки в оболочке", () => {
     expect(await screen.findByTitle("Завершить")).toBeTruthy();
     // Название звонка — имя собеседника (у лички нет своего).
     expect(screen.getAllByText("Борис").length).toBe(2);
-    expect(screen.getByText("Вызов…")).toBeTruthy();
+    // Ответили — уже не «Вызов…», а соединение.
+    expect(screen.getByText("Соединение…")).toBeTruthy();
 
     // Соединились — пошёл таймер.
     await waitFor(() => expect(FakePeer.instances).toHaveLength(0));
@@ -155,6 +156,29 @@ describe("звонки в оболочке", () => {
     act(() => FakeSocket.last().receive({ type: "call:updated", call: { ...CALL, id: "cl_2", status: "ended" } }));
     await waitFor(() => expect(screen.queryByText("Входящий звонок")).toBeNull());
   });
+
+  it("ответ другого участника группового звонка экран не закрывает; свой ответ на другом устройстве — закрывает", async () => {
+    fakeApi({ "GET /api/calls": { body: { calls: [] } } });
+    renderApp();
+    await screen.findByText("Список чатов");
+    act(() => FakeSocket.last().receive({ type: "call:incoming", call: { ...CALL, id: "cl_5", participantIds: [BORIS.id, ME.id, "u_third0000"], otherUser: BORIS } }));
+    expect(await screen.findByRole("button", { name: "Ответить" })).toBeTruthy();
+    act(() => FakeSocket.last().receive({ type: "call:answered", callId: "cl_5", byUserId: "u_third0000" }));
+    expect(screen.getByRole("button", { name: "Ответить" })).toBeTruthy();
+    act(() => FakeSocket.last().receive({ type: "call:answered", callId: "cl_5", byUserId: ME.id }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Ответить" })).toBeNull());
+  });
+
+  it("отмену пропустили по сокету — пока звонит, опрос раз в 5 с закрывает экран и рингтон", async () => {
+    let calls = [{ ...CALL, id: "cl_6", otherUser: BORIS }];
+    fakeApi({ "GET /api/calls": () => ({ body: { calls } }) });
+    renderApp();
+    await screen.findByText("Список чатов");
+    act(() => FakeSocket.last().receive({ type: "call:incoming", call: { ...CALL, id: "cl_6", otherUser: BORIS } }));
+    expect(await screen.findByText("Входящий звонок")).toBeTruthy();
+    calls = [{ ...calls[0]!, status: "missed" }];
+    await waitFor(() => expect(screen.queryByText("Входящий звонок")).toBeNull(), { timeout: 7000 });
+  }, 10_000);
 
   it("групповой видеозвонок подписан «Групповой видеозвонок»", async () => {
     fakeApi({ "GET /api/calls": { body: { calls: [] } } });

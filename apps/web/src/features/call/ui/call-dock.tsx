@@ -2,7 +2,7 @@ import { useMatch, useNavigate } from "react-router";
 
 import { Avatar, StreamAudio } from "@/shared/ui";
 
-import { formatElapsed } from "../lib/format";
+import { callStatusText } from "../lib/format";
 import { useCall } from "../model/use-call";
 
 import styles from "./call-dock.module.css";
@@ -29,7 +29,7 @@ export function CallDock() {
         <button type="button" className={styles.bubble} onClick={() => void navigate(`/call/${s.call.id}`)}>
           <Avatar size={28} name={other?.name ?? s.chatTitle} color={other?.avatarColor ?? "#8A8F98"} image={other?.avatarImage} emoji={other?.avatarEmoji} />
           <span className={styles.title}>{s.chatTitle}</span>
-          <span className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</span>
+          <span className={styles.timer}>{callStatusText(s)}</span>
         </button>
       ) : null}
     </>

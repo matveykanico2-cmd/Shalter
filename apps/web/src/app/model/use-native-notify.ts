@@ -168,7 +168,9 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
         })
         .catch(() => {});
     }),
-    ws.on("call:answered", ({ callId }) => clearCall(callId)),
+    ws.on("call:answered", ({ callId, byUserId }) => {
+      if (byUserId === meId) clearCall(callId);
+    }),
     ws.on("call:updated", ({ call }) => clearCall(call.id)),
   ];
   function clearCall(callId: string) {

@@ -144,10 +144,15 @@ export class CallsService {
     return { call };
   }
 
-  /** Ответ на одном устройстве: остальные устройства ответившего перестают звонить. */
+  /**
+   * Ответ на одном устройстве: остальные устройства ответившего перестают звонить, а звонящий
+   * узнаёт, что ответили, — гудки и ожидание ответа кончаются, пока соединяется WebRTC (раньше
+   * таймер «нет ответа» мог положить трубку уже после ответа). Участники группового звонка,
+   * которые не отвечали, по byUserId понимают, что звонят по-прежнему им.
+   */
   public answer(uid: string, id: string) {
     const call = this.participantCall(id, uid);
-    this.realtime.broadcastToUsers([uid], { type: "call:answered", callId: call.id });
+    this.realtime.broadcastToUsers(call.participantIds, { type: "call:answered", callId: call.id, byUserId: uid });
     return { ok: true };
   }
 
