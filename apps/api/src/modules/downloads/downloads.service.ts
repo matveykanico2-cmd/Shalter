@@ -12,7 +12,6 @@ const PACKAGE_JSON = path.join(REPO_ROOT, "package.json");
 const ARTIFACTS = [
   { id: "windows", file: "Shalter-Windows-Setup.exe" },
   { id: "android", file: "Shalter.apk" },
-  { id: "linux", file: "Shalter.AppImage" },
   { id: "linux-deb", file: "Shalter.deb" },
   { id: "macos-arm64", file: "Shalter-macOS-arm64.zip" },
 ];
@@ -20,7 +19,6 @@ const ARTIFACTS = [
 const UPDATE_FILES: Record<string, string> = {
   android: "Shalter.apk",
   windows: "Shalter-Windows-Setup.exe",
-  linux: "Shalter.AppImage",
   "linux-deb": "Shalter.deb",
   "macos-arm64": "Shalter-macOS-arm64.zip",
 };
@@ -87,7 +85,7 @@ export class DownloadsService {
     const platform = String(platformParam ?? "");
     // Своя сборка с известной версией — обновляемся с нашего сервера (быстрее GitHub).
     const versions = localVersions();
-    const own = versions[platform] ?? (platform === "linux-deb" ? versions.linux : undefined);
+    const own = versions[platform];
     const ownFile = UPDATE_FILES[platform] && localArtifact(UPDATE_FILES[platform]);
     if (own && ownFile && !(platform === "android" && isDebugApk(UPDATE_FILES[platform]!))) {
       return { version: own, url: ownFile.url, size: ownFile.size, page: "/download" };

@@ -31,6 +31,8 @@ export const addedContact = z.strictObject({ ...contactBase, note: z.string().nu
  * настройками, удаляются целиком, плюс пометки о контакте (applyContactName).
  */
 export const contactUser = publicUser.extend({
+  /** Этот пользователь заблокировал смотрящего. */
+  blockedViewer: z.literal(true).optional(),
   avatarImages: z.array(anyJson).optional(),
   bio: z.string().nullable().optional(),
   inContacts: z.literal(true).optional(),

@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router";
+
 import { switchAccount } from "@/features/accounts";
 import { useSignOut } from "@/features/sign-out";
 
@@ -10,6 +12,7 @@ import styles from "./sections.module.css";
 
 /** «Аккаунты» — renderAccounts: аккаунты устройства, переключение, добавление, выход. */
 export function AccountsSection() {
+  const navigate = useNavigate();
   const session = useSession().data;
   const me = session?.user;
   const { signOut, signOutAll, pending } = useSignOut(me?.id ?? "");
@@ -38,7 +41,7 @@ export function AccountsSection() {
             </button>
           </div>
         ))}
-        <SettingsButton icon="Plus" onClick={() => (window.location.href = "/login?add=1")}>
+        <SettingsButton icon="Plus" onClick={() => void navigate("/login?add=1")}>
           Добавить аккаунт
         </SettingsButton>
       </SettingsSection>

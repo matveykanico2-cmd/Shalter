@@ -78,13 +78,11 @@ function installed() {
   const w = window as ShellWindow;
   const desktop = w.shalterDesktop;
   if (desktop) {
-    // Linux: установленным из .deb предлагаем .deb, AppImage — AppImage.
-    const platform =
-      desktop.platform === "linux" && desktop.packaging === "deb"
-        ? "linux-deb"
-        : ({ win32: "windows", linux: "linux", darwin: "macos-arm64" } as Record<string, string>)[desktop.platform ?? ""];
+    // Linux теперь распространяется только как .deb. Старому AppImage предлагаем скачать
+    // пакет вручную: его автообновлятор нельзя кормить .deb вместо исполняемого файла.
+    const platform = ({ win32: "windows", linux: "linux-deb", darwin: "macos-arm64" } as Record<string, string>)[desktop.platform ?? ""];
     // Сборки до этой версии моста версию не сообщали — значит, они старые.
-    return platform ? { platform, version: desktop.version || "0" } : null;
+    return platform ? { platform, version: desktop.version || "0", automatic: desktop.platform !== "linux" || desktop.packaging === "deb" } : null;
   }
   if (!w.Capacitor?.isNativePlatform?.()) return null;
   const platform = w.Capacitor.getPlatform?.();
@@ -147,7 +145,7 @@ export function useNativeUpdateCheck() {
         );
         const bridge = (window as ShellWindow).shalterDesktop;
         if (!ok) snooze(latest.version);
-        else if (bridge?.installUpdate && latest.url) {
+        else if (app.automatic !== false && bridge?.installUpdate && latest.url) {
           // Приложение для компьютера обновляется само: скачивает сборку и ставит её поверх.
           const sizeMb = latest.size ? ` (${Math.round(latest.size / 1048576)} МБ)` : "";
           toast(`Скачиваем обновление${sizeMb}… Shalter перезапустится сам`, { durationMs: 8000 });

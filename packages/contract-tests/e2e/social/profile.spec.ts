@@ -17,7 +17,9 @@ test("профиль по ссылке /u/<ник>: данные человек�
   await expect(panel.getByText("Борис", { exact: true })).toBeVisible();
   await expect(panel.getByText(`@${boris.username}`)).toBeVisible();
   await expect(panel.getByText("Играю на виолончели")).toBeVisible();
-  await expect(panel.getByRole("button", { name: /Добавить в контакты/ })).toBeVisible();
+  await panel.getByRole("button", { name: "Дополнительные действия профиля" }).click();
+  await expect(a.getByRole("button", { name: /Добавить в контакты/ })).toBeVisible();
+  await a.getByRole("button", { name: "Закрыть меню" }).click();
 
   await panel.getByRole("button", { name: "Написать", exact: true }).click();
   await expect(panel).toHaveCount(0);
@@ -71,6 +73,7 @@ test("шапка лички открывает панель собеседник
 
   // Нажатие на аватар с именем в панели — полный профиль с действиями.
   await info.getByRole("button", { name: /^(Б\s*)?Борис/ }).first().click();
+  await profilePanel(a).getByRole("button", { name: "Дополнительные действия профиля" }).click();
   await expect(a.getByRole("button", { name: /Поделиться контактом/ })).toBeVisible();
   await expect(a.getByRole("button", { name: /Отправить подарок/ }).first()).toBeVisible();
 });

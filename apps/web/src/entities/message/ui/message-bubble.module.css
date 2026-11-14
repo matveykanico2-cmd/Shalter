@@ -91,16 +91,19 @@
 .bubble {
   position: relative;
   min-width: 56px;
-  max-width: min(480px, 78%);
-  padding: 4px 8px 5px;
+  max-width: min(520px, 82%);
+  padding: 6px 10px 7px;
   border-radius: var(--bubble-radius);
+  border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
   box-shadow: var(--bubble-shadow);
   color: var(--color-text);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  backdrop-filter: blur(14px) saturate(125%);
 }
 
 .in {
-  background: var(--color-bubble-in);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 8%, transparent);
+  background: color-mix(in srgb, var(--color-bubble-in) 92%, transparent);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--color-text) 10%, transparent);
 }
 
 .out {
@@ -111,7 +114,7 @@
   --link-color: var(--color-bubble-out-link, var(--color-accent));
   /* Мягкий градиент к цвету акцента и тень под пузырём. */
   background: linear-gradient(135deg, var(--color-bubble-out), color-mix(in srgb, var(--color-accent) 15%, var(--color-bubble-out)));
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 /* Серия сообщений одного автора: со стороны автора углы малые, у первого верхний — полный. */

@@ -11,10 +11,8 @@ import styles from "./about-section.module.css";
 
 const ABOUT_TEAM: { name: string; role: string; url?: string }[] = [
   { name: "Николаенко Матвей", role: "Создатель Shalter", url: "https://shalter.ru" },
-  { name: "Плюшкин Семён", role: "Разработчик Shalter" },
   { name: "Шестак Борис", role: "Продвижение Shalter" },
   { name: "Spitsa Crimea", role: "Партнёр Shalter", url: "https://spitsa-crimea.ru" },
-  { name: "Shalter", role: "Независимый проект" },
 ];
 
 /** «О приложении» — renderAbout: логотип, версия, ссылки и поддержка. */

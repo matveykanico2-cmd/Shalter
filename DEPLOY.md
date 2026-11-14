@@ -1521,8 +1521,9 @@ the Dockerfile does); `SKIP_WEB_BUILD=1` reuses an existing `apps/web/dist`.
 ## Desktop installers (Linux)
 
 Built via `npm run desktop:build` (Tauri). Artifacts land in `public/downloads/`:
-- `Shalter.AppImage`, `Shalter.deb`, `Shalter.rpm`
-Upload these to `https://shalter.ru/downloads/` so `install-linux.sh` can fetch them.
+- `Shalter.deb`
+Upload it to `https://shalter.ru/downloads/` so `install-linux.sh` can fetch it. AppImage
+and RPM are no longer published; existing AppImage users are directed to the `.deb` package.
 
 
 ## Account screens, blocking and call reliability update (2026-11-08)

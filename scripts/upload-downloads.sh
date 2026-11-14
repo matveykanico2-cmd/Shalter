@@ -16,7 +16,7 @@ SERVER="${SERVER:-shalter@31.40.154.105}"
 APP_DIR="${APP_DIR:-/opt/shalter}"
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/public/downloads"
-FILES=(Shalter.AppImage Shalter.deb Shalter-Windows-Setup.exe Shalter-macOS-arm64.zip)
+FILES=(Shalter.deb Shalter-Windows-Setup.exe Shalter-macOS-arm64.zip)
 
 present=()
 for f in "${FILES[@]}"; do
@@ -40,5 +40,4 @@ done
 
 echo
 echo "Готово. Проверьте:"
-echo "  curl -sI https://shalter.ru/downloads/Shalter.AppImage | head -1"
 echo "  curl -sI https://shalter.ru/downloads/Shalter.deb | head -1"

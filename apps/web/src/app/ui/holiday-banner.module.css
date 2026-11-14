@@ -1,23 +1,63 @@
 .banner {
   position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: 50%;
   z-index: 60;
   display: flex;
+  width: min(680px, calc(100% - 20px));
+  min-height: 58px;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 7px 14px;
-  background: linear-gradient(90deg, var(--color-accent), #d9822e);
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(255, 255, 255, 0.28), transparent 30%),
+    linear-gradient(120deg, color-mix(in srgb, var(--color-accent) 90%, #7d5cff), #d87942);
+  box-shadow: 0 14px 42px rgba(20, 32, 48, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32);
   color: #fff;
   font-size: 14px;
   font-weight: 500;
   isolation: isolate;
   overflow: hidden;
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
 }
 
-.title { position: relative; z-index: 1; }
+.emoji {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 20px;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.title,
+.date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title { font-size: 14px; }
+.date { font-size: 12px; opacity: 0.84; }
 
 .sparkles { position: absolute; inset: 0; pointer-events: none; }
 .sparkles i {
@@ -60,11 +100,47 @@
   z-index: 1;
 }
 
+.gift {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 38px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.gift:hover { background: rgba(255, 255, 255, 0.28); }
+
 .close:hover {
   opacity: 1;
 }
 
 .reduced .sparkles { display: none; }
+
+@media (max-width: 520px) {
+  .banner {
+    width: calc(100% - 12px);
+    min-height: 54px;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 19px;
+  }
+
+  .emoji { width: 36px; height: 36px; border-radius: 13px; }
+  .gift { width: 38px; padding: 0; justify-content: center; border-radius: 13px; }
+  .gift span { display: none; }
+  .close { padding: 5px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sparkles { display: none; }

@@ -16,42 +16,19 @@ fetch() {
 echo "Скачиваем Shalter…"
 mkdir -p "$DIR" "$DATA/applications" "$DATA/icons/hicolor/192x192/apps"
 
-APPIMAGE_OK=0
-if fetch "$BASE/downloads/Shalter.AppImage" "$DIR/Shalter.AppImage.new" 2>/dev/null; then
-  if head -c 4 "$DIR/Shalter.AppImage.new" 2>/dev/null | grep -q "ELF"; then
-    chmod +x "$DIR/Shalter.AppImage.new"
-    mv -f "$DIR/Shalter.AppImage.new" "$DIR/Shalter.AppImage"
-    APP="$DIR/Shalter.AppImage"
-    APPIMAGE_OK=1
+PACKAGE_OK=0
+if fetch "$BASE/downloads/Shalter.deb" "$DIR/Shalter.deb" 2>/dev/null; then
+  if head -c 8 "$DIR/Shalter.deb" 2>/dev/null | grep -q "!<arch>"; then
+    rm -rf "$DIR/usr"
+    (cd "$DIR" && (dpkg-deb -x "$DIR/Shalter.deb" "$DIR" 2>/dev/null || (ar x "$DIR/Shalter.deb" && tar xf data.tar.* 2>/dev/null)))
+    APP="$BIN"
+    PACKAGE_OK=1
   else
-    rm -f "$DIR/Shalter.AppImage.new"
+    rm -f "$DIR/Shalter.deb"
   fi
 fi
 
-if [ "$APPIMAGE_OK" = "0" ]; then
-  if fetch "$BASE/downloads/Shalter.deb" "$DIR/Shalter.deb" 2>/dev/null; then
-    if head -c 8 "$DIR/Shalter.deb" 2>/dev/null | grep -q "!<arch>"; then
-      rm -rf "$DIR/usr"
-      (cd "$DIR" && (dpkg-deb -x "$DIR/Shalter.deb" "$DIR" 2>/dev/null || (ar x "$DIR/Shalter.deb" && tar xf data.tar.* 2>/dev/null)))
-      APP="$BIN"
-      APPIMAGE_OK=1
-    else
-      rm -f "$DIR/Shalter.deb"
-    fi
-  fi
-fi
-
-if [ "$APPIMAGE_OK" = "0" ]; then
-  if fetch "$BASE/downloads/Shalter.rpm" "$DIR/Shalter.rpm" 2>/dev/null; then
-    if command -v rpm2cpio >/dev/null 2>&1; then
-      (cd "$DIR" && rpm2cpio "$DIR/Shalter.rpm" | cpio -idm 2>/dev/null)
-      APP="$BIN"
-      APPIMAGE_OK=1
-    fi
-  fi
-fi
-
-if [ "$APPIMAGE_OK" = "0" ]; then
+if [ "$PACKAGE_OK" = "0" ]; then
   echo "Не удалось скачать Shalter. Попробуйте позже." >&2
   exit 1
 fi

@@ -25,7 +25,6 @@ describe("GET /api/downloads", () => {
     expect(body.artifacts.map((a) => a.id)).toEqual([...DOWNLOAD_IDS]);
     expect(body.artifacts.filter((a) => a.id !== "android")).toEqual([
       { id: "windows", available: false },
-      { id: "linux", available: false },
       { id: "linux-deb", available: false },
       { id: "macos-arm64", available: false },
     ]);
@@ -44,7 +43,7 @@ describe("GET /api/downloads", () => {
 describe("GET /api/downloads/latest", () => {
   test("ни NATIVE_LATEST_VERSION, ни релиза — { version: null } для любой платформы", async () => {
     const api = new Api(server().baseUrl);
-    for (const platform of ["windows", "linux", "linux-deb", "macos-arm64", "android", "ios", "nope", undefined]) {
+    for (const platform of ["windows", "linux-deb", "macos-arm64", "android", "ios", "nope", undefined]) {
       const res = await api.get("/api/downloads/latest", { query: { platform } });
       expect(expectOk(res, latestBody), `platform=${platform}`).toEqual({ version: null });
       expect(res.headers.get("cache-control")).toBe("no-store");

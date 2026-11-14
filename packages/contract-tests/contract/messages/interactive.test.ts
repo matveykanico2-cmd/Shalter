@@ -33,6 +33,8 @@ describe("опросы", () => {
       correctIndex: null,
       multiple: false,
       closed: false,
+      votersVisible: true,
+      closesAt: null,
     });
     // Один вариант — вложение отбрасывается, а без текста отправлять нечего: 400.
     expectError(await a.api.post(msgs(group.id), { text: "", attachments: [{ kind: "poll", meta: { options: ["один"] } }] }), 400, "empty message");

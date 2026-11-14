@@ -30,9 +30,7 @@ function copy(from, toName) {
 
 fs.mkdirSync(OUT, { recursive: true });
 
-copy(firstFile(path.join(BUNDLE, "appimage"), (n) => n.endsWith(".AppImage")), "Shalter.AppImage");
 copy(firstFile(path.join(BUNDLE, "deb"), (n) => n.endsWith(".deb")), "Shalter.deb");
-copy(firstFile(path.join(BUNDLE, "rpm"), (n) => n.endsWith(".rpm")), "Shalter.rpm");
 copy(firstFile(path.join(BUNDLE, "nsis"), (n) => n.endsWith("-setup.exe")), "Shalter-Windows-Setup.exe");
 
 // macOS: .app в zip (ditto сохраняет права и подписи внутри пакета).

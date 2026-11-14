@@ -37,6 +37,7 @@ function renderSettings(path: string, me: Record<string, unknown> = ME) {
   const router = createMemoryRouter(
     [
       { path: "/", element: <p>Список чатов</p> },
+      { path: "/login", element: <p>Вход</p> },
       { path: "/settings", element: <SettingsView /> },
       { path: "/settings/:section", element: <SettingsView /> },
       { path: "/chat/:chatId", element: <p>чат</p> },
@@ -76,6 +77,24 @@ describe("«Настройки»", () => {
     fireEvent.click(screen.getByRole("button", { name: "Поддержка — Hugo" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_hugo"));
     expect(calls.some((c) => c.key === "POST /api/support/chat")).toBe(true);
+  });
+
+  it("аватар с буквами в меню настроек открывается на весь экран", async () => {
+    fakeApi({ "GET /api/sessions": { body: { sessions: [] } }, "GET /api/stars": { body: { balance: 0 } } });
+    renderSettings("/settings", { ...ME, name: "Анна Ясная", avatarColor: "#1e88e5", avatarImage: null });
+
+    fireEvent.click(screen.getByRole("button", { name: "Фото профиля" }));
+
+    const viewer = screen.getByRole("dialog", { name: "Фото профиля" });
+    expect(viewer.textContent).toContain("АЯ");
+  });
+
+  it("«Добавить аккаунт» открывает вход внутренним переходом", async () => {
+    const { router } = renderSettings("/settings/accounts");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Добавить аккаунт" }));
+
+    await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe("/login?add=1"));
   });
 
   it("раздел администрирования без доступа — обратно в меню; с доступом — в меню и открывается", async () => {

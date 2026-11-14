@@ -21,7 +21,7 @@ describe("GET /api/downloads/latest (NATIVE_LATEST_VERSION)", () => {
   });
 
   test("десктоп без сборки (ни локально, ни в релизе) — обновление не предлагается", async () => {
-    for (const platform of ["windows", "linux", "linux-deb", "macos-arm64"]) {
+    for (const platform of ["windows", "linux-deb", "macos-arm64"]) {
       expect(await latest(platform), platform).toEqual({ version: null });
     }
   });

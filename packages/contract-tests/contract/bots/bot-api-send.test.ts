@@ -332,6 +332,8 @@ describe("стикер, опрос, реакция", () => {
           correctIndex: null,
           multiple: false,
           closed: false,
+          votersVisible: true,
+          closesAt: null,
         },
       },
     ]);

@@ -7,7 +7,7 @@ import { type SelfUser, useSession } from "@/entities/session";
 
 import { lazyView } from "@/shared/lib/lazy-view";
 import { useCloseSidePanel } from "@/shared/lib/side-panel";
-import { Icon, Menu, useSettingsSubpageState } from "@/shared/ui";
+import { Icon, Menu, ScreenLoader, useSettingsSubpageState } from "@/shared/ui";
 
 import { canSeeSection, SETTINGS_SECTIONS } from "../config/sections";
 import { useOpenSupport } from "../model/use-open-support";
@@ -80,7 +80,7 @@ function Settings({ me }: { me: SelfUser }) {
       </header>
       <div className={styles.content}>
         {section ? (
-          <Suspense key={known?.id} fallback={<p className={styles.loading}>Загрузка…</p>}>
+          <Suspense key={known?.id} fallback={<ScreenLoader />}>
             {section}
           </Suspense>
         ) : (

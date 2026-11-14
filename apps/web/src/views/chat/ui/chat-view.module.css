@@ -2,6 +2,7 @@
   position: relative;
   display: flex;
   height: 100%;
+  background: var(--color-surface-alt);
 }
 
 /* Колонка чата; справа от неё — «Информация о чате». */
@@ -10,6 +11,7 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
+  background: var(--color-surface-alt);
 }
 
 .missing {
@@ -24,12 +26,30 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
+  margin: 8px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 26px;
+  box-shadow: 0 12px 34px rgba(15, 35, 52, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 640px) {
+  .body {
+    margin: 6px 0 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -5px 24px rgba(15, 35, 52, 0.08);
+  }
 }
 
 .hint {
   margin: 0;
   padding: 14px 16px;
-  background: var(--color-surface);
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   color: var(--color-muted);
   font-size: 14px;
   text-align: center;
@@ -59,7 +79,9 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px 14px;
-  background: var(--color-surface);
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   color: var(--color-muted);
   font-size: 14px;
   text-align: center;

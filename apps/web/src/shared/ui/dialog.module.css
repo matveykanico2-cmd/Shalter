@@ -6,8 +6,9 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(8, 18, 28, 0.46);
-  backdrop-filter: blur(8px) saturate(120%);
+  background: rgba(8, 18, 28, 0.38);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  backdrop-filter: blur(14px) saturate(125%);
   animation: overlay-in 0.18s ease-out both;
 }
 
@@ -20,11 +21,12 @@
   gap: 10px;
   overflow-y: auto;
   border: 1px solid var(--panel-border);
-  border-radius: 26px;
-  background: var(--panel-bg);
-  padding: 18px;
-  box-shadow: var(--shadow-float);
-  backdrop-filter: blur(22px) saturate(150%);
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
+  padding: 20px;
+  box-shadow: 0 24px 70px rgba(8, 18, 28, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  -webkit-backdrop-filter: blur(30px) saturate(155%);
+  backdrop-filter: blur(30px) saturate(155%);
   animation: dialog-in 0.22s cubic-bezier(0.2, 0.85, 0.3, 1.08) both;
 }
 

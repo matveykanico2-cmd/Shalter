@@ -8,6 +8,11 @@
   gap: 10px;
   background: var(--color-surface-alt);
   color: var(--color-muted);
+  /* Быстрый lazy-chunk приходит за несколько миллисекунд: не показываем вспышку
+     загрузчика. При настоящем ожидании он появится через короткую паузу. */
+  visibility: hidden;
+  opacity: 0;
+  animation: reveal 0s linear 160ms forwards;
 }
 
 .spinner {
@@ -22,6 +27,13 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes reveal {
+  to {
+    visibility: visible;
+    opacity: 1;
   }
 }
 

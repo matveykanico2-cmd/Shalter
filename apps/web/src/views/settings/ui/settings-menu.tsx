@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+
+import { AvatarViewer } from "@/widgets/user-profile";
 
 import type { SelfUser } from "@/entities/session";
 import { useSession } from "@/entities/session";
@@ -8,7 +9,7 @@ import { starsQueries } from "@/entities/stars";
 import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
 
 import { copyText } from "@/shared/lib/clipboard";
-import { Avatar, Icon, MediaViewer, SettingsPage, SettingsRow, SettingsSection } from "@/shared/ui";
+import { Avatar, Icon, SettingsPage, SettingsRow, SettingsSection } from "@/shared/ui";
 
 import { settingsViewQueries } from "../api/settings-api";
 import { canSeeSection, SETTINGS_SECTIONS, type SettingsSectionEntry } from "../config/sections";
@@ -17,7 +18,6 @@ import styles from "./settings-menu.module.css";
 
 /** Главная страница настроек — renderMenu: профиль, разделы группами, поддержка. */
 export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () => void }) {
-  const navigate = useNavigate();
   const accounts = useSession().data?.accounts ?? [];
   const sessions = useQuery(settingsViewQueries.sessions()).data;
   // Баланс — при каждом открытии меню (покупки и переводы обновляют тот же ключ).
@@ -42,7 +42,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
           type="button"
           className={styles.heroAvatar}
           aria-label="Фото профиля"
-          onClick={() => (me.avatarImage ? setViewAvatar(true) : void navigate("/settings/profile"))}
+          onClick={() => setViewAvatar(true)}
         >
           <Avatar name={me.name || "?"} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={120} />
         </button>
@@ -74,7 +74,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
         <SettingsRow icon="MessageSquare" color="blue" title="Поддержка — Hugo" onClick={onSupport} />
         <SettingsRow icon="Download" color="green" title="Скачать приложение" href="/download" external />
       </SettingsSection>
-      {viewAvatar && me.avatarImage ? <MediaViewer items={[{ kind: "image", url: me.avatarImage, name: me.name }]} index={0} canDownload={false} onClose={() => setViewAvatar(false)} /> : null}
+      {viewAvatar ? <AvatarViewer user={me} canEdit={false} onChange={() => {}} onClose={() => setViewAvatar(false)} /> : null}
     </SettingsPage>
   );
 }

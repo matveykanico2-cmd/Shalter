@@ -46,7 +46,7 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
     ...accounts
       .filter((a) => a.id !== me.id)
       .map((a): MenuItem => ({ icon: "Accounts", label: a.name || a.phone || a.email || "Аккаунт", onClick: () => void switchAccount(a.id) })),
-    { icon: "Plus", label: "Добавить аккаунт", onClick: () => (window.location.href = "/login?add=1") },
+    { icon: "Plus", label: "Добавить аккаунт", onClick: () => void navigate("/login?add=1") },
     { icon: "User", label: "Мой профиль", onClick: onOpenProfile },
     { icon: "Zap", label: "Shalter AI", onClick: () => void openChat(() => openServiceChat("ai"), "Не удалось открыть Shalter AI") },
     { icon: "Bookmark", label: "Избранное", onClick: () => void openSavedMessages(me, client, navigate) },

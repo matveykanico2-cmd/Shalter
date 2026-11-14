@@ -5,8 +5,8 @@ import { askConfirm, Avatar } from "@/shared/ui";
 
 import { pollMeta, pollView } from "../../lib/poll";
 import type { Attachment } from "../../model/attachment";
-import type { FeedMessage as Message } from "../../model/types";
 import { MessageLinks } from "../../model/message-links";
+import type { FeedMessage as Message } from "../../model/types";
 
 import styles from "./interactive.module.css";
 

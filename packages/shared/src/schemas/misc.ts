@@ -18,7 +18,7 @@ export const shortLinksCount = z.strictObject({ total: z.number().int(), thisMon
 /** GET /api/export — тот же построитель, что у юристов (data/dataExport.js), но про себя. */
 export const selfExportBody = z.strictObject({ data: selfUserExport });
 
-export const DOWNLOAD_IDS = ["windows", "android", "linux", "linux-deb", "macos-arm64"] as const;
+export const DOWNLOAD_IDS = ["windows", "android", "linux-deb", "macos-arm64"] as const;
 export const downloadArtifact = z.union([
   z.strictObject({ id: z.enum(DOWNLOAD_IDS), available: z.literal(false) }),
   z.strictObject({ id: z.enum(DOWNLOAD_IDS), available: z.literal(true), url: z.string(), size: z.number().int().positive(), updatedAt: isoDate }),
