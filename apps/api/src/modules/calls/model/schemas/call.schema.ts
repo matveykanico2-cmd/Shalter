@@ -22,6 +22,12 @@ export const createCallSchema = requestBody({
     .unknown()
     .optional()
     .transform((v) => !!v),
+  // Если личные звонки запрещены, клиент после подтверждения создаёт тихий
+  // звонок только для автора и отправляет адресату ссылку-приглашение.
+  inviteOnly: z
+    .unknown()
+    .optional()
+    .transform((v) => !!v),
 });
 export type CreateCallDto = z.infer<typeof createCallSchema>;
 

@@ -29,7 +29,7 @@ export const callQueries = {
 export const callApi = {
   list: () => http.get<{ calls: CallListItem[] }>("/api/calls"),
   /** ringAll — в группе звонят всем участникам. */
-  place: (chatId: string, kind: CallKind, ringAll: boolean) => http.post<CallBody>("/api/calls", { chatId, kind, ringAll }),
+  place: (chatId: string, kind: CallKind, ringAll: boolean, inviteOnly = false) => http.post<CallBody>("/api/calls", { chatId, kind, ringAll, inviteOnly }),
   answer: (callId: string) => http.post<unknown>(`/api/calls/${id(callId)}/answer`),
   patch: (callId: string, patch: { status: Call["status"]; durationSec?: number }) => http.patch<CallBody>(`/api/calls/${id(callId)}`, patch),
   leave: (callId: string) => http.post<unknown>(`/api/calls/${id(callId)}/leave`),

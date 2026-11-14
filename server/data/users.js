@@ -267,6 +267,21 @@ async function createGuestUser() {
   return getUser(id);
 }
 
+// Последняя завершённая продажа держит купленный юзернейм за покупателем даже
+// после временной смены ника. Иначе имя можно было бесплатно перехватить через
+// обычное редактирование профиля, обойдя маркет.
+function purchasedUsernameOwner(username) {
+  const normalized = String(username ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  return db.prepare(`
+    SELECT buyerId
+    FROM username_listings
+    WHERE status = 'sold' AND lower(username) = ? AND buyerId IS NOT NULL
+    ORDER BY soldAt DESC, createdAt DESC
+    LIMIT 1
+  `).get(normalized)?.buyerId ?? null;
+}
+
 const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "avatarEmoji", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor", "profileDefaultTab"];
 
 async function grantPremiumDays(userId, days) {
@@ -585,6 +600,7 @@ module.exports = {
   findUserByEmail,
   findUserByPhone,
   findUserByUsername,
+  purchasedUsernameOwner,
   findUserIdsByUsernames,
   findUserByReferralCode,
   generateReferralCode,

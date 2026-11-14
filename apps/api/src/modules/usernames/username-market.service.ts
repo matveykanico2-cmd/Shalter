@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { checkUsername } from "../../legacy/legacy.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import { normalizeUsername } from "../users/lib/username.js";
 import { StarsRepository } from "../users/stars.repository.js";
@@ -11,6 +12,14 @@ import { UsernameListingsRepository } from "./username-listings.repository.js";
 
 // Продажа своего ника за звёзды (/api/usernames/market) — как server/routes/usernames.js.
 const MIN_LISTING_STARS = 10;
+
+async function temporaryUsername(): Promise<string> {
+  for (let i = 0; i < 20; i += 1) {
+    const candidate = `user_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`.slice(0, 32);
+    if (!(await checkUsername(candidate))) return candidate;
+  }
+  throw new ApiError(503, "Не удалось подобрать временный юзернейм — попробуйте ещё раз");
+}
 
 @Injectable()
 export class UsernameMarketService {
@@ -63,6 +72,9 @@ export class UsernameMarketService {
       this.listings.close(listing.id, "withdrawn");
       throw new ApiError(410, "Продавец больше не владеет этим юзернеймом");
     }
+    // Подбираем замену до списания звёзд: после оплаты продавец не должен остаться
+    // без адреса даже при редкой коллизии генератора.
+    const replacement = await temporaryUsername();
     // Списание и закрытие объявления — без await между ними: иначе два одновременных
     // запроса получали юзернейм оба или бесплатно.
     if (!this.stars.spend(userId, listing.priceStars)) throw new ApiError(402, `Не хватает звёзд: нужно ${listing.priceStars} ⭐`);
@@ -73,12 +85,14 @@ export class UsernameMarketService {
     this.listings.close(listing.id, "sold", userId);
     this.stars.add(seller.id, listing.priceStars);
 
-    this.users.setUsername(seller.id, "");
-    const buyer = this.users.setUsername(userId, listing.username)!;
+    this.users.setUsername(seller.id, replacement);
+    // id продажи отмечает имя как коллекционное; сама запись продажи навсегда
+    // закрепляет его за текущим покупателем и закрывает обход через профиль.
+    const buyer = this.users.setUsername(userId, listing.username, listing.id)!;
 
     await tell(
       seller.id,
-      `💰 Ваш юзернейм @${listing.username} продан за ${listing.priceStars} ⭐.\n\nЗвёзды уже на балансе. Новый юзернейм можно занять в настройках профиля.`,
+      `💰 Ваш юзернейм @${listing.username} продан за ${listing.priceStars} ⭐.\n\nВам выдан временный @${replacement}. Измените его в Настройки → Профиль. Проданный юзернейм автоматически не возвращается.`,
       "username sale notice"
     );
     await tell(userId, `🎉 Юзернейм @${listing.username} теперь ваш — списано ${listing.priceStars} ⭐.`, "username sale notice");

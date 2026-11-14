@@ -510,8 +510,8 @@ async function resolveParticipants(call: Call, members: CallPeer[]) {
 const peerOf = (me: CallPeer): CallPeer => ({ id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage });
 
 /** Позвонить в чат; ringAll — в группе звонят всем. Возвращает id звонка для экрана /call/:id. */
-export async function placeCall(chatId: string, kind: CallKind, me: CallPeer, { ringAll = false } = {}) {
-  const { call } = await callApi.place(chatId, kind, ringAll);
+export async function placeCall(chatId: string, kind: CallKind, me: CallPeer, { ringAll = false, inviteOnly = false }: { ringAll?: boolean; inviteOnly?: boolean } = {}) {
+  const { call } = await callApi.place(chatId, kind, ringAll, inviteOnly);
   const { chat, members } = await callApi.chat(chatId);
   const participants = await resolveParticipants(call, members);
   await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me: peerOf(me) });

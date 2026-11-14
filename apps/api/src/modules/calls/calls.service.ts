@@ -63,7 +63,7 @@ export class CallsService {
     return { calls: resolved };
   }
 
-  public async create(uid: string, { chatId, kind, ringAll }: CreateCallDto) {
+  public async create(uid: string, { chatId, kind, ringAll, inviteOnly }: CreateCallDto) {
     const chat = chatId === undefined ? undefined : this.chats.findById(chatId);
     if (!chat || !chat.memberIds.includes(uid)) throw new ApiError(404, "not found");
     // Иначе «звонок» в канал обзванивал бы всех подписчиков разом.
@@ -79,12 +79,12 @@ export class CallsService {
     }
     if (chat.type !== "group") {
       const otherId = chat.memberIds.find((id) => id !== uid);
-      if (otherId && !(await this.notify.canCall(uid, otherId))) throw new ApiError(403, "Пользователь ограничил звонки");
+      if (otherId && !(await this.notify.canCall(uid, otherId)) && !inviteOnly) throw new ApiError(403, "Пользователь ограничил звонки");
       if (otherId) {
         const target = this.users.findById(otherId);
         // Бот не может взять трубку — звонок висел бы «вызовом» вечно.
         if (target?.isBot) throw new ApiError(400, "Боту позвонить нельзя");
-        const charge = await this.chargeForColdCall(uid, target);
+        const charge = inviteOnly ? ({ ok: true, charged: 0 } as const) : await this.chargeForColdCall(uid, target);
         if (!charge.ok) {
           throw new ApiError(402, `Этот пользователь берёт ${charge.price} ⭐ за звонок от незнакомых. Не хватает звёзд. С Premium звонить можно бесплатно`, {
             needStars: charge.price,
@@ -100,7 +100,7 @@ export class CallsService {
       kind,
       direction: "outgoing",
       callerId: uid,
-      participantIds: ringIds ?? (chat.type === "group" ? [uid] : chat.memberIds),
+      participantIds: ringIds ?? (chat.type === "group" || inviteOnly ? [uid] : chat.memberIds),
       status: "ongoing",
       startedAt: new Date().toISOString(),
       durationSec: 0,

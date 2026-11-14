@@ -1,5 +1,5 @@
 const { USERNAME_RE } = require("./validators");
-const { findUserByUsername } = require("../data/users");
+const { findUserByUsername, purchasedUsernameOwner } = require("../data/users");
 const { findChatByUsername } = require("../data/chats");
 const auctions = require("../data/usernameAuctions");
 
@@ -51,6 +51,10 @@ async function checkUsername(raw, { forUserId, forChatId, ignoreAuctions = false
   }
   if (existingChat && existingChat.id !== forChatId) {
     return { status: 409, error: "Этот юзернейм уже занят каналом" };
+  }
+  const purchasedOwner = purchasedUsernameOwner(username);
+  if (purchasedOwner && purchasedOwner !== forUserId) {
+    return { status: 409, error: "Купленный юзернейм закреплён за владельцем и может перейти только через продажу" };
   }
   // Свой текущий юзернейм (или юзернейм своего канала) оставить можно.
   const ownsIt = (existingUser && existingUser.id === forUserId) || (existingChat && existingChat.id === forChatId);
