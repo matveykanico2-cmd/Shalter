@@ -258,7 +258,7 @@ function CommunityProfileTab({ community, tab, onAddMembers, onManageAdmins }: {
   return (
     <section className={styles.profileTab} aria-label="Участники сообщества">
       <div className={styles.memberTools}>
-        {community.rights.ban ? <button type="button" className={styles.addMembers} onClick={onAddMembers}><Icon name="UserPlus" size={19} /> Добавить участников</button> : null}
+        {community.addMode === "all" || community.rights.ban ? <button type="button" className={styles.addMembers} onClick={onAddMembers}><Icon name="UserPlus" size={19} /> Добавить участников</button> : null}
         {community.rights.addAdmins ? <button type="button" className={styles.manageAdmins} onClick={onManageAdmins}><Icon name="Shield" size={17} /> Управление</button> : null}
       </div>
       <label className={styles.searchBox}>

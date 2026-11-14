@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, Icon, Menu } from "@/shared/ui";
+import { Button, Icon, Menu, openExternally } from "@/shared/ui";
 
 import { openBotApp, sendBotAppData } from "../api/bot-app";
 
@@ -99,7 +99,7 @@ export function MiniApp({ target, onClose }: { target: MiniAppTarget; onClose: (
         try {
           const u = new URL(String(link));
           if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("Только http(s)");
-          window.open(u.toString(), "_blank", "noreferrer");
+          openExternally(u.toString());
           reply(id, true, { ok: true });
         } catch (err) {
           reply(id, false, errorText(err, "Некорректная ссылка"));
@@ -203,7 +203,7 @@ export function MiniApp({ target, onClose }: { target: MiniAppTarget; onClose: (
                 setFrameKey((k) => k + 1);
               },
             },
-            { icon: "Globe", label: "Открыть в браузере", onClick: () => session && window.open(stripInitData(session.url), "_blank", "noreferrer") },
+            { icon: "Globe", label: "Открыть в браузере", onClick: () => session && openExternally(stripInitData(session.url)) },
           ]}
           onClose={() => setMenuAt(null)}
         />

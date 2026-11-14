@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { askText, Icon, Menu, toast } from "@/shared/ui";
+import { askText, Icon, Menu, openExternally, toast } from "@/shared/ui";
 
 import { chatAdsQueries, clickAd, reportAd, type ServedAd } from "../api/chat-ads";
 
@@ -22,7 +22,7 @@ export function SponsoredMessage({ chatId, premium }: { chatId: string; premium:
     await clickAd(a.id).catch(() => {});
     if (!a.url) return;
     if (a.url.startsWith("/")) void navigate(a.url);
-    else if (/^https?:\/\//i.test(a.url)) window.open(a.url, "_blank", "noreferrer");
+    else if (/^https?:\/\//i.test(a.url)) openExternally(a.url);
   };
 
   return (

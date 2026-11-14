@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { type NavigateFunction, useNavigate } from "react-router";
 
 import { startDownloadTracking } from "@/shared/lib/downloads";
-import { installNativeDownloads } from "@/shared/lib/native-download";
+import { installDesktopDownloadReuse, installNativeDownloads } from "@/shared/lib/native-download";
 import { startSystemBarsSync } from "@/shared/lib/system-bars";
-import { toast } from "@/shared/ui";
+import { openExternally, toast } from "@/shared/ui";
 
 type BridgeWindow = Window & {
   __shalterOpen?: (path: string) => void;
@@ -65,7 +65,7 @@ function interceptDesktopLinks() {
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
     e.preventDefault();
     if (url.origin === location.origin && desktop.openBrowser) void desktop.openBrowser(url.href);
-    else window.open(url.href, "_blank", "noopener");
+    else openExternally(url.href);
   };
   document.addEventListener("click", onClick);
   return () => document.removeEventListener("click", onClick);
@@ -83,6 +83,7 @@ export function useDeviceBridges() {
       startDownloadTracking(),
       startSystemBarsSync(),
       installNativeDownloads((text) => toast(text)),
+      installDesktopDownloadReuse((text) => toast(text)),
       listenServiceWorker(navigate),
       interceptDesktopLinks(),
     ];

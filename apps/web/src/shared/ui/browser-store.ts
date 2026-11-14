@@ -3,6 +3,7 @@
 import { embedUrlFor, hostOf, isEmbedPlayer, isNeverFrameable } from "../lib/link-safety";
 
 import { askConfirm } from "./ask-store";
+import { toast } from "./toast-store";
 
 export type BrowserPage = { id: number; kind: "browser" | "instant-view"; url: string; unsafe: boolean; warning: string | null };
 type Opts = { unsafe?: boolean; warning?: string | null };
@@ -14,6 +15,7 @@ const emit = () => listeners.forEach((fn) => fn());
 const show = (page: BrowserPage | null) => {
   current = page;
   emit();
+  if (page) toast("Ссылка открыта");
 };
 
 type NativeWindow = Window & {
@@ -37,6 +39,7 @@ function nativeBrowser(): ((url: string) => void) | null {
 
 export function openExternally(url: string) {
   const open = nativeBrowser();
+  toast("Ссылка открыта");
   if (open) return open(url);
   window.open(url, "_blank", "noopener,noreferrer");
 }
@@ -46,8 +49,16 @@ export function openInAppBrowser(url: string, { unsafe = false, warning = null }
   // Подозрительная ссылка — сначала предупреждение.
   const native = nativeBrowser();
   if (native && /^https?:/i.test(url)) {
-    if (!warning && !unsafe) return native(url);
-    void askConfirm(`${warning || "Ссылка может быть небезопасной."}\n\n${hostOf(url)}`, { okLabel: "Всё равно открыть", danger: unsafe }).then((ok) => ok && native(url));
+    if (!warning && !unsafe) {
+      toast("Ссылка открыта");
+      return native(url);
+    }
+    void askConfirm(`${warning || "Ссылка может быть небезопасной."}\n\n${hostOf(url)}`, { okLabel: "Всё равно открыть", danger: unsafe }).then((ok) => {
+      if (ok) {
+        toast("Ссылка открыта");
+        native(url);
+      }
+    });
     return;
   }
   const target = embedUrlFor(url);

@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { normalizePhone } from "../../common/lib/validators.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { checkUsername } from "../../legacy/legacy.js";
 import { publicUser } from "../users/lib/user.presenter.js";
@@ -6,7 +7,7 @@ import { normalizeUsername } from "../users/lib/username.js";
 import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { tell } from "./lib/tell.js";
-import type { ListingDto } from "./model/schemas/usernames.schema.js";
+import type { ListingDto, TransferListingDto } from "./model/schemas/usernames.schema.js";
 import { UsernameAuctionsRepository } from "./username-auctions.repository.js";
 import { UsernameListingsRepository } from "./username-listings.repository.js";
 
@@ -41,7 +42,7 @@ export class UsernameMarketService {
       }
       alive.push({ ...l, seller: publicUser(seller), mine: l.sellerId === userId });
     }
-    return { listings: alive, balance: this.stars.balanceOf(userId) };
+    return { listings: alive, owned: this.listings.listOwned(userId), balance: this.stars.balanceOf(userId) };
   }
 
   public create(userId: string, { priceStars }: ListingDto) {
@@ -98,5 +99,27 @@ export class UsernameMarketService {
     await tell(userId, `🎉 Юзернейм @${listing.username} теперь ваш — списано ${listing.priceStars} ⭐.`, "username sale notice");
 
     return { ok: true, username: listing.username, user: publicUser(buyer), balance: this.stars.balanceOf(userId) };
+  }
+
+  /** Бесплатная явная передача коллекционного имени — только его текущим владельцем. */
+  public async transfer(userId: string, id: string, { target }: TransferListingDto) {
+    const listing = this.listings.find(id);
+    if (!listing || listing.status !== "sold" || listing.buyerId !== userId) throw new ApiError(404, "Купленный юзернейм не найден");
+    const value = target.trim().replace(/^@/, "");
+    const recipient = this.users.findByUsername(value) ?? this.users.findByPhone(normalizePhone(target));
+    if (!recipient) throw new ApiError(404, "Получатель не найден");
+    if (recipient.id === userId) throw new ApiError(400, "Юзернейм уже принадлежит этому аккаунту");
+    if (recipient.isBot) throw new ApiError(400, "Передать юзернейм боту нельзя");
+
+    const owner = this.users.findById(userId);
+    if (owner?.username?.toLowerCase() === listing.username.toLowerCase()) {
+      this.users.setUsername(userId, await temporaryUsername());
+    }
+    const previous = recipient.username || "";
+    const updated = this.users.setUsername(recipient.id, listing.username, listing.id)!;
+    this.listings.transferBuyer(listing.id, recipient.id);
+    await tell(recipient.id, `🎁 Вам передали коллекционный юзернейм @${listing.username}. Прежний @${previous || "—"} освобождён.`, "username transfer notice");
+    await tell(userId, `✅ Вы передали @${listing.username} пользователю ${recipient.name}. Вернуть его можно только новой передачей владельца.`, "username transfer notice");
+    return { ok: true, username: listing.username, user: publicUser(updated) };
   }
 }

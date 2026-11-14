@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 
 import { clearDownloads, type Download, removeDownload, useDownloads } from "@/shared/lib/downloads";
+import { openSavedDownload } from "@/shared/lib/native-download";
 import { askConfirm, Icon, type IconName, MediaViewer, TextField } from "@/shared/ui";
 
 import { DownloadViewer } from "./download-viewer";
@@ -91,7 +92,11 @@ export function DownloadsDialog({ onClose }: { onClose: () => void }) {
           {items.length ? (
             items.map((d) => (
               <div key={d.url} className={styles.row}>
-                <button type="button" className={styles.rowMain} onClick={() => setOpen(d)}>
+                <button
+                  type="button"
+                  className={styles.rowMain}
+                  onClick={() => void (d.localUri ? openSavedDownload(d).then((opened) => !opened && setOpen(d)) : setOpen(d))}
+                >
                   {d.kind === "image" ? (
                     <span className={styles.thumb} style={{ backgroundImage: `url("${d.url}")` }} />
                   ) : (
@@ -101,7 +106,7 @@ export function DownloadsDialog({ onClose }: { onClose: () => void }) {
                   )}
                   <span className={styles.info}>
                     <span className={styles.name}>{d.name}</span>
-                    <span className={styles.meta}>{[sizeText(d.size), when(d.at)].filter(Boolean).join(" · ")}</span>
+                    <span className={styles.meta}>{[sizeText(d.size), d.savedPath ? "сохранён" : "", when(d.at)].filter(Boolean).join(" · ")}</span>
                   </span>
                 </button>
                 {d.chatPath?.startsWith("/chat/") && (

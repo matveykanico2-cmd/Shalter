@@ -20,6 +20,7 @@ export const usernamesQueries = {
 export const sellUsername = (priceStars: number) => http.post("/api/usernames/market", { priceStars });
 export const withdrawListing = (listingId: string) => http.delete(`/api/usernames/market/${id(listingId)}`);
 export const buyUsername = (listingId: string) => http.post(`/api/usernames/market/${id(listingId)}/buy`, {});
+export const transferUsername = (listingId: string, target: string) => http.post(`/api/usernames/market/${id(listingId)}/transfer`, { target });
 export const createAuction = (username: string, startPriceStars: number, hours: number) => http.post("/api/usernames", { username, startPriceStars, hours });
 export const bidUsername = (auctionId: string, stars: number) => http.post(`/api/usernames/${id(auctionId)}/bid`, { stars });
 export const closeAuction = (auctionId: string) => http.post(`/api/usernames/${id(auctionId)}/close`);

@@ -1571,3 +1571,27 @@ npm run build:api
 npm run build:web
 npm run test:e2e -- new-device-alert.spec.ts --workers=1
 ```
+
+## Native minimum version and AI presentations (2026-11-14)
+
+Deploy API and web together and run `npm ci`: Shalter AI now uses `pptxgenjs` to create
+real `.pptx` attachments. The minimum supported shell version is optional and is configured
+only in the deployment environment (never commit secrets or production overrides):
+
+```bash
+# One value for every native shell:
+NATIVE_MIN_SUPPORTED_VERSION=1.0.1
+# Optional platform overrides:
+NATIVE_MIN_VERSION_ANDROID=1.0.1
+NATIVE_MIN_VERSION_WINDOWS=1.0.1
+NATIVE_MIN_VERSION_LINUX_DEB=1.0.1
+NATIVE_MIN_VERSION_MACOS_ARM64=1.0.1
+
+npm ci
+npm run build:api
+npm run build:web
+```
+
+Set a minimum only after the corresponding signed installer is available from
+`GET /api/downloads/latest`; otherwise leave it unset so an old client is not sent to a
+missing package. Back up `data/` before the normal service update.

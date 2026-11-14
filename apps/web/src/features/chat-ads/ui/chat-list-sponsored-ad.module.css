@@ -1,3 +1,7 @@
+.wrap {
+  position: relative;
+}
+
 .ad {
   display: flex;
   width: 100%;
@@ -12,6 +16,23 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.dismiss {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  color: var(--color-muted);
+  cursor: pointer;
+  place-items: center;
 }
 
 .ad:hover {

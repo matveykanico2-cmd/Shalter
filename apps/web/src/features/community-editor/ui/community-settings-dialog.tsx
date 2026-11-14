@@ -125,8 +125,8 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
       </label>
       {rights.editChats ? (
         <>
-          <p className={styles.sectionName}>Кто может добавлять чаты</p>
-          <RadioRows label="Кто может добавлять чаты" options={ADD_MODES} value={addMode} onChange={setAddMode} />
+          <p className={styles.sectionName}>Кто может добавлять чаты и участников</p>
+          <RadioRows label="Кто может добавлять чаты и участников" options={ADD_MODES} value={addMode} onChange={setAddMode} />
         </>
       ) : null}
       <div>

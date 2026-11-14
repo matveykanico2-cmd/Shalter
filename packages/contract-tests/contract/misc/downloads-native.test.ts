@@ -9,7 +9,7 @@ import { useServer } from "../../support/use-server";
 import { useEgressProxy } from "../integrations/stubs";
 
 const egress = useEgressProxy();
-const server = useServer({ env: Object.assign(egress.env, { NATIVE_LATEST_VERSION: "9.9.9", IOS_APP_URL: "https://apps.example/shalter" }) });
+const server = useServer({ env: Object.assign(egress.env, { NATIVE_LATEST_VERSION: "9.9.9", NATIVE_MIN_SUPPORTED_VERSION: "1.2.0", IOS_APP_URL: "https://apps.example/shalter" }) });
 
 async function latest(platform?: string) {
   return expectOk(await new Api(server().baseUrl).get("/api/downloads/latest", { query: { platform } }), latestBody);
@@ -17,24 +17,27 @@ async function latest(platform?: string) {
 
 describe("GET /api/downloads/latest (NATIVE_LATEST_VERSION)", () => {
   test("iOS — ссылка из IOS_APP_URL", async () => {
-    expect(await latest("ios")).toEqual({ version: "9.9.9", url: "https://apps.example/shalter", page: "/download" });
+    expect(await latest("ios")).toEqual({ version: "9.9.9", minimumVersion: "1.2.0", url: "https://apps.example/shalter", page: "/download" });
   });
 
   test("десктоп без сборки (ни локально, ни в релизе) — обновление не предлагается", async () => {
     for (const platform of ["windows", "linux-deb", "macos-arm64"]) {
-      expect(await latest(platform), platform).toEqual({ version: null });
+      expect(await latest(platform), platform).toEqual({ version: null, minimumVersion: "1.2.0" });
     }
   });
 
   test("неизвестная или пустая платформа — версия без ссылки", async () => {
-    expect(await latest("nope")).toEqual({ version: "9.9.9", url: null, page: "/download" });
-    expect(await latest()).toEqual({ version: "9.9.9", url: null, page: "/download" });
+    expect(await latest("nope")).toEqual({ version: "9.9.9", minimumVersion: "1.2.0", url: null, page: "/download" });
+    expect(await latest()).toEqual({ version: "9.9.9", minimumVersion: "1.2.0", url: null, page: "/download" });
   });
 
   test("android: локальный APK, если он подписан не отладочным ключом", async () => {
     // Зависит от того, чем подписан public/downloads/Shalter.apk: отладочный APK
     // поверх release-версии не встанет, и тогда обновление не предлагается.
     const body = await latest("android");
-    expect([{ version: null }, { version: "9.9.9", url: "/downloads/Shalter.apk", page: "/download" }]).toContainEqual(body);
+    expect([
+      { version: null, minimumVersion: "1.2.0" },
+      { version: "9.9.9", minimumVersion: "1.2.0", url: "/downloads/Shalter.apk", page: "/download" },
+    ]).toContainEqual(body);
   });
 });

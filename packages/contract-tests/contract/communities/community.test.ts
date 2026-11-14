@@ -643,7 +643,10 @@ describe("POST /:id/members", () => {
     const community = await createCommunity(owner, { chatId: group.id });
     expectOk(await owner.api.post(`/api/communities/${community.id}/chats`, { chatId: channel.id }), communityBody);
 
-    expectError(await member.api.post(`/api/communities/${community.id}/members`, { userIds: [first.id] }), 403, NO_RIGHTS);
+    // addMode=all: любой участник может пригласить; admins — только администрация.
+    expectOk(await member.api.post(`/api/communities/${community.id}/members`, { userIds: [first.id] }), communityBody);
+    expectOk(await owner.api.patch(`/api/communities/${community.id}`, { addMode: "admins" }), communityBody);
+    expectError(await member.api.post(`/api/communities/${community.id}/members`, { userIds: [second.id] }), 403, "Добавлять участников могут только администраторы");
     expectError(await owner.api.post(`/api/communities/${community.id}/members`, { userIds: [] }), 400, "Выберите участников");
     expectError(await owner.api.post(`/api/communities/${community.id}/members`, { userIds: ["u_missing00000"] }), 404, "Пользователь не найден");
 

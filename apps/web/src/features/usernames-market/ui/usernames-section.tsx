@@ -5,7 +5,7 @@ import { sessionQueries } from "@/entities/session";
 import { starsQueries } from "@/entities/stars";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, Button, EmojiText, SettingsPage, TextField } from "@/shared/ui";
+import { askConfirm, askText, Button, EmojiText, SettingsPage, TextField } from "@/shared/ui";
 
 import {
   type Auction,
@@ -17,6 +17,7 @@ import {
   deleteAuction,
   grantUsername,
   sellUsername,
+  transferUsername,
   usernamesQueries,
   withdrawListing,
 } from "../api/usernames";
@@ -87,6 +88,7 @@ export function UsernamesSection() {
     );
   }
   const listings = market.data?.listings ?? [];
+  const owned = market.data?.owned ?? [];
   const balance = market.data?.balance ?? 0;
   const open = data.auctions.filter((a) => a.status === "open");
   const done = data.auctions.filter((a) => a.status !== "open");
@@ -136,6 +138,30 @@ export function UsernamesSection() {
           </Button>
         </div>
       </Block>
+
+      {owned.length ? (
+        <Block title="Передать купленный юзернейм">
+          <p className={styles.hint}>Купленные имена защищены от перехвата. Их можно передать другому своему аккаунту или другу по @юзернейму либо номеру.</p>
+          {owned.map((item) => (
+            <div key={item.id} className={styles.card}>
+              <span className={styles.name}>@{item.username}</span>
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void askText("Кому передать юзернейм?", { placeholder: "@username или +7…", okLabel: "Продолжить" }).then(async (target) => {
+                    if (!target) return;
+                    if (!(await askConfirm(`Передать @${item.username} пользователю ${target}?`, { okLabel: "Передать" }))) return;
+                    await act(() => transferUsername(item.id, target), "Юзернейм передан");
+                  })
+                }
+              >
+                Передать владельцу
+              </Button>
+            </div>
+          ))}
+        </Block>
+      ) : null}
 
       {data.isAdmin ? (
         <Block title="Выставить юзернейм">

@@ -278,7 +278,9 @@ function CampaignForm({ campaign: c, placements: labels, cpmMin, busy, onSubmit,
       </div>
       <p className={styles.label}>Цена за 1000 показов, звёзд</p>
       <input className={`${styles.input} ${styles.mono}`} type="number" min={5} value={cpm} onChange={(e) => setCpm(e.target.value)} />
-      <p className={styles.hint}>Чем больше цена, тем чаще объявление попадает в показ. Минимум — {cpmMin} звёзд за тысячу.</p>
+      <p className={styles.hint}>
+        Чем больше цена, тем чаще объявление попадает в показ. Минимум — {cpmMin} звёзд за тысячу. Выбрано мест: {placements.length}; показы и расход идут в каждом из них, поэтому общий расход растёт вместе с охватом.
+      </p>
       <div className={styles.actions}>
         <Button disabled={busy} onClick={() => onSubmit({ title, text, url, placements, cpmStars: Number(cpm) })}>
           {c ? "Сохранить" : "Создать и отправить на проверку"}

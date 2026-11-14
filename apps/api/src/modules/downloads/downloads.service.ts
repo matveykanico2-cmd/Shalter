@@ -23,6 +23,11 @@ const UPDATE_FILES: Record<string, string> = {
   "macos-arm64": "Shalter-macOS-arm64.zip",
 };
 
+function minimumVersion(platform: string): string | null {
+  const key = `NATIVE_MIN_VERSION_${platform.replace(/-/g, "_").toUpperCase()}`;
+  return process.env[key]?.trim() || process.env.NATIVE_MIN_SUPPORTED_VERSION?.trim() || null;
+}
+
 function localArtifact(file: string): ReleaseAsset | null {
   try {
     const stat = fs.statSync(path.join(DOWNLOAD_DIR, file));
@@ -83,16 +88,17 @@ export class DownloadsService {
    */
   public async latest(platformParam: unknown) {
     const platform = String(platformParam ?? "");
+    const minimum = minimumVersion(platform);
     // Своя сборка с известной версией — обновляемся с нашего сервера (быстрее GitHub).
     const versions = localVersions();
     const own = versions[platform];
     const ownFile = UPDATE_FILES[platform] && localArtifact(UPDATE_FILES[platform]);
     if (own && ownFile && !(platform === "android" && isDebugApk(UPDATE_FILES[platform]!))) {
-      return { version: own, url: ownFile.url, size: ownFile.size, page: "/download" };
+      return { version: own, minimumVersion: minimum, url: ownFile.url, size: ownFile.size, page: "/download" };
     }
     const release = await this.release.latestAssets();
     const version = process.env.NATIVE_LATEST_VERSION || this.release.version;
-    if (!version) return { version: null };
+    if (!version) return { version: null, minimumVersion: minimum };
     let url: string | null = null;
     if (platform === "ios") {
       url = process.env.IOS_APP_URL || null;
@@ -102,8 +108,8 @@ export class DownloadsService {
       url = release.get(file)?.url ?? localUrl ?? null;
       // Нет подписанной сборки для обновления — не предлагаем: отладочный APK поверх
       // release-версии не встанет («конфликт пакетов»).
-      if (!url) return { version: null };
+      if (!url) return { version: null, minimumVersion: minimum };
     }
-    return { version, url, page: "/download" };
+    return { version, minimumVersion: minimum, url, page: "/download" };
   }
 }

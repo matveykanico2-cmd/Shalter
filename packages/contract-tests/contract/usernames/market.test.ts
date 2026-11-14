@@ -26,15 +26,6 @@ async function market(user: TestUser) {
   return expectOk(await user.api.get("/api/usernames/market"), marketBody);
 }
 
-/** Пользователь без юзернейма: продал свой на рынке. */
-async function userWithoutUsername(): Promise<TestUser> {
-  const [seller, buyer] = await registerUsers(server().baseUrl, 2);
-  await grantStars(await admin(), buyer, 10);
-  const listing = await sell(seller, 10);
-  expectOk(await buyer.api.post(`/api/usernames/market/${listing.id}/buy`), marketBuyBody);
-  return seller;
-}
-
 describe("POST /api/usernames/market — выставить свой юзернейм", () => {
   test("цена — от 10 ⭐ (округляется до целого)", async () => {
     const user = await registerUser(server().baseUrl);
@@ -58,12 +49,6 @@ describe("POST /api/usernames/market — выставить свой юзерн�
     const user = await registerUser(server().baseUrl);
     await sell(user, 100);
     expectError(await user.api.post("/api/usernames/market", { priceStars: 50 }), 409, "Этот юзернейм уже выставлен");
-  });
-
-  test("без юзернейма — 400", async () => {
-    const user = await userWithoutUsername();
-    expect((await sessionUser(user)).username).toBe("");
-    expectError(await user.api.post("/api/usernames/market", { priceStars: 50 }), 400, "Сначала займите юзернейм — продавать нечего");
   });
 
   test("юзернейм, выданный администрацией с открытого аукциона, продать можно — аукцион отменён", async () => {
@@ -167,7 +152,7 @@ describe("POST /api/usernames/market/:id/buy", () => {
 
     await sellerWs.waitFor(
       "message:new",
-      newMessageFrom(SYSTEM_BOT_ID, `💰 Ваш юзернейм @${name} продан за 75 ⭐.\n\nЗвёзды уже на балансе. Новый юзернейм можно занять в настройках профиля.`),
+      (e) => e.message?.senderId === SYSTEM_BOT_ID && e.message?.text?.includes(`Ваш юзернейм @${name} продан за 75 ⭐`) && e.message.text.includes("Вам выдан временный @user_"),
       WAIT
     );
     await buyerWs.waitFor("message:new", newMessageFrom(SYSTEM_BOT_ID, `🎉 Юзернейм @${name} теперь ваш — списано 75 ⭐.`), WAIT);
@@ -175,10 +160,10 @@ describe("POST /api/usernames/market/:id/buy", () => {
 
     expect(await starsBalance(seller)).toBe(75);
     expect(await starsBalance(buyer)).toBe(45);
-    expect((await sessionUser(seller)).username).toBe("");
+    expect((await sessionUser(seller)).username).toMatch(/^user_/);
     const buyerSelf = await sessionUser(buyer);
     expect(buyerSelf.username).toBe(name);
-    expect(buyerSelf).not.toHaveProperty("isCollectibleUsername");
+    expect(buyerSelf.isCollectibleUsername).toBe(true);
     expect((await outsider.api.get(`/api/users/by-username/${name}`)).body.user.id).toBe(buyer.id);
     // Старый юзернейм покупателя освободился.
     await renameTo(outsider, buyer.username);
@@ -186,6 +171,18 @@ describe("POST /api/usernames/market/:id/buy", () => {
     expect((await market(outsider)).listings.some((l) => l.id === listing.id)).toBe(false);
     expectError(await outsider.api.post(`/api/usernames/market/${listing.id}/buy`), 404, "Объявление не найдено");
     expectError(await seller.api.delete(`/api/usernames/market/${listing.id}`), 404, "Объявление не найдено");
+
+    // После смены имя нельзя перехватить обычным профилем, но владелец может явно
+    // передать его другу без повторной покупки.
+    await renameTo(buyer, freeName());
+    expectError(
+      await outsider.api.patch(`/api/users/${outsider.id}`, { username: name }),
+      409,
+      "Купленный юзернейм закреплён за владельцем и может перейти только через продажу"
+    );
+    const transferred = await buyer.api.post(`/api/usernames/market/${listing.id}/transfer`, { target: `@${buyer.username}` });
+    expect(transferred.status, transferred.text).toBe(200);
+    expect((await sessionUser(outsider)).username).toBe(name);
   });
 
   test("объявление покупателя на его старый юзернейм после покупки снимается само", async () => {

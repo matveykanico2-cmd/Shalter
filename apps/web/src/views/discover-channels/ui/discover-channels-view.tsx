@@ -6,7 +6,7 @@ import { chatQueries } from "@/entities/chat";
 
 import { errorText } from "@/shared/lib/error-text";
 import { plural } from "@/shared/lib/presence";
-import { askConfirm, Avatar, Button, Icon, TextField, toast } from "@/shared/ui";
+import { askConfirm, Avatar, Button, Icon, openExternally, TextField, toast } from "@/shared/ui";
 
 import { clickAd, type DiscoverAd, discoverQueries, type FoundChannel, leaveChat, subscribeChannel } from "../api/discover";
 
@@ -116,7 +116,7 @@ function AdCard({ ad }: { ad: DiscoverAd }) {
     const url = ad.url;
     if (!url) return;
     if (url.startsWith("/")) void navigate(url);
-    else if (/^https?:\/\//i.test(url)) window.open(url, "_blank", "noreferrer");
+    else if (/^https?:\/\//i.test(url)) openExternally(url);
   };
   return (
     <button type="button" className={styles.ad} onClick={() => void open()}>

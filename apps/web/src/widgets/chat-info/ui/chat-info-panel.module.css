@@ -79,6 +79,17 @@
   text-align: center;
 }
 
+.savedHero {
+  display: grid;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 68%, #7b61ff));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: var(--color-accent-contrast);
+  place-items: center;
+}
+
 .card {
   padding: 8px;
 }

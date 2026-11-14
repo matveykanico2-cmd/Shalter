@@ -124,21 +124,24 @@ export class CommunityAccessService {
   }
 
   /** Оповестить о новых участниках: им — чат целиком, в группе — остальным обновлённый состав. */
-  private announceAdded(chat: Chat, added: string[]): void {
+  private announceAdded(chat: Chat, added: string[], actorId?: string): void {
     if (!added.length) return;
     const updated = this.chats.findById(chat.id)!;
     this.realtime.broadcastToUsers(added, { type: "chat:added", chat: updated });
     // Подписчикам канала состав не нужен — не рассылаем им его (у большого канала это тяжело).
     if (chat.type === "group") this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    const actor = actorId ? this.users.findById(actorId)?.name : null;
+    const names = added.map((id) => this.users.findById(id)?.name).filter(Boolean).join(", ");
+    if (names) void this.announce(updated, actor && actorId !== added[0] ? `${actor} добавил(а) в сообщество: ${names}` : `${names} вступил(а) в сообщество`);
   }
 
   /** Вступил сам (POST /join) — сразу во всех чатах сообщества. */
-  public addToChats(community: Community, uid: string): void {
+  public addToChats(community: Community, uid: string, actorId?: string): void {
     const at = new Date().toISOString();
     for (const id of community.chatIds) {
       const chat = this.chats.findById(id);
       if (!chat || !this.opensItself(community, chat)) continue;
-      if (this.autoAdd(community, chat, uid, at)) this.announceAdded(chat, [uid]);
+      if (this.autoAdd(community, chat, uid, at)) this.announceAdded(chat, [uid], actorId);
     }
   }
 

@@ -59,9 +59,13 @@ export function AddCommunityMembersDialog({ community, meId, onChanged, onClose 
   const members = useQuery({ queryKey: peopleKey(community.id, "members"), queryFn: () => communityApi.members(community.id).then((r) => r.users), staleTime: 0 });
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
   const contacts = useQuery(userQueries.contacts());
   const memberIds = new Set((members.data ?? []).map((user) => user.id));
-  const available = (contacts.data ?? []).filter((user) => user.id !== meId && !memberIds.has(user.id));
+  const q = query.trim().toLowerCase();
+  const available = (contacts.data ?? []).filter(
+    (user) => user.id !== meId && !memberIds.has(user.id) && (!q || `${user.name} ${user.username ?? ""} ${user.phone ?? ""}`.toLowerCase().includes(q))
+  );
 
   const reload = () => {
     void client.invalidateQueries({ queryKey: peopleKey(community.id, "members") });
@@ -94,6 +98,7 @@ export function AddCommunityMembersDialog({ community, meId, onChanged, onClose 
     <Dialog title="Добавить участников" onClose={onClose}>
       <div className={styles.list}>
         <p className={styles.caption}>Выбранные люди сразу вступят в сообщество и во все его группы и каналы.</p>
+        <TextField value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Имя, @юзернейм или номер" aria-label="Поиск людей" />
         {contacts.isPending || members.isPending ? <Empty>Загружаем контакты…</Empty> : available.length ? (
           <div className={styles.contactPicker}>
             <button type="button" className={styles.selectAll} onClick={() => setSelected(selected.size === available.length ? new Set() : new Set(available.map((user) => user.id)))}>

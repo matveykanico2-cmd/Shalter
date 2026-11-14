@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { clearDownloads } from "./downloads";
 import { installNativeDownloads } from "./native-download";
 
 type CapWindow = Window & { Capacitor?: unknown };
@@ -8,6 +9,8 @@ afterEach(() => {
   delete (window as CapWindow).Capacitor;
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
+  localStorage.clear();
+  clearDownloads();
 });
 
 function setup(platform: "ios" | "android") {
@@ -27,7 +30,7 @@ function setup(platform: "ios" | "android") {
 describe("скачивание в приложении", () => {
   it("Android: в «Документы/Shalter»", async () => {
     const { fs, share, notify, off } = setup("android");
-    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("Сохранено: Документы/Shalter/a.txt"));
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("Файл сохранён: Документы/Shalter/a.txt. Откройте его в «Загрузках»"));
     expect(fs.writeFile).toHaveBeenCalledWith(expect.objectContaining({ path: "Shalter/a.txt", directory: "DOCUMENTS" }));
     expect(share.share).not.toHaveBeenCalled();
     off();

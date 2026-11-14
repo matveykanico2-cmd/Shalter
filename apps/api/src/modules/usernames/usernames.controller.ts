@@ -11,6 +11,8 @@ import {
   type CreateAuctionDto,
   type GrantDto,
   type ListingDto,
+  transferListingSchema,
+  type TransferListingDto,
 } from "./model/schemas/usernames.schema.js";
 import { UsernameAuctionsService } from "./username-auctions.service.js";
 import { UsernameMarketService } from "./username-market.service.js";
@@ -41,6 +43,16 @@ export class UsernameMarketController {
   @HttpCode(200)
   public buy(@Req() req: Request, @Param("id") id: string) {
     return this.market.buy(req.uid!, id);
+  }
+
+  @Post(":id/transfer")
+  @HttpCode(200)
+  public transfer(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(transferListingSchema)) dto: TransferListingDto
+  ) {
+    return this.market.transfer(req.uid!, id, dto);
   }
 }
 

@@ -34,4 +34,5 @@ export const USERNAME_ROUTES = [
   ["POST", "/api/usernames/market"],
   ["DELETE", "/api/usernames/market/ul_x"],
   ["POST", "/api/usernames/market/ul_x/buy"],
+  ["POST", "/api/usernames/market/ul_x/transfer"],
 ] as const;

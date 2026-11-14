@@ -262,7 +262,10 @@ export class CommunitiesService {
 
   /** Добавить людей сразу в сообщество и во все его группы/каналы. */
   public addMembers(uid: string, id: string, dto: AddMembersDto) {
-    const community = this.access.load(id, uid, "ban");
+    const community = this.access.load(id, uid, "member");
+    if (community.addMode !== "all" && !this.access.rightsOf(community, uid).ban) {
+      throw new ApiError(403, "Добавлять участников могут только администраторы");
+    }
     const targets = dto.userIds.filter((userId) => userId !== uid);
     for (const userId of targets) {
       if (!this.access.userCard(userId)) throw new ApiError(404, "Пользователь не найден");
@@ -271,7 +274,7 @@ export class CommunitiesService {
     for (const userId of targets) {
       this.communities.join(community.id, userId);
       // Повторное добавление чинит недостающее членство в отдельных чатах.
-      this.access.addToChats(this.access.reload(community.id), userId);
+      this.access.addToChats(this.access.reload(community.id), userId, uid);
     }
     if (targets.length) this.access.notify(community.id, targets);
     return { community: this.access.view(this.access.reload(community.id), uid) };

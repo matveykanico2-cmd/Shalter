@@ -70,6 +70,7 @@ const SYSTEM_PROMPT =
   "Картинки рисует сам бот: если пользователь просит нарисовать — это уже сделано отдельно, не пиши, что не умеешь рисовать. " +
   "Видео тебе приходит набором кадров по порядку — описывай его как ролик. " +
   "Пользователь может писать с опечатками, без знаков препинания или в неправильной раскладке — понимай смысл и не придирайся к ошибкам. " +
+  "Сложные задания сначала разбирай на части, проверяй расчёты и полноту результата; неизвестные факты не выдумывай, а явно отмечай неопределённость. " +
   "Если просят «продолжи», «дальше», «ещё» — продолжай свой прошлый ответ ровно с того места, где остановился, без повторов и вступлений.";
 
 const TEXT_EXT = new Set([
@@ -818,7 +819,74 @@ async function storeTextFile(name, ext, content) {
 // Отправить файл в чат: подпись — короткая, текст ответа целиком уже в файле.
 async function sendFileReply(chat, file, caption) {
   const attachment = await storeTextFile(file.name, file.ext, file.content);
-  return sendMessageAndBroadcast(chat, SHALTER_AI_ID, caption || `📄 ${file.name}`, { attachments: [attachment] });
+  return sendMessageAndBroadcast(chat, SHALTER_AI_ID, caption || `📎 ${file.name} готов и прикреплён — его можно скачать или посмотреть в Shalter.`, { attachments: [attachment] });
+}
+
+// ---------- презентации ----------
+
+const PRESENTATION_RE = /(?:создай|сделай|собери|подготовь|сгенерируй|оформи|create|make|prepare)[^.!?\n]{0,80}(?:презентац|слайд|powerpoint|pptx)|(?:презентац|powerpoint|pptx)[^.!?\n]{0,50}(?:создай|сделай|подготовь|create|make)/i;
+const presentationInstruction =
+  "Пользователь просит готовую презентацию. Верни только JSON в блоке ```json: " +
+  '{"title":"Название","subtitle":"Кратко","slides":[{"title":"Заголовок","bullets":["Тезис 1","Тезис 2"],"notes":"Необязательная заметка"}]}. ' +
+  "Сделай 5–12 содержательных слайдов, короткие тезисы без markdown; первый слайд тоже включи в slides.";
+
+function parsePresentationReply(text) {
+  const raw = String(text ?? "");
+  const json = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? raw;
+  try {
+    const data = JSON.parse(json.trim());
+    const slides = Array.isArray(data.slides)
+      ? data.slides.slice(0, 20).map((s) => ({
+          title: String(s?.title ?? "Слайд").slice(0, 120),
+          bullets: (Array.isArray(s?.bullets) ? s.bullets : []).slice(0, 8).map((b) => String(b).slice(0, 300)),
+          notes: String(s?.notes ?? "").slice(0, 1000),
+        }))
+      : [];
+    return slides.length ? { title: String(data.title ?? slides[0].title).slice(0, 120), subtitle: String(data.subtitle ?? "").slice(0, 240), slides } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendPresentationReply(chat, spec) {
+  const PptxGenJS = require("pptxgenjs");
+  const pptx = new PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = "Shalter AI";
+  pptx.subject = spec.title;
+  pptx.title = spec.title;
+  pptx.company = "Shalter";
+  pptx.lang = "ru-RU";
+  pptx.theme = {
+    headFontFace: "Arial",
+    bodyFontFace: "Arial",
+    lang: "ru-RU",
+  };
+  for (const [index, item] of spec.slides.entries()) {
+    const slide = pptx.addSlide();
+    slide.background = { color: index === 0 ? "ECF5FF" : "F7F9FC" };
+    slide.addShape(pptx.ShapeType.roundRect, { x: 0.55, y: 0.5, w: 12.2, h: 6.45, rectRadius: 0.12, fill: { color: "FFFFFF", transparency: 4 }, line: { color: "DCE8F5" }, shadow: { type: "outer", color: "A6B7C8", opacity: 0.16, blur: 2, angle: 45, distance: 1 } });
+    slide.addText(item.title || spec.title, { x: 0.95, y: 0.85, w: 11.4, h: 0.7, fontFace: "Arial", fontSize: index === 0 ? 30 : 25, bold: true, color: "17212B", margin: 0 });
+    if (index === 0 && spec.subtitle) slide.addText(spec.subtitle, { x: 0.95, y: 1.75, w: 10.8, h: 0.8, fontSize: 17, color: "5B7083", breakLine: false, margin: 0 });
+    const bullets = item.bullets.length ? item.bullets : [item.notes || "Подготовлено Shalter AI"];
+    slide.addText(
+      bullets.map((text) => ({ text, options: { bullet: { indent: 18 }, hanging: 4, breakLine: true } })),
+      { x: 1.05, y: index === 0 ? 2.75 : 1.8, w: 10.9, h: index === 0 ? 3.3 : 4.5, fontSize: 18, color: "263849", breakLine: false, margin: 0.08, paraSpaceAfterPt: 13, valign: "top", fit: "shrink" }
+    );
+    slide.addText(`${index + 1} / ${spec.slides.length}`, { x: 11.2, y: 6.55, w: 1.05, h: 0.2, fontSize: 9, color: "8AA0B5", align: "right", margin: 0 });
+    if (item.notes) slide.addNotes(item.notes);
+  }
+  const tmp = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.pptx`);
+  try {
+    await pptx.writeFile({ fileName: tmp });
+    const stat = await fs.promises.stat(tmp);
+    const url = await storeGeneratedFile(tmp);
+    return sendMessageAndBroadcast(chat, SHALTER_AI_ID, `📊 Презентация «${spec.title}» готова и прикреплена — её можно скачать или открыть в Shalter.`, {
+      attachments: [{ kind: "file", url, name: `${safeOutName(spec.title, "pptx")}`, mimeType: DOC_MIME.pptx, size: stat.size }],
+    });
+  } finally {
+    fs.promises.unlink(tmp).catch(() => {});
+  }
 }
 
 // ---------- вложения ----------
@@ -1581,8 +1649,8 @@ function stopShalterAi(chatId, userId) {
   return true;
 }
 
-async function replyOnce(chat, userId, { wantFile = null } = {}) {
-  const stop = startAction(chat, userId, wantFile ? "upload_document" : "typing");
+async function replyOnce(chat, userId, { wantFile = null, wantPresentation = false } = {}) {
+  const stop = startAction(chat, userId, wantFile || wantPresentation ? "upload_document" : "typing");
   let text;
   let notes;
   // Ответ печатается по мере генерации: первое сообщение появляется через пару
@@ -1622,7 +1690,7 @@ async function replyOnce(chat, userId, { wantFile = null } = {}) {
     const hasContent = loaded.turns.at(-1)?.role === "user";
     lastUserText = hasContent ? String(loaded.turns.at(-1).content ?? "").split("\n")[0].slice(0, 500) : "";
     // Файлом: ответ не печатаем по ходу — в чат уходит файл, а не его содержимое.
-    text = hasContent ? await generate(loaded.turns, { onDelta: wantFile ? undefined : onDelta }) : null;
+    text = hasContent ? await generate(loaded.turns, { onDelta: wantFile || wantPresentation ? undefined : onDelta }) : null;
   } finally {
     stop();
     clearTimeout(flushTimer);
@@ -1671,6 +1739,18 @@ async function replyOnce(chat, userId, { wantFile = null } = {}) {
       if (err.tooLarge) extra.push("Файл получился больше 1 МБ — присылаю текстом.");
     }
   }
+  if (wantPresentation && text && !live) {
+    const presentation = parsePresentationReply(text);
+    if (presentation) {
+      try {
+        await sendPresentationReply(chat, presentation);
+        return;
+      } catch (err) {
+        console.warn("shalter ai: presentation failed:", err.message);
+        extra.push("Не удалось собрать .pptx — присылаю содержание сообщением.");
+      }
+    }
+  }
   const parts = splitReply([extra.join("\n\n"), text].filter(Boolean).join("\n\n"));
   let rest = parts;
   if (live) {
@@ -1698,6 +1778,7 @@ const WELCOME =
   "• Рисую картинки: просто напишите «нарисуй …»\n" +
   "• Смотрю видео — пришлите ролик и спросите, что в нём\n" +
   "• Присылаю ответ файлом — напишите, например, «пришли в .txt» или «сделай csv-файл»\n" +
+  "• Создаю готовые презентации .pptx — напишите тему и желаемое число слайдов\n" +
   "• Длинный ответ оборвался? Напишите «продолжи»\n\n" +
   "/new — начать разговор заново.\n" +
   "/settings — режим, длина ответов, тон и тариф.";
@@ -1747,7 +1828,8 @@ async function dispatchShalterAi(chatId, message) {
     if (/^\/new\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Начинаем заново — о чём поговорим?"));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s*$/i.test(text)) return void (await drawImage(chat, userId, null));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s+/i.test(text)) return void (await drawImage(chat, userId, text.replace(DRAW_RE, "").trim()));
-    const wantFile = text ? fileRequest(text) : null;
+    const wantPresentation = !!text && PRESENTATION_RE.test(text);
+    const wantFile = !wantPresentation && text ? fileRequest(text) : null;
     const drawWhat = text && !wantFile ? drawRequest(text) : null;
     // «расскажи про Марс и нарисуй его» — и ответ текстом, и картинка.
     const alsoTalk = drawWhat != null && TALK_RE.test(text.replace(drawWhat, ""));
@@ -1794,13 +1876,13 @@ async function dispatchShalterAi(chatId, message) {
         activeReplies.set(chatId, { controller, userId });
         addAiUsage(userId, "text");
         const opts = { ...generationOptions(quota.settings, quota.plan), signal: controller.signal };
-        if (wantFile) {
+        if (wantFile || wantPresentation) {
           // Файл — целиком: длиннее лимит и можно дописать оборванное.
-          opts.systemExtra = [opts.systemExtra, fileInstruction(wantFile.ext)].filter(Boolean).join("\n\n");
+          opts.systemExtra = [opts.systemExtra, wantPresentation ? presentationInstruction : fileInstruction(wantFile.ext)].filter(Boolean).join("\n\n");
           opts.maxTokens = Math.max(opts.maxTokens ?? 0, 4000);
           opts.continuations = Math.max(opts.continuations ?? 0, 1);
         }
-        await genCtx.run(opts, () => replyOnce(chat, userId, { wantFile }));
+        await genCtx.run(opts, () => replyOnce(chat, userId, { wantFile, wantPresentation }));
         if (controller.signal.aborted) break;
       } while (state.rerun);
     } finally {

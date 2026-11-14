@@ -27,10 +27,10 @@ export const downloadsBody = z.strictObject({ version: z.string(), artifacts: z.
 
 /** GET /api/downloads/latest: нет версии — { version: null }. */
 export const latestBody = z.union([
-  z.strictObject({ version: z.null() }),
-  z.strictObject({ version: z.string(), url: z.string().nullable(), page: z.literal("/download") }),
+  z.strictObject({ version: z.null(), minimumVersion: z.string().nullable() }),
+  z.strictObject({ version: z.string(), minimumVersion: z.string().nullable(), url: z.string().nullable(), page: z.literal("/download") }),
   // Своя сборка из public/downloads с версией из versions.json.
-  z.strictObject({ version: z.string(), url: z.string(), size: z.number().int(), page: z.literal("/download") }),
+  z.strictObject({ version: z.string(), minimumVersion: z.string().nullable(), url: z.string(), size: z.number().int(), page: z.literal("/download") }),
 ]);
 
 export const versionBody = z.strictObject({ version: z.string(), startedAt: isoDate });

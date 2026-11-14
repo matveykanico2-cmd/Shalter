@@ -122,6 +122,12 @@ describe("POST /api/calls — звонок в личке", () => {
     await setPrivacy(b, { calls: "nobody" });
     expectError(await a.api.post("/api/calls", { chatId: dmAB.id, kind: "voice" }), 403, "Пользователь ограничил звонки");
     await bWs.expectNone("call:incoming", () => true, 200);
+    const inviteOnly = expectOk(await a.api.post("/api/calls", { chatId: dmAB.id, kind: "voice", inviteOnly: true }), callBody).call;
+    expect(inviteOnly.participantIds).toEqual([a.id]);
+    await bWs.expectNone("call:incoming", (e) => e.call?.id === inviteOnly.id, 200);
+    const token = (await a.api.post(`/api/calls/${inviteOnly.id}/invite-link`)).body.url.split("/").pop();
+    const joined = expectOk(await b.api.post(`/api/calls/join/${token}`), callBody).call;
+    sameIds(joined.participantIds, [a.id, b.id]);
 
     await setPrivacy(b, { calls: "contacts" });
     await addContact(b, a);

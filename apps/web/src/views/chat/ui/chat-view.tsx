@@ -206,7 +206,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
           />
         </div>
       </div>
-      {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} hideMembers={inCommunity} onClose={() => setInfoOpen(false)} /> : null}
+      {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} hideMembers={inCommunity} community={community.data ?? null} onClose={() => setInfoOpen(false)} /> : null}
       {miniApp ? <MiniApp target={miniApp} onClose={() => setMiniApp(null)} /> : null}
       {coinsOpen ? <CoinTransferDialog chatId={chat.id} people={people} onClose={() => setCoinsOpen(false)} /> : null}
       {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}

@@ -40,3 +40,6 @@ export const listingSchema = requestBody({
     .transform((v) => Math.round(Number(v))),
 });
 export type ListingDto = z.infer<typeof listingSchema>;
+
+export const transferListingSchema = requestBody({ target: z.string().trim().min(1).max(100) });
+export type TransferListingDto = z.infer<typeof transferListingSchema>;

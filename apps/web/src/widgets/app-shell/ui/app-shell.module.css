@@ -4,6 +4,7 @@
   grid-template-columns: 376px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
+  column-gap: 8px;
   height: 100vh;
   height: 100dvh;
   /* Вырез и строка состояния: в приложении для iPhone (Capacitor, страница во весь экран) и в
@@ -41,6 +42,7 @@
 
 .sidebar {
   position: relative;
+  isolation: isolate;
   grid-area: list;
   min-height: 0;
   overflow: hidden;
@@ -71,6 +73,7 @@
   border-radius: var(--panel-radius);
   background: var(--color-surface);
   box-shadow: var(--panel-shadow);
+  isolation: isolate;
 }
 
 .rail {
@@ -153,6 +156,7 @@
   .shell {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "media" "list" "nav";
+    column-gap: 0;
   }
 
   .sidebar {

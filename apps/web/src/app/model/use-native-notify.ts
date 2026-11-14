@@ -182,12 +182,14 @@ function startDesktop(bridge: NonNullable<NativeWindow["shalterDesktop"]>, meId:
   const notify = bridge.notify;
   if (!notify) return () => {};
   const away = () => document.hidden || !document.hasFocus();
+  const isOpenChat = (chatId: string) => !away() && location.pathname === `/chat/${chatId}`;
   const offs = [
     ws.on("message:new", ({ chatId, message, silent }) => {
       const settings = client.getQueryData(settingsQueries.current().queryKey);
       if (silent || message.senderId === meId || (settings?.notifications as { desktop?: boolean } | undefined)?.desktop === false) return;
-      // В открытом окне хватает звука и счётчика.
-      if (!away()) return;
+      // Не дублируем только тот диалог, который человек прямо сейчас читает.
+      // Для другого чата уведомление нужно даже при активном окне приложения.
+      if (isOpenChat(chatId)) return;
       const chat = chatOf(client, chatId);
       if (chat && isChatMuted(chat)) return;
       notify(chatName(client, chatId), messagePreview(message) || "Новое сообщение", `${location.origin}/chat/${chatId}`);

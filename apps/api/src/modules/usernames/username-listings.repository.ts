@@ -14,6 +14,15 @@ export class UsernameListingsRepository {
     return this.db.select().from(usernameListings).where(eq(usernameListings.status, "open")).orderBy(asc(usernameListings.priceStars)).all();
   }
 
+  public listOwned(buyerId: string): UsernameListing[] {
+    return this.db
+      .select()
+      .from(usernameListings)
+      .where(and(eq(usernameListings.status, "sold"), eq(usernameListings.buyerId, buyerId)))
+      .orderBy(asc(usernameListings.username))
+      .all();
+  }
+
   public find(id: string): UsernameListing | null {
     return this.db.select().from(usernameListings).where(eq(usernameListings.id, id)).get() ?? null;
   }
@@ -50,6 +59,11 @@ export class UsernameListingsRepository {
       .set({ status, buyerId, soldAt: status === "sold" ? new Date().toISOString() : null })
       .where(eq(usernameListings.id, id))
       .run();
+    return this.find(id);
+  }
+
+  public transferBuyer(id: string, buyerId: string): UsernameListing | null {
+    this.db.update(usernameListings).set({ buyerId, soldAt: new Date().toISOString() }).where(eq(usernameListings.id, id)).run();
     return this.find(id);
   }
 }

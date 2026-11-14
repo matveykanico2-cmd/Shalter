@@ -1,4 +1,5 @@
 import { openGiftShop } from "@/entities/gift/@x/message";
+import { openUserProfile } from "@/entities/user/@x/message";
 
 import { Avatar, Icon, openInAppBrowser, openInstantView } from "@/shared/ui";
 
@@ -33,14 +34,27 @@ export function LocationAttachment({ attachment: a }: { attachment: Attachment }
 
 /** Контакт: имя и телефон (добавление в контакты придёт с экраном контактов). */
 export function ContactAttachment({ attachment: a }: { attachment: Attachment }) {
-  const { name, phone } = (a.meta ?? {}) as { name?: string; phone?: string };
-  return (
-    <div className={styles.contact}>
+  const { name, phone, userId } = (a.meta ?? {}) as { name?: string; phone?: string; userId?: string };
+  const content = (
+    <>
       <Icon name="Users" size={18} />
       <span className={styles.contactBody}>
         <span className={styles.contactName}>{name || "Контакт"}</span>
         {phone ? <span className={styles.coords}>{phone}</span> : null}
+        {userId ? <span className={styles.coords}>Открыть профиль · написать · добавить</span> : null}
       </span>
+    </>
+  );
+  if (userId) {
+    return (
+      <button type="button" className={styles.contact} onClick={() => openUserProfile(userId)} aria-label={`Открыть контакт ${name || "Контакт"}`}>
+        {content}
+      </button>
+    );
+  }
+  return (
+    <div className={styles.contact}>
+      {content}
     </div>
   );
 }

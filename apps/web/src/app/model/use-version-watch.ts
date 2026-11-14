@@ -6,7 +6,7 @@ import { getCall } from "@/features/call";
 
 import { http } from "@/shared/api";
 import { applyUpdate, checkForUpdate, latestVersion } from "@/shared/lib/app-update";
-import { askConfirm, toast } from "@/shared/ui";
+import { askConfirm, openExternally, toast } from "@/shared/ui";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 const IDLE_BEFORE_RELOAD_MS = 30 * 1000;
@@ -90,13 +90,18 @@ function installed() {
   return { platform, version: /ShalterNative\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? "0" };
 }
 
-function newer(a: string, b: string) {
+export function newer(a: string, b: string) {
   const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
   const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
   }
   return false;
+}
+
+export function nativeUpdateState(latest: Pick<Latest, "version" | "minimumVersion">, installedVersion: string) {
+  const available = !!latest.version && newer(latest.version, installedVersion);
+  return { available, mandatory: available && !!latest.minimumVersion && newer(latest.minimumVersion, installedVersion) };
 }
 
 function snoozed(version: string) {
@@ -116,7 +121,7 @@ function snooze(version: string) {
   }
 }
 
-type Latest = { version?: string | null; url?: string | null; page?: string | null; size?: number | null };
+type Latest = { version?: string | null; minimumVersion?: string | null; url?: string | null; page?: string | null; size?: number | null };
 
 /** Вышла новая сборка приложения — предлагаем обновиться (как в Telegram). В браузере не работает. */
 export function useNativeUpdateCheck() {
@@ -132,7 +137,10 @@ export function useNativeUpdateCheck() {
       } catch {
         return;
       }
-      if (!latest.version || !newer(latest.version, app.version) || snoozed(latest.version)) return;
+      const state = nativeUpdateState(latest, app.version);
+      if (!latest.version || !state.available) return;
+      const { mandatory } = state;
+      if (!mandatory && snoozed(latest.version)) return;
       // Не перебиваем звонок и открытые окна — спросим при следующей проверке.
       if (getCall() || dialogOpen()) return;
       const url = latest.url ? new URL(latest.url, location.origin).href : app.platform === "ios" ? null : new URL(latest.page || "/download", location.origin).href;
@@ -140,11 +148,13 @@ export function useNativeUpdateCheck() {
       asking = true;
       try {
         const ok = await askConfirm(
-          `Доступна новая версия Shalter ${latest.version}\n\nВ ней исправления и новые возможности. Установите обновление — чаты и настройки сохранятся.`,
-          { okLabel: "Обновить", cancelLabel: "Позже" }
+          mandatory
+            ? `Нужно обновить Shalter до версии ${latest.minimumVersion}\n\nУстановленная версия ${app.version === "0" ? "слишком старая" : app.version} больше не поддерживается. Чаты и настройки сохранятся.`
+            : `Доступна новая версия Shalter ${latest.version}\n\nВ ней исправления и новые возможности. Установите обновление — чаты и настройки сохранятся.`,
+          { okLabel: "Обновить", cancelLabel: mandatory ? "Закрыть" : "Позже" }
         );
         const bridge = (window as ShellWindow).shalterDesktop;
-        if (!ok) snooze(latest.version);
+        if (!ok && !mandatory) snooze(latest.version);
         else if (app.automatic !== false && bridge?.installUpdate && latest.url) {
           // Приложение для компьютера обновляется само: скачивает сборку и ставит её поверх.
           const sizeMb = latest.size ? ` (${Math.round(latest.size / 1048576)} МБ)` : "";
@@ -153,9 +163,9 @@ export function useNativeUpdateCheck() {
             if ((await bridge.installUpdate(url)) === "external") toast("Откройте скачанный пакет, чтобы установить обновление");
           } catch (err) {
             toast(`Не удалось обновить автоматически: ${err instanceof Error ? err.message : String(err)}. Открываем страницу загрузки`);
-            window.open(new URL("/download", location.origin).href, "_blank", "noopener");
+            openExternally(new URL("/download", location.origin).href);
           }
-        } else window.open(url, "_blank", "noopener");
+        } else openExternally(url);
       } finally {
         asking = false;
       }

@@ -4,6 +4,8 @@
 // на Android сохраняем в «Документы/Shalter» (не вышло — системное «Поделиться»), на iOS сразу
 // «Поделиться» — там «Сохранить в Файлы» и «Сохранить изображение»: папка «Документы»
 // приложения на iPhone человеку не видна, и «Сохранено» вело в никуда.
+import { type Download,findDownload, markDownloadSaved } from "./downloads";
+
 const FOLDER = "Shalter";
 
 type Fs = {
@@ -13,6 +15,7 @@ type Fs = {
 type Share = { share: (o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }) => Promise<unknown> };
 type CapWindow = Window & {
   Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string; Plugins?: { Filesystem?: Fs; Share?: Share } };
+  shalterDesktop?: { openFile?: (path: string) => Promise<unknown> };
 };
 
 function plugins() {
@@ -65,13 +68,54 @@ async function save(p: Plugins, pending: Promise<Response>, name: string, notify
       if (!exists) break;
       path = `${FOLDER}/${file.replace(/(\.[^.]*)?$/, ` (${i})$1`)}`;
     }
-    await p.fs.writeFile({ path, data, directory: "DOCUMENTS", recursive: true });
-    notify(`Сохранено: Документы/${path}`);
+    const saved = await p.fs.writeFile({ path, data, directory: "DOCUMENTS", recursive: true });
+    return { uri: saved.uri, path: `Документы/${path}` };
   } catch {
     // Нет доступа к общей папке — отдаём файл системе: «Сохранить», «Открыть с помощью»…
     if (p.share) await shareFile(p, data, file);
     else notify("Не удалось сохранить файл");
   }
+  return null;
+}
+
+export async function openSavedDownload(item: Pick<Download, "localUri" | "name">): Promise<boolean> {
+  if (!item.localUri) return false;
+  const desktop = (window as CapWindow).shalterDesktop;
+  if (desktop?.openFile) {
+    await desktop.openFile(item.localUri);
+    return true;
+  }
+  const p = plugins();
+  if (!p?.share) return false;
+  await p.share.share({ title: item.name, files: [item.localUri], dialogTitle: "Открыть или изменить файл" });
+  return true;
+}
+
+/** Tauri сообщает путь после системного скачивания; повторный клик открывает эту копию. */
+export function installDesktopDownloadReuse(notify: (text: string) => void) {
+  const desktop = (window as CapWindow).shalterDesktop;
+  if (!desktop?.openFile) return () => {};
+  const saved = (event: Event) => {
+    const detail = (event as CustomEvent<{ url?: string; path?: string }>).detail;
+    if (!detail?.url || !detail.path) return;
+    const name = detail.path.split(/[\\/]/).pop() || "file";
+    markDownloadSaved(detail.url, detail.path, detail.path, name);
+    notify("Файл сохранён — его можно открыть в «Загрузках»");
+  };
+  const click = (event: MouseEvent) => {
+    const a = (event.target as Element | null)?.closest?.<HTMLAnchorElement>("a[download]");
+    const old = a?.href ? findDownload(a.href) : null;
+    if (!old?.localUri) return;
+    event.preventDefault();
+    notify("Файл уже сохранён — открываем сохранённую копию");
+    void openSavedDownload(old).catch(() => notify("Не удалось открыть сохранённый файл"));
+  };
+  window.addEventListener("shalter:native-download-saved", saved);
+  document.addEventListener("click", click, true);
+  return () => {
+    window.removeEventListener("shalter:native-download-saved", saved);
+    document.removeEventListener("click", click, true);
+  };
 }
 
 /** Перехват <a download> в приложении на Android и iOS; в браузере ничего не делает. */
@@ -84,9 +128,21 @@ export function installNativeDownloads(notify: (text: string) => void) {
     if (!a?.href) return;
     e.preventDefault();
     const name = a.getAttribute("download") || decodeURIComponent(new URL(a.href, location.href).pathname.split("/").pop() || "file");
+    const old = findDownload(a.href);
+    if (old?.localUri) {
+      notify("Файл уже сохранён — открываем сохранённую копию");
+      void openSavedDownload(old).catch(() => notify(`Файл сохранён: ${old.savedPath ?? old.name}`));
+      return;
+    }
     const pending = fetch(a.href, { credentials: "same-origin" });
     notify("Скачиваем…");
-    save(p, pending, name, notify).catch((err: unknown) => notify(`Не удалось скачать: ${err instanceof Error ? err.message : String(err)}`));
+    save(p, pending, name, notify)
+      .then((saved) => {
+        if (!saved) return;
+        markDownloadSaved(a.href, saved.uri, saved.path, name);
+        notify(`Файл сохранён: ${saved.path}. Откройте его в «Загрузках»`);
+      })
+      .catch((err: unknown) => notify(`Не удалось скачать: ${err instanceof Error ? err.message : String(err)}`));
   };
   document.addEventListener("click", onClick, true);
   return () => document.removeEventListener("click", onClick, true);

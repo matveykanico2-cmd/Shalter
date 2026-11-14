@@ -133,6 +133,7 @@ fn bridge_script(origin: &str, version: &str) -> String {
     retry: function (target) {{ return inv("retry", {{ target: target || null }}); }},
     setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }},
     openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }},
+    openFile: function (path) {{ return inv("open_download", {{ path: String(path) }}); }},
     // без .catch: ошибку установки обновления показываем человеку
     installUpdate: function (url) {{ var ipc = window.__TAURI_INTERNALS__; return ipc ? ipc.invoke("install_update", {{ url: String(url) }}) : Promise.reject(new Error("нет моста")); }},
     // Прокси приложения: url — «http|socks5://[логин:пароль@]хост:порт» или null (без прокси).
@@ -453,6 +454,19 @@ async fn open_browser(app: AppHandle, url: String) {
     }
 }
 
+// Открыть уже скачанную копию. Разрешены только файлы из системной папки
+// «Загрузки»: страница не получает произвольный доступ к файловой системе.
+#[tauri::command]
+fn open_download(app: AppHandle, path: String) -> Result<(), String> {
+    let downloads = app.path().download_dir().map_err(|e| e.to_string())?;
+    let root = downloads.canonicalize().map_err(|e| e.to_string())?;
+    let file = std::path::PathBuf::from(path).canonicalize().map_err(|e| e.to_string())?;
+    if !file.starts_with(root) || !file.is_file() {
+        return Err("Файл не найден в «Загрузках»".into());
+    }
+    app.opener().open_path(file.to_string_lossy().into_owned(), None::<&str>).map_err(|e| e.to_string())
+}
+
 // ---------- встроенное обновление (как в Telegram) ----------
 // Скачивает новую сборку с нашего сервера и ставит её:
 //   Windows — запускает установщик поверх (тихо, с прогрессом) и закрывает приложение;
@@ -573,13 +587,23 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                         *destination = unique_path(&dir, &name);
                     }
                 }
-                DownloadEvent::Finished { path, success, .. } => {
-                    let body = match (success, path) {
+                DownloadEvent::Finished { url, path, success } => {
+                    let body = match (success, path.as_ref()) {
                         (true, Some(p)) => format!("Сохранено: {}", p.display()),
                         (true, None) => "Файл сохранён в «Загрузки»".into(),
                         (false, _) => "Не удалось скачать файл".into(),
                     };
                     let _ = webview.app_handle().notification().builder().title("Shalter").body(body).show();
+                    if success {
+                        if let Some(p) = path.as_ref() {
+                            let detail = serde_json::json!({ "url": url.as_str(), "path": p.to_string_lossy() });
+                            let script = format!(
+                                "window.dispatchEvent(new CustomEvent('shalter:native-download-saved', {{ detail: {} }}));",
+                                detail
+                            );
+                            let _ = webview.eval(&script);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -778,7 +802,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon, set_proxy, get_proxy, restart_app])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, open_download, install_update, set_app_icon, set_proxy, get_proxy, restart_app])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -793,6 +817,7 @@ fn main() {
                     .permission("allow-retry")
                     .permission("allow-open-external")
                     .permission("allow-open-browser")
+                    .permission("allow-open-download")
                     .permission("allow-install-update")
                     .permission("allow-set-app-icon")
                     .permission("allow-set-proxy")

@@ -20,7 +20,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { lazyView } from "@/shared/lib/lazy-view";
 import { plural, statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
-import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openInAppBrowser, toast } from "@/shared/ui";
+import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openExternally, openInAppBrowser, toast } from "@/shared/ui";
 
 import { type ChannelCard, profileApi, profileQueries, type SharedMedia } from "../api/profile-api";
 import { isTabId, type TabId,TABS } from "../lib/tabs";
@@ -254,7 +254,7 @@ export function UserProfilePanel({ userId, me }: Props) {
     await profileApi.clickAd(ad.id).catch(() => {});
     if (!ad.url) return;
     if (ad.url.startsWith("/")) void navigate(ad.url);
-    else if (/^https?:\/\//i.test(ad.url)) window.open(ad.url, "_blank", "noreferrer");
+    else if (/^https?:\/\//i.test(ad.url)) openExternally(ad.url);
   };
 
   const showTabs = () => tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -748,7 +748,7 @@ function BusinessLocation({ user }: { user: { businessAddress?: string; business
       onClick={() => {
         if (!hasGeo) return void copyText(address, "Адрес скопирован");
         void askConfirm("Открыть адрес на карте?", { okLabel: "Открыть" }).then((ok) => {
-          if (ok) window.open(`https://yandex.ru/maps/?pt=${user.businessLng},${user.businessLat}&z=17&l=map`, "_blank", "noopener");
+          if (ok) openExternally(`https://yandex.ru/maps/?pt=${user.businessLng},${user.businessLat}&z=17&l=map`);
         });
       }}
     />

@@ -1328,7 +1328,7 @@ describe("плашки и низ чата", () => {
     const ad = await screen.findByLabelText("Реклама");
     expect(within(ad).getByText("Учим рисовать")).toBeTruthy();
     fireEvent.click(within(ad).getByRole("button", { name: "Открыть" }));
-    await waitFor(() => expect(open).toHaveBeenCalledWith("https://ads.test/", "_blank", "noreferrer"));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://ads.test/", "_blank", "noopener,noreferrer"));
     expect(calls.some((c) => c.key === "POST /api/ads/click/ad_1")).toBe(true);
     fireEvent.click(within(ad).getByTitle("Ещё"));
     fireEvent.click(screen.getByRole("button", { name: "Скрыть рекламу" }));
@@ -2809,11 +2809,12 @@ describe("звонки из чата", () => {
     expect(calls.find((c) => c.key === "POST /api/calls")?.body).toEqual({ chatId: "c_1", kind: "video", ringAll: false });
   });
 
-  it("звонок не разрешён — ошибка сервера тостом, экран остаётся", async () => {
+  it("звонок не разрешён — предлагает создать ссылку, экран остаётся при отказе", async () => {
     fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/calls": { status: 403, body: { error: "Пользователь ограничил звонки" } } });
     const { router } = renderChat(dm());
     fireEvent.click(within(await screen.findByRole("banner")).getByTitle("Позвонить"));
-    expect(await screen.findByText("Пользователь ограничил звонки")).toBeTruthy();
+    expect(await screen.findByText("Пользователь не принимает входящие звонки. Отправить ему ссылку-приглашение?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Не сейчас" }));
     expect(router.state.location.pathname).toBe("/chat/c_1");
   });
 });

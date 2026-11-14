@@ -62,6 +62,7 @@ describe("мосты приложений", () => {
     own.click();
     ext.click();
     expect(openBrowser).toHaveBeenCalledWith(`${location.origin}/games`);
-    expect(open).toHaveBeenCalledWith("https://example.com/x", "_blank", "noopener");
+    expect(openBrowser).toHaveBeenCalledWith("https://example.com/x");
+    expect(open).not.toHaveBeenCalled();
   });
 });

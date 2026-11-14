@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, Dialog, Icon, toast } from "@/shared/ui";
+import { askConfirm, Button, Dialog, Icon, toast } from "@/shared/ui";
 
 import { clearHistoryBeforeDay, messageDays } from "../api/message-days";
 
@@ -63,6 +63,23 @@ export function ChatHistoryClear({ chatId, onClose }: Props) {
     }
   };
 
+  const clearAll = async () => {
+    if (busy || !(await askConfirm("Очистить всю историю чата для вас?", { okLabel: "Очистить", danger: true }))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await clearHistoryBeforeDay(chatId, dayKey(new Date()));
+      await client.invalidateQueries({ queryKey: ["chat-history-clear", chatId] });
+      await client.invalidateQueries({ queryKey: ["chats", "list"] });
+      toast("История чата очищена");
+      onClose();
+    } catch (err) {
+      setError(errorText(err, "Не удалось очистить историю"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const first = new Date(shown.getFullYear(), shown.getMonth(), 1);
   const daysInMonth = new Date(shown.getFullYear(), shown.getMonth() + 1, 0).getDate();
   const leading = (first.getDay() + 6) % 7;
@@ -116,6 +133,9 @@ export function ChatHistoryClear({ chatId, onClose }: Props) {
         Выбрано дней: {selected.size}. История скроется для вас до конца последнего выбранного дня включительно.
       </p>
       <div className={styles.footer}>
+        <Button variant="secondary" onClick={() => void clearAll()} disabled={busy}>
+          Очистить всё
+        </Button>
         <Button variant="secondary" onClick={onClose} disabled={busy}>
           Отмена
         </Button>

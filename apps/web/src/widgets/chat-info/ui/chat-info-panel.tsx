@@ -1,4 +1,5 @@
 import { type MouseEvent, type ReactNode, useState } from "react";
+import { useNavigate } from "react-router";
 
 import { BoostCard } from "@/features/boost-chat";
 import { ChannelStats } from "@/features/channel-stats";
@@ -27,12 +28,13 @@ import { membersLine, sortMembers } from "../lib/members";
 
 import styles from "./chat-info-panel.module.css";
 
-type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; hideMembers?: boolean; onClose: () => void };
+type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; hideMembers?: boolean; community?: { id: string; title: string } | null; onClose: () => void };
 
 type Dialog = { kind: "mute" } | { kind: "report"; target: ReportTarget; label: string } | null;
 
 /** «Информация о чате» справа (на телефоне — на весь экран) — как public/js/components/infoPanel.js. */
-export function ChatInfoPanel({ chat, members, me, hideMembers = false, onClose }: Props) {
+export function ChatInfoPanel({ chat, members, me, hideMembers = false, community, onClose }: Props) {
+  const navigate = useNavigate();
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [giftPicker, setGiftPicker] = useState(false);
@@ -90,7 +92,13 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, onClose 
       <div className={styles.body}>
         {/* В личке аватар с именем открывает полный профиль (как info-panel-avatar-row в infoPanel.js). */}
         <HeroBox className={styles.hero} onClick={other ? () => openUserProfile(other.id) : undefined}>
-          <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined} sticker={!other && chat.avatarType === "sticker"} />
+          {chat.isSaved ? (
+            <span className={styles.savedHero} aria-label="Избранное">
+              <Icon name="Bookmark" size={52} />
+            </span>
+          ) : (
+            <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined} sticker={!other && chat.avatarType === "sticker"} />
+          )}
           <p className={styles.title}>
             {other?.name ?? title}
             {(other ? other.isVerified : chat.isVerified) ? (
@@ -151,6 +159,11 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, onClose 
         ) : null}
 
         <div className={styles.card}>
+          {community ? (
+            <Row icon="Users" onClick={() => void navigate(`/community/${community.id}`)}>
+              Сообщество: {community.title}
+            </Row>
+          ) : null}
           {/* Заметка, контакт, «поделиться», секретный чат — в полном профиле; раньше туда вёл только клик по аватару. */}
           {other && other.id !== me.id ? (
             <Row icon="User" onClick={() => openUserProfile(other.id)}>

@@ -7,7 +7,7 @@ const MAX = 300;
 const EVENT = "shalter:downloads-changed";
 
 export type DownloadKind = "image" | "video" | "audio" | "pdf" | "text" | "file";
-export type Download = { url: string; name: string; size: number; kind: DownloadKind; at: number; chatPath?: string };
+export type Download = { url: string; name: string; size: number; kind: DownloadKind; at: number; chatPath?: string; localUri?: string; savedPath?: string };
 
 let cache: Download[] | null = null;
 
@@ -47,6 +47,14 @@ export function recordDownload({ url, name, size, mime }: { url: string; name?: 
   const fileName = name || url.split("/").pop() || "file";
   const entry: Download = { url, name: fileName, size: size || 0, kind: kindOf(fileName, mime), at: Date.now(), chatPath: location.pathname };
   write([entry, ...read().filter((d) => d.url !== url)]);
+}
+
+export const findDownload = (url: string) => read().find((d) => d.url === url || new URL(d.url, location.origin).href === new URL(url, location.origin).href);
+
+export function markDownloadSaved(url: string, localUri: string, savedPath: string, name: string) {
+  const old = findDownload(url);
+  const entry: Download = old ?? { url, name, size: 0, kind: kindOf(name), at: Date.now(), chatPath: location.pathname };
+  write([{ ...entry, localUri, savedPath, at: Date.now() }, ...read().filter((d) => d.url !== entry.url)]);
 }
 
 export const removeDownload = (url: string) => write(read().filter((d) => d.url !== url));
