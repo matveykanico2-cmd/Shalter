@@ -8,11 +8,14 @@ const PERMISSIONS = [
   { id: "createTopics", label: "Создавать темы" },
   { id: "setOwnTag", label: "Ставить себе тег" },
 ];
+const MEMBER_PERMISSIONS = [...PERMISSIONS, { id: "commentPosts", label: "Оставлять комментарии" }, { id: "publishPosts", label: "Публиковать в канале" }, { id: "editMessages", label: "Редактировать свои сообщения" }, { id: "deleteMessages", label: "Удалять свои сообщения" }];
 
 const DEFAULTS = Object.fromEntries(PERMISSIONS.map((p) => [p.id, true]));
+const MEMBER_DEFAULTS = Object.fromEntries(MEMBER_PERMISSIONS.map((p) => [p.id, true]));
 
 function permissionsOf(chat) {
-  return { ...DEFAULTS, ...(chat?.permissions ?? {}) };
+  const { members: _members, ...global } = chat?.permissions ?? {};
+  return { ...DEFAULTS, ...global };
 }
 
 function sanitizePermissions(raw) {
@@ -32,9 +35,9 @@ function isStaff(chat, userId) {
 }
 
 function can(chat, userId, what) {
-  if (!chat || chat.type !== "group") return true;
+  if (!chat || (chat.type !== "group" && chat.type !== "channel")) return true;
   if (isStaff(chat, userId)) return true;
-  return permissionsOf(chat)[what] !== false;
+  return { ...MEMBER_DEFAULTS, ...permissionsOf(chat), ...(chat?.permissions?.members?.[userId] ?? {}) }[what] !== false;
 }
 
 const DENIED = {
@@ -46,6 +49,15 @@ const DENIED = {
   pinMessages: "В этой группе закреплять сообщения могут только администраторы",
   createTopics: "В этой группе создавать темы могут только администраторы",
   setOwnTag: "В этой группе теги ставят только администраторы",
+  commentPosts: "Вам нельзя оставлять комментарии",
+  publishPosts: "Публиковать в канале могут только администраторы",
+  editMessages: "Вам нельзя редактировать сообщения",
+  deleteMessages: "Вам нельзя удалять сообщения",
 };
 
-module.exports = { PERMISSIONS, DEFAULTS, permissionsOf, sanitizePermissions, can, isStaff, DENIED };
+function sanitizeMemberPermissions(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return Object.fromEntries(MEMBER_PERMISSIONS.map(({ id }) => [id, source[id] !== false]));
+}
+
+module.exports = { PERMISSIONS, MEMBER_PERMISSIONS, DEFAULTS, permissionsOf, sanitizePermissions, sanitizeMemberPermissions, can, isStaff, DENIED };

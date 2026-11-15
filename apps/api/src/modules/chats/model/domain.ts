@@ -67,7 +67,7 @@ export interface ChatPatch {
   adminIds?: string[];
   moderatorIds?: string[];
   ownerIds?: string[];
-  permissions?: Record<string, boolean> | null;
+  permissions?: Record<string, unknown> | null;
   memberTitles?: Record<string, string>;
   restrictions?: Restrictions;
   votes?: Record<string, string>;

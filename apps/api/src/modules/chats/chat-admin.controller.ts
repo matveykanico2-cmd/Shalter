@@ -12,6 +12,7 @@ import {
   commentPriceSchema,
   discussionSchema,
   permissionsSchema,
+  memberPermissionsSchema,
   publicSchema,
   reactionsSchema,
   slowModeSchema,
@@ -21,6 +22,7 @@ import {
   type CommentPriceDto,
   type DiscussionDto,
   type PermissionsDto,
+  type MemberPermissionsDto,
   type PublicDto,
   type ReactionsDto,
   type SlowModeDto,
@@ -59,6 +61,12 @@ export class ChatAdminController {
   @HttpCode(200)
   public setPermissions(@Req() req: Request, @CurrentChat() chat: Chat, @Body(new ZodValidationPipe(permissionsSchema)) dto: PermissionsDto) {
     return this.admin.setPermissions(req.uid!, chat, dto.permissions);
+  }
+
+  @Post("member-permissions")
+  @HttpCode(200)
+  public setMemberPermissions(@Req() req: Request, @CurrentChat() chat: Chat, @Body(new ZodValidationPipe(memberPermissionsSchema)) dto: MemberPermissionsDto) {
+    return this.admin.setMemberPermissions(req.uid!, chat, dto.userId, dto.permissions);
   }
 
   @Post("reactions")

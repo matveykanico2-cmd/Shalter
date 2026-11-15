@@ -8,7 +8,7 @@ import { UsersRepository } from "../users/users.repository.js";
 import { AdminLogService } from "./admin-log.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
 import { ChatsRepository } from "./chats.repository.js";
-import { PERMISSIONS, permissionsOf, sanitizePermissions } from "./lib/chat-permissions.js";
+import { MEMBER_PERMISSIONS, PERMISSIONS, permissionsOf, sanitizeMemberPermissions, sanitizePermissions } from "./lib/chat-permissions.js";
 import { isOwnerOrAdminOf } from "./lib/chat-roles.js";
 import { durationLabel } from "./lib/duration-label.js";
 import type { Chat, ChatPatch } from "./model/domain.js";
@@ -53,6 +53,22 @@ export class ChatAdminService {
     await this.notes.note(updated, uid, (name) => `${name} изменил(а) права участников`);
     this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated, permissions: permissionsOf(updated) };
+  }
+
+  public async setMemberPermissions(uid: string, chat: Chat, userId: unknown, permissions: unknown) {
+    if (chat.type !== "group" && chat.type !== "channel") throw new ApiError(400, "Только для групп и каналов");
+    this.requireStaff(chat, uid);
+    if (typeof userId !== "string" || !chat.memberIds.includes(userId)) throw new ApiError(404, "Участник не найден");
+    if (userId === uid || chat.ownerId === userId || chat.ownerIds.includes(userId) || chat.adminIds.includes(userId) || chat.moderatorIds.includes(userId)) {
+      throw new ApiError(400, "Права администраторов не настраиваются");
+    }
+    const current = (chat.permissions && typeof chat.permissions === "object" ? chat.permissions : {}) as Record<string, unknown>;
+    const members = current.members && typeof current.members === "object" ? { ...(current.members as Record<string, unknown>) } : {};
+    members[userId] = sanitizeMemberPermissions(permissions);
+    const updated = this.chats.update(chat.id, { permissions: { ...current, members } })!;
+    this.adminLog.record(chat.id, uid, "member_permissions", { targetId: userId, details: { fields: MEMBER_PERMISSIONS.map((p) => p.id) } });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    return { chat: updated, permissions: members[userId] };
   }
 
   /** Реакции, доступные под постами канала (до 20); не список — любые. */

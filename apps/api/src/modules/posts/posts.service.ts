@@ -3,7 +3,7 @@ import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import { sanitizers, sendOnce, uploadAccess } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
-import { isStaff } from "../chats/lib/chat-permissions.js";
+import { can, DENIED, isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
 import { incrementViews, setAnchorForPost, setDiscussionAnchor } from "../messages/lib/message-edits.js";
 import { MessageSendService } from "../messages/message-send.service.js";
@@ -45,7 +45,7 @@ export class PostsService {
     // Постороннему закрытый канал не раскрываем: 404, как будто его нет.
     if (!chat || chat.type !== "channel" || (!chat.isPublic && !chat.memberIds.includes(uid))) throw new ApiError(404, "not found");
     const isOwnerOrAdmin = chat.ownerId === uid || (chat.ownerIds ?? []).includes(uid) || chat.adminIds?.includes(uid);
-    if (!isOwnerOrAdmin) throw new ApiError(403, "Публиковать могут только администраторы канала");
+    if (!isOwnerOrAdmin && !can(chat, uid, "publishPosts")) throw new ApiError(403, DENIED.publishPosts);
 
     if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
     const text = body.text as string | null | undefined;
@@ -199,6 +199,7 @@ export class PostsService {
     const canSee = channel.memberIds.includes(uid) || !!channel.username;
     if (!canSee) throw new ApiError(403, "Комментарии доступны подписчикам канала");
     if (channel.commentsOff) throw new ApiError(403, "В этом канале комментарии отключены");
+    if (!can(channel, uid, "commentPosts")) throw new ApiError(403, DENIED.commentPosts);
     if (!post.discussionAnchorId || !channel.linkedDiscussionChatId) {
       throw new ApiError(404, "У канала нет группы обсуждения — комментарии выключены");
     }

@@ -25,6 +25,8 @@ export type ChatSettingsDto = z.infer<typeof chatSettingsSchema>;
 // Права чистит sanitizePermissions.
 export const permissionsSchema = requestBody({ permissions: raw() });
 export type PermissionsDto = z.infer<typeof permissionsSchema>;
+export const memberPermissionsSchema = requestBody({ userId: raw(), permissions: raw() });
+export type MemberPermissionsDto = z.infer<typeof memberPermissionsSchema>;
 
 /** Реакции под постами (до 20, без повторов); не список — null, то есть любые. */
 export const reactionsSchema = requestBody({

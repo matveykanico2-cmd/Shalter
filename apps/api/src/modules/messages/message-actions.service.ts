@@ -17,7 +17,7 @@ import type { ChecklistDto, DeleteMessageDto, EditMessageDto, LocationDto, PinDt
 function canPin(chat: Chat, userId: string): boolean {
   if (!chat.memberIds.includes(userId)) return false;
   if (chat.type === "dm") return true;
-  if (chat.type === "group" && can(chat, userId, "pinMessages")) return true;
+  if ((chat.type === "group" || chat.type === "channel") && can(chat, userId, "pinMessages")) return true;
   return isStaff(chat, userId);
 }
 
@@ -40,6 +40,8 @@ export class MessageActionsService {
   public edit(uid: string, chatId: string, messageId: string, dto: EditMessageDto) {
     const { message: existing } = this.access.messageInChat(chatId, messageId, uid);
     if (existing.senderId !== uid) throw new ApiError(403, "forbidden");
+    const chat = this.chats.findById(chatId);
+    if (chat && !can(chat, uid, "editMessages")) throw new ApiError(403, "Вам нельзя редактировать свои сообщения");
     // Пересланное нельзя править: иначе подпись «Переслано от …» стояла бы под чужим
     // текстом. Подарок — тоже: его текст и сумма заданы при отправке.
     if (existing.type === "call" || isLegacyCallLog(existing) || existing.forwardedFrom || existing.type === "gift") {
@@ -53,7 +55,6 @@ export class MessageActionsService {
     if (!text.trim() && !existing.attachments?.length) throw new ApiError(400, "Сообщение не может быть пустым");
     const message = this.messages.mutate(messageId, (m) => edits.editText(m, text));
     // Всем участникам, включая автора: его другие устройства и список чатов тоже должны обновиться.
-    const chat = this.chats.findById(chatId);
     if (chat) this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId, message });
     return { message };
   }
@@ -70,6 +71,7 @@ export class MessageActionsService {
     if (existing.type === "gift") throw new ApiError(400, "Сообщение с подарком удалить нельзя");
 
     if (!forEveryone) {
+      if (!can(found.chat, uid, "deleteMessages")) throw new ApiError(403, "Вам нельзя удалять свои сообщения");
       this.messages.mutate(messageId, (m) => edits.deleteForUser(m, uid));
       return { ok: true, id: messageId, forEveryone: false };
     }

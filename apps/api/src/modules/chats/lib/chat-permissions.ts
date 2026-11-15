@@ -13,21 +13,44 @@ export const PERMISSIONS = [
   { id: "setOwnTag", label: "Ставить себе тег" },
 ] as const;
 
-export type Permission = (typeof PERMISSIONS)[number]["id"];
+export const MEMBER_PERMISSIONS = [
+  ...PERMISSIONS,
+  { id: "commentPosts", label: "Оставлять комментарии" },
+  { id: "publishPosts", label: "Публиковать в канале" },
+  { id: "editMessages", label: "Редактировать свои сообщения" },
+  { id: "deleteMessages", label: "Удалять свои сообщения" },
+] as const;
+
+export type Permission = (typeof MEMBER_PERMISSIONS)[number]["id"];
 
 interface WithPermissions {
   type: string;
-  permissions?: Record<string, boolean> | null;
+  permissions?: Record<string, unknown> | null;
   ownerId?: string;
   ownerIds?: string[];
   adminIds?: string[];
   moderatorIds?: string[];
 }
 
-const DEFAULTS = Object.fromEntries(PERMISSIONS.map((p) => [p.id, true])) as Record<Permission, boolean>;
+const DEFAULTS = Object.fromEntries(PERMISSIONS.map((p) => [p.id, true])) as Record<string, boolean>;
+const MEMBER_DEFAULTS = Object.fromEntries(MEMBER_PERMISSIONS.map((p) => [p.id, true])) as Record<Permission, boolean>;
+
+type PermissionData = Record<string, boolean> & { members?: Record<string, Record<string, boolean>> };
+
+export function memberPermissionsOf(chat: Pick<WithPermissions, "permissions"> | undefined, userId: string): Record<Permission, boolean> {
+  const data = (chat?.permissions ?? {}) as PermissionData;
+  return { ...MEMBER_DEFAULTS, ...DEFAULTS, ...data.members?.[userId] };
+}
+
+export function sanitizeMemberPermissions(raw: unknown): Record<Permission, boolean> {
+  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return Object.fromEntries(MEMBER_PERMISSIONS.map((p) => [p.id, source[p.id] !== false])) as Record<Permission, boolean>;
+}
 
 export function permissionsOf(chat: Pick<WithPermissions, "permissions"> | undefined): Record<string, boolean> {
-  return { ...DEFAULTS, ...(chat?.permissions ?? {}) };
+  const data = (chat?.permissions ?? {}) as PermissionData;
+  const { members: _members, ...global } = data;
+  return { ...DEFAULTS, ...global };
 }
 
 /** Права из тела запроса: false — запрещено, всё прочее — разрешено; не объект — сброс (null). */
@@ -50,9 +73,9 @@ export function isStaff(chat: Omit<WithPermissions, "type"> | undefined, userId:
 }
 
 export function can(chat: WithPermissions | undefined, userId: string, what: Permission): boolean {
-  if (!chat || chat.type !== "group") return true;
+  if (!chat || (chat.type !== "group" && chat.type !== "channel")) return true;
   if (isStaff(chat, userId)) return true;
-  return permissionsOf(chat)[what] !== false;
+  return memberPermissionsOf(chat, userId)[what] !== false;
 }
 
 /** Ответ 403, когда права нет. */
@@ -65,4 +88,8 @@ export const DENIED: Record<Permission, string> = {
   pinMessages: "В этой группе закреплять сообщения могут только администраторы",
   createTopics: "В этой группе создавать темы могут только администраторы",
   setOwnTag: "В этой группе теги ставят только администраторы",
+  commentPosts: "Вам нельзя оставлять комментарии",
+  publishPosts: "Публиковать в канале могут только администраторы",
+  editMessages: "Вам нельзя редактировать сообщения",
+  deleteMessages: "Вам нельзя удалять сообщения",
 };

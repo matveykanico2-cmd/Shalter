@@ -17,6 +17,35 @@
   color: var(--color-text);
 }
 
+.permissions {
+  display: flex;
+  max-height: min(70vh, 560px);
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+}
+
+.permissionRow {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.permissionRow:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .search {
   width: 100%;
   min-width: 0;

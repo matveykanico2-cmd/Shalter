@@ -2,8 +2,10 @@ import { useState } from "react";
 
 import { type ChatMember, type ChatSummary, isChatAdmin, isChatOwner } from "@/entities/chat";
 
-import { ChoiceDialog, Icon, Menu, type MenuItem } from "@/shared/ui";
+import { errorText } from "@/shared/lib/error-text";
+import { ChoiceDialog, Dialog, Icon, Menu, type MenuItem, toast,Toggle } from "@/shared/ui";
 
+import { MEMBER_PERMISSION_FIELDS, type MemberPermission, type MemberPermissions,setMemberPermissions } from "../api/members";
 import { RESTRICT_DURATIONS, restrictUntil } from "../lib/restrict";
 import { useMemberActions } from "../model/use-member-actions";
 
@@ -15,6 +17,9 @@ type Props = { chat: ChatSummary; member: ChatMember; meId: string };
 export function MemberControls({ chat, member, meId }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [restricting, setRestricting] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissions, setPermissions] = useState<MemberPermissions>(() => memberPermissions(chat, member.id));
+  const [permissionsBusy, setPermissionsBusy] = useState(false);
   const actions = useMemberActions(chat, meId);
   const iAmAdmin = isChatAdmin(chat, meId);
   const iAmOwner = isChatOwner(chat, meId);
@@ -49,6 +54,7 @@ export function MemberControls({ chat, member, meId }: Props) {
     const isAdmin = chat.adminIds.includes(member.id);
     const isModerator = chat.moderatorIds.includes(member.id);
     const items: MenuItem[] = [
+      { icon: "Shield", label: "Настроить права", onClick: () => setPermissionsOpen(true) },
       { icon: "Users", label: isAdmin ? "Снять права администратора" : "Сделать администратором", onClick: () => void actions.role(member, isAdmin ? "demote" : "promote") },
       { icon: "Shield", label: isModerator ? "Снять модератора" : "Сделать модератором", onClick: () => void actions.role(member, isModerator ? "unmod" : "mod") },
     ];
@@ -82,6 +88,46 @@ export function MemberControls({ chat, member, meId }: Props) {
           onClose={() => setRestricting(false)}
         />
       ) : null}
+      {permissionsOpen ? (
+        <Dialog title={`Права: ${member.name}`} onClose={() => setPermissionsOpen(false)}>
+          <div className={styles.permissions}>
+            <p className={styles.hint}>Индивидуальные права действуют только для этого участника и не затрагивают администраторов.</p>
+            {MEMBER_PERMISSION_FIELDS.map((field) => (
+              <button
+                key={field.id}
+                type="button"
+                className={styles.permissionRow}
+                disabled={permissionsBusy}
+                aria-pressed={permissions[field.id]}
+                onClick={() => void savePermission(field.id)}
+              >
+                <span>{field.label}</span>
+                <Toggle checked={permissions[field.id]} />
+              </button>
+            ))}
+          </div>
+        </Dialog>
+      ) : null}
     </>
   );
+
+  async function savePermission(id: MemberPermission) {
+    const next = { ...permissions, [id]: !permissions[id] };
+    setPermissions(next);
+    setPermissionsBusy(true);
+    try {
+      await setMemberPermissions(chat.id, member.id, next);
+    } catch (err) {
+      setPermissions(permissions);
+      toast(errorText(err, "Не удалось сохранить права"), { error: true });
+    } finally {
+      setPermissionsBusy(false);
+    }
+  }
+}
+
+function memberPermissions(chat: ChatSummary, userId: string): MemberPermissions {
+  const data = (chat.permissions && typeof chat.permissions === "object" ? chat.permissions : {}) as { members?: Record<string, Partial<MemberPermissions>> };
+  const global = chat.permissions && typeof chat.permissions === "object" ? (chat.permissions as Record<string, unknown>) : {};
+  return Object.fromEntries(MEMBER_PERMISSION_FIELDS.map((field) => [field.id, data.members?.[userId]?.[field.id] ?? global[field.id] !== false])) as MemberPermissions;
 }
