@@ -5,58 +5,29 @@ import type { z } from "zod";
 import { getCall } from "@/features/call";
 
 import { http } from "@/shared/api";
-import { applyUpdate, checkForUpdate, latestVersion } from "@/shared/lib/app-update";
+import { checkForUpdate } from "@/shared/lib/app-update";
 import { askConfirm, openExternally, toast } from "@/shared/ui";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
-const IDLE_BEFORE_RELOAD_MS = 30 * 1000;
-/** До какой версии уже обновлялись сами (sessionStorage — на эту вкладку). */
-const AUTO_RELOAD_KEY = "shalter.autoUpdate.target";
 
 const dialogOpen = () => !!document.querySelector('[role="dialog"], [role="alertdialog"]');
 
 /**
- * Новая версия на сервере — кнопка «Обновить» и перезагрузка, как public/js/lib/appVersion.js, но
- * сама только когда человеку это не помешает: нет звонка, открытых окон, набранного текста и 30 с без действий.
+ * Проверяет новую версию и показывает кнопку «Обновить».
+ * Вкладка не перезапускается автоматически: обновление выполняется только после явного нажатия.
  */
 export function useVersionWatch() {
   useEffect(() => {
-    let lastActivity = Date.now();
-    const markActivity = () => (lastActivity = Date.now());
-
-    const isBusy = () => {
-      if (getCall()) return true;
-      for (const field of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLElement>("input, textarea, [contenteditable='true']")) {
-        const value = "value" in field ? field.value : (field.textContent ?? "");
-        if (value.trim() && (field as HTMLInputElement).type !== "search") return true;
-      }
-      return dialogOpen() || Date.now() - lastActivity < IDLE_BEFORE_RELOAD_MS;
-    };
-
-    // Новая сборка — кнопка «Обновить» (список чатов, «О приложении»); в простое — обновляемся
-    // сами, но один раз на версию: если кэш (service worker без сети, прокси) снова отдал старую
-    // страницу, не перезагружаемся по кругу — остаётся кнопка.
     const check = async () => {
-      if (!(await checkForUpdate()) || isBusy()) return;
-      const target = latestVersion();
-      try {
-        if (!target || sessionStorage.getItem(AUTO_RELOAD_KEY) === target) return;
-        sessionStorage.setItem(AUTO_RELOAD_KEY, target);
-      } catch {
-        return; // Хранилище недоступно — не рискуем петлёй, обновится кнопкой.
-      }
-      void applyUpdate();
+      await checkForUpdate();
     };
     const onVisible = () => document.visibilityState === "visible" && void check();
 
-    const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
-    for (const ev of events) window.addEventListener(ev, markActivity, { passive: true });
     document.addEventListener("visibilitychange", onVisible);
     void check();
     const timer = setInterval(() => void check(), CHECK_EVERY_MS);
     return () => {
       clearInterval(timer);
-      for (const ev of events) window.removeEventListener(ev, markActivity);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
