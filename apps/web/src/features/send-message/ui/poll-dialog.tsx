@@ -40,7 +40,14 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
 
   return (
     <Dialog title={quiz ? "Новая викторина" : "Новый опрос"} onClose={onClose}>
-      <div className={styles.modes}>
+      <div className={styles.pollIntro}>
+        <span className={styles.pollIntroIcon}>{quiz ? "✓" : "?"}</span>
+        <div>
+          <strong>{quiz ? "Проверьте знания" : "Соберите мнение"}</strong>
+          <p>{quiz ? "Один правильный вариант ответа" : "Участники выберут подходящий вариант"}</p>
+        </div>
+      </div>
+      <div className={styles.modes} role="group" aria-label="Тип опроса">
         <button type="button" aria-pressed={!quiz} className={quiz ? styles.mode : `${styles.mode} ${styles.active}`} onClick={() => setQuiz(false)}>
           Опрос
         </button>
@@ -51,10 +58,18 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
       <p className={styles.hint}>
         {quiz ? "Отметьте галочкой правильный ответ. Ответивший сразу увидит, угадал он или нет." : "Обычный опрос: правильного ответа нет, видно только кто как проголосовал."}
       </p>
-      <input className={styles.input} placeholder="Вопрос" aria-label="Вопрос" autoFocus value={question} onChange={(e) => setQuestion(e.target.value)} />
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Вопрос</span>
+        <input className={`${styles.input} ${styles.questionInput}`} placeholder="Например: Куда пойдём вечером?" aria-label="Вопрос" autoFocus value={question} onChange={(e) => setQuestion(e.target.value)} />
+      </label>
+      <div className={styles.optionsHeader}>
+        <span>Варианты ответа</span>
+        <span>{options.filter((option) => option.trim()).length}/{MAX_OPTIONS}</span>
+      </div>
       <div className={styles.list}>
         {options.map((value, i) => (
           <div key={i} className={styles.optionRow}>
+            <span className={styles.optionNumber}>{i + 1}</span>
             {quiz ? (
               <button type="button" className={correct === i ? `${styles.correct} ${styles.active}` : styles.correct} title={correct === i ? "Это правильный вариант" : "Правильный ответ"} aria-label={`Правильный ответ: вариант ${i + 1}`} aria-pressed={correct === i} onClick={() => setCorrect(i)}>
                 {correct === i ? "✓" : ""}
@@ -76,16 +91,16 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
         ) : null}
       </div>
       {!quiz ? (
-        <label className={styles.check}>
+        <label className={`${styles.check} ${styles.setting}`}>
           <input type="checkbox" checked={multiple} onChange={(e) => setMultiple(e.target.checked)} />
           <span>Несколько вариантов ответа</span>
         </label>
       ) : null}
-      <label className={styles.check}>
+      <label className={`${styles.check} ${styles.setting}`}>
         <input type="checkbox" checked={votersVisible} onChange={(e) => setVotersVisible(e.target.checked)} />
         <span>Показывать, кто как проголосовал</span>
       </label>
-      <label className={styles.fieldRow}>
+      <label className={`${styles.fieldRow} ${styles.setting}`}>
         <span>Завершить автоматически</span>
         <select className={styles.select} aria-label="Время до завершения" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
           <option value={0}>Без ограничения</option>
@@ -100,10 +115,10 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
           {error}
         </p>
       ) : null}
-      <Button onClick={create}>Создать</Button>
-      <Button variant="secondary" onClick={onClose}>
-        Отмена
-      </Button>
+      <div className={styles.actions}>
+        <Button onClick={create}>Создать</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
+      </div>
     </Dialog>
   );
 }

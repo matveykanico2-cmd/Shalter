@@ -3,10 +3,44 @@
   gap: 6px;
 }
 
+.pollIntro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface-alt));
+}
+
+.pollIntroIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.pollIntro strong {
+  display: block;
+  font-size: 14px;
+}
+
+.pollIntro p {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .mode {
   flex: 1;
   padding: 8px 10px;
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, var(--color-border));
   border-radius: 999px;
   background: none;
   color: var(--color-text);
@@ -21,8 +55,20 @@
   color: var(--color-accent);
 }
 
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.fieldLabel,
+.optionsHeader {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .hint {
-  margin: 0;
+  margin: -2px 2px 0;
   color: var(--color-muted);
   font-size: 13px;
 }
@@ -38,6 +84,32 @@
   font: inherit;
 }
 
+.questionInput {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  font-size: 15px;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--color-accent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  outline-offset: 1px;
+}
+
+.optionsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.optionsHeader span:last-child {
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
 .list {
   display: flex;
   max-height: 40vh;
@@ -50,6 +122,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.optionNumber {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.optionRow .input {
+  background: var(--color-surface);
 }
 
 .correct {
@@ -90,6 +179,20 @@
   cursor: pointer;
 }
 
+.setting {
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface-alt) 55%, transparent);
+}
+
+.setting input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
+
 .fieldRow {
   display: flex;
   align-items: center;
@@ -114,6 +217,23 @@
   margin: 0;
   color: var(--color-danger);
   font-size: 13px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+@media (max-width: 420px) {
+  .pollIntro {
+    padding: 9px 10px;
+  }
+
+  .actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Найденные места (.loc-picker-results) и выбор контакта (.forward-list). */
