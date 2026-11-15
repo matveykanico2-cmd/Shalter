@@ -159,7 +159,7 @@
   justify-content: flex-start;
   width: calc(100% - 50px);
   max-width: calc(100% - 50px);
-  margin: 6px 0 8px 50px;
+  margin: 20px 0 8px 50px;
   padding: 12px 6px 4px;
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 999px;
