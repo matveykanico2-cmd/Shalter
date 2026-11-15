@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
@@ -14,6 +14,7 @@ import styles from "./sign-in-view.module.css";
 /** /login; /login?add=1 — ещё один аккаунт на этом устройстве, с «назад» в приложение. */
 export function SignInView() {
   const navigate = useNavigate();
+  const client = useQueryClient();
   const [params] = useSearchParams();
   const [mode, setMode] = useState<SignInMode>("login");
   const addMode = params.get("add") === "1";
@@ -28,9 +29,10 @@ export function SignInView() {
     // IP, и за VPN интерфейс стал бы английским), при входе — только если язык выбрали кнопкой
     // сейчас: старый выбор с этого устройства не должен перетирать настройку аккаунта.
     if (registered.current || guestLanguagePicked()) await patchSettings({ uiLanguage: getGuestLanguage() }).catch(() => null);
-    // Добавленный аккаунт — полная перезагрузка: кэш прежнего не должен в нём остаться.
-    if (addMode) window.location.assign("/");
-    else void navigate("/", { replace: true });
+    // Добавленный аккаунт открываем в той же вкладке/окне. Удаляем только query-кэш
+    // старого аккаунта, поэтому приложение не перезапускается и не создаёт новый экран.
+    if (addMode) client.removeQueries({ predicate: (query) => query.queryKey[0] !== sessionQueries.baseKey[0] });
+    void navigate("/", { replace: true });
   };
   // Сюда приводит сокет, закрытый сервером (public/js/lib/wsClient.js — так же).
   const notice = params.get("reason") === "revoked" ? "Сеанс на этом устройстве был завершён — войдите снова." : undefined;
