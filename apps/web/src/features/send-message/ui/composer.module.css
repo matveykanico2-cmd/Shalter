@@ -196,7 +196,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  background: var(--color-surface) center / cover no-repeat;
+  background: var(--color-surface) center / contain no-repeat;
   box-shadow: var(--bubble-shadow);
   color: var(--color-muted);
 }
