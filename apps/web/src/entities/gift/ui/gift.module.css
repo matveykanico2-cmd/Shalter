@@ -253,7 +253,7 @@
   overflow: hidden;
   padding: 6px 8px 13px;
   border-radius: 24px;
-  background: var(--color-date-pill);
+  background: transparent;
   color: #fff;
   text-align: center;
   animation: gift-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
