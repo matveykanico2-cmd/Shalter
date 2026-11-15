@@ -91,12 +91,15 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 # Бэкенд на NestJS. Старый server/ остаётся рядом: Nest отдаёт ему всё, что ещё
 # не перенесено, и им же можно откатиться (DEPLOY.md, «Переключение на apps/api»).
 COPY --from=build /app/apps/api/dist ./apps/api/dist
-# Повторные попытки — на случай обычного сетевого сбоя при скачивании пакетов.
+# В build-этапе уже скачаны те же production-пакеты. Передаём npm-кэш, чтобы
+# второй install в Alpine не зависел от повторного скачивания через сеть.
+COPY --from=build /root/.npm /root/.npm
 ENV npm_config_fetch_retries=5
 ENV npm_config_fetch_retry_maxtimeout=30000
 RUN npm config set fetch-retries 5 \
     && npm config set fetch-timeout 120000 \
-    && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --maxsockets 8
+    && npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund --maxsockets 8 \
+    && npm cache clean --force
 # /app/data isn't in the repo or the build stage — it's a runtime mount point
 # (see DEPLOY.md: mount a persistent volume here for data/app.db). Just make
 # sure the directory exists so better-sqlite3 has somewhere to create the
