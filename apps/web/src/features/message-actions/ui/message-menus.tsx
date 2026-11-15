@@ -159,6 +159,7 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
   const protectedContent = isProtectedChat(chat);
   const quote = state.quote;
   const items: MenuItem[] = [];
+  if (canReact(chat, m)) items.push({ icon: "Smile", label: "Реакции", onClick: () => control.open({ kind: "reactions", message: m, at: state.at }) });
   if (onReply) items.push({ icon: "Reply", label: "Ответить", onClick: () => onReply(m, quote) });
   if (canPin(chat, me.id)) items.push({ icon: "Pin", label: m.pinned ? "Открепить" : "Закрепить", onClick: () => void actions.togglePin(m) });
   if (!protectedContent) items.push({ icon: "Forward", label: "Переслать", onClick: () => control.open({ kind: "forward", message: m }) });

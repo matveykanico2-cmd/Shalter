@@ -340,7 +340,11 @@ describe("действия с сообщением", () => {
     await screen.findByText("было");
 
     openMenu(mine.id);
-    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Ответить в теме", "Перевести", "Изменить", "Удалить"]);
+    expect(menuItems()).toEqual(["Реакции", "Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Ответить в теме", "Перевести", "Изменить", "Удалить"]);
+    fireEvent.click(screen.getByRole("button", { name: "Реакции" }));
+    expect(screen.getByRole("menu", { name: "Реакции" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    openMenu(mine.id);
     fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByText("Изменение")).toBeTruthy();
