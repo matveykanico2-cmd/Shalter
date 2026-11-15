@@ -18,6 +18,8 @@ export function SignInView() {
   const [params] = useSearchParams();
   const [mode, setMode] = useState<SignInMode>("login");
   const addMode = params.get("add") === "1";
+  const requested = params.get("next");
+  const destination = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
   const language = useGuestLanguage();
   // Предлагаем язык страны (или браузера), если он не русский, иначе английский.
   const detected = useQuery(sessionQueries.guestLanguage()).data?.language;
@@ -32,7 +34,7 @@ export function SignInView() {
     // Добавленный аккаунт открываем в той же вкладке/окне. Удаляем только query-кэш
     // старого аккаунта, поэтому приложение не перезапускается и не создаёт новый экран.
     if (addMode) client.removeQueries({ predicate: (query) => query.queryKey[0] !== sessionQueries.baseKey[0] });
-    void navigate("/", { replace: true });
+    void navigate(destination, { replace: true });
   };
   // Сюда приводит сокет, закрытый сервером (public/js/lib/wsClient.js — так же).
   const notice = params.get("reason") === "revoked" ? "Сеанс на этом устройстве был завершён — войдите снова." : undefined;

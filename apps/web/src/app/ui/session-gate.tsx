@@ -47,7 +47,7 @@ export function RequireSession() {
     };
   }, [client, refetch]);
   useHideSplash(!isPending);
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   if (isPending) return <Splash />;
   if (isError) {
     // Сервер недоступен: не выкидываем на вход, а предлагаем повторить.
@@ -56,7 +56,8 @@ export function RequireSession() {
   if (!data.user) {
     // Отправка из системного меню «Поделиться»: содержимое дожидается входа.
     if (pathname.startsWith("/share/")) rememberPendingShare(pathname.slice("/share/".length));
-    return <Navigate to="/login" replace />;
+    const next = `${pathname}${search}${hash}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
   return <SignedIn user={data.user} />;
 }
@@ -98,10 +99,13 @@ export function GuestOnly() {
   useHideSplash(!isPending);
   const [params] = useSearchParams();
   const signedIn = !!data?.user && params.get("add") !== "1";
+  const requested = params.get("next");
+  // Разрешаем только внутренний путь, чтобы ссылка после входа не стала открытым redirect.
+  const destination = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
   // Без входа — экраны на языке страны (с ?add=1 язык уже выбран в аккаунте).
   useGuestUiTranslation(!isPending && !data?.user);
   if (isPending) return <Splash />;
-  if (signedIn) return <Navigate to="/" replace />;
+  if (signedIn) return <Navigate to={destination} replace />;
   return <SignInView />;
 }
 

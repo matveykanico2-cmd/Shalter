@@ -75,6 +75,12 @@
   background: var(--color-chat-bg);
 }
 
+/* Длинные ссылки/файлы не должны расширять панель комментариев вправо. */
+.body > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .root {
   padding-bottom: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);

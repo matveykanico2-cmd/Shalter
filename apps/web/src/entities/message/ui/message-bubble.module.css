@@ -4,6 +4,9 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   padding: 2px 0;
   /* Горизонтальный свайп (ответ) достаётся нам, вертикальный — прокрутке. */
   touch-action: pan-y;
@@ -98,8 +101,9 @@
 
 .bubble {
   position: relative;
-  min-width: 56px;
+  min-width: 0;
   max-width: min(520px, 82%);
+  overflow-wrap: anywhere;
   padding: 6px 10px 7px;
   border-radius: var(--bubble-radius);
   border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);

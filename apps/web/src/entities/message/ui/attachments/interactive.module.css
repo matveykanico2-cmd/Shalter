@@ -163,20 +163,20 @@
   margin-right: 0;
   margin-bottom: 8px;
   margin-left: 50px;
-  padding: 12px 6px 4px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
-  border-radius: 999px;
-  background: var(--color-surface);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text) 8%, transparent);
+  padding: 16px 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .voter {
   display: inline-flex;
   margin-left: 0;
   padding: 0;
-  border: 2px solid var(--color-surface);
+  border: 2px solid transparent;
   border-radius: 50%;
-  background: var(--color-surface);
+  background: transparent;
   line-height: 0;
   cursor: pointer;
 }
