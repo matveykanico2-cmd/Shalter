@@ -48,6 +48,8 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
   // Комментаторы — из ответа сервера: в группе обсуждения могут быть не подписчики канала.
   const people = comments?.members ?? null;
   const author = (id: string) => people?.find((u) => u.id === id) ?? userOf(id);
+  const channelSender: MessageSender = { id: chat.id, name: chat.title ?? "Канал", avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, avatarEmoji: chat.avatarEmoji };
+  const displayRoot = isComments && root.forwardedFrom ? { ...root, forwardedFrom: undefined } : root;
   // Счётчик «N ответов» под сообщением в ленте.
   const touchFeed = () => void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chat.id) });
 
@@ -67,7 +69,11 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  const sender = (m: Message) => (m.senderId === me.id ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage } : author(m.senderId));
+  const sender = (m: Message) => {
+    if (isComments && (m.anonymous || (m.id === root.id && !chat.signMessages))) return channelSender;
+    return m.senderId === me.id ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage } : author(m.senderId);
+  };
+  const fromChannel = (m: Message) => isComments && (m.anonymous || (m.id === root.id && !chat.signMessages));
 
   const edit = async (m: Message) => {
     const text = await askText("Изменить комментарий", { initial: m.text ?? "", okLabel: "Сохранить" });
@@ -121,7 +127,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
         </header>
         <div ref={body} className={styles.body}>
           <div className={styles.root}>
-            <MessageBubble message={root} mine={root.senderId === me.id} sender={sender(root)} showSender meId={me.id} />
+            <MessageBubble message={displayRoot} mine={displayRoot.senderId === me.id && !fromChannel(root)} sender={sender(root)} showSender meId={me.id} />
           </div>
           <p className={styles.label}>
             {isComments ? "Комментарии" : "Ответы"} ({replies.length})
@@ -130,7 +136,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
           {query.isError ? <p className={styles.empty}>{errorText(query.error, isComments ? "Комментарии недоступны" : "Не удалось загрузить ответы")}</p> : null}
           {query.isSuccess && !replies.length ? <p className={styles.empty}>{isComments ? "Комментариев пока нет — напишите первым" : "Пока нет ответов — начните тему первым"}</p> : null}
           {replies.map((m) => {
-            const mine = m.senderId === me.id;
+            const mine = m.senderId === me.id && !fromChannel(m);
             const canAct = menuItems(m).length > 0;
             return (
               <MessageBubble

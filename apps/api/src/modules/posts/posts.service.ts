@@ -90,7 +90,10 @@ export class PostsService {
           reactions: [],
           attachments: post.attachments,
           readByIds: [uid],
-          forwardedFrom: { chatId: chat.id, chatTitle: chat.title, senderId: uid, senderName: author?.name ?? "Канал" },
+          // Якорь комментариев — обычное сообщение в обсуждении, а не пересылка:
+          // в комментариях не показываем лишнюю подпись «Переслано от…».
+          signedBy: chat.signMessages ? (author?.name ?? null) : null,
+          anonymous: !chat.signMessages,
         });
         this.messages.mutate(anchor.id, setAnchorForPost(post.id));
         post = this.messages.mutate(post.id, setDiscussionAnchor(anchor.id))!;
@@ -183,6 +186,9 @@ export class PostsService {
     // Проверяем как будто уже участник, а в обсуждение добавляем только после успеха —
     // иначе после 402 человек оставался бы в группе, так и не прокомментировав.
     const { clientId: _clientId, ...fields } = dto;
+    if (fields.asChannel === true && !isStaff(found.channel, uid)) {
+      throw new ApiError(403, "От имени канала могут комментировать только администраторы");
+    }
     const joining = !discussion.memberIds.includes(uid);
     const gate = await this.sender.gate(joining ? { ...discussion, memberIds: [...discussion.memberIds, uid] } : discussion, uid, fields);
     if (joining) discussion = this.chats.update(discussion.id, { memberIds: [...discussion.memberIds, uid] })!;

@@ -113,6 +113,8 @@ type Props = {
   botCommands?: readonly BotCommand[];
   /** Админ группы с анонимными админами — «Отправить от имени группы». */
   canPostAnonymously?: boolean;
+  /** Админ канала в обсуждении — «Отправить от имени канала». */
+  canPostAsChannel?: boolean;
   /** Сообщения или комментарии здесь платные, и платит пишущий. */
   paid?: { stars: number; kind: "message" | "comment" } | null;
   /** Можно «Размыть за звёзды» в окне отправки фото. */
@@ -162,11 +164,21 @@ export function Composer(props: Props) {
   // что запись и геолокация отправляются из замыкания, созданного раньше.
   const [asGroup, setAsGroupState] = useState(false);
   const asGroupRef = useRef(false);
+  const [asChannel, setAsChannelState] = useState(false);
+  const asChannelRef = useRef(false);
   const setAsGroup = (on: boolean) => {
     asGroupRef.current = on;
     setAsGroupState(on);
   };
-  const takeAsGroup = (): SendOptions => {
+  const setAsChannel = (on: boolean) => {
+    asChannelRef.current = on;
+    setAsChannelState(on);
+  };
+  const takeIdentity = (): SendOptions => {
+    if (asChannelRef.current) {
+      setAsChannel(false);
+      return { asChannel: true };
+    }
     if (!asGroupRef.current) return {};
     setAsGroup(false);
     return { anonymous: true };
@@ -369,7 +381,7 @@ export function Composer(props: Props) {
         if (cmd.silent) options = { ...options, silent: true };
       }
     }
-    options = { ...options, ...takeAsGroup() };
+    options = { ...options, ...takeIdentity() };
     const reply = replyTo;
     clearInput();
     onSent?.();
@@ -470,7 +482,7 @@ export function Composer(props: Props) {
       }
       if (!uploaded.length) return;
       const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
-      const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
+      const first: SendOptions = { ...takeIdentity(), ...(paidMedia ? { paidMedia } : {}) };
       const caption = typedCaption.trim();
       const reply = replyTo;
       const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
@@ -493,7 +505,7 @@ export function Composer(props: Props) {
     const reply = replyTo;
     onCancelReply();
     onSent?.();
-    return send(caption, reply, [attachment], undefined, takeAsGroup()).catch((err: unknown) => {
+    return send(caption, reply, [attachment], undefined, takeIdentity()).catch((err: unknown) => {
       setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
       return null;
     });
@@ -517,7 +529,7 @@ export function Composer(props: Props) {
       atts.push(uploaded[0]);
     }
     const reply = replyTo;
-    const options: SendOptions = { ...takeAsGroup(), article: true };
+    const options: SendOptions = { ...takeIdentity(), article: true };
     onCancelReply();
     onSent?.();
     send(articleText, reply, atts, undefined, options).catch((err: unknown) => {
@@ -838,15 +850,16 @@ export function Composer(props: Props) {
               />
             )}
             {botCommands.length && !editing ? <BotCommandsButton commands={botCommands} onCommand={(cmd) => submit({}, cmd)} /> : null}
-            {props.canPostAnonymously && !editing ? (
+            {(props.canPostAnonymously || props.canPostAsChannel) && !editing ? (
               <button
                 type="button"
-                className={asGroup ? `${styles.attach} ${styles.anonymousOn}` : styles.attach}
-                title={asGroup ? "Отправляется от имени группы" : "Отправить от имени группы"}
-                aria-pressed={asGroup}
-                onClick={() => setAsGroup(!asGroup)}
+                className={(asGroup || asChannel) ? `${styles.attach} ${styles.anonymousOn}` : styles.attach}
+                title={asChannel ? "Отправляется от имени канала" : asGroup ? "Отправляется от имени группы" : props.canPostAsChannel ? "Отправить от имени канала" : "Отправить от имени группы"}
+                aria-label={asChannel ? "Отправляется от имени канала" : asGroup ? "Отправляется от имени группы" : props.canPostAsChannel ? "Отправить от имени канала" : "Отправить от имени группы"}
+                aria-pressed={asGroup || asChannel}
+                onClick={() => (props.canPostAsChannel ? setAsChannel(!asChannel) : setAsGroup(!asGroup))}
               >
-                <Icon name="Users" size={18} />
+                <Icon name={props.canPostAsChannel ? "Send" : "Users"} size={18} />
               </button>
             ) : null}
             <textarea

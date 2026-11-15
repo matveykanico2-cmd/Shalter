@@ -24,7 +24,7 @@ export type PaidMediaRequest = { stars: number; blur?: string; width?: number; h
  * Как отправить: без звука у получателей, с эффектом (в личке), от имени группы, за звёзды;
  * article — статья (Premium): текст «# Заголовок\n\n…», обложка — первое фото.
  */
-export type SendOptions = { silent?: true; effect?: string; anonymous?: true; paidMedia?: PaidMediaRequest; article?: true; sticker?: Sticker };
+export type SendOptions = { silent?: true; effect?: string; anonymous?: true; asChannel?: true; paidMedia?: PaidMediaRequest; article?: true; sticker?: Sticker };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 

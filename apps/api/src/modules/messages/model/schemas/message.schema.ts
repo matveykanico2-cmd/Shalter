@@ -39,6 +39,8 @@ const messageFields = {
   topicId: raw(),
   storyReply: raw(),
   anonymous: raw(),
+  /** Комментарий админа от имени связанного канала. */
+  asChannel: raw(),
   effect: raw(),
   silent: raw(),
   paidMedia: raw(),

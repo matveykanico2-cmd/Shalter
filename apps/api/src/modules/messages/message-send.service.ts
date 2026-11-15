@@ -328,7 +328,10 @@ export class MessageSendService {
       visibleToId: hiddenRecipient ? senderId : undefined,
       deletedForIds: hiddenRecipient ? [hiddenRecipient] : [],
       paidStars,
-      anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
+      anonymous: !!(
+        (body.asChannel === true && chat.type === "group" && this.chats.findChannelByDiscussion(chat.id) && isStaff(this.chats.findChannelByDiscussion(chat.id), senderId)) ||
+        (body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId))
+      ),
       // Канал может публиковать от своего имени либо показывать аккаунт автора.
       // Это относится и к путям, которые идут через общий sender (Bot API/отложенная отправка),
       // а не только к POST /api/posts/:id/publish.

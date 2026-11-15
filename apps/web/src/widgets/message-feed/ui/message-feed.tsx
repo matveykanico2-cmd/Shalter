@@ -595,6 +595,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
               onCancelReply={noop}
               people={target.postId ? target.people.filter((u) => u.id !== me.id) : threadPeople}
               thread={{ rootId: target.rootId, onSent, postId: target.postId }}
+              canPostAsChannel={!!target.postId && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(me))}
               paid={target.paidStars ? { stars: target.paidStars, kind: "comment" } : null}
               typing={!target.postId || target.people.some((u) => u.id === me.id)}
             />
