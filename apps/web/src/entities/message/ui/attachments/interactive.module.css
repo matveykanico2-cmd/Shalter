@@ -91,6 +91,9 @@
 
 .voters {
   display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 3px;
   flex-basis: 100%;
   align-items: center;
   justify-content: center;
@@ -101,13 +104,14 @@
 .votersSmall {
   justify-content: flex-start;
   width: calc(100% - 50px);
+  max-width: calc(100% - 50px);
   margin: -8px 0 4px 50px;
   padding-left: 0;
 }
 
 .voter {
   display: inline-flex;
-  margin-left: -6px;
+  margin-left: 0;
   padding: 0;
   border: 2px solid var(--color-surface);
   border-radius: 50%;
