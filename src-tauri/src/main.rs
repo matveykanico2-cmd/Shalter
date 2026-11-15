@@ -616,14 +616,13 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             }
             true
         })
-        // Камера, микрофон, показ экрана и уведомления — своему серверу без вопросов, как
-        // в Telegram Desktop: системный WebView иначе молча отказывал (WebKitGTK) или
-        // спрашивал на каждый звонок, а в настройках приложения таких переключателей нет.
-        // Системный запрос ОС (macOS — доступ к камере) при этом остаётся.
+        // Камера, микрофон, геолокация, показ экрана и уведомления проходят через
+        // системный permission bridge. Перед этим интерфейс приложения показывает
+        // единое окно «Разрешения», а ОС сама отображает свой запрос, где он нужен.
         .on_permission_request(move |webview, kind| {
             let ours = webview.url().map(|u| u.origin().ascii_serialization() == perm_origin).unwrap_or(false);
             match kind {
-                PermissionKind::Microphone | PermissionKind::Camera | PermissionKind::DisplayCapture | PermissionKind::Notifications if ours => {
+                PermissionKind::Microphone | PermissionKind::Camera | PermissionKind::Geolocation | PermissionKind::DisplayCapture | PermissionKind::Notifications if ours => {
                     PermissionResponse::Allow
                 }
                 _ => PermissionResponse::Default,
