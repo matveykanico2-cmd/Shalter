@@ -63,7 +63,7 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
     { icon: "Zap", label: reduceMotion ? "Включить анимации" : "Отключить анимации", onClick: () => update.mutate({ reduceMotion: !reduceMotion }) },
     { icon: "Globe", label: "Каталог каналов", onClick: () => void navigate("/discover-channels") },
     // И внутри приложения: оттуда скачивают версию для другого устройства.
-    { icon: "Download", label: "Скачать приложение", onClick: () => (window.location.href = "/download") },
+    { icon: "Download", label: "Скачать приложение", onClick: () => void navigate("/download") },
     { icon: "Bug", label: "Сообщить об ошибке", onClick: () => void openChat(() => openServiceChat("bug"), "Не удалось открыть чат с поддержкой") },
   ];
 }
