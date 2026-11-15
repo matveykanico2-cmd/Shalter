@@ -8,18 +8,18 @@ import { http } from "../api";
 // «Обновить», нажатие обновляет service worker и перезагружает страницу. Переустанавливать
 // PWA не нужно: страница и код берутся из сети (public/sw.js, network first).
 
-type State = { available: boolean; updating: boolean };
+type State = { available: boolean; mandatory: boolean; updating: boolean };
 
 const store = {
   /** Версия открытой сборки без <meta> (dev, сборка без scripts/build.js) — первый ответ /api/version. */
   firstSeen: null as string | null,
   /** Последняя версия на сервере. */
   latest: null as string | null,
-  state: { available: false, updating: false } as State,
+  state: { available: false, mandatory: false, updating: false } as State,
   listeners: new Set<() => void>(),
   set(next: Partial<State>) {
     const state = { ...this.state, ...next };
-    if (state.available === this.state.available && state.updating === this.state.updating) return;
+    if (state.available === this.state.available && state.mandatory === this.state.mandatory && state.updating === this.state.updating) return;
     this.state = state;
     this.listeners.forEach((fn) => fn());
   },
@@ -49,16 +49,28 @@ export function useAppUpdate() {
  */
 export async function checkForUpdate(): Promise<boolean> {
   try {
-    const { version } = await http.get<z.infer<typeof versionBody>>("/api/version");
+    const { version, minimumVersion } = await http.get<z.infer<typeof versionBody>>("/api/version");
     if (version && version !== "dev") {
       store.latest = version;
       store.firstSeen ??= version;
-      store.set({ available: version !== currentVersion() });
+      const current = currentVersion();
+      const available = version !== current;
+      const mandatory = !!minimumVersion && !!current && available && compareVersions(minimumVersion, current) > 0;
+      store.set({ available, mandatory });
     }
   } catch {
     // Нет сети — проверим в следующий раз.
   }
   return store.state.available;
+}
+
+function compareVersions(a: string, b: string) {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0) ? 1 : -1;
+  }
+  return 0;
 }
 
 /** Обновить приложение: новый service worker (если вышел) и перезагрузка — с новой сборкой из сети. Повторное нажатие ждёт первое. */

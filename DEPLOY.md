@@ -1595,3 +1595,39 @@ npm run build:web
 Set a minimum only after the corresponding signed installer is available from
 `GET /api/downloads/latest`; otherwise leave it unset so an old client is not sent to a
 missing package. Back up `data/` before the normal service update.
+
+For the web client, an optional mandatory minimum is configured separately. It
+is returned by `GET /api/version`; clients below it update automatically when
+idle and show the requirement in Settings → About:
+
+```bash
+# Optional: do not set this until the corresponding web build is deployed.
+SHALTER_MIN_WEB_VERSION=1.0.1
+
+npm run build:api
+npm run build:web
+```
+
+### Current release runbook
+
+Run these commands on the production host as the deployment operator. Do not
+put the SSH password into shell history or into the repository:
+
+```bash
+cd /opt/shalter
+cp config.env "config.env.backup.$(date +%F-%H%M)"
+git pull --ff-only
+npm ci
+npm run build
+npm run build:api
+npm prune --omit=dev
+pm2 restart ecosystem.config.js --update-env
+curl -fsS http://127.0.0.1:3000/api/version
+curl -fsS http://127.0.0.1:3000/api/health || true
+```
+
+If the web build is the minimum supported release, add
+`SHALTER_MIN_WEB_VERSION=<that-version>` to the deployment environment before
+the `pm2 restart` command. Verify `/api/version` and open one chat and one call
+after the restart; if either smoke check fails, stop and restore the previous
+release rather than starting a second process against the same `data/` folder.

@@ -21,7 +21,7 @@ export function AboutSection() {
   const serverVersion = useQuery(aboutQueries.version()).data?.version;
   const version = currentVersion() ?? serverVersion;
   const openSupport = useOpenSupport();
-  const { available: updateAvailable, updating } = useAppUpdate();
+  const { available: updateAvailable, mandatory, updating } = useAppUpdate();
   const [checking, setChecking] = useState(false);
   // Есть новая версия — обновляемся сразу; нет — так и говорим.
   const update = async () => {
@@ -44,8 +44,8 @@ export function AboutSection() {
         <SettingsRow
           icon="RotateCw"
           color="blue"
-          title={updating ? "Обновляем…" : updateAvailable ? "Обновить приложение" : checking ? "Проверяем обновления…" : "Проверить обновления"}
-          subtitle={updateAvailable ? "Вышла новая версия — обновится без переустановки" : undefined}
+          title={updating ? "Обновляем…" : mandatory ? "Требуется обновление" : updateAvailable ? "Обновить приложение" : checking ? "Проверяем обновления…" : "Проверить обновления"}
+          subtitle={mandatory ? "Эта версия больше не поддерживается" : updateAvailable ? "Вышла новая версия — обновится без переустановки" : undefined}
           accent={updateAvailable}
           disabled={checking || updating}
           onClick={() => void update()}

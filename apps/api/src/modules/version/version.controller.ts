@@ -20,6 +20,6 @@ export class VersionController {
     } catch {
       // нет сборки или битый файл — dev
     }
-    return { version, startedAt: STARTED_AT };
+    return { version, startedAt: STARTED_AT, minimumVersion: process.env.SHALTER_MIN_WEB_VERSION?.trim() || null };
   }
 }

@@ -1,9 +1,10 @@
+import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakeApi } from "./test";
 
 const STARTED_AT = "2026-11-03T10:00:00.000Z";
-const serverVersion = (version: string) => fakeApi({ "GET /api/version": { body: { version, startedAt: STARTED_AT } } });
+const serverVersion = (version: string, minimumVersion: string | null = null) => fakeApi({ "GET /api/version": { body: { version, startedAt: STARTED_AT, minimumVersion } } });
 
 // Состояние — в модуле: каждый тест берёт его заново.
 const load = () => import("./app-update");
@@ -57,5 +58,13 @@ describe("обновление веб-приложения", () => {
     finish();
     await first;
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("минимальная версия помечает обновление обязательным", async () => {
+    pageVersion("1.2.0");
+    const { checkForUpdate, useAppUpdate } = await load();
+    serverVersion("2.0.0", "1.5.0");
+    expect(await checkForUpdate()).toBe(true);
+    expect(renderHook(() => useAppUpdate()).result.current).toMatchObject({ available: true, mandatory: true });
   });
 });

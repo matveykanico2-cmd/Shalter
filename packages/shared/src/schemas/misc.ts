@@ -33,4 +33,4 @@ export const latestBody = z.union([
   z.strictObject({ version: z.string(), minimumVersion: z.string().nullable(), url: z.string(), size: z.number().int(), page: z.literal("/download") }),
 ]);
 
-export const versionBody = z.strictObject({ version: z.string(), startedAt: isoDate });
+export const versionBody = z.strictObject({ version: z.string(), startedAt: isoDate, minimumVersion: z.string().nullable() });
