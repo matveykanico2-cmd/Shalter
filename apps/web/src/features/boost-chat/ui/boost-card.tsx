@@ -17,8 +17,8 @@ import styles from "./boost.module.css";
 const boosts = (n: number) => plural(n, "буст", "буста", "бустов");
 
 /** Карточка «Бусты · уровень N» в информации о группе или канале (tw-boost-card). */
-export function BoostCard({ chat, me }: { chat: ChatSummary; me: SelfUser }) {
-  const [open, setOpen] = useState(false);
+export function BoostCard({ chat, me, label, initialOpen = false, onClose }: { chat: ChatSummary; me: SelfUser; label?: string; initialOpen?: boolean; onClose?: () => void }) {
+  const [open, setOpen] = useState(initialOpen);
   const points = chat.points ?? 0;
   const level = levelForPoints(points);
   const left = pointsToNextLevel(points);
@@ -29,20 +29,20 @@ export function BoostCard({ chat, me }: { chat: ChatSummary; me: SelfUser }) {
           <Icon name="Zap" size={20} />
         </span>
         <span className={styles.rowBody}>
-          <span className={styles.rowTitle}>Бусты · уровень {level}</span>
+        <span className={styles.rowTitle}>{label ? `Бусты ${label}` : "Бусты"} · уровень {level}</span>
           <span className={styles.rowSub}>
             {points} {boosts(points)} · {left != null ? `до уровня ${level + 1} ещё ${left}` : "максимальный уровень"}
           </span>
         </span>
         <span className={styles.rowAction}>{me.isPremium ? "Бустнуть" : "Premium"}</span>
       </button>
-      {open ? <BoostDialog chat={chat} me={me} onClose={() => setOpen(false)} /> : null}
+      {open ? <BoostDialog chat={chat} me={me} label={label} onClose={() => { setOpen(false); onClose?.(); }} /> : null}
     </>
   );
 }
 
 /** Окно буста как в public/js/components/boostPopup.js: полоса «Уровень N → N+1» и кнопка. */
-function BoostDialog({ chat, me, onClose }: { chat: ChatSummary; me: SelfUser; onClose: () => void }) {
+function BoostDialog({ chat, me, label, onClose }: { chat: ChatSummary; me: SelfUser; label?: string; onClose: () => void }) {
   const client = useQueryClient();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -52,7 +52,7 @@ function BoostDialog({ chat, me, onClose }: { chat: ChatSummary; me: SelfUser; o
     return () => cancelAnimationFrame(raf);
   }, []);
   const isChannel = chat.type === "channel";
-  const what = isChannel ? "канал" : "группу";
+  const what = label?.replace(/^сообщество\s*/i, "сообщество") || (isChannel ? "канал" : "группу");
   const points = chat.points ?? 0;
   const { level, from, to } = levelBounds(points);
   const progress = to == null ? 100 : Math.max(4, Math.min(100, Math.round(((points - from) / (to - from)) * 100)));
@@ -92,7 +92,7 @@ function BoostDialog({ chat, me, onClose }: { chat: ChatSummary; me: SelfUser; o
       </div>
       <p className={styles.text}>
         {to == null
-          ? `У ${isChannel ? "канала" : "группы"} максимальный уровень — спасибо всем, кто бустил!`
+          ? `У ${label ?? (isChannel ? "канала" : "группы")} максимальный уровень — спасибо всем, кто бустил!`
           : `Ещё ${left} ${boosts(left)} — и ${what} получит уровень ${level + 1}. Бустить можно раз в сутки.`}
       </p>
       {me.isPremium ? (

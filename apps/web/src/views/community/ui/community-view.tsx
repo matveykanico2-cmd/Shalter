@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import { BoostCard } from "@/features/boost-chat";
 import { AddChatFlow, AddCommunityMembersDialog, AdminsDialog, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
 import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
 import { ProfileQrDialog } from "@/features/profile-qr";
@@ -62,8 +63,11 @@ function CommunityPage({ community }: { community: Community }) {
   const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const [actionsAt, setActionsAt] = useState<{ x: number; y: number } | null>(null);
+  const [boostOpen, setBoostOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const rights = community.rights;
+  const boostChatId = community.generalChatId ?? community.chats[0]?.id ?? "";
+  const boostChat = useQuery({ ...chatQueries.card(boostChatId), enabled: community.isMember && !!boostChatId, staleTime: 30_000 }).data?.chat;
   const reload = () => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
     void client.invalidateQueries({ queryKey: ["communities", "members", community.id] });
@@ -140,50 +144,9 @@ function CommunityPage({ community }: { community: Community }) {
             Вступить в сообщество
           </Button>
         )}
-        <Button variant="secondary" onClick={() => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована")}>
-          <Icon name="Link" size={15} /> Ссылка
-        </Button>
-        <Button variant="secondary" onClick={() => setDialog("qr")}>
-          <Icon name="Qrcode" size={15} /> QR-код
-        </Button>
-        {community.addPolicy ? (
-          <Button variant="secondary" onClick={() => setDialog("add")}>
-            <Icon name="Plus" size={15} /> {community.addPolicy === "suggest" ? "Предложить чат" : "Добавить чат"}
-          </Button>
-        ) : null}
-        {community.isMember && (community.rights?.editChats || community.isOwner) ? (
-          <>
-            <Button variant="secondary" onClick={() => setCreating("group")}>
-              <Icon name="Users" size={15} /> Создать группу
-            </Button>
-            <Button variant="secondary" onClick={() => setCreating("channel")}>
-              <Icon name="Send" size={15} /> Создать канал
-            </Button>
-          </>
-        ) : null}
-        {community.isMember ? (
-          <>
-            <Button variant="secondary" onClick={() => setTab("members")}>
-              <Icon name="Users" size={15} /> Подробнее
-            </Button>
-            {community.isMember ? (
-              <button
-                type="button"
-                className={styles.moreButton}
-                aria-label="Действия сообщества"
-                title="Действия сообщества"
-                onClick={(e) => setActionsAt({ x: e.clientX, y: e.clientY })}
-              >
-                <Icon name="More" size={18} />
-              </button>
-            ) : null}
-          </>
-        ) : null}
-        {community.isMember && !community.isOwner ? (
-          <Button variant="danger" onClick={() => void actions.leave(community).then((ok) => ok && reload())}>
-            <Icon name="LogOut" size={15} /> Покинуть
-          </Button>
-        ) : null}
+        <button type="button" className={styles.moreButton} aria-label="Действия сообщества" title="Действия сообщества" onClick={(e) => setActionsAt({ x: e.clientX, y: e.clientY })}>
+          <Icon name="More" size={20} />
+        </button>
       </div>
       {community.isMember ? (
         <div className={styles.tabs} role="tablist" aria-label="Разделы сообщества">
@@ -255,13 +218,25 @@ function CommunityPage({ community }: { community: Community }) {
       {avatarOpen && community.avatarImage ? <MediaViewer items={[{ kind: "image", url: community.avatarImage, name: community.title }]} index={0} onClose={() => setAvatarOpen(false)} /> : null}
       {dialog === "members-add" && me ? <AddCommunityMembersDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {dialog === "admins" && me ? <AdminsDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
+      {boostOpen && boostChat && me ? <BoostCard key={boostChat.id} chat={boostChat} me={me} label="сообщества" initialOpen onClose={() => setBoostOpen(false)} /> : null}
       {actionsAt ? (
         <Menu
           at={actionsAt}
           label="Действия сообщества"
           items={[
+            ...(community.isMember && boostChat ? [{ icon: "Zap" as const, label: "Бустнуть сообщество", onClick: () => setBoostOpen(true) }] : []),
             ...(rights.editInfo || rights.editChats ? [{ icon: "Edit" as const, label: "Изменить сообщество", onClick: () => setDialog("settings") }] : []),
             { icon: "Link" as const, label: "Скопировать ссылку", onClick: () => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована") },
+            { icon: "Qrcode" as const, label: "QR-код сообщества", onClick: () => setDialog("qr") },
+            ...(community.addPolicy ? [{ icon: "Plus" as const, label: community.addPolicy === "suggest" ? "Предложить чат" : "Добавить чат", onClick: () => setDialog("add") }] : []),
+            ...(community.isMember ? [{ icon: "Users" as const, label: "Участники", onClick: () => setTab("members") }] : []),
+            ...(community.isMember && (community.rights?.editChats || community.isOwner)
+              ? [
+                  { icon: "Users" as const, label: "Создать группу", onClick: () => setCreating("group") },
+                  { icon: "Send" as const, label: "Создать канал", onClick: () => setCreating("channel") },
+                ]
+              : []),
+            ...(community.isMember && !community.isOwner ? [{ icon: "LogOut" as const, label: "Покинуть сообщество", danger: true, onClick: () => void actions.leave(community).then((ok) => ok && reload()) }] : []),
           ] satisfies MenuItem[]}
           onClose={() => setActionsAt(null)}
         />
