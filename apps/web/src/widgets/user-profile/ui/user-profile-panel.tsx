@@ -6,7 +6,7 @@ import { useStartCall } from "@/features/call";
 import { ProfileQrDialog } from "@/features/profile-qr";
 
 import { ChatPickerDialog, chatQueries, openDm, useChats } from "@/entities/chat";
-import { openGiftShop } from "@/entities/gift";
+import { GiftArt, openGiftShop, type ReceivedGift } from "@/entities/gift";
 import { internalRoute, MessageLinks, MessageText } from "@/entities/message";
 import { ReportDialog } from "@/entities/report";
 import { SafetyBadge, useSafetyLabel } from "@/entities/safety-label";
@@ -129,6 +129,7 @@ export function UserProfilePanel({ userId, me }: Props) {
   const blocked = me.blockedUserIds.includes(userId);
   const inContacts = data.inContacts;
   const giftsCount = Array.isArray(u.giftsReceived) ? u.giftsReceived.length : 0;
+  const pinnedGifts = (Array.isArray(u.giftsReceived) ? (u.giftsReceived as ReceivedGift[]) : []).filter((gift) => gift.pinned && !gift.custom).slice(0, 4);
   const sharedData = shared.data ?? null;
   const has: Record<TabId, boolean> = {
     // Пока медиа грузится, вкладка видна с «Загрузка…» — чтобы она не перескакивала.
@@ -284,12 +285,26 @@ export function UserProfilePanel({ userId, me }: Props) {
           onClick={() => setOverlay("avatars")}
         >
           <Avatar size={88} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={u.online} />
+          {pinnedGifts.length ? (
+            <span className={styles.avatarGifts} aria-label="Закреплённые подарки">
+              {pinnedGifts.map((gift, index) => (
+                <span key={gift.id} className={styles.avatarGift} data-slot={index} title={`Закреплённый подарок: ${gift.name}`}>
+                  <GiftArt gift={gift} size={30} replay />
+                </span>
+              ))}
+            </span>
+          ) : null}
           {avatarCount > 1 ? <span className={styles.avatarCount}>{avatarCount}</span> : null}
         </button>
       </div>
       {isSelf ? <p className={styles.selfHint}>Так ваш профиль видят те, кому это разрешает приватность</p> : null}
       <p className={styles.name} translate="no">
         <EmojiText text={u.name || "Без имени"} />
+        {pinnedGifts.slice(0, 2).map((gift, index) => (
+          <span key={`name-${gift.id}`} className={styles.nameGift} title={`Закреплённый подарок: ${gift.name}`} data-slot={index}>
+            <GiftArt gift={gift} size={22} replay />
+          </span>
+        ))}
         {u.isVerified ? (
           <span className={styles.badge} title="Подтверждённый аккаунт">
             <Icon name="Verified" size={17} />

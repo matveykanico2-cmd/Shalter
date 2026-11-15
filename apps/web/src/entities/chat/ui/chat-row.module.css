@@ -85,27 +85,29 @@
 .body {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .line {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .line + .line {
   margin-top: 2px;
 }
 
-/* Значки после имени уступают место первыми — имя не сжимается в ноль (время не трогаем). */
+/* Имя сжимается первым, а время и значки остаются видимыми. */
 .line:first-child > :not(.title, .time) {
-  flex: 0 1000 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .title {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   font-size: 15px;
@@ -138,6 +140,7 @@
 
 .time {
   flex-shrink: 0;
+  flex-basis: auto;
   margin-left: auto;
   color: var(--color-muted);
   font-family: var(--font-mono);
