@@ -216,7 +216,7 @@ export function GiftShopDialog({ request }: { request: GiftShopRequest }) {
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) closeGiftShop();
       }}
     >

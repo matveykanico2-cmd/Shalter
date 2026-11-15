@@ -428,6 +428,7 @@
   margin-left: auto;
   font-size: 22px;
   line-height: 1;
+  padding-left: 12px;
 }
 
 /* Плавающая плашка дня: высота 0, чтобы не сдвигать ленту. */

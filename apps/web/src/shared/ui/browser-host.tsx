@@ -149,7 +149,7 @@ function InstantViewPanel({ page, onClose }: { page: BrowserPage; onClose: () =>
   return (
     <div
       className={styles.ivOverlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >

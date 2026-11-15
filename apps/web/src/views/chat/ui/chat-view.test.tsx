@@ -304,6 +304,18 @@ describe("открытый чат", () => {
     expect(await screen.findByText("Вам запрещено писать в этом чате")).toBeTruthy();
     expect(await screen.findByText("Сообщений пока нет — напишите первым")).toBeTruthy();
   });
+
+  it("пост канала от имени аккаунта показывает автора и его аватар", async () => {
+    const channel = chat({ type: "channel", title: "Новости" });
+    const post = msg("Авторский пост", { senderId: LENA.id, signedBy: LENA.name, views: 3 });
+    fakeApi({ "GET /api/chats/c_1": card(channel), [HISTORY]: page([post]) });
+    renderChat(channel);
+
+    const row = await screen.findByText("Авторский пост");
+    const message = row.closest("[data-message-id]") as HTMLElement;
+    expect(within(message).getByRole("button", { name: LENA.name })).toBeTruthy();
+    expect(within(message).getByTitle(`Профиль: ${LENA.name}`)).toBeTruthy();
+  });
 });
 
 const bubble = (id: string) => document.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
@@ -465,6 +477,8 @@ describe("действия с сообщением", () => {
     const who = screen.getByRole("menu", { name: "Реакции" });
     expect(within(who).getByText("🔥 — 1")).toBeTruthy();
     expect(within(who).getByText("Лена")).toBeTruthy();
+    expect(within(who).getByRole("button", { name: "Открыть профиль Лена" })).toBeTruthy();
+    expect(within(who).getByTitle("Лена")).toBeTruthy();
   });
 
   it("панель эмодзи: вставка в место курсора, «Недавние» при следующем открытии", async () => {
@@ -2683,6 +2697,10 @@ describe("информация о чате", () => {
         renderChat(channel());
         const panel = openChannelEditor();
         expect(within(panel).queryByRole("button", { name: /Права участников/ })).toBeNull();
+        const identity = within(panel).getByRole("button", { name: /Отправлять от имени аккаунта/ });
+        expect(identity.getAttribute("aria-pressed")).toBe("false");
+        fireEvent.click(identity);
+        await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/settings")?.body).toEqual({ signMessages: true }));
         nav(panel, /Реакции.*Все/);
         fireEvent.click(within(panel).getByRole("radio", { name: "Только выбранные" }));
         await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/reactions").map((c) => c.body)).toEqual([{ reactions: [] }]));

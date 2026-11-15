@@ -169,7 +169,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -182,7 +182,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
         </div>
         <div
           className={styles.stage}
-          onPointerDown={(e) => {
+          onClick={(e) => {
             // Поля вокруг фотографии относятся к затемнённому фону просмотрщика.
             // Закрываем только его и не пропускаем нажатие в профиль под порталом.
             if (e.target === e.currentTarget) {

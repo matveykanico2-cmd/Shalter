@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatFolder, chatQueries, type ChatSummary } from "@/entities/chat";
-import { communityQueries } from "@/entities/community";
+import { communityQueries, type JoinedCommunity } from "@/entities/community";
 import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
@@ -56,11 +56,11 @@ function message(chatId: string, text: string, createdAt: string, senderId = "u_
   return { id: `m_${text}`, chatId, senderId, type: "text", text, createdAt, pinned: false, replyToId: null, reactions: [], readByIds: [], deletedForIds: [], mentionedUserIds: [], views: null };
 }
 
-function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/") {
+function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/", communities: JoinedCommunity[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   client.setQueryData(chatQueries.list().queryKey, chats);
   client.setQueryData(chatQueries.folders().queryKey, folders);
-  client.setQueryData(communityQueries.joined().queryKey, []);
+  client.setQueryData(communityQueries.joined().queryKey, communities);
   const router = createMemoryRouter(
     [
       {
@@ -77,6 +77,25 @@ function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/"
     </QueryClientProvider>
   );
   return { client, router };
+}
+
+function community(chatIds: string[]): JoinedCommunity {
+  return {
+    id: "cm_test0000",
+    title: "Моё сообщество",
+    description: null,
+    avatarColor: "#5b8def",
+    avatarImage: null,
+    avatarEmoji: null,
+    role: "owner",
+    isOwner: true,
+    rights: { editInfo: true, editChats: true, ban: true, addAdmins: true },
+    addMode: "admins",
+    pinned: false,
+    collapsed: false,
+    chatIds,
+    requestsCount: 0,
+  };
 }
 
 const titles = () =>
@@ -187,6 +206,21 @@ describe("список чатов", () => {
     renderList([read, unread]);
     expect(titles()).toEqual(["Есть новое"]);
     expect(screen.getByTitle("Показать все чаты").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("внутренние чаты сообщества не выходят в список, вкладки и архив, а непрочитанное агрегируется на сообществе", () => {
+    const internal = chat({ title: "Внутренняя группа", unreadCount: 4, archived: true });
+    const outside = chat({ title: "Обычная группа" });
+    renderList([internal, outside], [], "/", [community([internal.id])]);
+
+    expect(screen.getByRole("button", { name: /Моё сообщество/ }).textContent).toContain("4");
+    expect(screen.queryByText("Внутренняя группа")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Архив/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Группы/ }).textContent).toBe("Группы");
+
+    fireEvent.click(screen.getByTitle("Только непрочитанные"));
+    expect(screen.getByRole("button", { name: /Моё сообщество/ })).toBeTruthy();
+    expect(screen.queryByText("Внутренняя группа")).toBeNull();
   });
 
   it("открытый чат выделен", () => {

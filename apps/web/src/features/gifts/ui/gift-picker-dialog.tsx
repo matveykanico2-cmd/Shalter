@@ -37,7 +37,7 @@ export function GiftPickerDialog({ title = "Выдать подарок", search
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >

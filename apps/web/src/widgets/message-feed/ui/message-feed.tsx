@@ -201,6 +201,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     return from < 0 ? 0 : list.slice(from + 1).filter((m) => m.senderId !== meId && m.type !== "system").length;
   }, [data?.messages, leftAt, meId]);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
 
@@ -213,6 +214,10 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     // десятки пузырей с медиа, Markdown и реакциями на слабом Android.
     overscan: 6,
     getItemKey: (i) => rows[i]!.key,
+    // При prepend старой страницы сохраняем первую видимую строку и её смещение.
+    // Виртуализатор также компенсирует уточнение высоты динамических пузырей, поэтому
+    // лента не делает отдельный скачок после того, как медиа и Markdown измерились.
+    anchorTo: "end",
   });
   const totalSize = virtualizer.getTotalSize();
 
@@ -233,18 +238,11 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
 
   // Прилипшая лента держит низ, пока сообщения добавляются и меряются; подгруженная
   // сверху история не сдвигает то, что сейчас на экране.
-  const firstKey = rows[0]?.key;
-  const prevFirstKey = useRef(firstKey);
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (stuck.current) {
-      el.scrollTop = el.scrollHeight;
-    } else if (prevFirstKey.current !== firstKey) {
-      el.scrollTop = el.scrollHeight - fromBottom.current;
-    }
-    prevFirstKey.current = firstKey;
-  }, [totalSize, rows.length, firstKey]);
+    if (stuck.current) el.scrollTop = el.scrollHeight;
+  }, [totalSize, rows.length]);
 
   // Пока истории нет (грузится, ошибка), нет и области прокрутки.
   const hasScroller = !!data;
@@ -268,17 +266,18 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   }, [hasScroller]);
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || !data?.hasMore) return;
+    if (loadingOlderRef.current || !data?.hasMore) return;
+    loadingOlderRef.current = true;
     setLoadingOlder(true);
     try {
       await loadOlderHistory(client, chat.id, topic);
     } catch {
       // Не вышло — попробуем при следующей прокрутке.
     } finally {
-      // После подгрузки даём скроллу осесть, чтобы не было каскадной загрузки всей истории.
-      setTimeout(() => setLoadingOlder(false), 300);
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
     }
-  }, [client, chat.id, topic, data?.hasMore, loadingOlder]);
+  }, [client, chat.id, topic, data?.hasMore]);
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -571,6 +570,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         senderName={senderName}
         author={(m) => senders(m)}
         nameOf={knownName}
+        userOf={userOf}
         onReply={isChannel ? undefined : onReply}
         onEdit={onEdit}
         onSelect={toggleSelect}
@@ -681,10 +681,11 @@ function MessageRow(props: RowProps) {
       message={message}
       mine={mine}
       sender={senders(message)}
-      // Как в Telegram: автор поста в канале — сам канал, имя админа не показываем.
-      showSender={isGroup && groupStart}
+      // По умолчанию пост идёт от канала. При включённой подписи signedBy фиксирует,
+      // что автор выбрал отправку от своего аккаунта, — показываем его имя и аватар.
+      showSender={(isGroup || (isChannel && !!message.signedBy)) && groupStart}
       senderTag={props.senderTag}
-      showAvatar={isGroup && !mine ? groupEnd : undefined}
+      showAvatar={isChannel && message.signedBy ? groupEnd : isGroup && !mine ? groupEnd : undefined}
       groupStart={groupStart}
       groupEnd={groupEnd}
       isChannel={isChannel}

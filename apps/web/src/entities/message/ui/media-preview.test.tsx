@@ -46,4 +46,12 @@ describe("превью сообщения с медиа (mediaPreview.js)", () =
     expect(hasMediaPreview(msg({ text: "привет" }))).toBe(false);
     expect(hasMediaPreview(msg({ type: "gift", gift: { name: "Мишка" } }))).toBe(true);
   });
+
+  it("ответ на стикер показывает сам стикер, а не только его эмодзи", () => {
+    const sticker = { kind: "image" as const, url: "/uploads/cat.webp", emoji: "😺", name: "Кот" };
+    const { container } = render(<MediaPreview message={msg({ type: "sticker", sticker })} size={28} />);
+    expect(hasMediaPreview(msg({ type: "sticker", sticker }))).toBe(true);
+    expect(container.querySelector('img[src="/uploads/cat.webp"]')).toBeTruthy();
+    expect(screen.getByText("Кот")).toBeTruthy();
+  });
 });

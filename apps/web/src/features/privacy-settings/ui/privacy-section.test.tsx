@@ -119,7 +119,8 @@ describe("«Конфиденциальность»", () => {
     });
     renderPrivacy();
     fireEvent.click(await screen.findByRole("button", { name: /^Двухэтапная аутентификация\s*Выкл\.$/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Облачный пароль/ }));
+    expect(screen.queryByRole("button", { name: /Приложение-аутентификатор/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Код в чате Shalter/ })).toBeNull();
     fireEvent.change(screen.getByLabelText("Облачный пароль"), { target: { value: "abc" } });
     fireEvent.click(screen.getByRole("button", { name: "Включить" }));
     expect(screen.getByText("Облачный пароль — не короче 6 знаков")).toBeTruthy();

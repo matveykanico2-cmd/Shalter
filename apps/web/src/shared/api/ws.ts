@@ -79,6 +79,8 @@ const FIRST_DELAY_MS = 1000;
 const MAX_DELAY_MS = 15_000;
 // Короткие сбои не показываем, чтобы статус не мигал (public/js/lib/netStatus.js).
 const DOWN_GRACE_MS = 2000;
+const MESSAGE_DEDUP_MS = 10 * 60_000;
+const MESSAGE_DEDUP_LIMIT = 1000;
 
 /** open — сокет на связи; down — не на связи дольше пары секунд; everOpened — уже открывался. */
 export type WsStatus = { open: boolean; down: boolean; everOpened: boolean };
@@ -98,6 +100,28 @@ export function createWsClient(url: () => string = defaultUrl) {
   let listening = false;
   let status: WsStatus = { open: false, down: false, everOpened: false };
   let downTimer: ReturnType<typeof setTimeout> | undefined;
+  // Один message:new иногда доезжает дважды при одновременном восстановлении WS и
+  // relay фонового процесса. Лента умеет слить его по id, но звук и уведомление уже
+  // успевали сработать повторно, отчего сообщения казались приходящими «пачкой».
+  const recentMessages = new Map<string, number>();
+
+  function duplicateNewMessage(event: { type: string; [key: string]: unknown }) {
+    if (event.type !== "message:new") return false;
+    const chatId = typeof event.chatId === "string" ? event.chatId : "";
+    const message = event.message as { id?: unknown } | undefined;
+    if (!chatId || typeof message?.id !== "string") return false;
+    const key = `${chatId}:${message.id}`;
+    const now = Date.now();
+    const seenAt = recentMessages.get(key);
+    recentMessages.set(key, now);
+    if (recentMessages.size > MESSAGE_DEDUP_LIMIT) {
+      for (const [oldKey, at] of recentMessages) {
+        if (recentMessages.size <= MESSAGE_DEDUP_LIMIT / 2 && now - at <= MESSAGE_DEDUP_MS) break;
+        recentMessages.delete(oldKey);
+      }
+    }
+    return seenAt !== undefined && now - seenAt <= MESSAGE_DEDUP_MS;
+  }
 
   function emit(event: { type: string; [key: string]: unknown }) {
     handlers.get(event.type)?.forEach((fn) => (fn as (e: unknown) => void)(event));
@@ -147,6 +171,7 @@ export function createWsClient(url: () => string = defaultUrl) {
       }
       if (!msg || typeof msg !== "object" || typeof (msg as { type?: unknown }).type !== "string") return;
       if ((msg as { type: string }).type === "pong") return;
+      if (duplicateNewMessage(msg as { type: string; [key: string]: unknown })) return;
       emit(msg as { type: string });
     });
     ws.addEventListener("close", (ev) => {
@@ -260,6 +285,7 @@ export function createWsClient(url: () => string = defaultUrl) {
       clearTimeout(downTimer);
       downTimer = undefined;
       status = { open: false, down: false, everOpened: false };
+      recentMessages.clear();
       const ws = socket;
       socket = null;
       try {

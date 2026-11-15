@@ -43,13 +43,12 @@ function StatusViewer({ subject, onClose }: { subject: Subject; onClose: () => v
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}
-      onClick={(e) => e.stopPropagation()}
     >
       <div className={styles.viewer} role="dialog" aria-modal="true" aria-label={subject.statusName || "Статус"} style={{ ["--status-glow-image" as string]: `url("${subject.statusIcon}")` }}>
         <button type="button" className={styles.close} title="Закрыть" aria-label="Закрыть" autoFocus onClick={onClose}>

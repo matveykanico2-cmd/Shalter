@@ -33,7 +33,7 @@ export function DownloadViewer({ item, onClose }: { item: Download; onClose: () 
   }, [item]);
 
   return createPortal(
-    <div className={styles.overlay} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`${styles.dialog} ${styles.viewer}`} role="dialog" aria-modal="true" aria-label={item.name}>
         <div className={styles.head}>
           <span className={styles.viewerTitle}>{item.name}</span>

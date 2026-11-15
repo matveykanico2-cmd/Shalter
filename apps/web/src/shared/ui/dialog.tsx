@@ -24,7 +24,7 @@ export function Dialog({ title, children, onClose, className }: Props) {
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >

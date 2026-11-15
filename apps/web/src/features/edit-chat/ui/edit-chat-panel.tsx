@@ -174,7 +174,12 @@ function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; o
       </Section>
       <Section>
         {isChannel ? (
-          <ToggleRow title="Подписывать посты" subtitle="Под постом будет имя автора" checked={!!chat.signMessages} onChange={(v) => void saveSetting({ signMessages: v })} />
+          <ToggleRow
+            title="Отправлять от имени аккаунта"
+            subtitle={chat.signMessages ? "В постах видны имя и аватар автора" : "Посты отправляются от имени канала"}
+            checked={!!chat.signMessages}
+            onChange={(v) => void saveSetting({ signMessages: v })}
+          />
         ) : null}
         {isChannel ? (
           <ToggleRow

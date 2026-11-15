@@ -21,6 +21,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const queryClient = useQueryClient();
   const groups = useQuery(storyQueries.feed()).data?.groups ?? NO_GROUPS;
   const fileRef = useRef<HTMLInputElement>(null);
+  const publishingRef = useRef(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ file: File | null; resolve: (f: File | null) => void } | null>(null);
   const [creating, setCreating] = useState<"text" | "media" | null>(null);
@@ -42,7 +43,11 @@ export function StoriesBar({ me }: { me: SelfUser }) {
 
   /** Опубликовать все выбранные файлы одной историей. */
   const publish = async () => {
-    if (!selectedFiles.length) return;
+    // Двойной тап на телефоне раньше запускал два postStory одновременно. Второй
+    // вызов перезаписывал resolve открытого редактора, первый навсегда оставался
+    // ждать и после «Готово» снова открывал редактор вместо публикации.
+    if (!selectedFiles.length || publishingRef.current) return;
+    publishingRef.current = true;
     try {
       setProgress("Загружаем историю…");
       const posted = await postStory(selectedFiles, {
@@ -53,6 +58,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
+      publishingRef.current = false;
       setProgress(null);
       setSelectedFiles([]);
     }
@@ -178,8 +184,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
             <button type="button" className={styles.mediaSelectionCancel} onClick={() => { setSelectedFiles([]); setCreating(null); }}>
               Отмена
             </button>
-            <button type="button" className={styles.mediaSelectionPublish} onClick={publish}>
-              Опубликовать историю
+            <button type="button" className={styles.mediaSelectionPublish} disabled={progress !== null} onClick={publish}>
+              {progress ?? "Опубликовать историю"}
             </button>
           </div>
         </div>

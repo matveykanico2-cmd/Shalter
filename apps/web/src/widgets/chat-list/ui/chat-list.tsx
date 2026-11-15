@@ -14,7 +14,7 @@ import { NewBotFlow } from "@/features/my-bots";
 import { StoriesBar } from "@/features/stories";
 
 import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
-import { communityActivity, communityQueries, type JoinedCommunity, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
+import { communityActivity, communityQueries, type JoinedCommunity, memberChatsOf, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
 import { http, useWsEvent, type WsEvents } from "@/shared/api";
@@ -112,6 +112,8 @@ export function ChatList({ meId }: { meId: string }) {
   const client = useQueryClient();
   const communitiesQuery = useQuery(communityQueries.joined());
   const communities = communitiesQuery.data ?? NO_COMMUNITIES;
+  const communityChatIds = useMemo(() => new Set(communities.flatMap((community) => community.chatIds)), [communities]);
+  const externalChats = useMemo(() => chats?.filter((chat) => !communityChatIds.has(chat.id)), [chats, communityChatIds]);
   useWsEvent("community:updated", ({ communityId }) => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(communityId).queryKey });
     void client.invalidateQueries({ queryKey: communityQueries.joined().queryKey });
@@ -151,20 +153,16 @@ export function ChatList({ meId }: { meId: string }) {
   const activeTab = tabs.some((t) => t.id === tab) ? tab : "all";
 
   const rows = useMemo<Row[]>(() => {
-    if (!chats) return [];
-    if (showArchive) return sortChats(chats.filter((c) => c.archived)).map((chat) => ({ kind: "chat", chat }));
-    let list = sortChats(chatsInTab(activeTab, chats, folders));
+    if (!chats || !externalChats) return [];
+    if (showArchive) return sortChats(externalChats.filter((c) => c.archived)).map((chat) => ({ kind: "chat", chat }));
+    let list = sortChats(chatsInTab(activeTab, externalChats, folders));
     if (unreadOnly) list = list.filter((c) => hasUnread(c) || c.id === currentId);
-    const archived = chats.filter((c) => c.archived);
+    const archived = externalChats.filter((c) => c.archived);
     const head: Row[] = activeTab === "all" && archived.length && !unreadOnly ? [{ kind: "archive", chats: sortChats(archived) }] : [];
     // Сообщества — только во вкладке «Все». В «Группы» и «Каналы» не попадают;
-    // открываются только по нажатию на само сообщество (панель / страница сообщества).
-    const shown = activeTab === "all" && !unreadOnly ? communities : [];
-    const communityChatIds = new Set(communities.flatMap((cm) => cm.chatIds));
-    // Каналы и группы из сообществ не показываются нигде кроме внутри сообщества
-    list = list.filter((c) => !communityChatIds.has(c.id));
-    const folded = new Set(shown.filter((cm) => cm.collapsed).flatMap((cm) => cm.chatIds));
-    if (folded.size) list = list.filter((c) => !folded.has(c.id) || c.id === currentId);
+    // открываются только по нажатию на само сообщество. В фильтре непрочитанных остаётся
+    // одна строка сообщества, если новое есть хотя бы в одном внутреннем чате.
+    const shown = activeTab !== "all" ? [] : unreadOnly ? communities.filter((community) => memberChatsOf(community, chats).some(hasUnread)) : communities;
     const notArchived = chats.filter((c) => !c.archived);
     const out: Row[] = [...head, ...shown.filter((cm) => cm.pinned).map((community): Row => ({ kind: "community", community }))];
     const queue = shown
@@ -181,7 +179,7 @@ export function ChatList({ meId }: { meId: string }) {
     flush(null);
     if (listAd && activeTab === "all" && !showArchive && !unreadOnly) out.splice(Math.min(2, out.length), 0, { kind: "ad", ad: listAd });
     return out;
-  }, [chats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
+  }, [chats, externalChats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -255,7 +253,7 @@ export function ChatList({ meId }: { meId: string }) {
     virtualizer.scrollToOffset(0, { align: "start" });
   }, [virtualizer, rows.length]);
 
-  const archivedCount = chats?.filter((c) => c.archived).length ?? 0;
+  const archivedCount = externalChats?.filter((c) => c.archived).length ?? 0;
 
   const pinnedDrag = (chatId: string) => ({
     draggable: true,
@@ -350,7 +348,7 @@ export function ChatList({ meId }: { meId: string }) {
         <div className={styles.tabsBar}>
           <div className={styles.tabs}>
             {tabs.map((t) => {
-              const unread = chats ? chatsInTab(t.id, chats, folders).filter(hasUnread).length : 0;
+              const unread = externalChats ? chatsInTab(t.id, externalChats, folders).filter(hasUnread).length : 0;
               return (
                 <button
                   key={t.id}
@@ -457,7 +455,7 @@ export function ChatList({ meId }: { meId: string }) {
       {creatingBot ? <NewBotFlow onClose={() => setCreatingBot(false)} /> : null}
       {creatingCommunity ? <CreateCommunityDialog onCreated={(c) => void openCommunity(c.id)} onClose={() => setCreatingCommunity(false)} /> : null}
       {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
-      {tabMenu && chats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, chats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
+      {tabMenu && externalChats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, externalChats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
       </div>
     </div>
   );

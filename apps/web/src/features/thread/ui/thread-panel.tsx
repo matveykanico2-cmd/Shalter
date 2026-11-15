@@ -100,7 +100,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -142,6 +142,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
                 showAvatar={!mine}
                 meId={me.id}
                 metaApart
+                centered={mine}
                 onOpenMenu={canAct ? (msg, at) => setMenu({ message: msg, at }) : undefined}
               />
             );

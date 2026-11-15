@@ -98,6 +98,7 @@ type RowProps = { community: JoinedCommunity; chats: readonly ChatSummary[]; meI
 
 /** Строка сообщества в списке чатов — CommunityRow: последнее сообщение «Чат: текст». */
 export function CommunityRow({ community, chats, meId, active }: RowProps) {
+  const client = useQueryClient();
   const openCommunity = useOpenCommunity();
   const [menuAt, setMenuAt] = useState<Point | null>(null);
   const menu = useCommunityMenu(community, chats);
@@ -118,6 +119,10 @@ export function CommunityRow({ community, chats, meId, active }: RowProps) {
       <button
         type="button"
         className={active ? `${styles.row} ${styles.active}` : styles.row}
+        onPointerEnter={(event) => {
+          if (event.pointerType === "mouse") void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 });
+        }}
+        onPointerDown={() => void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 })}
         onClick={() => void openCommunity(community.id)}
         onContextMenu={(e) => {
           e.preventDefault();

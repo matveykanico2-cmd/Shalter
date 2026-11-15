@@ -96,6 +96,31 @@ export class MessageActionsService {
     // Сам файл не трогаем: одинаковые файлы хранятся один раз (sha_…), и его может держать
     // пересланная копия или стикер-пак. Без ссылок его уберёт orphanSweep.
     this.realtime.broadcastToOthers(chat, uid, { type: "message:deleted", chatId, id: messageId });
+    // Уже показанный push не должен продолжать показывать текст удалённого сообщения.
+    // Тот же tag заменяет уведомление чата, silent не даёт второй звук/вибрацию.
+    const notify = push();
+    const sender = this.users.findById(existing.senderId);
+    const title = chat.type === "group" || chat.type === "channel" ? chat.title : (sender?.name ?? "Shalter");
+    void Promise.all(
+      chat.memberIds
+        .filter((id) => id !== existing.senderId)
+        .map((id) =>
+          notify.sendPushToUser(
+            id,
+            {
+              title,
+              body: "Удалённое сообщение",
+              url: `/chat/${chat.id}`,
+              kind: "message-deleted",
+              tag: `chat-${chat.id}`,
+              chatId: chat.id,
+              messageId,
+              silent: true,
+            },
+            notify.MESSAGE_PUSH
+          )
+        )
+    ).catch((err: unknown) => console.error("deleted message push failed:", err));
     return { ok: true, id: messageId, forEveryone: true };
   }
 

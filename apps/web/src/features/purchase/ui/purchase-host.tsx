@@ -30,7 +30,7 @@ function StarsDialog({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
   return createPortal(
-    <div className={styles.overlay} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={styles.popup} role="dialog" aria-modal="true" aria-label="Звёзды">
         <button type="button" className={styles.popupClose} title="Закрыть" aria-label="Закрыть" onClick={onClose}>
           <Icon name="X" size={22} />

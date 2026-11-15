@@ -1,6 +1,7 @@
 import { GiftArt, type MessageGift } from "@/entities/gift/@x/message";
 
-import { EmojiText, Icon } from "@/shared/ui";
+import { renderSticker, type Sticker } from "@/shared/lib/anim";
+import { DomNode, EmojiText, Icon } from "@/shared/ui";
 
 import type { Previewable } from "../lib/media-preview";
 import { messagePreview, plainText, stripCustomEmoji } from "../lib/message-preview";
@@ -86,7 +87,15 @@ export function MediaPreview({ message: m, who, size = 20, className }: Props) {
   const parts = [];
   if (who) parts.push(<span key="who" className={styles.who}>{who}</span>);
   const gift = m.type === "gift" ? (m.gift as MessageGift | undefined) : undefined;
-  if (gift) {
+  const sticker = m.type === "sticker" ? (m.sticker as Sticker | undefined) : undefined;
+  if (sticker) {
+    parts.push(
+      <span key="sticker" className={styles.sticker} style={{ width: size, height: size }}>
+        <DomNode create={() => renderSticker(sticker, { size, replay: false })} label={sticker.name || sticker.emoji || "Стикер"} />
+      </span>,
+      label(sticker.name || "Стикер"),
+    );
+  } else if (gift) {
     parts.push(
       <span key="gift" className={styles.gift} style={{ width: size, height: size }}>
         <GiftArt gift={gift} size={size} replay={false} className={styles.giftArt} />
@@ -97,7 +106,7 @@ export function MediaPreview({ message: m, who, size = 20, className }: Props) {
     // Статья: миниатюра обложки и «📰 Заголовок», без markdown тела.
     if (a && isImage(a) && thumbOf(a)) parts.push(<Mini key="thumb" a={a} size={size} />);
     parts.push(label(messagePreview(m as Message)));
-  } else if (!a || m.type === "sticker") {
+  } else if (!a) {
     parts.push(label(messagePreview(m as Message)));
   } else if (a.kind === "video-note" || a.kind === "voice") {
     parts.push(

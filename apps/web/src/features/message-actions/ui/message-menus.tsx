@@ -1,12 +1,13 @@
 import { type ChatSummary } from "@/entities/chat";
-import { type Message, reactionLabel, reactionsOf } from "@/entities/message";
+import { type Message, type MessageSender, reactionLabel, reactionsOf } from "@/entities/message";
 import { ReportDialog } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
+import { openUserProfile } from "@/entities/user";
 
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
-import { Menu, type MenuItem, toast } from "@/shared/ui";
+import { Avatar, Menu, type MenuItem, toast } from "@/shared/ui";
 
 import { canDelete, canEdit, canPin, canReact, canSummarize, canTranslate, deleteOptions, isProtectedChat } from "../lib/permissions";
 import { readAtLabel } from "../lib/read-at";
@@ -16,6 +17,7 @@ import type { Summaries } from "../model/use-summaries";
 
 import { DeleteMessageDialog } from "./delete-message-dialog";
 import { ForwardDialog } from "./forward-dialog";
+import styles from "./message-actions.module.css";
 import { ReactionsBar } from "./reactions-bar";
 import { ReadersMenu } from "./readers-menu";
 import { SelectTextDialog } from "./select-text-dialog";
@@ -34,6 +36,8 @@ type Props = {
   onEdit?: (m: Message) => void;
   /** Имя участника по id; неизвестных в «кто поставил» не показываем. */
   nameOf?: (userId: string) => string | null;
+  /** Участник по id — полный список реакций с аватаром и переходом в профиль. */
+  userOf?: (userId: string) => MessageSender | null;
   /** Начать выбор нескольких с этого сообщения. */
   onSelect?: (m: Message) => void;
   summaries?: Summaries;
@@ -42,7 +46,7 @@ type Props = {
 };
 
 /** Меню сообщения и его диалоги — как openMessageMenu в public/js/components/messageBubble.js. */
-export function MessageMenus({ control, actions, chat, me, senderName, author, nameOf, onReply, onEdit, onSelect, summaries, onOpenThread }: Props) {
+export function MessageMenus({ control, actions, chat, me, senderName, author, nameOf, userOf, onReply, onEdit, onSelect, summaries, onOpenThread }: Props) {
   const { state, close } = control;
   if (!state) return null;
 
@@ -81,9 +85,39 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
     const m = state.message;
     const r = reactionsOf(m).find((x) => x.emoji === state.emoji);
     if (!r) return null;
-    const names = r.userIds.map((id) => nameOf?.(id)).filter((n): n is string => !!n);
-    const items: MenuItem[] = [{ label: `${reactionLabel(r.emoji)} — ${r.userIds.length}` }, ...names.map((name) => ({ icon: "User" as const, label: name }))];
-    return <Menu at={state.at} label="Реакции" items={items} onClose={close} />;
+    return (
+      <Menu
+        at={state.at}
+        label="Реакции"
+        onClose={close}
+        header={
+          <div className={styles.reactors}>
+            <p className={styles.reactorsTitle}>{reactionLabel(r.emoji)} — {r.userIds.length}</p>
+            {r.userIds.map((id) => {
+              const user = userOf?.(id);
+              const name = user?.name || nameOf?.(id) || "Участник";
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={styles.reactor}
+                  aria-label={`Открыть профиль ${name}`}
+                  onClick={() => {
+                    close();
+                    openUserProfile(id);
+                  }}
+                >
+                  <span title={name}>
+                    <Avatar size={34} name={name} color={user?.avatarColor} image={user?.avatarImage} emoji={user?.avatarEmoji} />
+                  </span>
+                  <span>{name}</span>
+                </button>
+              );
+            })}
+          </div>
+        }
+      />
+    );
   }
 
   if (state.kind === "translate") return <TranslateDialog text={state.text} onClose={close} />;

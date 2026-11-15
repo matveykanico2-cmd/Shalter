@@ -66,12 +66,11 @@ describe("строка чата", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("чат с непрочитанными не предзагружается: запрос истории отметил бы их прочитанными", async () => {
-    const { calls } = fakeApi({});
+  it("у непрочитанного чата предзагружается безопасная карточка, но не отмечающая прочтение история", async () => {
+    const { calls } = fakeApi({ "GET /api/chats/c_1": { body: { chat: chat({ unreadCount: 3 }), members: [] } } });
     renderRow(chat({ unreadCount: 3 }));
     fireEvent.pointerEnter(screen.getByRole("button", { name: /Дача/ }).parentElement!, { pointerType: "mouse" });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(calls).toHaveLength(0);
+    await waitFor(() => expect(calls.map((c) => c.key)).toEqual(["GET /api/chats/c_1"]));
   });
 
   it("последнее сообщение с фото — миниатюрой и «Вы: »", () => {

@@ -64,6 +64,14 @@ afterEach(async () => {
 });
 
 describe("звонки в оболочке", () => {
+  it("обычная ссылка на неотвеченный входящий не берёт трубку сама", async () => {
+    const { calls } = fakeApi({ "GET /api/calls": listed({ ...CALL, answered: false }) });
+    const router = renderApp("/call/cl_1");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(false);
+    expect(getCall()).toBeNull();
+  });
+
   it("входящий: экран вызова, «Ответить» — экран звонка; ушли в чат — пузырь; пузырь — обратно; «Завершить» — в чат", async () => {
     const { calls } = fakeApi({
       "GET /api/calls": { body: { calls: [] } },

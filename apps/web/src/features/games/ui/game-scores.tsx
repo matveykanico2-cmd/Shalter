@@ -17,7 +17,7 @@ export function GameScores({ game, chatId }: { game: GameRef; chatId: string | n
   return createPortal(
     <div
       className={`${styles.modalOverlay} ${styles.scoresOverlay}`}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) closeGameScores();
       }}
     >

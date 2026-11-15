@@ -32,7 +32,7 @@ export function PremiumFeaturesDialog({ features, start, isPremium, onSubscribe,
 
   const f = features[index]!;
   return createPortal(
-    <div className={styles.overlay} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={styles.carousel} role="dialog" aria-modal="true" aria-label="Shalter Premium">
         <button type="button" className={styles.carouselClose} title="Закрыть" aria-label="Закрыть" onClick={onClose}>
           <Icon name="X" size={22} />

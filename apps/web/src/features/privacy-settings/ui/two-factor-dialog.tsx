@@ -17,8 +17,11 @@ type Step = "method" | "cloud" | "loading" | "error" | "scan" | "recovery";
 
 /** Включение 2FA — openTwoFactorSetupDialog (components/twoFactorDialog.js). */
 export function TwoFactorSetupDialog({ onEnabled, onClose }: { onEnabled: () => void; onClose: () => void }) {
-  const [step, setStep] = useState<Step>("method");
-  const [method, setMethod] = useState<TwoFactorMethod>("totp");
+  // Новую двухэтапную защиту настраиваем только облачным паролем. Ветки TOTP и
+  // кода из служебного чата остаются ниже лишь для совместимого отключения уже
+  // существующих аккаунтов; создать такую защиту из клиента больше нельзя.
+  const [step, setStep] = useState<Step>("cloud");
+  const [method, setMethod] = useState<TwoFactorMethod>("password");
   const [totp, setTotp] = useState<{ secret: string; uri: string } | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);

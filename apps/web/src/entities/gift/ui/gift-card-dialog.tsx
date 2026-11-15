@@ -74,7 +74,7 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >

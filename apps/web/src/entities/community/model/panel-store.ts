@@ -30,7 +30,9 @@ export function useOpenCommunity() {
   const client = useQueryClient();
   const navigate = useNavigate();
   return async (id: string) => {
-    void client.invalidateQueries({ queryKey: communityQueries.detail(id).queryKey });
+    // Детали и проверка членства не зависят друг от друга: начинаем карточку сразу,
+    // чтобы панель не ждала сначала /joined, а потом /:id.
+    void client.prefetchQuery({ ...communityQueries.detail(id), staleTime: 20_000 });
     const known = client.getQueryData(communityQueries.joined().queryKey)?.some((c) => c.id === id);
     const joined = known ? client.getQueryData(communityQueries.joined().queryKey) : await client.fetchQuery({ ...communityQueries.joined(), staleTime: 0 }).catch(() => []);
     if (known) void client.invalidateQueries({ queryKey: communityQueries.joined().queryKey });

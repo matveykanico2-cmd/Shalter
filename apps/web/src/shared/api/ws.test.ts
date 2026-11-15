@@ -33,6 +33,19 @@ describe("клиент WebSocket", () => {
     expect(got).toEqual(["reconnected", "deleted m_1"]);
   });
 
+  it("повторный message:new с тем же id не запускает звук и уведомление второй раз", () => {
+    const got = vi.fn();
+    client.on("message:new", got);
+    client.start();
+    const socket = FakeSocket.last();
+    socket.open();
+    const event = { type: "message:new", chatId: "c_1", message: { id: "m_1" } };
+    socket.receive(event);
+    socket.receive(event);
+    socket.receive({ ...event, message: { id: "m_2" } });
+    expect(got).toHaveBeenCalledTimes(2);
+  });
+
   it("ping раз в 20 с; нет ответа 6 с — новый сокет", () => {
     client.start();
     const first = FakeSocket.last();

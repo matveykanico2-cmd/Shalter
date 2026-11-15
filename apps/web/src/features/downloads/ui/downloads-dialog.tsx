@@ -67,7 +67,7 @@ export function DownloadsDialog({ onClose }: { onClose: () => void }) {
   if (open) return <DownloadViewer item={open} onClose={() => setOpen(null)} />;
 
   return createPortal(
-    <div className={styles.overlay} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="downloads-title">
         <div className={styles.head}>
           <h2 id="downloads-title" className={styles.title}>

@@ -156,6 +156,42 @@
   font-size: 13px;
 }
 
+.reactors {
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(420px, 62vh);
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.reactorsTitle {
+  margin: 0;
+  padding: 6px 8px 8px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reactor {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reactor:hover,
+.reactor:focus-visible {
+  background: var(--color-surface-alt);
+  outline: none;
+}
+
 .forward {
   max-width: 420px;
 }

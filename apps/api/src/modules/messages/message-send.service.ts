@@ -329,6 +329,11 @@ export class MessageSendService {
       deletedForIds: hiddenRecipient ? [hiddenRecipient] : [],
       paidStars,
       anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
+      // Канал может публиковать от своего имени либо показывать аккаунт автора.
+      // Это относится и к путям, которые идут через общий sender (Bot API/отложенная отправка),
+      // а не только к POST /api/posts/:id/publish.
+      signedBy: chat.type === "channel" && chat.signMessages ? (this.users.findById(senderId)?.name ?? null) : null,
+      views: chat.type === "channel" ? 0 : undefined,
       // Эффекты — только в личных чатах, как в Telegram.
       effect: chat.type === "dm" && MESSAGE_EFFECTS.includes(body.effect as string) ? (body.effect as string) : null,
       photoSuggestion,

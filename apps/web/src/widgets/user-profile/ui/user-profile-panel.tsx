@@ -213,6 +213,9 @@ export function UserProfilePanel({ userId, me }: Props) {
         await profileApi.addContact(userId, sharePhone);
       }
       patchProfile({ inContacts: !inContacts });
+      // После добавления сразу даём настроить локальные имя/фамилию, заметку и
+      // аватар либо предложить человеку новый — не прячем это во втором заходе в меню.
+      if (!inContacts) setOverlay("edit-contact");
       void client.invalidateQueries({ queryKey: userQueries.contacts().queryKey });
       void client.invalidateQueries({ queryKey: userQueries.profile(userId).queryKey });
     } catch (err) {
@@ -593,7 +596,7 @@ export function UserProfilePanel({ userId, me }: Props) {
       <div
         ref={dotsMenuRef}
         className={styles.overlay}
-        onPointerDown={(e) => {
+        onClick={(e) => {
           if (e.target === e.currentTarget) setShowDotsMenu(false);
         }}
       >
@@ -689,7 +692,7 @@ function Shell({ onClose, children, fab, onMore }: { onClose: () => void; childr
   return (
     <div
       className={styles.overlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >

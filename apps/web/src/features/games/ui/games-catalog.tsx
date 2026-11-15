@@ -70,7 +70,7 @@ export function GamesCatalog({ chatId, onPick }: Props) {
   return createPortal(
     <div
       className={styles.modalOverlay}
-      onPointerDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) closeGamesCatalog();
       }}
     >

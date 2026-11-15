@@ -43,19 +43,21 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
 
   const matched = new Set(r.chats.map((c) => c.id));
   const mine = chats.filter((c) => matched.has(c.id) && !communityChatIds.has(c.id));
+  const channels = r.channels.filter((c) => !communityChatIds.has(c.id));
+  const messages = r.messages.filter((m) => !communityChatIds.has(m.chatId));
   const dms = mine.filter((c) => c.type === "dm" || c.type === "bot");
   const groups = mine.filter((c) => c.type === "group");
   const myChannels = mine.filter((c) => c.type === "channel");
-  const total = mine.length + r.channels.length + r.users.length + r.bots.length + r.games.length + r.messages.length;
+  const total = mine.length + channels.length + r.users.length + r.bots.length + r.games.length + messages.length;
   const buckets: { id: Bucket; name: string; count: number }[] = [
     { id: "all" as const, name: "Все", count: total },
     { id: "dms" as const, name: "Личные", count: dms.length },
     { id: "groups" as const, name: "Группы", count: groups.length },
-    { id: "channels" as const, name: "Каналы", count: myChannels.length + r.channels.length },
+    { id: "channels" as const, name: "Каналы", count: myChannels.length + channels.length },
     { id: "users" as const, name: "Люди", count: r.users.length },
     { id: "bots" as const, name: "Боты", count: r.bots.length },
     { id: "games" as const, name: "Игры", count: r.games.length },
-    { id: "messages" as const, name: "Сообщения", count: r.messages.length },
+    { id: "messages" as const, name: "Сообщения", count: messages.length },
   ].filter((b) => b.id === "all" || b.count > 0);
   const active = buckets.some((b) => b.id === bucket) ? bucket : "all";
   const show = (id: Bucket) => active === "all" || active === id;
@@ -107,7 +109,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
       {show("channels")
         ? section(
             "Каналы",
-            r.channels.map((c) => (
+            channels.map((c) => (
               <button
                 key={c.id}
                 type="button"
@@ -144,7 +146,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
       {show("messages")
         ? section(
             "Сообщения",
-            r.messages.map((m) => {
+            messages.map((m) => {
               const c = chats.find((x) => x.id === m.chatId);
               const title = c ? chatTitle(c) : "Чат";
               const text = stripCustomEmoji(m.text ?? "").replace(/\s+/g, " ");

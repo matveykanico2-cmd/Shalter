@@ -83,7 +83,7 @@ async function sendFcm(token, payload, { ttlSeconds = 24 * 60 * 60, callUi = fal
               body: String(payload.body ?? "").slice(0, 1000),
               tag: payload.tag ? String(payload.tag).slice(0, 100) : undefined,
               channel_id: isCall ? "calls" : "messages",
-              default_sound: true,
+              default_sound: !payload?.silent,
               notification_priority: isCall ? "PRIORITY_MAX" : "PRIORITY_HIGH",
             },
           }

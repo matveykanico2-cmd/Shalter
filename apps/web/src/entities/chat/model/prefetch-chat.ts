@@ -12,8 +12,9 @@ import type { ChatSummary } from "./types";
 const FRESH_MS = 20_000;
 
 export function prefetchChat(client: QueryClient, chat: Pick<ChatSummary, "id" | "unreadCount">) {
-  // Запрос истории отмечает сообщения прочитанными — чат с непрочитанными не трогаем, пока его не открыли.
-  if (chat.unreadCount > 0) return;
+  // Карточка не меняет состояние и нужна шапке, участникам, темам и профилю — грузим её
+  // даже для непрочитанного чата. Только история отмечает сообщения прочитанными, поэтому
+  // её до явного открытия непрочитанного чата не запрашиваем.
   void client.prefetchQuery({ ...chatQueries.card(chat.id), staleTime: FRESH_MS });
-  void client.prefetchQuery({ ...messageQueries.history(chat.id), staleTime: FRESH_MS });
+  if (chat.unreadCount === 0) void client.prefetchQuery({ ...messageQueries.history(chat.id), staleTime: FRESH_MS });
 }

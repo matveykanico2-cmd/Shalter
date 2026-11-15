@@ -38,7 +38,22 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
       return;
     }
     if (action === "answer") void navigate(`/call/${callId}`, { replace: true });
-    joinCallById(callId, me)
+    // Обычное открытие ссылки /call/:id не означает согласие принять входящий.
+    // Раньше любой переход на экран сразу вызывал /answer, из-за чего трубка
+    // «бралась сама», ещё до разрешения микрофона. Явный ?answer=1 приходит только
+    // от кнопки системного уведомления; уже отвеченный/исходящий звонок можно восстановить.
+    const open = async () => {
+      if (getCall()?.call.id === callId) return;
+      if (action !== "answer") {
+        const found = (await callApi.list()).calls.find((call) => call.id === callId);
+        if (found && found.callerId !== me.id && found.answered === false && found.kind !== "voice-room") {
+          await navigate("/", { replace: true });
+          return;
+        }
+      }
+      await joinCallById(callId, me);
+    };
+    open()
       .catch(() => {})
       .then(() => {
         if (alive && getCall()?.call.id !== callId) setMissing(true);

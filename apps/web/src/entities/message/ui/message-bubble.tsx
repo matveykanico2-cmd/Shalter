@@ -98,6 +98,8 @@ type Props = {
   onUseSuggestedPhoto?: (m: Message) => void;
   /** Собеседник заблокировал отправителя: квитанцию доставки/прочтения не показываем. */
   hideDeliveryStatus?: boolean;
+  /** В узкой панели обсуждения свои ответы идут по центру, а не прилипают к правому краю. */
+  centered?: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -230,8 +232,12 @@ export function MessageBubble(props: Props) {
         </button>
       ) : null}
       {m.editedAt ? <span>изменено</span> : null}
+      {isChannel && typeof m.views === "number" ? (
+        <span className={styles.views} title={`${m.views} просмотров`}>
+          <Icon name="Eye" size={13} /> {m.views}
+        </span>
+      ) : null}
       <span>{timeLabel(m.createdAt)}</span>
-      {isChannel && typeof m.views === "number" ? <span>{m.views} 👁</span> : null}
       {mine && !gift && !props.hideDeliveryStatus ? (
         <span className={m.pending ? styles.pending : styles.tick} role="img" aria-label={m.pending ? "Отправляется" : isReadByOthers(m) ? "Прочитано" : "Доставлено"}>
           <Icon name={m.pending ? "Clock" : isReadByOthers(m) ? "CheckCheck" : "Check"} size={14} />
@@ -244,7 +250,7 @@ export function MessageBubble(props: Props) {
   const nameStyle = nameColor ? ({ "--name-light": nameColor.light, "--name-dark": nameColor.dark } as CSSProperties) : undefined;
 
   const body: ReactNode[] = [];
-  if (showSender && !mine && sender) {
+  if (showSender && (!mine || isChannel) && sender) {
     body.push(
       <button
         key="sender"
@@ -500,7 +506,7 @@ export function MessageBubble(props: Props) {
   };
 
   const selectable = selecting && !!onToggleSelect;
-  const rowClass = [styles.row, out ? styles.rowOut : "", selectable ? styles.selecting : "", selectable && props.selected ? styles.selectedRow : ""].filter(Boolean).join(" ");
+  const rowClass = [styles.row, out ? styles.rowOut : "", props.centered ? styles.rowCentered : "", selectable ? styles.selecting : "", selectable && props.selected ? styles.selectedRow : ""].filter(Boolean).join(" ");
 
   return (
     <div

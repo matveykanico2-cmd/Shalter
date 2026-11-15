@@ -239,6 +239,29 @@ self.addEventListener('push', (event) => {
     );
     return;
   }
+  if (kind === 'message-deleted') {
+    event.waitUntil(
+      (async () => {
+        const existing = tag ? await self.registration.getNotifications({ tag }) : [];
+        // Не создаём новое уведомление о факте удаления: меняем только то, в котором
+        // ещё мог остаться исходный текст. iOS требует показать push — показываем и
+        // тут же закрываем невидимую для пользователя заглушку.
+        if (!existing.length) {
+          if (IS_IOS) await showIosPlaceholder(title || 'Shalter', body || 'Удалённое сообщение', tag, { closeNow: true });
+          return;
+        }
+        await self.registration.showNotification(title || 'Shalter', {
+          body: body || 'Удалённое сообщение',
+          tag,
+          silent: true,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/badge-96.png',
+          data: { url: url || '/', kind, chatId, messageId },
+        });
+      })()
+    );
+    return;
+  }
   if (!title) {
     if (IS_IOS) event.waitUntil(showIosPlaceholder('Shalter', body, tag));
     return;
