@@ -7,6 +7,7 @@ import { type Attachment, mediaItem } from "@/entities/message";
 import { openStoryViewer, storyDate, type StoryGroup, storyQueries } from "@/entities/story";
 import { closeUserProfile } from "@/entities/user";
 
+import { notifyDownloadStart } from "@/shared/lib/media/download-notify";
 import { plural } from "@/shared/lib/presence";
 import { Avatar, Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
@@ -54,7 +55,7 @@ export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onG
         {files.map((f) => {
           const a = asAttachment(f.attachment);
           return (
-            <a key={f.messageId + (a.url ?? "")} className={styles.fileRow} href={a.url ?? undefined} target="_blank" rel="noreferrer" download={a.name ?? true}>
+            <a key={f.messageId + (a.url ?? "")} className={styles.fileRow} href={a.url ?? undefined} target="_blank" rel="noreferrer" download={a.name ?? true} onClick={() => notifyDownloadStart(a.name, "файл")}>
               <span className={styles.fileIcon}>
                 <Icon name="File" size={20} />
               </span>

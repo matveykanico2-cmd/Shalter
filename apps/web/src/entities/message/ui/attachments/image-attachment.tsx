@@ -1,5 +1,6 @@
 import { type MouseEvent, useEffect, useState } from "react";
 
+import { notifyMediaError } from "@/shared/lib/media/download-notify";
 import { Icon } from "@/shared/ui";
 
 import { imageBox } from "../../lib/attachments";
@@ -61,7 +62,10 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
               setLoaded(true);
               setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight });
             }}
-            onError={() => setAttempt((s) => ({ ...s, index: s.index + 1 }))}
+            onError={() => {
+              if (attempt.index + 1 >= sources.length) notifyMediaError(a.name, "фото");
+              setAttempt((s) => ({ ...s, index: s.index + 1 }));
+            }}
           />
           {!loaded ? <span className={styles.mediaLoading} aria-label="Фото загружается"><span className={styles.downloadSpinner} /></span> : null}
         </>

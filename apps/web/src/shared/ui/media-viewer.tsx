@@ -1,6 +1,8 @@
 import { type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { notifyDownloadStart, notifyMediaError } from "../lib/media/download-notify";
+
 import { Icon } from "./icon";
 import styles from "./media-viewer.module.css";
 
@@ -138,7 +140,10 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
   const src = attempt > sources.length - 1 ? `${sources[0]}${bust}` : sources[attempt]!;
   const onError = () => {
     if (attempt + 1 < sources.length) setAttempt(attempt + 1);
-    else setLoad("failed");
+    else {
+      setLoad("failed");
+      notifyMediaError(item.name, item.kind === "video" ? "видео" : "фото");
+    }
   };
   const retry = () => {
     setLoad("loading");
@@ -175,12 +180,12 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
           <span className={styles.spacer} />
           {canDownload ? (
             item.originalUrl ? (
-              <a className={styles.original} href={item.originalUrl} download={item.name || "file"} title="Скачать оригинал">
+              <a className={styles.original} href={item.originalUrl} download={item.name || "file"} title="Скачать оригинал" onClick={() => notifyDownloadStart(item.name, "оригинал")}>
                 <Icon name="Download" size={18} />
                 <span>Скачать оригинал</span>
               </a>
             ) : (
-              <a className={styles.iconButton} href={download} download={item.name || "file"} title="Скачать">
+              <a className={styles.iconButton} href={download} download={item.name || "file"} title="Скачать" onClick={() => notifyDownloadStart(item.name, item.kind === "video" ? "видео" : "фото")}>
                 <Icon name="Download" size={20} />
               </a>
             )

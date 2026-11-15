@@ -1,5 +1,6 @@
 import { type CSSProperties, type MouseEvent, useState } from "react";
 
+import { notifyMediaError } from "@/shared/lib/media/download-notify";
 import { Icon } from "@/shared/ui";
 
 import { clockTime, mediaItem } from "../../lib/attachments";
@@ -87,7 +88,10 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
           muted
           playsInline
           onLoadedMetadata={(e) => learnShape(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
-          onError={() => setFrameFailed(true)}
+          onError={() => {
+            setFrameFailed(true);
+            notifyMediaError(a.name, "видео");
+          }}
         />
       )}
       {frameFailed ? null : pending ? (

@@ -1,3 +1,4 @@
+import { notifyDownloadStart } from "@/shared/lib/media/download-notify";
 import { Icon } from "@/shared/ui";
 
 import { AUDIO_EXT_RE, clockTime, fileColor, fileExt, formatSize, isAudioFile } from "../../lib/attachments";
@@ -35,7 +36,7 @@ export function FileAttachment(props: Props) {
   // В чате с запретом сохранения файл не скачивается.
   if (!canDownload || !attachment.url) return <div className={styles.file}>{body}</div>;
   return (
-    <a className={styles.file} href={attachment.url} download={attachment.name || "file"}>
+    <a className={styles.file} href={attachment.url} download={attachment.name || "file"} onClick={() => notifyDownloadStart(attachment.name, "файл")}>
       {body}
     </a>
   );
@@ -62,7 +63,7 @@ function AudioFile({ attachment: a, canDownload, message, senderName }: Props) {
         ) : null}
       </span>
       {canDownload ? (
-        <a className={styles.audioDownload} href={a.url} download={a.name || "audio"} title="Скачать">
+        <a className={styles.audioDownload} href={a.url} download={a.name || "audio"} title="Скачать" onClick={() => notifyDownloadStart(a.name, "аудио")}>
           <Icon name="Download" size={18} />
         </a>
       ) : null}
