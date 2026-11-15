@@ -26,6 +26,8 @@ export interface Community {
   avatarEmoji?: string;
   addMode: "all" | "admins";
   createdAt: string;
+  /** Системный общий чат сообщества; открыть его можно только из профиля сообщества. */
+  generalChatId?: string;
   chatIds: string[];
   /** Скрытые чаты остаются в сообществе, но видны только своим участникам и админам. */
   hiddenChatIds: string[];

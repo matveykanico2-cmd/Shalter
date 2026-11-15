@@ -1380,7 +1380,8 @@ CREATE TABLE IF NOT EXISTS communities (
   avatarColor TEXT,
   avatarImage TEXT,
   addMode TEXT NOT NULL DEFAULT 'all',
-  createdAt TEXT NOT NULL
+  createdAt TEXT NOT NULL,
+  generalChatId TEXT
 );
 CREATE TABLE IF NOT EXISTS community_chats (
   chatId TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
@@ -1395,6 +1396,7 @@ CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(comm
   if (!communityCols.has("avatarImage")) db.exec("ALTER TABLE communities ADD COLUMN avatarImage TEXT");
   if (!communityCols.has("addMode")) db.exec("ALTER TABLE communities ADD COLUMN addMode TEXT NOT NULL DEFAULT 'all'");
   if (!communityCols.has("avatarEmoji")) db.exec("ALTER TABLE communities ADD COLUMN avatarEmoji TEXT");
+  if (!communityCols.has("generalChatId")) db.exec("ALTER TABLE communities ADD COLUMN generalChatId TEXT");
   const chatCols = new Set(db.prepare("PRAGMA table_info(community_chats)").all().map((c) => c.name));
   if (!chatCols.has("visible")) db.exec("ALTER TABLE community_chats ADD COLUMN visible INTEGER NOT NULL DEFAULT 1");
   if (!chatCols.has("addedBy")) db.exec("ALTER TABLE community_chats ADD COLUMN addedBy TEXT");

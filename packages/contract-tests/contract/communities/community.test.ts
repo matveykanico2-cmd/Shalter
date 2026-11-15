@@ -124,6 +124,8 @@ describe("POST /api/communities", () => {
       pinned: false,
       collapsed: true,
       chats: [],
+      generalChatId: c.generalChatId,
+      generalChat: c.generalChat,
       isClosed: true,
       membersCount: 1,
       adminsCount: 1,
@@ -248,10 +250,10 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
     expectOk(await a.api.post(`/api/communities/${c.id}/chats`, { chatId: hidden.id, visible: false }), communityBody);
 
     const mineA = expectOk(await a.api.get("/api/communities/mine"), mineBody).communities;
-    expect(mineA).toContainEqual({ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 2, addPolicy: "add" });
+    expect(mineA).toContainEqual({ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 3, addPolicy: "add" });
     // Обычный участник при «только админы» может лишь предложить чат.
     const mineB = expectOk(await b.api.get("/api/communities/mine"), mineBody).communities;
-    expect(mineB).toEqual([{ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 2, addPolicy: "suggest" }]);
+    expect(mineB).toEqual([{ id: c.id, title: "Открытое", avatarColor: null, avatarImage: null, avatarEmoji: null, chatCount: 3, addPolicy: "suggest" }]);
     expect(expectOk(await outsider.api.get("/api/communities/mine"), mineBody).communities).toEqual([]);
 
     const joinedA = expectOk(await a.api.get("/api/communities/joined"), joinedBody).communities.find((x) => x.id === c.id)!;
@@ -269,6 +271,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
       pinned: false,
       collapsed: true,
       chatIds: [shown.id, hidden.id],
+      generalChatId: expect.any(String),
       requestsCount: 0,
     });
     const joinedB = expectOk(await b.api.get("/api/communities/joined"), joinedBody).communities;
@@ -288,7 +291,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
     const c = await createCommunity(a, { title: "Клуб", chatId: group.id });
 
     expect(expectOk(await a.api.get(`/api/communities/by-chat/${group.id}`), byChatBody)).toEqual({
-      community: { id: c.id, title: "Клуб", avatarColor: null, avatarImage: null, avatarEmoji: null, isOwner: true, isMember: true, canRemoveChat: true },
+      community: { id: c.id, title: "Клуб", avatarColor: null, avatarImage: null, avatarEmoji: null, isOwner: true, isMember: true, canRemoveChat: true, isGeneral: false },
     });
     expect(expectOk(await b.api.get(`/api/communities/by-chat/${group.id}`), byChatBody).community).toMatchObject({
       isOwner: false,
@@ -312,6 +315,7 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
       isOwner: false,
       isMember: false,
       canRemoveChat: false,
+      isGeneral: false,
     });
     // С публичным чатом сообщество открытое: посторонний видит описание и число участников.
     expect(expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community).toMatchObject({

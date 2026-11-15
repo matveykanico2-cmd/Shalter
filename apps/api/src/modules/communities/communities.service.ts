@@ -10,7 +10,7 @@ import { UserSettingsService } from "../users/user-settings.service.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
 import { cleanAvatarImage, isChatAdmin } from "./lib/community-fields.js";
-import type { CommunityPatch } from "./model/domain.js";
+import type { Community, CommunityPatch } from "./model/domain.js";
 import type { AddMembersDto, CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
 
 const MAX_MEMBERS = 200;
@@ -34,65 +34,66 @@ export class CommunitiesService {
   ) {}
 
   /** Сообщества, в которые пользователь может добавить (или предложить) свой чат. */
-  public mine(uid: string) {
+  public async mine(uid: string) {
+    const communities = [];
+    for (const item of this.communities.listForUser(uid)) {
+      const c = await this.ensureGeneralChat(item);
+      const addPolicy = this.access.addPolicy(c, uid);
+      if (addPolicy) communities.push({ id: c.id, title: c.title, avatarColor: c.avatarColor ?? null, avatarImage: c.avatarImage ?? null, avatarEmoji: c.avatarEmoji ?? null, chatCount: c.chatIds.length, addPolicy });
+    }
     return {
-      communities: this.communities
-        .listForUser(uid)
-        .map((c) => ({
-          id: c.id,
-          title: c.title,
-          avatarColor: c.avatarColor ?? null,
-          avatarImage: c.avatarImage ?? null,
-          avatarEmoji: c.avatarEmoji ?? null,
-          chatCount: c.chatIds.length,
-          addPolicy: this.access.addPolicy(c, uid),
-        }))
-        .filter((c) => c.addPolicy),
+      communities,
     };
   }
 
   /** Для списка чатов (как в tweb): сообщество — отдельная строка, его чаты — в панели. */
-  public joined(uid: string) {
+  public async joined(uid: string) {
+    const joined = [];
+    for (const item of this.communities.listForUser(uid)) {
+      const c = await this.ensureGeneralChat(item);
+      const rights = this.access.rightsOf(c, uid);
+      const chats = this.access.visibleChats(c, uid, rights);
+      joined.push({
+        id: c.id,
+        title: c.title,
+        description: c.description ?? null,
+        avatarColor: c.avatarColor ?? null,
+        avatarImage: c.avatarImage ?? null,
+        avatarEmoji: c.avatarEmoji ?? null,
+        role: this.access.roleOf(c, uid),
+        isOwner: c.ownerId === uid,
+        rights,
+        addMode: c.addMode,
+        ...this.access.prefsOf(c.id, uid),
+        chatIds: chats.filter((ch) => ch.id !== c.generalChatId).map((ch) => ch.id),
+        generalChatId: c.generalChatId ?? null,
+        requestsCount: rights.editChats ? this.communities.countRequests(c.id) : 0,
+      });
+    }
     return {
-      communities: this.communities.listForUser(uid).map((c) => {
-        const rights = this.access.rightsOf(c, uid);
-        const chats = this.access.visibleChats(c, uid, rights);
-        return {
-          id: c.id,
-          title: c.title,
-          description: c.description ?? null,
-          avatarColor: c.avatarColor ?? null,
-          avatarImage: c.avatarImage ?? null,
-          avatarEmoji: c.avatarEmoji ?? null,
-          role: this.access.roleOf(c, uid),
-          isOwner: c.ownerId === uid,
-          rights,
-          addMode: c.addMode,
-          ...this.access.prefsOf(c.id, uid),
-          chatIds: chats.map((ch) => ch.id),
-          requestsCount: rights.editChats ? this.communities.countRequests(c.id) : 0,
-        };
-      }),
+      communities: joined,
     };
   }
 
-  public byChat(uid: string, chatId: string) {
+  public async byChat(uid: string, chatId: string) {
     const chat = this.chats.findById(chatId);
     if (!chat || (!chat.memberIds.includes(uid) && !chat.isPublic)) throw new ApiError(404, "not found");
     const community = this.communities.findByChat(chat.id);
     if (!community) return { community: null };
+    const fresh = await this.ensureGeneralChat(community);
     const rights = this.access.rightsOf(community, uid);
     return {
       community: {
-        id: community.id,
-        title: community.title,
-        avatarColor: community.avatarColor ?? null,
-        avatarImage: community.avatarImage ?? null,
-        avatarEmoji: community.avatarEmoji ?? null,
-        isOwner: community.ownerId === uid,
-        isMember: !!this.access.roleOf(community, uid),
+        id: fresh.id,
+        title: fresh.title,
+        avatarColor: fresh.avatarColor ?? null,
+        avatarImage: fresh.avatarImage ?? null,
+        avatarEmoji: fresh.avatarEmoji ?? null,
+        isOwner: fresh.ownerId === uid,
+        isMember: !!this.access.roleOf(fresh, uid),
         // Убрать чат может тот, кто управляет чатами сообщества, или админ самого чата.
         canRemoveChat: rights.editChats || isChatAdmin(chat, uid),
+        isGeneral: fresh.generalChatId === chat.id,
       },
     };
   }
@@ -115,18 +116,36 @@ export class CommunitiesService {
       avatarEmoji: avatarImage ? null : avatarEmoji,
       addMode: dto.addMode,
     });
+    const general = this.chats.create({
+      id: genId("c"),
+      type: "group",
+      title: dto.title,
+      avatarColor: avatarImage ? undefined : (dto.avatarColor ?? "#2E56D9"),
+      avatarImage: avatarImage ?? undefined,
+      avatarEmoji: avatarImage ? null : avatarEmoji,
+      avatarType: avatarImage ? "image" : avatarEmoji ? "emoji" : null,
+      memberIds: [uid],
+      ownerId: uid,
+      adminIds: [uid],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    });
+    this.communities.setGeneralChat(community.id, general.id);
+    await this.access.linkChat(this.communities.findById(community.id)!, general, { visible: true, addedBy: uid });
     if (first) await this.access.linkChat(community, first, { visible: dto.chatVisible, addedBy: uid });
     return { community: this.access.view(this.access.reload(community.id), uid) };
   }
 
-  public get(uid: string, id: string) {
+  public async get(uid: string, id: string) {
     const community = this.access.load(id, uid);
     if (this.communities.isBanned(community.id, uid) && community.ownerId !== uid) throw new ApiError(403, "Вас удалили из этого сообщества");
-    return { community: this.access.view(community, uid) };
+    return { community: this.access.view(await this.ensureGeneralChat(community), uid) };
   }
 
-  public patch(uid: string, id: string, dto: PatchCommunityDto) {
-    const community = this.access.load(id, uid);
+  public async patch(uid: string, id: string, dto: PatchCommunityDto) {
+    const community = await this.ensureGeneralChat(this.access.load(id, uid));
     const rights = this.access.rightsOf(community, uid);
     const patch: CommunityPatch = {};
     const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarColor !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined;
@@ -162,14 +181,39 @@ export class CommunitiesService {
       return { community: this.access.view(community, uid) };
     }
     const updated = this.communities.update(community.id, patch)!;
+    if (patch.title && community.generalChatId) this.chats.update(community.generalChatId, { title: patch.title });
     this.access.notify(community.id);
     return { community: this.access.view(updated, uid) };
+  }
+
+  private async ensureGeneralChat(community: Community): Promise<Community> {
+    if (community.generalChatId && this.chats.findById(community.generalChatId)) return community;
+    const general = this.chats.create({
+      id: genId("c"),
+      type: "group",
+      title: community.title,
+      avatarColor: community.avatarImage ? undefined : (community.avatarColor ?? "#2E56D9"),
+      avatarImage: community.avatarImage ?? undefined,
+      avatarEmoji: community.avatarImage ? null : community.avatarEmoji,
+      avatarType: community.avatarImage ? "image" : community.avatarEmoji ? "emoji" : null,
+      memberIds: [community.ownerId],
+      ownerId: community.ownerId,
+      adminIds: [community.ownerId],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    });
+    this.communities.setGeneralChat(community.id, general.id);
+    await this.access.linkChat(this.communities.findById(community.id)!, general, { visible: true, addedBy: community.ownerId });
+    return this.communities.findById(community.id)!;
   }
 
   public delete(uid: string, id: string) {
     const community = this.access.load(id, uid, "owner");
     const members = this.communities.listMemberIds(community.id);
     this.communities.delete(community.id);
+    if (community.generalChatId) this.chats.delete(community.generalChatId);
     this.access.notifyUsers(members, community.id);
     return { ok: true };
   }
@@ -179,8 +223,8 @@ export class CommunitiesService {
    * приглашению в один из его чатов (участник чата — уже участник сообщества) или вернуться,
    * если вы в нём уже были. Вступивший сразу состоит в открытых группах и каналах сообщества.
    */
-  public join(uid: string, id: string) {
-    const community = this.access.load(id, uid);
+  public async join(uid: string, id: string) {
+    const community = await this.ensureGeneralChat(this.access.load(id, uid));
     if (this.communities.isBanned(community.id, uid)) throw new ApiError(403, "Вас удалили из этого сообщества");
     if (!this.access.roleOf(community, uid) && !this.communities.memberRow(community.id, uid)) {
       const open = this.access.visibleChats(community, uid, this.access.rightsOf(community, uid)).some((c) => c.isPublic);

@@ -43,6 +43,7 @@ export class CommunityChatsService {
   public setVisible(uid: string, id: string, chatId: string, dto: ChatVisibleDto) {
     const community = this.access.load(id, uid, "editChats");
     if (!community.chatIds.includes(chatId)) throw new ApiError(404, NOT_IN_COMMUNITY);
+    if (community.generalChatId === chatId) throw new ApiError(400, "Общий чат сообщества нельзя скрыть");
     const { visible } = dto;
     if (visible === undefined) throw new ApiError(400, "Нужно visible: true или false");
     const wasHidden = community.hiddenChatIds.includes(chatId);
@@ -59,6 +60,7 @@ export class CommunityChatsService {
   public async remove(uid: string, id: string, chatId: string) {
     const community = this.access.load(id, uid);
     if (!community.chatIds.includes(chatId)) throw new ApiError(404, NOT_IN_COMMUNITY);
+    if (community.generalChatId === chatId) throw new ApiError(400, "Общий чат сообщества нельзя удалить");
     const chat = this.chats.findById(chatId);
     const allowed = this.access.rightsOf(community, uid).editChats || (chat && chat.memberIds.includes(uid) && isChatAdmin(chat, uid));
     if (!allowed) throw new ApiError(403, "Недостаточно прав");

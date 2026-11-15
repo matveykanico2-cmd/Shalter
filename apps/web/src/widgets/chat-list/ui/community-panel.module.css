@@ -163,6 +163,14 @@
   flex-direction: column;
 }
 
+.generalHint {
+  margin: 10px 12px 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .head {
   display: flex;
   align-items: center;

@@ -112,7 +112,7 @@ export function ChatList({ meId }: { meId: string }) {
   const client = useQueryClient();
   const communitiesQuery = useQuery(communityQueries.joined());
   const communities = communitiesQuery.data ?? NO_COMMUNITIES;
-  const communityChatIds = useMemo(() => new Set(communities.flatMap((community) => community.chatIds)), [communities]);
+  const communityChatIds = useMemo(() => new Set(communities.flatMap((community) => [...community.chatIds, community.generalChatId].filter(Boolean))), [communities]);
   const externalChats = useMemo(() => chats?.filter((chat) => !communityChatIds.has(chat.id)), [chats, communityChatIds]);
   useWsEvent("community:updated", ({ communityId }) => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(communityId).queryKey });
@@ -384,7 +384,14 @@ export function ChatList({ meId }: { meId: string }) {
           community={panelCommunity}
           chats={chats ?? []}
           meId={meId}
-          renderChat={(c) => <ChatRow chat={c} meId={meId} onMenu={(at) => setRowMenu({ chat: c, at })} />}
+          renderChat={(c) => (
+            <ChatRow
+              chat={c}
+              meId={meId}
+              openPath={c.id === panelCommunity.generalChatId ? `/chat/${c.id}?community=${encodeURIComponent(panelCommunity.id)}` : undefined}
+              onMenu={(at) => setRowMenu({ chat: c, at })}
+            />
+          )}
         />
       ) : null}
       <div

@@ -42,6 +42,8 @@ export const community = z.strictObject({
   avatarColor: z.string().nullable(),
   avatarImage: z.string().nullable(),
   avatarEmoji: z.string().nullable(),
+  generalChatId: z.string().nullable(),
+  generalChat: communityChat.nullable(),
   addMode,
   role: communityRole.nullable(),
   isOwner: z.boolean(),
@@ -99,6 +101,7 @@ export const joinedBody = z.strictObject({
       pinned: z.boolean(),
       collapsed: z.boolean(),
       chatIds: z.array(z.string()),
+      generalChatId: z.string().nullable(),
       requestsCount: z.number(),
     })
   ),
@@ -116,6 +119,7 @@ export const byChatBody = z.strictObject({
       isOwner: z.boolean(),
       isMember: z.boolean(),
       canRemoveChat: z.boolean(),
+      isGeneral: z.boolean(),
     })
     .nullable(),
 });

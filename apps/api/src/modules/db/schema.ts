@@ -864,6 +864,7 @@ export const communities = sqliteTable("communities", {
   addMode: text().default("all").notNull(),
   createdAt: text().notNull(),
   avatarEmoji: text(),
+  generalChatId: text(),
 });
 
 export const communityChats = sqliteTable("community_chats", {

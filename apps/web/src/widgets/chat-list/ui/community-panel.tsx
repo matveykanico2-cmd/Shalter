@@ -199,7 +199,8 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
   const [settings, setSettings] = useState(false);
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const menu = useCommunityMenu(community, chats, { inPanel: true });
-  const mine = sortChats(memberChatsOf(base, chats));
+  const general = base.generalChatId ? chats.find((chat) => chat.id === base.generalChatId) : undefined;
+  const mine = sortChats([...memberChatsOf(base, chats), ...(general ? [general] : [])]).sort((a, b) => Number(b.id === community.generalChatId) - Number(a.id === community.generalChatId));
   const others = (info?.chats ?? []).filter((c) => !c.isMember);
   const hiddenIds = new Set((info?.chats ?? []).filter((c) => c.visible === false).map((c) => c.id));
   const count = info?.chats.length ?? base.chatIds.length;
@@ -314,6 +315,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
         {/* Один общий список, как в Telegram: участник сообщества сразу состоит во всех его чатах. */}
         {mine.map((c) => (
           <div key={c.id}>
+            {c.id === community.generalChatId ? <div className={styles.generalHint}>Общий чат сообщества</div> : null}
             {renderChat(c)}
             {hiddenIds.has(c.id) ? (
               <span className={styles.hiddenNote}>

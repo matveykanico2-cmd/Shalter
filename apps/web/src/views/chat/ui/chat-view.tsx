@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Navigate, useParams, useSearchParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { ChatInfoPanel } from "@/widgets/chat-info";
@@ -145,6 +145,10 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const botCommands = useMemo(() => botCommandsOf(card?.commands), [card?.commands]);
   const paid = card?.paidMessages?.youPay ? { stars: card.paidMessages.stars, kind: card.paidMessages.kind ?? ("message" as const) } : null;
   const senderName = (m: Message) => (m.anonymous ? title : m.senderId === me.id ? me.name : (members.find((u) => u.id === m.senderId) ?? chat.otherUser)?.name ?? null);
+
+  if (community.data?.isGeneral && params.get("community") !== community.data.id) {
+    return <Navigate replace to={`/community/${community.data.id}`} />;
+  }
 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>

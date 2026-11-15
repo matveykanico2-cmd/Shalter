@@ -180,7 +180,10 @@ export class CommunityAccessService {
   public view(community: Community, uid: string) {
     const role = this.roleOf(community, uid);
     const rights = this.rightsOf(community, uid);
-    const chats = this.visibleChats(community, uid, rights).map((c) => this.chatCard(community, c, uid));
+    const chats = this.visibleChats(community, uid, rights)
+      .filter((c) => c.id !== community.generalChatId)
+      .map((c) => this.chatCard(community, c, uid));
+    const general = community.generalChatId ? this.chats.findById(community.generalChatId) : undefined;
     const memberIds = this.communities.listMemberIds(community.id);
     const isClosed = !chats.some((c) => c.isPublic);
     const hidden = isClosed && !role && !this.communities.memberRow(community.id, uid);
@@ -191,6 +194,8 @@ export class CommunityAccessService {
       avatarColor: community.avatarColor ?? null,
       avatarImage: community.avatarImage ?? null,
       avatarEmoji: community.avatarEmoji ?? null,
+      generalChatId: community.generalChatId ?? null,
+      generalChat: general ? this.chatCard(community, general, uid) : null,
       addMode: community.addMode,
       role,
       isOwner: role === "owner",

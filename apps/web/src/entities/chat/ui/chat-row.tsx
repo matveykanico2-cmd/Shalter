@@ -24,6 +24,8 @@ type Props = {
   onMenu?: (at: Point) => void;
   /** Свайп влево пальцем: на 72 px — звук, на 144 px — архив. */
   onSwipe?: (action: "mute" | "archive") => void;
+  /** Для системного чата сообщества: маршрут содержит подтверждение входа из профиля. */
+  openPath?: string;
   /** Чат входит в сообщество — значок на аватаре открывает его панель (CommunityChildBadge). */
   community?: { title: string; onOpen: () => void } | null;
 };
@@ -32,7 +34,7 @@ const SWIPE_ACTION_PX = 72;
 const SWIPE_MAX_PX = 140;
 
 /** Строка списка чатов — public/js/components/chatListItem.js. */
-export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
+export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Props) {
   const title = chatTitle(chat);
   const muted = isChatMuted(chat);
   const preview = chatPreview(chat, meId);
@@ -111,7 +113,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
       ) : null}
     <button
       type="button"
-      onClick={() => void navigate(`/chat/${chat.id}`)}
+      onClick={() => void navigate(openPath ?? `/chat/${chat.id}`)}
       aria-current={active ? "page" : undefined}
       className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
       style={shift ? { transform: `translateX(${shift}px)` } : undefined}

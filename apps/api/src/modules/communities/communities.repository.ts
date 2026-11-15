@@ -63,6 +63,10 @@ export class CommunitiesRepository {
     return this.findById(id);
   }
 
+  public setGeneralChat(communityId: string, chatId: string): void {
+    this.db.update(communities).set({ generalChatId: chatId }).where(eq(communities.id, communityId)).run();
+  }
+
   public delete(id: string): void {
     this.db.delete(communities).where(eq(communities.id, id)).run();
   }
@@ -326,6 +330,7 @@ export class CommunitiesRepository {
       avatarColor: row.avatarColor ?? undefined,
       avatarImage: row.avatarImage ?? undefined,
       avatarEmoji: row.avatarEmoji ?? undefined,
+      generalChatId: row.generalChatId ?? undefined,
       addMode: ADD_MODES.has(row.addMode) ? (row.addMode as Community["addMode"]) : "all",
       createdAt: row.createdAt,
       chatIds: chats.map((c) => c.chatId),
