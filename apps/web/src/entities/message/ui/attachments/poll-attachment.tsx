@@ -51,7 +51,7 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
           <div key={i} className={styles.optionWrap}>
             <button
               type="button"
-              className={[styles.option, o.leader ? styles.leader : "", o.mark ? styles[o.mark] : ""].filter(Boolean).join(" ")}
+              className={[styles.option, o.mine ? styles.selected : "", o.leader ? styles.leader : "", o.mark ? styles[o.mark] : ""].filter(Boolean).join(" ")}
               disabled={!v.canVote || m.pending || !onVote}
               aria-pressed={o.mine}
               onClick={() => onVote?.(m, i)}

@@ -45,6 +45,8 @@
 }
 
 .optionWrap {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -84,6 +86,11 @@
   outline-offset: 2px;
 }
 
+.selected {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
 .radio {
   position: relative;
   z-index: 1;
@@ -92,6 +99,20 @@
   flex-shrink: 0;
   border: 2px solid color-mix(in srgb, var(--color-muted) 70%, transparent);
   border-radius: 50%;
+}
+
+.selected .radio {
+  border-color: var(--color-accent);
+}
+
+.selected .radio::after {
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 3px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  content: "";
 }
 
 .square {
@@ -130,11 +151,19 @@
 }
 
 .votersSmall {
+  position: relative;
+  z-index: 2;
+  align-self: flex-start;
+  box-sizing: border-box;
   justify-content: flex-start;
   width: calc(100% - 50px);
   max-width: calc(100% - 50px);
   margin: 3px 0 1px 50px;
-  padding-left: 0;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 
 .voter {
