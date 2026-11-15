@@ -47,7 +47,7 @@
 .optionWrap {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -159,7 +159,10 @@
   justify-content: flex-start;
   width: calc(100% - 50px);
   max-width: calc(100% - 50px);
-  margin: 20px 0 8px 50px;
+  margin-top: 32px;
+  margin-right: 0;
+  margin-bottom: 8px;
+  margin-left: 50px;
   padding: 12px 6px 4px;
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 999px;
@@ -275,6 +278,10 @@
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+}
+
+.footer > .voters {
+  margin-top: 14px;
 }
 
 .total {
