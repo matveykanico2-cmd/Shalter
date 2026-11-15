@@ -132,6 +132,14 @@
   font-size: 12px;
 }
 
+.moreVoters {
+  min-width: 22px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .deadline {
   flex-basis: 100%;
   text-align: center;

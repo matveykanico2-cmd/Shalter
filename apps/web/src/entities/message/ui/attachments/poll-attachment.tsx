@@ -21,6 +21,8 @@ export type PollActions = {
 type PollUser = { id: string; name: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null };
 type Props = { message: Message; attachment: Attachment; meId: string; userOf?: (id: string) => PollUser | null } & PollActions;
 
+const POLL_AVATARS = 3;
+
 /** Опрос и викторина — PollAttachment из messageBubble.js. Вопрос — текст сообщения. */
 export function PollAttachment({ message: m, attachment, meId, userOf, onVote, onRetract, onClose, canCloseOthers }: Props) {
   const meta = pollMeta(attachment);
@@ -109,9 +111,10 @@ function deadlineLabel(ms: number) {
 function Voters({ ids, userOf, onOpen, small = false }: { ids: string[]; userOf?: (id: string) => PollUser | null; onOpen?: (id: string) => void; small?: boolean }) {
   const users = ids.map((id) => userOf?.(id)).filter((u): u is PollUser => !!u);
   if (!users.length) return null;
+  const visibleUsers = users.slice(0, POLL_AVATARS);
   return (
-    <span className={small ? `${styles.voters} ${styles.votersSmall}` : styles.voters} aria-label="Проголосовавшие">
-      {users.slice(0, small ? 5 : 8).map((user) => (
+    <span className={small ? `${styles.voters} ${styles.votersSmall}` : styles.voters} aria-label={`Проголосовавшие: ${ids.length}`}>
+      {visibleUsers.map((user) => (
         <button
           key={user.id}
           type="button"
@@ -126,7 +129,7 @@ function Voters({ ids, userOf, onOpen, small = false }: { ids: string[]; userOf?
           <Avatar name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} size={small ? 22 : 28} />
         </button>
       ))}
-      {ids.length > (small ? 5 : 8) ? <span className={styles.moreVoters}>+{ids.length - (small ? 5 : 8)}</span> : null}
+      {ids.length > POLL_AVATARS ? <span className={styles.moreVoters}>{ids.length}</span> : null}
     </span>
   );
 }
