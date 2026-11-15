@@ -160,7 +160,7 @@
   width: calc(100% - 50px);
   max-width: calc(100% - 50px);
   margin: 0 0 5px 50px;
-  padding: 4px 6px;
+  padding: 12px 6px 4px;
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 999px;
   background: var(--color-surface);
