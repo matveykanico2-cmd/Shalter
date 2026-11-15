@@ -32,7 +32,7 @@ export class CallParticipantsService {
       updated.participantIds.filter((pid) => pid !== target.id),
       { type: "call:participants-updated", call: updated }
     );
-    await this.notify.broadcastIncoming(updated, [target.id]);
+    this.notify.broadcastIncoming(updated, [target.id]).catch((err: unknown) => console.error("call notify failed:", err));
     this.notify.pushIncoming(updated, updated.callerId, [target.id]).catch((err: unknown) => console.error("push notify failed:", err));
     return { call: updated };
   }

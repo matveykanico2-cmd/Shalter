@@ -105,7 +105,9 @@ export class CallsService {
       startedAt: new Date().toISOString(),
       durationSec: 0,
     });
-    await this.notify.broadcastIncoming(call, call.participantIds.filter((id) => id !== uid));
+    // WS-уведомление не должно задерживать ответ POST /api/calls: звонящий уже получил id
+    // звонка и может сразу открывать экран, а доставка события идёт параллельно.
+    this.notify.broadcastIncoming(call, call.participantIds.filter((id) => id !== uid)).catch((err: unknown) => console.error("call notify failed:", err));
     this.notify.pushIncoming(call, uid, call.participantIds).catch((err: unknown) => console.error("push notify failed:", err));
     return { call };
   }
@@ -155,16 +157,16 @@ export class CallsService {
   }
 
   /** Выход из звонка; посторонний и несуществующий звонок — тоже {ok:true}. */
-  public leaveById(uid: string, id: string) {
+  public leaveById(uid: string, id: string, keepAlive = false) {
     const call = this.calls.findById(id);
-    if (call && call.participantIds.includes(uid)) this.leave(call, uid);
+    if (call && call.participantIds.includes(uid)) this.leave(call, uid, keepAlive);
     return { ok: true };
   }
 
   /** Меньше двух участников — звонок завершён (completed с длительностью от начала). */
-  private leave(call: Call, uid: string): Call {
+  private leave(call: Call, uid: string, keepAlive = false): Call {
     let updated = this.calls.removeParticipant(call.id, uid)!;
-    if (updated.participantIds.length < 2 && updated.status === "ongoing") {
+    if (!keepAlive && updated.participantIds.length < 2 && updated.status === "ongoing") {
       const durationSec = Math.max(0, Math.floor((Date.now() - new Date(call.startedAt).getTime()) / 1000));
       updated = this.calls.update(call.id, { status: "completed", durationSec })!;
       this.realtime.broadcastToUsers(updated.participantIds, { type: "call:updated", call: updated });

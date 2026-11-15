@@ -152,10 +152,10 @@ function CommunityPage({ community }: { community: Community }) {
         ) : null}
         {community.isMember ? (
           <>
-            <Button variant="secondary" onClick={() => setDialog("settings")}>
-              <Icon name={rights.editInfo || rights.editChats ? "Edit" : "Users"} size={15} /> {rights.editInfo || rights.editChats ? "Управление" : "Подробнее"}
+            <Button variant="secondary" onClick={() => setTab("members")}>
+              <Icon name="Users" size={15} /> Подробнее
             </Button>
-            {rights.editInfo || rights.editChats ? (
+            {community.isMember ? (
               <button
                 type="button"
                 className={styles.moreButton}

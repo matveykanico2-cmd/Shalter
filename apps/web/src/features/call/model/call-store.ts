@@ -21,6 +21,8 @@ export type CallState = {
   me: CallPeer;
   /** Голосовой чат группы. */
   isRoom: boolean;
+  /** Вошли по приглашению: выход удаляет только нас и не завершает разговор. */
+  joinedByLink: boolean;
   phase: CallPhase;
   elapsed: number;
   muted: boolean;
@@ -360,9 +362,9 @@ function removePeer(userId: string) {
   }
 }
 
-type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean };
+type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean; joinedByLink?: boolean };
 
-async function join({ call, chatTitle, chatType, participants, me, isRoom = false }: JoinInput) {
+async function join({ call, chatTitle, chatType, participants, me, isRoom = false, joinedByLink = false }: JoinInput) {
   const others = participants.filter((p) => p.id !== me.id);
   // Новый звонок поверх старого (ответили на другой) — старый отпускает микрофон и пиров.
   if (state) release(state);
@@ -376,6 +378,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     others,
     me,
     isRoom,
+    joinedByLink,
     phase: "ringing",
     elapsed: 0,
     muted: false,
@@ -405,11 +408,12 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   const mine = state;
   notify();
 
-  iceServers = await callApi.iceServers().then(
+  // ICE-конфигурация и разрешение микрофона не зависят друг от друга — начинаем оба запроса
+  // сразу, чтобы медленный TURN/прокси не задерживал показ экрана звонка.
+  const icePromise = callApi.iceServers().then(
     ({ iceServers: list }) => (Array.isArray(list) && list.length ? list : STUN_FALLBACK),
     () => STUN_FALLBACK
   );
-  if (state !== mine) return;
   const outgoing = !isRoom && call.callerId === me.id;
   if (outgoing) {
     startRingback();
@@ -466,6 +470,8 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   } catch {
     if (state === mine) mine.mediaError = "Нет доступа к микрофону или камере — звук и видео от вас не передаются";
   }
+  iceServers = await icePromise;
+  if (state !== mine) return;
   markReady();
   notify();
   for (const p of others) {
@@ -511,8 +517,7 @@ const peerOf = (me: CallPeer): CallPeer => ({ id: me.id, name: me.name, avatarCo
 
 /** Позвонить в чат; ringAll — в группе звонят всем. Возвращает id звонка для экрана /call/:id. */
 export async function placeCall(chatId: string, kind: CallKind, me: CallPeer, { ringAll = false, inviteOnly = false }: { ringAll?: boolean; inviteOnly?: boolean } = {}) {
-  const { call } = await callApi.place(chatId, kind, ringAll, inviteOnly);
-  const { chat, members } = await callApi.chat(chatId);
+  const [{ call }, { chat, members }] = await Promise.all([callApi.place(chatId, kind, ringAll, inviteOnly), callApi.chat(chatId)]);
   const participants = await resolveParticipants(call, members);
   await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me: peerOf(me) });
   return call.id;
@@ -526,14 +531,14 @@ export function joinCallById(callId: string, me: CallPeer): Promise<void> {
     const { calls } = await callApi.list();
     const found = calls.find((c) => c.id === callId);
     if (!found || found.status !== "ongoing") return;
-    if (found.callerId !== me.id && found.kind !== "voice-room") await callApi.answer(callId);
+    const answer = found.callerId !== me.id && found.kind !== "voice-room" ? callApi.answer(callId) : Promise.resolve();
     // Строка истории: направление и собеседник — не часть звонка.
     const call = omit(found, ["direction", "otherUser", "group", "answered"]);
     let chatTitle: string | null = "Звонок";
     let chatType = "dm";
     let participants: CallPeer[];
     try {
-      const { chat, members } = await callApi.chat(call.chatId);
+      const [{ chat, members }] = await Promise.all([callApi.chat(call.chatId), answer]);
       chatTitle = chat.title;
       chatType = chat.type;
       participants = await resolveParticipants(call, members);
@@ -546,6 +551,21 @@ export function joinCallById(callId: string, me: CallPeer): Promise<void> {
     if (joining?.done === done) joining = null;
   });
   joining = { callId, done };
+  return done;
+}
+
+/** Вход по ссылке: участник может закрыть экран и выйти, не завершая звонок остальных. */
+export function joinCallByLink(token: string, me: CallPeer): Promise<void> {
+  if (joining?.callId === `link:${token}`) return joining.done;
+  const done = (async () => {
+    const { call } = await callApi.joinByLink(token);
+    const { chat, members } = await callApi.chat(call.chatId);
+    const participants = await resolveParticipants(call, members);
+    await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me: peerOf(me), joinedByLink: true });
+  })().finally(() => {
+    if (joining?.done === done) joining = null;
+  });
+  joining = { callId: `link:${token}`, done };
   return done;
 }
 
@@ -762,8 +782,8 @@ export async function hangup(): Promise<string | null> {
   stopRingtone();
   notify();
   // Из группового звонка уходят, а не завершают его за всех.
-  const leaveOnly = !s.isRoom && s.chatType === "group" && (answered || call.callerId !== s.me.id);
-  if (leaveOnly) await callApi.leave(call.id).catch(() => {});
+  const leaveOnly = s.joinedByLink || (!s.isRoom && s.chatType === "group" && (answered || call.callerId !== s.me.id));
+  if (leaveOnly) await callApi.leave(call.id, s.joinedByLink).catch(() => {});
   else if (s.isRoom) await callApi.leaveRoom(call.chatId).catch(() => {});
   else await callApi.patch(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 }).catch(() => {});
   release(s);

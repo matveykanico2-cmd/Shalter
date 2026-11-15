@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type MouseEvent, type ReactNode, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { MuteDialog } from "@/features/chat-actions";
 import { AddChatFlow, CommunitySettingsDialog, RequestsDialog, useCommunityActions } from "@/features/community-editor";
@@ -37,6 +37,7 @@ type Dialogs = { kind: "mute" } | { kind: "settings" } | { kind: "requests"; com
 /** Пункты меню сообщества — communityMenuItems в communityList.js. */
 function useCommunityMenu(community: JoinedCommunity & { requestsCount: number }, chats: readonly ChatSummary[], { inPanel = false } = {}) {
   const client = useQueryClient();
+  const navigate = useNavigate();
   const actions = useCommunityActions();
   const openCommunity = useOpenCommunity();
   const [dialog, setDialog] = useState<Dialogs>(null);
@@ -65,7 +66,11 @@ function useCommunityMenu(community: JoinedCommunity & { requestsCount: number }
       onClick: () => void run(() => communityApi.prefs(community.id, { collapsed: !community.collapsed }), "Не удалось изменить вид"),
     },
     { icon: "Link", label: "Скопировать ссылку", onClick: () => void copyText(publicUrl(`/community/${community.id}`), "Ссылка скопирована") },
-    { icon: editable ? "Edit" : "Users", label: editable ? "Изменить сообщество" : "О сообществе", onClick: () => setDialog({ kind: "settings" }) },
+    {
+      icon: editable ? "Edit" : "Users",
+      label: editable ? "Изменить сообщество" : "О сообществе",
+      onClick: () => (editable ? setDialog({ kind: "settings" }) : void navigate(`/community/${community.id}`)),
+    },
     ...(community.requestsCount
       ? [
           {
@@ -99,7 +104,8 @@ type RowProps = { community: JoinedCommunity; chats: readonly ChatSummary[]; meI
 /** Строка сообщества в списке чатов — CommunityRow: последнее сообщение «Чат: текст». */
 export function CommunityRow({ community, chats, meId, active }: RowProps) {
   const client = useQueryClient();
-  const openCommunity = useOpenCommunity();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [menuAt, setMenuAt] = useState<Point | null>(null);
   const menu = useCommunityMenu(community, chats);
   const mine = memberChatsOf(community, chats);
@@ -108,6 +114,12 @@ export function CommunityRow({ community, chats, meId, active }: RowProps) {
   const total = unread + mine.filter(isChatMuted).reduce((n, c) => n + (c.unreadCount || 0), 0);
   const mention = mine.some((c) => c.hasUnreadMention);
   const muted = isCommunityMuted(community, chats);
+  const openInternalCommunity = () => {
+    // Эта строка уже находится в /joined: не проверяем членство через кэш, иначе
+    // после входа/обновления устаревший кэш ошибочно отправлял пользователя в профиль.
+    setCommunityPanel(community.id);
+    if (typeof window.matchMedia === "function" && !window.matchMedia("(min-width: 768px)").matches && pathname !== "/") void navigate("/");
+  };
   const openMenu = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -123,7 +135,7 @@ export function CommunityRow({ community, chats, meId, active }: RowProps) {
           if (event.pointerType === "mouse") void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 });
         }}
         onPointerDown={() => void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 })}
-        onClick={() => void openCommunity(community.id)}
+        onClick={openInternalCommunity}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenuAt({ x: e.clientX, y: e.clientY });
@@ -235,7 +247,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
         <button type="button" className={styles.iconButton} title="Назад к чатам" aria-label="Назад к чатам" onClick={() => setCommunityPanel(null)}>
           <Icon name="ChevronLeft" size={22} />
         </button>
-        <button type="button" className={styles.info} title="О сообществе" onClick={() => setSettings(true)}>
+        <button type="button" className={styles.info} title="Профиль сообщества" onClick={() => void navigate(`/community/${community.id}`)}>
           <CommunityAvatar community={community} size={40} />
           <span className={styles.titles}>
             <span className={styles.title}>{community.title}</span>

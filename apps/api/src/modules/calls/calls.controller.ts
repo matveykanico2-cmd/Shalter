@@ -8,11 +8,13 @@ import { CallsService } from "./calls.service.js";
 import {
   addParticipantSchema,
   createCallSchema,
+  leaveCallSchema,
   patchCallSchema,
   sendSignalSchema,
   signalsQuerySchema,
   type AddParticipantDto,
   type CreateCallDto,
+  type LeaveCallDto,
   type PatchCallDto,
   type SendSignalDto,
   type SignalsQueryDto,
@@ -66,8 +68,8 @@ export class CallsController {
 
   @Post(":id/leave")
   @HttpCode(200)
-  public leave(@Req() req: Request, @Param("id") id: string) {
-    return this.calls.leaveById(req.uid!, id);
+  public leave(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(leaveCallSchema)) dto: LeaveCallDto) {
+    return this.calls.leaveById(req.uid!, id, dto.keepAlive);
   }
 
   @Delete(":id/participants/:userId")

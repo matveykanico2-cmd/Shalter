@@ -850,7 +850,17 @@ export function Composer(props: Props) {
                 setSelected(false);
                 setMenuClosed(true);
               }}
-              onFocus={() => setMenuClosed(false)}
+              onFocus={(e) => {
+                setMenuClosed(false);
+                // Android WebView иногда оставляет курсор под клавиатурой после resize:
+                // мягко возвращаем поле в видимую область после первого layout и ещё раз
+                // после показа клавиатуры, не прокручивая всю страницу.
+                const keepVisible = () => {
+                  if (document.activeElement === e.currentTarget) e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                };
+                requestAnimationFrame(keepVisible);
+                window.setTimeout(keepVisible, 280);
+              }}
               onKeyDown={onKeyDown}
               onPaste={onPaste}
             />

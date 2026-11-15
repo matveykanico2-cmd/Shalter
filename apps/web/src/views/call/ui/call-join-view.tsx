@@ -1,38 +1,34 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { callApi } from "@/features/call";
+import { getCall, joinCallByLink } from "@/features/call";
+
+import { useSession } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 
 import styles from "./call-view.module.css";
 
-// Вход по ссылке — один запрос на ссылку, даже если экран смонтировался дважды (StrictMode).
-const joins = new Map<string, ReturnType<typeof callApi.joinByLink>>();
-const joinOnce = (token: string) => {
-  let pending = joins.get(token);
-  if (!pending) {
-    pending = callApi.joinByLink(token).finally(() => setTimeout(() => joins.delete(token), 1000));
-    joins.set(token, pending);
-  }
-  return pending;
-};
-
 /** /call-join/:token — ссылка-приглашение в звонок: входим и открываем экран звонка. */
 export function CallJoinView() {
   const { token = "" } = useParams();
   const navigate = useNavigate();
+  const me = useSession().data?.user;
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    joinOnce(token).then(
-      ({ call }) => alive && void navigate(`/call/${call.id}`, { replace: true }),
+    if (!me) return;
+    joinCallByLink(token, me).then(
+      () => {
+        const callId = getCall()?.call.id;
+        if (alive && callId) void navigate(`/call/${callId}`, { replace: true });
+      },
       (err: unknown) => alive && setError(errorText(err, "Звонок уже завершён, или ссылка устарела."))
     );
     return () => {
       alive = false;
     };
-  }, [token, navigate]);
+  }, [me, token, navigate]);
   if (!error) return null;
   return (
     <div className={styles.join}>

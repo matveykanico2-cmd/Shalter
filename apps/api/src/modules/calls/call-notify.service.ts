@@ -23,9 +23,11 @@ export class CallNotifyService {
 
   /** call:incoming каждому получателю — со своей проекцией звонящего. */
   public async broadcastIncoming(call: Call, recipientIds: string[]): Promise<void> {
-    for (const uid of recipientIds) {
-      this.realtime.broadcastToUsers([uid], { type: "call:incoming", call: await this.withCaller(call, uid) });
-    }
+    await Promise.all(
+      recipientIds.map(async (uid) => {
+        this.realtime.broadcastToUsers([uid], { type: "call:incoming", call: await this.withCaller(call, uid) });
+      })
+    );
   }
 
   public async pushIncoming(call: Call, callerId: string, recipientIds: string[]): Promise<void> {

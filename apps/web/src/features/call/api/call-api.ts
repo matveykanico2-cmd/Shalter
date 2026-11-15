@@ -33,7 +33,7 @@ export const callApi = {
     http.post<CallBody>("/api/calls", { chatId, kind, ringAll, ...(inviteOnly ? { inviteOnly: true } : {}) }),
   answer: (callId: string) => http.post<unknown>(`/api/calls/${id(callId)}/answer`),
   patch: (callId: string, patch: { status: Call["status"]; durationSec?: number }) => http.patch<CallBody>(`/api/calls/${id(callId)}`, patch),
-  leave: (callId: string) => http.post<unknown>(`/api/calls/${id(callId)}/leave`),
+  leave: (callId: string, keepAlive = false) => http.post<unknown>(`/api/calls/${id(callId)}/leave`, keepAlive ? { keepAlive: true } : {}),
   addParticipant: (callId: string, userId: string) => http.post<unknown>(`/api/calls/${id(callId)}/participants`, { userId }),
   removeParticipant: (callId: string, userId: string) => http.delete<unknown>(`/api/calls/${id(callId)}/participants/${id(userId)}`),
   inviteLink: (callId: string) => http.post<{ url: string }>(`/api/calls/${id(callId)}/invite-link`),

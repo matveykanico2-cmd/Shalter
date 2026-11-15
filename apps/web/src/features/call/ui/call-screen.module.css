@@ -574,6 +574,20 @@
 }
 
 @media (max-width: 420px) {
+  .header {
+    gap: 2px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .headerActions {
+    gap: 0;
+  }
+
+  .headerButton {
+    padding: 7px;
+  }
+
   .inviteLabel {
     display: none;
   }

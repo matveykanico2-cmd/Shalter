@@ -44,6 +44,10 @@ export const patchCallSchema = requestBody({
 });
 export type PatchCallDto = z.infer<typeof patchCallSchema>;
 
+/** Выйти из звонка по ссылке, оставив его у создателя активным. */
+export const leaveCallSchema = requestBody({ keepAlive: z.unknown().optional().transform((v) => v === true) });
+export type LeaveCallDto = z.infer<typeof leaveCallSchema>;
+
 export const addParticipantSchema = requestBody({ userId: id() });
 export type AddParticipantDto = z.infer<typeof addParticipantSchema>;
 

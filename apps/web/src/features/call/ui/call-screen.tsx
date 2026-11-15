@@ -338,7 +338,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         <button type="button" className={styles.control} title="Добавить участника" onClick={(e) => void openAddMenu(e)}>
           <Icon name="Plus" size={20} />
         </button>
-        <button type="button" className={styles.hangup} title="Завершить" onClick={() => void hangup().then(onHangup)}>
+        <button type="button" className={styles.hangup} title="Завершить" aria-label={s.joinedByLink ? "Выйти, не завершая звонок" : "Завершить"} onClick={() => void hangup().then(onHangup)}>
           <Icon name="Phone" size={22} className={styles.hangupIcon} />
         </button>
       </div>

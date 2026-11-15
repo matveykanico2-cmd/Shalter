@@ -22,6 +22,7 @@ const callState = (over: Partial<CallState> = {}): CallState =>
     others: [BORIS],
     me: ME,
     isRoom: false,
+    joinedByLink: false,
     phase: "connected",
     elapsed: 5,
     muted: false,
