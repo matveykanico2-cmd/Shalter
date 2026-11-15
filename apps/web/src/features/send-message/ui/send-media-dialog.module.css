@@ -1,21 +1,11 @@
 /* Окно отправки вложений (.tw-nm-* в public/styles/components.css). */
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.4);
-}
-
 .dialog {
   display: flex;
   width: 100%;
   max-height: 168px;
   flex-direction: column;
   overflow: hidden;
+  margin-bottom: 6px;
   border-radius: 16px;
   background: var(--color-surface);
   box-shadow: var(--bubble-shadow);

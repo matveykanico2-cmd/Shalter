@@ -123,7 +123,8 @@ function ProfileAd() {
         <div className={styles.notes}>
           <p className={styles.label}>Ваше объявление</p>
           <textarea className={styles.input} rows={3} maxLength={200} placeholder="Текст объявления (до 200 символов)" value={text ?? info.adText ?? ""} onChange={(e) => setText(e.target.value)} />
-          <input className={styles.input} placeholder="Ссылка (необязательно) — https://…" value={url ?? info.adUrl ?? ""} onChange={(e) => setUrl(e.target.value)} />
+          <input className={styles.input} placeholder="Ссылка (необязательно) — https://… или https://shalter.ru/@бот" value={url ?? info.adUrl ?? ""} onChange={(e) => setUrl(e.target.value)} />
+          <p className={styles.hint}>Ссылка на <code>/@имя_бота</code> откроет чат с ботом.</p>
           {atts.length ? (
             <div className={styles.attachments}>
               {atts.map((a, i) => (

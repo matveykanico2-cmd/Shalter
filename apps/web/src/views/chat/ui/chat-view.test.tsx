@@ -678,7 +678,7 @@ describe("отправка файлов", () => {
     fireEvent.click(within(dialog).getByTitle("Ещё"));
     fireEvent.click(screen.getByRole("button", { name: "Скрыть под спойлер" }));
     expect(within(dialog).getByText("🫥 Фото и видео будут размыты — откроются по нажатию")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить" }));
+    fireEvent.click(screen.getByTitle("Отправить (правый клик — другие варианты)"));
     expect(screen.queryByRole("dialog")).toBeNull();
 
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
@@ -719,7 +719,7 @@ describe("отправка файлов", () => {
     fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "50" } });
     fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
     expect(await within(dialog).findByText("⭐ Фото и видео откроют за 50 звёзд")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить" }));
+    fireEvent.click(screen.getByTitle("Отправить (правый клик — другие варианты)"));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
     act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
     await act(() => vi.advanceTimersByTimeAsync(3100));
@@ -736,7 +736,7 @@ describe("отправка файлов", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByTitle("Ещё"));
     fireEvent.click(screen.getByRole("button", { name: "Отправить без сжатия" }));
     expect(screen.getByRole("dialog", { name: "Отправить 2 файла" })).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Отправить" }));
+    fireEvent.click(screen.getByTitle("Отправить (правый клик — другие варианты)"));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
     expect(FakeXhr.requests.map((x) => x.params.kind)).toEqual(["file", "file"]);
 
@@ -1803,7 +1803,7 @@ describe("темы и ветки", () => {
 
     fireEvent.change(within(panel).getByRole("textbox", { name: "Сообщение" }), { target: { value: "вот" } });
     fireEvent.change(within(panel).getByTestId("attach-media"), { target: { files: [new File(["x"], "1.png", { type: "image/png" })] } });
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Отправить фото" })).getByRole("button", { name: "Отправить" }));
+    fireEvent.click(within(panel).getByTitle("Отправить (правый клик — другие варианты)"));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
     act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
 

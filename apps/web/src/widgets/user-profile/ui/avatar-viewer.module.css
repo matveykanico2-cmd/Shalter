@@ -64,6 +64,36 @@
   object-fit: contain;
 }
 
+.mediaError {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  text-align: center;
+}
+
+.mediaErrorActions {
+  display: flex;
+  gap: 8px;
+}
+
+.mediaErrorActions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mediaErrorActions .barButton {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
 .avatarPreview {
   display: grid;
   width: min(70vh, 420px);

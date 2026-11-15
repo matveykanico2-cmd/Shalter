@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { internalAdRoute } from "@/shared/lib/ad-link";
 import { Icon, openExternally, toast } from "@/shared/ui";
 
 import { clickAd, type ServedAd } from "../api/chat-ads";
@@ -14,7 +15,8 @@ export function ChatListSponsoredAd({ ad }: { ad: ServedAd }) {
   const open = async () => {
     await clickAd(ad.id).catch(() => {});
     if (!ad.url) return;
-    if (ad.url.startsWith("/")) void navigate(ad.url);
+    const internal = internalAdRoute(ad.url);
+    if (internal) void navigate(internal);
     else if (/^https?:\/\//i.test(ad.url)) openExternally(ad.url);
     else toast("Ссылка рекламы недоступна", { error: true });
   };

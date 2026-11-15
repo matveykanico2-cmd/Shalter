@@ -15,6 +15,7 @@ import { hasUnseen, openStoryViewer, storyQueries, storyWord } from "@/entities/
 import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, PremiumStar, ProfileStatusBadge, ProfileTrackCard, type UserProfile, userQueries } from "@/entities/user";
 
 import { useWsEvent } from "@/shared/api";
+import { internalAdRoute } from "@/shared/lib/ad-link";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { lazyView } from "@/shared/lib/lazy-view";
@@ -422,7 +423,7 @@ export function UserProfilePanel({ userId, me }: Props) {
               rel="noreferrer"
               onClick={(e) => {
                 // Ссылка на свой канал, группу или профиль — открываем внутри приложения.
-                const internal = internalRoute(u.adUrl ?? "", window.location.origin);
+                const internal = internalAdRoute(u.adUrl ?? "") ?? internalRoute(u.adUrl ?? "", window.location.origin);
                 if (!internal) return;
                 e.preventDefault();
                 close();

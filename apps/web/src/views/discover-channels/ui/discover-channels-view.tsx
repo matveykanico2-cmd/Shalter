@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router";
 
 import { chatQueries } from "@/entities/chat";
 
+import { internalAdRoute } from "@/shared/lib/ad-link";
 import { errorText } from "@/shared/lib/error-text";
 import { plural } from "@/shared/lib/presence";
 import { askConfirm, Avatar, Button, Icon, openExternally, TextField, toast } from "@/shared/ui";
@@ -115,7 +116,8 @@ function AdCard({ ad }: { ad: DiscoverAd }) {
     await clickAd(ad.id).catch(() => {});
     const url = ad.url;
     if (!url) return;
-    if (url.startsWith("/")) void navigate(url);
+    const internal = internalAdRoute(url);
+    if (internal) void navigate(internal);
     else if (/^https?:\/\//i.test(url)) openExternally(url);
   };
   return (

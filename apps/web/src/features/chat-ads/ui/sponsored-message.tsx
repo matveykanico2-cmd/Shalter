@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { internalAdRoute } from "@/shared/lib/ad-link";
 import { askText, Icon, Menu, openExternally, toast } from "@/shared/ui";
 
 import { chatAdsQueries, clickAd, reportAd, type ServedAd } from "../api/chat-ads";
@@ -21,7 +22,8 @@ export function SponsoredMessage({ chatId, premium }: { chatId: string; premium:
   const open = async (a: ServedAd) => {
     await clickAd(a.id).catch(() => {});
     if (!a.url) return;
-    if (a.url.startsWith("/")) void navigate(a.url);
+    const internal = internalAdRoute(a.url);
+    if (internal) void navigate(internal);
     else if (/^https?:\/\//i.test(a.url)) openExternally(a.url);
   };
 

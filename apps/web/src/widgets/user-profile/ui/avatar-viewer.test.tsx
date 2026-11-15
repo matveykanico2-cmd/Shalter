@@ -53,6 +53,17 @@ describe("AvatarViewer", () => {
     render(<AvatarViewer {...callbacks} user={{ name: "Борис Иванов", avatarColor: "#1e88e5" }} />);
     expect(within(screen.getByRole("dialog", { name: "Фото профиля" })).getByText("БИ")).toBeTruthy();
   });
+
+  it("показывает ошибку загрузки фото и позволяет повторить", () => {
+    render(<AvatarViewer {...callbacks} user={{ name: "Борис", avatarImage: "/uploads/broken.jpg" }} />);
+    const dialog = screen.getByRole("dialog", { name: "Фото профиля" });
+    const image = within(dialog).getByRole("img", { name: "Борис" });
+    fireEvent.error(image);
+    expect(within(dialog).getByRole("alert").textContent).toContain("Не удалось загрузить медиа");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Повторить" }));
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
   it("редактор открывает сохранённое фото первым, профиль по умолчанию — смайл", () => {
     render(<AvatarViewer {...callbacks} canEdit photosFirst user={{ name: "Борис", avatarEmoji: "🔥", avatarImages: [{ kind: "image", url: "/uploads/old.jpg" }] }} />);
     const dialog = screen.getByRole("dialog", { name: "Фото профиля" });

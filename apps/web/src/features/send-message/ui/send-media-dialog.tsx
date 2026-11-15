@@ -18,7 +18,8 @@ type Props = {
   allowPaid?: boolean;
   /** Подпись — сначала текст, уже набранный в поле ввода. */
   initialCaption?: string;
-  onSend: (choice: MediaSendChoice) => void;
+  /** Выбор медиа отправляется основной кнопкой composer, а не отдельной кнопкой здесь. */
+  onChange: (choice: MediaSendChoice) => void;
   onClose: () => void;
 };
 
@@ -29,11 +30,23 @@ const MAX_PAID_STARS = 10_000;
  * остальное списком; «Отправить без сжатия» и спойлер находятся в «Ещё».
  * Набранный текст остаётся в основном поле и уходит как подпись.
  */
-export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onSend, onClose }: Props) {
+export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onChange, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
   const [asFiles, setAsFiles] = useState(false);
   const [spoiler, setSpoiler] = useState(false);
   const [paidStars, setPaidStars] = useState(0);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  useEffect(() => {
+    onChangeRef.current({
+      picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })),
+      spoiler: !asFiles && spoiler,
+      paidStars: asFiles ? 0 : paidStars,
+      caption: initialCaption,
+    });
+  }, [files, asFiles, spoiler, paidStars, initialCaption]);
   const askPaidPrice = async () => {
     const raw = await askText("Сколько звёзд стоит открыть фото и видео?", { initial: paidStars ? String(paidStars) : "25", okLabel: "Готово" });
     if (raw === null) return;
@@ -65,12 +78,6 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
     if (!next.length) onClose();
     else setFiles(next);
   };
-  const send = () => {
-    if (!files.length) return;
-    // «Без сжатия» — файлом: фото и видео уходят как есть, без превью и пережатия.
-    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars, caption: initialCaption });
-  };
-
   const moreItems: MenuItem[] = [
     asFiles
       ? { icon: "Image", label: "Отправить сжатым", onClick: () => setAsFiles(false) }
@@ -98,8 +105,7 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
   ];
 
   return (
-    <>
-      <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
+    <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
         <div className={styles.header}>
           <h2 className={styles.title}>{title(files, isMedia)}</h2>
           {compressible ? (
@@ -109,9 +115,6 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
           ) : null}
           <button type="button" className={styles.iconButton} title="Убрать выбранные файлы" aria-label="Убрать выбранные файлы" onClick={onClose}>
             <Icon name="X" size={20} />
-          </button>
-          <button type="button" className={styles.send} title="Отправить" aria-label="Отправить" onClick={send}>
-            <Icon name="Send" size={19} />
           </button>
         </div>
         <div className={(spoiler || paidStars) && !asFiles ? `${styles.preview} ${styles.blurred}` : styles.preview}>
@@ -163,9 +166,8 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
             </button>
           </div>
         ) : null}
-      </div>
       {menuAt ? <Menu at={menuAt} items={moreItems} onClose={() => setMenuAt(null)} /> : null}
-    </>
+    </div>
   );
 }
 

@@ -175,6 +175,8 @@ export function Composer(props: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
+  const [mediaChoice, setMediaChoice] = useState<MediaSendChoice | null>(null);
+  const [mediaSending, setMediaSending] = useState(false);
   const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | "meme" | "paint" | null>(null);
   const [hugo, setHugo] = useState<HugoState | null>(null);
   // Окно статьи; initial — черновик, вернувшийся после неудачной отправки.
@@ -258,7 +260,10 @@ export function Composer(props: Props) {
   );
 
   const attach = (files: File[]) => {
-    if (!editing && files.length) setPicked(files);
+    if (!editing && files.length) {
+      setPicked(files);
+      setMediaChoice(null);
+    }
   };
 
   const scheduleDraft = (value: string) => {
@@ -339,6 +344,10 @@ export function Composer(props: Props) {
       if (!value) return;
       if (value !== (editing.text ?? "").trim()) onSaveEdit?.(editing, value);
       onCancelEdit?.();
+      return;
+    }
+    if (mediaChoice && !mediaSending) {
+      void sendMedia({ ...mediaChoice, caption: value });
       return;
     }
     if (!value) return;
@@ -447,29 +456,35 @@ export function Composer(props: Props) {
     const firstMedia = picks.find((p) => p.kind === "image" || p.kind === "video");
     const blur = paidStars && firstMedia ? blurThumb(firstMedia.file).catch(() => ({})) : null;
     setPicked(null);
+    setMediaChoice(null);
     setError(null);
-    const { uploaded, error: uploadError, total } = await uploads.upload(picks);
-    if (uploadError) {
-      setError(
-        uploaded.length
-          ? `Загружено ${uploaded.length} из ${total} — часть файлов не отправилась: ${uploadError}`
-          : uploadError || `Не удалось загрузить файл${total > 1 ? "ы" : ""}`
-      );
-    }
-    if (!uploaded.length) return;
-    const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
-    const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
-    const caption = typedCaption.trim();
-    const reply = replyTo;
-    const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
-    setText("");
-    onCancelReply();
-    clearDraft();
-    onSent?.();
-    for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-      await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 ? first : {}).catch((err: unknown) => {
-        setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
-      });
+    setMediaSending(true);
+    try {
+      const { uploaded, error: uploadError, total } = await uploads.upload(picks);
+      if (uploadError) {
+        setError(
+          uploaded.length
+            ? `Загружено ${uploaded.length} из ${total} — часть файлов не отправилась: ${uploadError}`
+            : uploadError || `Не удалось загрузить файл${total > 1 ? "ы" : ""}`
+        );
+      }
+      if (!uploaded.length) return;
+      const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
+      const first: SendOptions = { ...takeAsGroup(), ...(paidMedia ? { paidMedia } : {}) };
+      const caption = typedCaption.trim();
+      const reply = replyTo;
+      const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
+      setText("");
+      onCancelReply();
+      clearDraft();
+      onSent?.();
+      for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
+        await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 ? first : {}).catch((err: unknown) => {
+          setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+        });
+      }
+    } finally {
+      setMediaSending(false);
     }
   };
 
@@ -769,7 +784,7 @@ export function Composer(props: Props) {
           onClose={() => setHugo(null)}
         />
       ) : null}
-      {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
+      {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onChange={setMediaChoice} onClose={() => { setPicked(null); setMediaChoice(null); }} /> : null}
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       {paid ? (
         <p className={styles.paidHint}>
@@ -902,12 +917,12 @@ export function Composer(props: Props) {
               <rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor" />
             </svg>
           </button>
-        ) : recording && !recording.hold ? null : !text.trim() && !editing && canRecord && !props.ai ? (
+        ) : recording && !recording.hold ? null : !text.trim() && !mediaChoice && !mediaSending && !editing && canRecord && !props.ai ? (
           <RecordButtons holdingMode={recording?.hold ? recording.mode : null} holdControlRef={holdControlRef} onStart={(mode, hold) => setRecording((r) => r ?? { mode, hold })} />
         ) : (
           <SendButton
             editing={!!editing}
-            disabled={!text.trim()}
+            disabled={mediaSending || (!text.trim() && !mediaChoice)}
             allowEffects={!!props.allowEffects}
             onSend={submit}
             onSchedule={thread ? undefined : openSchedule}

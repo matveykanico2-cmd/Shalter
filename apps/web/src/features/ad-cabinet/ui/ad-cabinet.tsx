@@ -261,7 +261,8 @@ function CampaignForm({ campaign: c, placements: labels, cpmMin, busy, onSubmit,
       <p className={styles.label}>Объявление</p>
       <textarea className={styles.input} rows={3} maxLength={200} placeholder="Текст объявления — до 200 символов" value={text} onChange={(e) => setText(e.target.value)} />
       <p className={styles.label}>Ссылка</p>
-      <input className={`${styles.input} ${styles.mono}`} placeholder="Ссылка: https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+      <input className={`${styles.input} ${styles.mono}`} placeholder="Ссылка: https://… или https://shalter.ru/@бот" value={url} onChange={(e) => setUrl(e.target.value)} />
+      <p className={styles.hint}>Ссылка Shalter на <code>/@имя_бота</code> откроет чат с ботом; можно также указать чат, профиль или обычный внешний сайт.</p>
       <p className={styles.label}>Где показывать — можно выбрать несколько</p>
       <div className={styles.placements}>
         {(Object.entries(labels) as [Placement, string][]).map(([id, label]) => (
