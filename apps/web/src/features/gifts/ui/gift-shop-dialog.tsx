@@ -139,6 +139,7 @@ export function GiftShopDialog({ request }: { request: GiftShopRequest }) {
       return false;
     }
     const { gift, mine } = chosen;
+    toast(`Отправляем «${gift.name}»…`, { durationMs: 10_000 });
     try {
       const args = {
         giftId: gift.id,

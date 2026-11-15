@@ -17,6 +17,9 @@ export const giftQueries = {
     queryOptions({
       queryKey: [...baseKey, "shop"],
       queryFn: ({ signal }) => http.get<GiftShop>("/api/gifts", signal),
+      staleTime: 5 * 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
     }),
   /** Свои нарисованные подарки (GET /api/gifts/custom); ошибка — пустой список, как в магазине. */
   custom: () =>
@@ -29,6 +32,9 @@ export const giftQueries = {
           return [];
         }
       },
+      staleTime: 5 * 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
     }),
 };
 
