@@ -8,6 +8,11 @@
   text-align: center;
 }
 
+/* QR открывается из панели профиля, у которой свой слой выше обычных диалогов. */
+.overlayRaised {
+  z-index: 240;
+}
+
 .close {
   position: absolute;
   top: 12px;

@@ -156,7 +156,7 @@ export function ProfileQrDialog({ user, url: customUrl, onClose }: { user: QrOwn
 
   return (
     <>
-      <Dialog title="QR-код" onClose={onClose} className={styles.dialog}>
+      <Dialog title="QR-код" onClose={onClose} className={styles.dialog} overlayClassName={styles.overlayRaised}>
         <button type="button" className={styles.close} title="Закрыть" aria-label="Закрыть" onClick={onClose}>
           <Icon name="X" size={18} />
         </button>

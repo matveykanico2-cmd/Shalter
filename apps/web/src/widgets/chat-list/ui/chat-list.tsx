@@ -200,6 +200,15 @@ export function ChatList({ meId }: { meId: string }) {
   // место в окне, затем восстанавливаем именно её — даже если чат поднялся из-за сообщения.
   const returnPosition = useRef<{ key: string | null; top: number; offset: number } | null>(null);
   const previousChatId = useRef(currentId);
+  // После выхода/смены аккаунта виртуализатор мог сохранить offset старого списка.
+  // Сбрасываем его до расчёта новых строк, чтобы первый закреплённый чат не оказался выше окна.
+  useLayoutEffect(() => {
+    didInitialScroll.current = false;
+    returnPosition.current = null;
+    previousChatId.current = undefined;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    virtualizer.scrollToOffset(0, { align: "start" });
+  }, [meId, virtualizer]);
   const rememberReturnPosition = useCallback(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;

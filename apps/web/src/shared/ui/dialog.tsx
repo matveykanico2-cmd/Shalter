@@ -8,10 +8,11 @@ type Props = {
   children: ReactNode;
   onClose: () => void;
   className?: string;
+  overlayClassName?: string;
 };
 
 /** Модальное окно по центру — как .modal-overlay/.modal-dialog в public/styles. */
-export function Dialog({ title, children, onClose, className }: Props) {
+export function Dialog({ title, children, onClose, className, overlayClassName }: Props) {
   const titleId = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -23,7 +24,7 @@ export function Dialog({ title, children, onClose, className }: Props) {
 
   return createPortal(
     <div
-      className={styles.overlay}
+      className={overlayClassName ? `${styles.overlay} ${overlayClassName}` : styles.overlay}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
