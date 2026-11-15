@@ -1,12 +1,15 @@
 /* Оболочка: сверху «список | экран», снизу панель навигации на всю ширину (как .shell в public/styles). */
 .shell {
   display: grid;
+  min-width: 0;
+  min-height: 0;
   grid-template-columns: 376px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
   column-gap: 8px;
   height: 100vh;
   height: 100dvh;
+  overflow: hidden;
   /* Вырез и строка состояния: в приложении для iPhone (Capacitor, страница во весь экран) и в
      горизонтальной ориентации с viewport-fit=cover. В браузере и на Android отступы нулевые. */
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
@@ -44,6 +47,7 @@
   position: relative;
   isolation: isolate;
   grid-area: list;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }

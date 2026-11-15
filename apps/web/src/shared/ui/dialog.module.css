@@ -15,14 +15,14 @@
 .dialog {
   display: flex;
   width: 100%;
-  max-width: 360px;
+  max-width: min(420px, 100%);
   max-height: 80vh;
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--panel-border);
-  border-radius: 30px;
+  border-radius: 24px;
   background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
   padding: 20px;
   box-shadow: 0 24px 70px rgba(8, 18, 28, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.24);
@@ -66,8 +66,9 @@
   .dialog {
     max-width: none;
     max-height: min(88dvh, 720px);
-    border-radius: 28px 28px 20px 20px;
-    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    border-radius: 24px 24px 18px 18px;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
 
