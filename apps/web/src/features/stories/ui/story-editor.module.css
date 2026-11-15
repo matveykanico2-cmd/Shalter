@@ -203,6 +203,58 @@
   opacity: 0.6;
   cursor: default;
 }
+.actionFab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #101522;
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.actionPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 6px;
+  width: min(88vw, 320px);
+  border-radius: 16px;
+  background: rgba(24, 29, 42, 0.96);
+  padding: 8px;
+}
+.actionPanel button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.actionPanel button:hover { background: rgba(255, 255, 255, 0.16); }
+.soundChip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: min(88vw, 320px);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.soundChip span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soundChip audio { width: 120px; height: 28px; }
+.soundChip button { display: inline-flex; border: none; background: none; color: #fff; cursor: pointer; }
 .stickerPanel {
   width: min(88vw, 320px);
   max-height: 200px;

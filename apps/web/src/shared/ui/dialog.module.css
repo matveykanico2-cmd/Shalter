@@ -20,6 +20,7 @@
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--panel-border);
   border-radius: 30px;
   background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
@@ -28,6 +29,18 @@
   -webkit-backdrop-filter: blur(30px) saturate(155%);
   backdrop-filter: blur(30px) saturate(155%);
   animation: dialog-in 0.22s cubic-bezier(0.2, 0.85, 0.3, 1.08) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .dialog {
+    animation: none;
+  }
+}
+
+:global(:root[data-reduce-motion]) .overlay,
+:global(:root[data-reduce-motion]) .dialog {
+  animation: none;
 }
 
 .title {

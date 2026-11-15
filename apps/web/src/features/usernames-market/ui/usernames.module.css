@@ -97,6 +97,27 @@
   font-size: 13px;
   color: var(--color-muted);
 }
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.badge,
+.priceBadge,
+.activeBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge { background: var(--color-accent-soft); color: var(--color-accent); }
+.priceBadge { background: color-mix(in srgb, var(--color-warning) 16%, transparent); color: var(--color-warning); }
+.activeBadge { background: color-mix(in srgb, var(--color-success) 16%, transparent); color: var(--color-success); }
 
 .row {
   display: flex;

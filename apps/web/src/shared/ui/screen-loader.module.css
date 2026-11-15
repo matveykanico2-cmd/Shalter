@@ -8,6 +8,8 @@
   gap: 10px;
   background: var(--color-surface-alt);
   color: var(--color-muted);
+  contain: strict;
+  content-visibility: auto;
   /* Быстрый lazy-chunk приходит за несколько миллисекунд: не показываем вспышку
      загрузчика. При настоящем ожидании он появится через короткую паузу. */
   visibility: hidden;
@@ -22,6 +24,8 @@
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  contain: strict;
+  will-change: transform;
 }
 
 @keyframes spin {

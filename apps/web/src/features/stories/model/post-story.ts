@@ -14,7 +14,7 @@ const MAX_CHANNEL_STORY_DIMENSION = 1080;
 
 type Hooks = {
   /** Фото — через редактор: File (правленый или исходный) или null — это фото пропустить. */
-  edit: (file: File) => Promise<File | null>;
+  edit: (file: File) => Promise<{ file: File; sound?: File } | null>;
   progress: (text: string) => void;
   /** История канала, а не своя. */
   channelId?: string;
@@ -34,7 +34,14 @@ export async function postStory(files: File[], { edit, progress, channelId }: Ho
       progress(`Редактируем ${i + 1} из ${files.length}…`);
       const edited = await edit(file);
       if (!edited) continue;
-      upload = edited === file ? await fileToImageUpload(file, channelId ? MAX_CHANNEL_STORY_DIMENSION : MAX_STORY_DIMENSION) : edited;
+      upload = edited.file === file ? await fileToImageUpload(file, channelId ? MAX_CHANNEL_STORY_DIMENSION : MAX_STORY_DIMENSION) : edited.file;
+      if (edited.sound) {
+        progress(`Загружаем звук ${i + 1} из ${files.length}…`);
+        const sound = await uploadFile(edited.sound, "story-audio");
+        const image = await uploadFile(upload, "image");
+        items.push({ kind: "image", url: image.url, audioUrl: sound.url });
+        continue;
+      }
     }
     progress(`Загружаем ${i + 1} из ${files.length}…`);
     const { url } = await uploadFile(upload, isVideo ? "video" : "image");
@@ -46,7 +53,12 @@ export async function postStory(files: File[], { edit, progress, channelId }: Ho
 }
 
 /** Текстовая история: готовая картинка из редактора — как обычное фото одной историей. */
-export async function postTextStory(image: File) {
+export async function postTextStory(image: File, sound?: File) {
   const { url } = await uploadFile(image, "image");
-  await storyApi.post([{ kind: "image", url }]);
+  if (!sound) {
+    await storyApi.post([{ kind: "image", url }]);
+    return;
+  }
+  const audio = await uploadFile(sound, "story-audio");
+  await storyApi.post([{ kind: "image", url, audioUrl: audio.url }]);
 }

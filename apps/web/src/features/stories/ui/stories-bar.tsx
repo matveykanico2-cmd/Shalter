@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SelfUser } from "@/entities/session";
 import { hasUnseen, openStoryViewer, type StoryGroup, storyQueries } from "@/entities/story";
@@ -23,8 +23,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const publishingRef = useRef(false);
   const [progress, setProgress] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ file: File | null; resolve: (f: File | null) => void } | null>(null);
-  const [creating, setCreating] = useState<"text" | "media" | null>(null);
+  const [editing, setEditing] = useState<{ file: File | null; resolve: (f: { file: File; sound?: File } | null) => void } | null>(null);
+  const [creating, setCreating] = useState<"media" | null>(null);
   /** Выбранные файлы для одной истории — можно добавить ещё фото/видео перед публикацией. */
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -40,6 +40,9 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     setProgress(null);
     setCreating(null);
   };
+
+  const previewUrls = useMemo(() => selectedFiles.map((file) => URL.createObjectURL(file)), [selectedFiles]);
+  useEffect(() => () => previewUrls.forEach((url) => URL.revokeObjectURL(url)), [previewUrls]);
 
   /** Опубликовать все выбранные файлы одной историей. */
   const publish = async () => {
@@ -65,7 +68,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   };
 
   const addMore = () => {
-    setCreating(null);
     fileRef.current?.click();
   };
 
@@ -75,11 +77,11 @@ export function StoriesBar({ me }: { me: SelfUser }) {
 
   // «Текст» — пустой белый холст в редакторе; готовая картинка уходит как фото-история.
   const textStory = async () => {
-    const image = await new Promise<File | null>((resolve) => setEditing({ file: null, resolve }));
-    if (!image) return;
+    const result = await new Promise<{ file: File; sound?: File } | null>((resolve) => setEditing({ file: null, resolve }));
+    if (!result) return;
     try {
       setProgress("Загружаем историю…");
-      await postTextStory(image);
+      await postTextStory(result.file, result.sound);
       await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
@@ -139,21 +141,13 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       {ownItem}
       {creating ? (
         <div className={styles.createChoice}>
-          <button type="button" className={styles.item} title="Статья" onClick={() => { setCreating("text"); void textStory(); }}>
-            <span className={styles.textRing}>
-              <Icon name="FileText" size={22} />
-            </span>
-            <span className={styles.label}>Статья</span>
+          <button type="button" className={styles.createAction} title="Статья" onClick={() => void textStory()}>
+            <Icon name="FileText" size={18} /> Статья
           </button>
-          <button type="button" className={styles.item} title="История" onClick={addStory}>
-            <span className={styles.ring}>
-              <Avatar name={me.name} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={44} />
-            </span>
-            <span className={styles.label}>История</span>
+          <button type="button" className={styles.createAction} title="История" onClick={addStory}>
+            <Icon name="Image" size={18} /> История
           </button>
-          <button type="button" className={styles.item} onClick={() => setCreating(null)}>
-            <Icon name="X" size={16} />
-          </button>
+          <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
         </div>
       ) : null}
       {selectedFiles.length > 0 ? (
@@ -161,13 +155,14 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} {plural(selectedFiles.length, "файл", "файла", "файлов")}</div>
           <div className={styles.mediaSelectionGrid}>
             {selectedFiles.map((file, i) => {
-              const url = URL.createObjectURL(file);
+              const url = previewUrls[i]!;
               return (
                 <div key={i} className={styles.mediaSelectionItem}>
+                  <span className={styles.mediaSelectionKind}>{file.type.startsWith("video/") ? "Видео" : "Фото"}</span>
                   {file.type.startsWith("video/") ? (
-                    <video src={url} className={styles.mediaSelectionThumb} muted playsInline preload="metadata" onLoadedData={() => URL.revokeObjectURL(url)} />
+                    <video src={url} className={styles.mediaSelectionThumb} muted playsInline preload="metadata" />
                   ) : (
-                    <img src={url} alt="" className={styles.mediaSelectionThumb} onLoad={() => URL.revokeObjectURL(url)} onError={() => URL.revokeObjectURL(url)} />
+                    <img src={url} alt="" className={styles.mediaSelectionThumb} />
                   )}
                   <button type="button" className={styles.mediaSelectionRemove} title="Удалить" onClick={() => void removeFile(i)}>
                     <Icon name="X" size={12} />
@@ -175,13 +170,13 @@ export function StoriesBar({ me }: { me: SelfUser }) {
                 </div>
               );
             })}
-            <button type="button" className={styles.mediaSelectionAdd} onClick={addMore}>
+            <button type="button" className={styles.mediaSelectionAdd} onClick={addMore} aria-label="Добавить фото или видео">
               <Icon name="Plus" size={14} />
               Ещё фото/видео
             </button>
           </div>
           <div className={styles.mediaSelectionActions}>
-            <button type="button" className={styles.mediaSelectionCancel} onClick={() => { setSelectedFiles([]); setCreating(null); }}>
+            <button type="button" className={styles.mediaSelectionCancel} onClick={() => setSelectedFiles([])}>
               Отмена
             </button>
             <button type="button" className={styles.mediaSelectionPublish} disabled={progress !== null} onClick={publish}>

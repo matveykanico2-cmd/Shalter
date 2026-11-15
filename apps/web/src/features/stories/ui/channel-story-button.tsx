@@ -19,7 +19,7 @@ export function ChannelStoryButton({ chatId, children }: { chatId: string; child
   // Поле выбора файлов — через состояние: открывать его зовут из render-функции.
   const [input, setInput] = useState<HTMLInputElement | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ file: File; resolve: (f: File | null) => void } | null>(null);
+  const [editing, setEditing] = useState<{ file: File; resolve: (f: { file: File; sound?: File } | null) => void } | null>(null);
 
   const open = () => input?.click();
 

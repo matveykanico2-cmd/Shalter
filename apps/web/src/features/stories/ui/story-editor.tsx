@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "@/shared/ui";
@@ -27,9 +27,10 @@ let uid = 0;
  * новый JPEG 1080×1920, «Пропустить» — исходный файл, «Отмена» и Esc — null.
  * Без файла — статья: белый холст и сразу поле для текста.
  */
-export function StoryEditor({ file, onDone }: { file: File | null; onDone: (result: File | null) => void }) {
+export function StoryEditor({ file, onDone }: { file: File | null; onDone: (result: { file: File; sound?: File } | null) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
+  const soundInputRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState<HTMLImageElement | null>(null);
   const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: "#ffffff", bg: false }));
   const [layers, setLayers] = useState<Layer[]>(() => (initialText ? [initialText] : []));
@@ -38,6 +39,9 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [stickersOpen, setStickersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [sound, setSound] = useState<File | null>(null);
+  const soundUrl = useMemo(() => (sound ? URL.createObjectURL(sound) : null), [sound]);
   const [stage, setStage] = useState({ width: 320, height: 568 });
   const urls = useRef<string[]>([]);
   const latestDone = useRef(onDone);
@@ -64,6 +68,8 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
       list.forEach((u) => URL.revokeObjectURL(u));
     };
   }, [file]);
+
+  useEffect(() => () => { if (soundUrl) URL.revokeObjectURL(soundUrl); }, [soundUrl]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -144,9 +150,9 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
     setBusy(true);
     try {
       if (file && !bg) throw new Error("нет фона");
-      onDone(await bakeStory(bg, layers));
+      onDone({ file: await bakeStory(bg, layers), ...(sound ? { sound } : {}) });
     } catch {
-      if (file) onDone(file);
+      if (file) onDone({ file, ...(sound ? { sound } : {}) });
       else setBusy(false);
     }
   };
@@ -187,7 +193,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             </button>
           </div>
           {file ? (
-            <button type="button" className={styles.skip} onClick={() => onDone(file)}>
+            <button type="button" className={styles.skip} onClick={() => onDone({ file, ...(sound ? { sound } : {}) })}>
               Пропустить
             </button>
           ) : null}
@@ -215,6 +221,23 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
           ))}
         </div>
 
+        {soundUrl ? (
+          <div className={styles.soundChip}>
+            <Icon name="Volume" size={15} />
+            <span>{sound?.name}</span>
+            <audio src={soundUrl} controls preload="metadata" />
+            <button type="button" title="Убрать звук" aria-label="Убрать звук" onClick={() => setSound(null)}><Icon name="X" size={13} /></button>
+          </div>
+        ) : null}
+        {actionsOpen ? (
+          <div className={styles.actionPanel} aria-label="Дополнительные действия">
+            <button type="button" onClick={() => { setActionsOpen(false); addText(); }}><Icon name="FileText" size={17} />Текст</button>
+            <button type="button" onClick={() => { setActionsOpen(false); setEmojiOpen(true); }}><Icon name="Smile" size={17} />Эмодзи</button>
+            <button type="button" onClick={() => { setActionsOpen(false); setStickersOpen(true); }}><Icon name="Sticker" size={17} />Анимированный стикер</button>
+            <button type="button" onClick={() => { setActionsOpen(false); imgInputRef.current?.click(); }}><Icon name="Image" size={17} />Фото</button>
+            <button type="button" onClick={() => soundInputRef.current?.click()}><Icon name="Volume" size={17} />Звук</button>
+          </div>
+        ) : null}
         {emojiOpen ? (
           <div className={styles.emojiPanel}>
             {STORY_EMOJI.map((emoji) => (
@@ -261,6 +284,19 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             if (img) addLayer({ type: "image", img, ratio: img.naturalHeight / img.naturalWidth, x: 0.5, y: 0.5, scale: 1, rotation: 0 });
           }}
         />
+        <input
+          ref={soundInputRef}
+          type="file"
+          accept="audio/*"
+          hidden
+          onChange={(e) => {
+            setSound(e.target.files?.[0] ?? null);
+            e.target.value = "";
+          }}
+        />
+        <button type="button" className={styles.actionFab} title="Добавить" aria-label="Добавить" onClick={() => setActionsOpen((open) => !open)}>
+          <Icon name={actionsOpen ? "X" : "Plus"} size={22} />
+        </button>
         <button type="button" className={styles.done} disabled={busy} onClick={() => void done()}>
           {busy ? "Сохраняем…" : "Готово"}
         </button>

@@ -116,6 +116,12 @@ function CommunityPage({ community }: { community: Community }) {
 
   return (
     <div className={styles.page}>
+      <div className={styles.pageHeader}>
+        <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={() => void navigate(-1)}>
+          <Icon name="ChevronLeft" size={21} />
+        </button>
+        <span>Профиль сообщества</span>
+      </div>
       <CommunityAvatar community={community} size={88} />
       <h1 className={styles.title}>{community.title}</h1>
       <p className={styles.hint}>

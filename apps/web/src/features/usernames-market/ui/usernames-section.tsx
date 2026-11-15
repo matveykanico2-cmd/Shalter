@@ -8,6 +8,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, Button, EmojiText, SettingsPage, TextField } from "@/shared/ui";
 
 import {
+  activateUsername,
   type Auction,
   type Auctions,
   bidUsername,
@@ -48,6 +49,7 @@ export function UsernamesSection() {
   const client = useQueryClient();
   const auctions = useQuery(usernamesQueries.auctions());
   const market = useQuery(usernamesQueries.market());
+  const session = useQuery(sessionQueries.current());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -140,24 +142,46 @@ export function UsernamesSection() {
       </Block>
 
       {owned.length ? (
-        <Block title="Передать купленный юзернейм">
-          <p className={styles.hint}>Купленные имена защищены от перехвата. Их можно передать другому своему аккаунту или другу по @юзернейму либо номеру.</p>
+        <Block title="Мои юзернеймы">
+          <p className={styles.hint}>У аккаунта может быть несколько купленных имён. Активное имя показывается в профиле, остальные остаются зарезервированными за вами.</p>
           {owned.map((item) => (
             <div key={item.id} className={styles.card}>
-              <span className={styles.name}>@{item.username}</span>
-              <Button
-                variant="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void askText("Кому передать юзернейм?", { placeholder: "@username или +7…", okLabel: "Продолжить" }).then(async (target) => {
-                    if (!target) return;
-                    if (!(await askConfirm(`Передать @${item.username} пользователю ${target}?`, { okLabel: "Передать" }))) return;
-                    await act(() => transferUsername(item.id, target), "Юзернейм передан");
-                  })
-                }
-              >
-                Передать владельцу
-              </Button>
+              <div className={styles.head}>
+                <span className={styles.name}>@{item.username}</span>
+                <span className={styles.badges}>
+                  <span className={styles.badge}>Куплен</span>
+                  <span className={styles.priceBadge}>{item.priceStars} ⭐</span>
+                </span>
+              </div>
+              <div className={styles.row}>
+                {session.data?.user?.username?.toLowerCase() === item.username.toLowerCase() ? (
+                  <span className={styles.activeBadge}>Активный</span>
+                ) : session.data?.user ? (
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      const user = session.data?.user;
+                      if (user) void act(() => activateUsername(user.id, item.username), `@${item.username} установлен`);
+                    }}
+                  >
+                    Сделать активным
+                  </Button>
+                ) : null}
+                <Button
+                  variant="link"
+                  disabled={busy}
+                  onClick={() =>
+                    void askText("Кому передать юзернейм?", { placeholder: "@username или +7…", okLabel: "Продолжить" }).then(async (target) => {
+                      if (!target) return;
+                      if (!(await askConfirm(`Передать @${item.username} пользователю ${target}?`, { okLabel: "Передать" }))) return;
+                      await act(() => transferUsername(item.id, target), "Юзернейм передан");
+                    })
+                  }
+                >
+                  Передать
+                </Button>
+              </div>
             </div>
           ))}
         </Block>

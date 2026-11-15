@@ -409,6 +409,16 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             <img key={frameKey} className={styles.media} src={frame.item.url} alt="" decoding="async" loading="eager" onError={() => setImageFailed(frameKey)} />
           )
         )}
+        {frame.item.audioUrl ? (
+          <audio
+            className={styles.storyAudio}
+            src={frame.item.audioUrl}
+            controls
+            autoPlay
+            loop
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        ) : null}
 
         <div className={styles.tapZones}>
           <div className={styles.tapZone} {...tapZone(() => dispatch({ type: "prev" }))} />

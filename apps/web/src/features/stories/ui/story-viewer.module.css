@@ -140,6 +140,15 @@
   background: #000;
   display: block;
 }
+.storyAudio {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 74px;
+  width: min(86vw, 320px);
+  transform: translateX(-50%);
+  border-radius: 999px;
+}
 .processing {
   display: flex;
   flex-direction: column;

@@ -11,6 +11,7 @@ const UPLOAD_LIMITS = {
   "avatar-video": 3 * GB,
   gift: 20 * MB,
   "profile-track": 5 * GB,
+  "story-audio": 100 * MB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
@@ -38,6 +39,7 @@ const KIND_LABEL = {
   "avatar-video": "Видео-аватар",
   gift: "Гифка подарка",
   "profile-track": "Трек профиля",
+  "story-audio": "Звук истории",
 };
 
 function tooLargeError(kind) {

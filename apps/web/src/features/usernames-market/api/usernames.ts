@@ -1,4 +1,5 @@
 import type { auctionsBody, marketBody } from "@shalter/shared/schemas/usernames";
+import type { patchProfileBody } from "@shalter/shared/schemas/users";
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
@@ -26,3 +27,8 @@ export const bidUsername = (auctionId: string, stars: number) => http.post(`/api
 export const closeAuction = (auctionId: string) => http.post(`/api/usernames/${id(auctionId)}/close`);
 export const deleteAuction = (auctionId: string) => http.delete(`/api/usernames/${id(auctionId)}`);
 export const grantUsername = (phone: string, username: string) => http.post("/api/usernames/grant", { phone, username });
+export const activateUsername = async (userId: string, username: string) => {
+  const { user } = await http.patch<z.infer<typeof patchProfileBody>>(`/api/users/${encodeURIComponent(userId)}`, { username });
+  if (!user) throw new Error("Не удалось установить юзернейм");
+  return user;
+};

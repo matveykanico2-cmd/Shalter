@@ -12,7 +12,11 @@ const storyItems = requestBody({ kind: z.unknown().optional(), url: z.unknown().
   return rawItems
     .slice(0, MAX_ITEMS)
     .filter((it) => it && ["image", "video"].includes(it.kind) && it.url && isSafeUrl(it.url))
-    .map((it) => ({ kind: it.kind, url: it.url }));
+    .map((it) => ({
+      kind: it.kind,
+      url: it.url,
+      ...(typeof it.audioUrl === "string" && isSafeUrl(it.audioUrl) ? { audioUrl: it.audioUrl } : {}),
+    }));
 });
 
 /** Своя история: пустая отклоняется сразу — раньше неё в server/ ничего не проверяется. */

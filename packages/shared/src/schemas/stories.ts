@@ -13,6 +13,7 @@ export const commentId = z.string().regex(/^stc_\d+_[a-f0-9]{8}$/);
 export const storyItem = z.strictObject({
   kind: z.enum(["image", "video"]),
   url: z.string(),
+  audioUrl: z.string().optional(),
   previewUrl: z.string().optional(),
   posterUrl: z.string().optional(),
   width: z.number().optional(),

@@ -53,7 +53,7 @@ export const storyQueries = {
     }),
 };
 
-export type NewStoryItem = { kind: "image" | "video"; url: string };
+export type NewStoryItem = { kind: "image" | "video"; url: string; audioUrl?: string };
 
 export const storyApi = {
   post: (items: NewStoryItem[]) => http.post<z.infer<typeof storyRowBody>>("/api/stories", { items }),

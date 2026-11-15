@@ -8,7 +8,7 @@ const RETRY_DELAYS_MS = [1000, 3000];
 // пробуем снова, а не висим на «загрузке» вечно.
 const STALL_MS = 60_000;
 
-export type UploadKind = "image" | "video" | "file" | "voice" | "video-note" | "gift" | "avatar" | "avatar-video" | "profile-track";
+export type UploadKind = "image" | "video" | "file" | "voice" | "video-note" | "gift" | "avatar" | "avatar-video" | "profile-track" | "story-audio";
 
 export type Uploaded = { kind: UploadKind; url: string; name?: string; size?: number; mimeType?: string };
 

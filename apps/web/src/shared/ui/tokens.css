@@ -25,6 +25,8 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-control: 14px;
+  --control-height: 44px;
+  --card-radius: 22px;
   --shadow-soft: 0 2px 8px rgba(15, 35, 52, 0.08), 0 12px 32px rgba(15, 35, 52, 0.06);
   --shadow-float: 0 12px 40px rgba(15, 35, 52, 0.18);
   --panel-bg: rgba(255, 255, 255, 0.94);
@@ -109,4 +111,45 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+}
+
+/* Общий контракт анимаций: системное и пользовательское ограничение применяются ко всем
+   общим карточкам/диалогам, а не только к отдельным виджетам. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
+@media (max-width: 560px) {
+  :root {
+    --panel-x: 0px;
+    --panel-y: 0px;
+    --panel-radius: 0px;
+    --card-radius: 18px;
+  }
+}
+
+/* На телефонах постоянное вращение нескольких спиннеров одновременно заметно
+   конкурирует с прокруткой и клавиатурой. На touch-экране оставляем понятный
+   статичный индикатор; desktop-анимации не меняются. */
+@media (pointer: coarse) {
+  [class*="spinner"] {
+    animation: none !important;
+    will-change: auto !important;
+  }
 }
