@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router";
 
 import { AddChatFlow, AddCommunityMembersDialog, AdminsDialog, CommunitySettingsDialog, useCommunityActions } from "@/features/community-editor";
 import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
+import { ProfileQrDialog } from "@/features/profile-qr";
 import { fileSizeLabel } from "@/features/send-message";
 
 import { chatQueries } from "@/entities/chat";
@@ -57,7 +58,7 @@ function CommunityPage({ community }: { community: Community }) {
   const actions = useCommunityActions();
   const openCommunity = useOpenCommunity();
   const [busy, setBusy] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"add" | "settings" | "members-add" | "admins" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "settings" | "members-add" | "admins" | "qr" | null>(null);
   const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const [actionsAt, setActionsAt] = useState<{ x: number; y: number } | null>(null);
@@ -140,6 +141,9 @@ function CommunityPage({ community }: { community: Community }) {
         )}
         <Button variant="secondary" onClick={() => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована")}>
           <Icon name="Link" size={15} /> Ссылка
+        </Button>
+        <Button variant="secondary" onClick={() => setDialog("qr")}>
+          <Icon name="Qrcode" size={15} /> QR-код
         </Button>
         {community.addPolicy ? (
           <Button variant="secondary" onClick={() => setDialog("add")}>
@@ -246,6 +250,7 @@ function CommunityPage({ community }: { community: Community }) {
         />
       ) : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
+      {dialog === "qr" ? <ProfileQrDialog user={{ name: community.title, username: null, avatarColor: community.avatarColor, avatarImage: community.avatarImage, avatarEmoji: community.avatarEmoji }} url={publicUrl(`/community/${community.id}`)} onClose={() => setDialog(null)} /> : null}
       {dialog === "members-add" && me ? <AddCommunityMembersDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {dialog === "admins" && me ? <AdminsDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {actionsAt ? (

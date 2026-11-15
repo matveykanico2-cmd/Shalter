@@ -122,7 +122,7 @@ export async function qrCardPng({ url, name, username, theme, avatarImage, avata
   ctx.fillText((name || username || "").slice(0, 28), SIZE / 2, card.y + card.h - 82);
   ctx.fillStyle = theme.ink;
   ctx.font = '500 30px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`@${username ?? ""}`, SIZE / 2, card.y + card.h - 36);
+  ctx.fillText(username ? `@${username.replace(/^@/, "")}` : "Сообщество", SIZE / 2, card.y + card.h - 36);
   if (hint) {
     ctx.fillStyle = "rgba(17, 17, 17, 0.55)";
     ctx.font = '400 24px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';

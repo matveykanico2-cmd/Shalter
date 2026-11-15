@@ -23,6 +23,28 @@ import { Splash } from "./splash";
 /** Экраны приложения — только со входом; без него — на /login. */
 export function RequireSession() {
   const { data, isPending, isError, refetch } = useSession();
+  const client = useQueryClient();
+  // Открытая вкладка могла пережить выход/вход в другом окне — сверяем с сервером.
+  useEffect(() => {
+    let lastCheck = 0;
+    const refresh = () => {
+      const now = Date.now();
+      if (now - lastCheck < 5000 || document.visibilityState === "hidden") return;
+      lastCheck = now;
+      void refetch().then((result) => {
+        if (result.data?.user) {
+          void client.invalidateQueries({ queryKey: ["bootstrap", result.data.user.id] });
+          void client.invalidateQueries({ queryKey: ["chats"] });
+        }
+      });
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [client, refetch]);
   useHideSplash(!isPending);
   const { pathname } = useLocation();
   if (isPending) return <Splash />;

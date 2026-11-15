@@ -36,8 +36,9 @@ function savedTheme() {
 export type QrOwner = { name: string; username: string | null; avatarImage?: string | null; avatarEmoji?: string | null; avatarColor?: string | null };
 
 /** «QR-код» профиля — как public/js/components/profileQrDialog.js. */
-export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () => void }) {
-  const url = publicUrl(`/u/${String(user.username ?? "").replace(/^@/, "")}`);
+export function ProfileQrDialog({ user, url: customUrl, onClose }: { user: QrOwner; url?: string; onClose: () => void }) {
+  const url = customUrl ?? publicUrl(`/u/${String(user.username ?? "").replace(/^@/, "")}`);
+  const handle = user.username ? `@${user.username.replace(/^@/, "")}` : "Сообщество";
   const [themeId, setThemeId] = useState(savedTheme);
   const theme = QR_THEMES.find((t) => t.id === themeId) ?? QR_THEMES[0]!;
   const [note, setNote] = useState("");
@@ -166,9 +167,7 @@ export function ProfileQrDialog({ user, onClose }: { user: QrOwner; onClose: () 
             </span>
             {/* Разметка кода — из своего же генератора, без пользовательского HTML. */}
             <div className={styles.code} role="img" aria-label="QR-код" dangerouslySetInnerHTML={{ __html: svg }} />
-            <p className={styles.username} style={{ color: theme.ink }}>
-              @{user.username}
-            </p>
+            <p className={styles.username} style={{ color: theme.ink }}>{handle}</p>
           </div>
         </div>
         <div className={styles.themes}>
