@@ -26,7 +26,8 @@ export function RequireSession() {
   const client = useQueryClient();
   // Открытая вкладка могла пережить выход/вход в другом окне — сверяем с сервером.
   useEffect(() => {
-    let lastCheck = 0;
+    // Начальная сессия уже запрошена useSession; не дублируем её сразу при mount.
+    let lastCheck = Date.now();
     const refresh = () => {
       const now = Date.now();
       if (now - lastCheck < 5000 || document.visibilityState === "hidden") return;
