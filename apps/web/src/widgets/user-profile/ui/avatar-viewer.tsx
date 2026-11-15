@@ -61,6 +61,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mediaFailure, setMediaFailure] = useState<{ id: string; attempt: number; failed: boolean } | null>(null);
+  const [mediaFallback, setMediaFallback] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   // «Записать видео» — видеоаватар с камеры, квадратом (startVideo в avatarViewer.js).
@@ -169,7 +170,18 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   const sourceIndex = "sourceIndex" in current ? current.sourceIndex : undefined;
   const mediaError = mediaFailure?.id === current.id && mediaFailure.failed;
   const mediaAttempt = mediaError ? mediaFailure.attempt : 0;
+  const hasDistinctPoster = "poster" in current && !!current.poster && current.poster !== current.url;
+  const showPoster = mediaFallback === current.id && hasDistinctPoster;
+  const mediaUrl = showPoster ? current.poster! : "url" in current ? current.url : "";
+  const handleMediaError = () => {
+    if (!showPoster && hasDistinctPoster) {
+      setMediaFallback(current.id);
+      return;
+    }
+    setMediaFailure({ id: current.id, attempt: mediaAttempt, failed: true });
+  };
   const retryMedia = () => {
+    setMediaFallback(null);
     setMediaFailure({ id: current.id, attempt: mediaAttempt + 1, failed: false });
   };
   return createPortal(
@@ -221,14 +233,14 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
               <Avatar name={user.name} color={current.background} size={280} />
             </div>
           ) : current.kind === "video" ? (
-            <video key={`${current.url}:${mediaAttempt}`} className={styles.media} src={current.url} poster={current.poster} autoPlay loop muted playsInline controls onError={() => setMediaFailure({ id: current.id, attempt: mediaAttempt, failed: true })} />
+            <video key={`${current.url}:${mediaAttempt}`} className={styles.media} src={current.url} poster={current.poster} autoPlay loop muted playsInline controls onError={handleMediaError} />
           ) : (
             <img
-              key={`${current.url}:${mediaAttempt}`}
+              key={`${mediaUrl}:${mediaAttempt}`}
               className={styles.media}
-              src={current.url}
+              src={mediaUrl}
               alt={user.name}
-              onError={() => setMediaFailure({ id: current.id, attempt: mediaAttempt, failed: true })}
+              onError={handleMediaError}
               // Как в Telegram: нажатие на левую/правую половину фото листает.
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
