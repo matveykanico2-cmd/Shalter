@@ -378,7 +378,7 @@ export function MessageBubble(props: Props) {
         key="text"
         text={text}
         customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined}
-        meta={reactions.length || below ? null : meta}
+        meta={reactions.length || below || isChannel ? null : meta}
       />
     );
     if (inlineStickers?.length) body.push(<InlineStickers key="inline-stickers" stickers={inlineStickers} onStickerClick={props.onStickerClick} />);
@@ -423,7 +423,7 @@ export function MessageBubble(props: Props) {
         {meta}
       </span>
     );
-  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall && !gift && !article) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if ((!text || below || jumbo || isChannel || (ceOnly && ceOnly.length <= 3)) && !isCall && !gift && !article) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   if (props.footer) body.push(<div key="footer">{props.footer}</div>);
 
