@@ -18,7 +18,7 @@ use tauri::RunEvent;
 use tauri::webview::{DownloadEvent, PermissionKind, PermissionResponse};
 use tauri::{AppHandle, Manager, State, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_notification::{NotificationExt, PermissionState};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
@@ -130,6 +130,7 @@ fn bridge_script(origin: &str, version: &str) -> String {
     setUnread: function (count) {{ return inv("set_unread", {{ count: Math.max(0, Math.floor(Number(count) || 0)) }}); }},
     focus: function () {{ return inv("focus_window"); }},
     notify: function (title, body, url) {{ return inv("notify", {{ title: String(title == null ? "Shalter" : title), body: String(body == null ? "" : body), url: url || null }}); }},
+    requestNotifications: function () {{ return inv("request_notifications", {{}}); }},
     retry: function (target) {{ return inv("retry", {{ target: target || null }}); }},
     setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }},
     openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }},
@@ -281,6 +282,12 @@ fn focus_window(app: AppHandle) {
 fn notify(app: AppHandle, title: String, body: String, url: Option<String>) {
     let _ = url;
     let _ = app.notification().builder().title(title).body(body).show();
+}
+
+/// Запрос системного разрешения уведомлений для десктопной оболочки.
+#[tauri::command]
+fn request_notifications(app: AppHandle) -> bool {
+    matches!(app.notification().request_permission(), Ok(PermissionState::Granted))
 }
 
 #[tauri::command]
@@ -802,7 +809,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, open_download, install_update, set_app_icon, set_proxy, get_proxy, restart_app])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, request_notifications, retry, open_external, open_browser, open_download, install_update, set_app_icon, set_proxy, get_proxy, restart_app])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -814,6 +821,7 @@ fn main() {
                     .permission("allow-set-unread")
                     .permission("allow-focus-window")
                     .permission("allow-notify")
+                    .permission("notification:allow-request-permission")
                     .permission("allow-retry")
                     .permission("allow-open-external")
                     .permission("allow-open-browser")

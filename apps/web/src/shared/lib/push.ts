@@ -21,7 +21,7 @@ type NativePushPlugin = CapPlugin & {
 };
 type PushWindow = Window & {
   Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { PushNotifications?: NativePushPlugin; LocalNotifications?: CapPlugin; IncomingCall?: unknown } };
-  shalterDesktop?: { notify?: unknown };
+  shalterDesktop?: { notify?: unknown; requestNotifications?: () => Promise<boolean> };
   __shalterOpen?: (path: string) => void;
 };
 
@@ -246,7 +246,7 @@ export async function ensurePushSubscribed() {
 
 /** «Включить уведомления»: спросить разрешение и подписаться. */
 export async function requestPushPermission() {
-  if (isDesktopShell()) return true;
+  if (isDesktopShell()) return (await win().shalterDesktop?.requestNotifications?.().catch(() => false)) ?? true;
   const local = localPlugin();
   if (local) return requestPlugin(local, "display");
   if (nativePlugin()) return registerNative(true);

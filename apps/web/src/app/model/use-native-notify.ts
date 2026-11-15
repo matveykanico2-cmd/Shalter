@@ -34,7 +34,7 @@ type NativeWindow = Window & {
     getPlatform?: () => string;
     Plugins?: { PushNotifications?: unknown; LocalNotifications?: LocalNotifications; ForegroundService?: ForegroundService; IncomingCall?: IncomingCallUi };
   };
-  shalterDesktop?: { notify?: (title: string, body: string, url: string) => void; focus?: () => void };
+  shalterDesktop?: { notify?: (title: string, body: string, url: string) => void; requestNotifications?: () => Promise<boolean>; focus?: () => void };
 };
 
 const SERVICE_ID = 1;
@@ -181,6 +181,7 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
 function startDesktop(bridge: NonNullable<NativeWindow["shalterDesktop"]>, meId: string, client: QueryClient) {
   const notify = bridge.notify;
   if (!notify) return () => {};
+  void bridge.requestNotifications?.();
   const away = () => document.hidden || !document.hasFocus();
   const isOpenChat = (chatId: string) => !away() && location.pathname === `/chat/${chatId}`;
   const offs = [
