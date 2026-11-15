@@ -26,6 +26,7 @@ function rowToChat(row, members) {
     // Всегда true/false, не undefined: открытый канал сливает обновление поверх старого
     // объекта, и пропавшее из JSON поле оставило бы комментарии выключенными.
     commentsOff: !!row.commentsOff,
+    commentAllowedTypes: safeParse(row.commentAllowedTypes, null),
     anonymousAdmins: !!row.anonymousAdmins || undefined,
     permissions: safeParse(row.permissions, null),
     avatarColor: row.avatarColor ?? undefined,
@@ -348,6 +349,12 @@ async function updateChat(id, patch) {
   if ("allowedReactions" in patch) {
     db.prepare("UPDATE chats SET allowedReactions = ? WHERE id = ?").run(
       Array.isArray(patch.allowedReactions) ? JSON.stringify(patch.allowedReactions) : null,
+      id
+    );
+  }
+  if ("commentAllowedTypes" in patch) {
+    db.prepare("UPDATE chats SET commentAllowedTypes = ? WHERE id = ?").run(
+      Array.isArray(patch.commentAllowedTypes) ? JSON.stringify(patch.commentAllowedTypes) : null,
       id
     );
   }

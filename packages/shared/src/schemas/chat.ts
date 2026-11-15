@@ -17,6 +17,7 @@ const chatShape = {
   approveJoins: z.literal(true).optional(),
   signMessages: z.literal(true).optional(),
   commentsOff: z.boolean(),
+  commentAllowedTypes: z.array(z.enum(["text", "media", "audio", "sticker", "file", "poll", "forward"])).nullable().optional(),
   anonymousAdmins: z.literal(true).optional(),
   permissions: anyJson.nullable(),
   avatarColor: z.string().optional(),

@@ -34,6 +34,7 @@ export function toChat(row: ChatRow, members: ChatMember[]) {
     // Всегда true/false, не undefined: открытый канал сливает обновление поверх старого
     // объекта, и пропавшее из JSON поле оставило бы комментарии выключенными.
     commentsOff: !!row.commentsOff,
+    commentAllowedTypes: safeParse<string[] | null>(row.commentAllowedTypes, null),
     anonymousAdmins: !!row.anonymousAdmins || undefined,
     permissions: safeParse<Record<string, boolean> | null>(row.permissions, null),
     avatarColor: row.avatarColor ?? undefined,

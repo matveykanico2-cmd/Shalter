@@ -729,6 +729,7 @@ if (!existingMsgSignCols.has("signedBy")) db.exec("ALTER TABLE messages ADD COLU
 if (!existingChatVerifyCols2.has("signMessages")) db.exec("ALTER TABLE chats ADD COLUMN signMessages INTEGER NOT NULL DEFAULT 0");
 // Комментарии в канале выключены, а группа обсуждения остаётся привязанной — включить обратно одним нажатием.
 if (!existingChatVerifyCols2.has("commentsOff")) db.exec("ALTER TABLE chats ADD COLUMN commentsOff INTEGER NOT NULL DEFAULT 0");
+if (!existingChatVerifyCols2.has("commentAllowedTypes")) db.exec("ALTER TABLE chats ADD COLUMN commentAllowedTypes TEXT");
 
 const existingFolderColumns = new Set(db.prepare("PRAGMA table_info(folders)").all().map((c) => c.name));
 if (!existingFolderColumns.has("inviteCode")) db.exec("ALTER TABLE folders ADD COLUMN inviteCode TEXT");

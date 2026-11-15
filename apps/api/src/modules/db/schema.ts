@@ -102,6 +102,7 @@ export const chats = sqliteTable("chats", {
   approveJoins: integer().default(0).notNull(),
   signMessages: integer().default(0).notNull(),
   commentsOff: integer().default(0).notNull(),
+  commentAllowedTypes: text(),
   anonymousAdmins: integer().default(0).notNull(),
   inviteCode: text(),
   wallpaper: text(),

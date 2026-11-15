@@ -13,6 +13,11 @@ export const chatSettingsSchema = requestBody({
   approveJoins: optionalFlag(),
   signMessages: optionalFlag(),
   commentsOff: optionalFlag(),
+  commentAllowedTypes: z.unknown().optional().transform((v) => {
+    if (v === null || v === undefined) return v;
+    const allowed = new Set(["text", "media", "audio", "sticker", "file", "poll", "forward"]);
+    return Array.isArray(v) ? [...new Set(v.map(String).filter((x) => allowed.has(x)))].slice(0, 7) : [];
+  }),
   anonymousAdmins: optionalFlag(),
 });
 export type ChatSettingsDto = z.infer<typeof chatSettingsSchema>;

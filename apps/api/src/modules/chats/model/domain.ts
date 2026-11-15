@@ -8,6 +8,7 @@ export type AdminLogRow = typeof chatAdminLog.$inferSelect;
 
 /** Чат, как его отдаёт server/data/chats.js (rowToChat): с участниками и их ролями. */
 export type Chat = ReturnType<typeof toChat>;
+export type CommentAllowedType = "text" | "media" | "audio" | "sticker" | "file" | "poll" | "forward";
 
 /** Новый чат (createChat в server/data/chats.js). Роли без ownerIds — владелец ownerId. */
 export interface NewChat {
@@ -58,6 +59,7 @@ export interface ChatPatch {
   approveJoins?: boolean;
   signMessages?: boolean;
   commentsOff?: boolean;
+  commentAllowedTypes?: CommentAllowedType[] | null;
   anonymousAdmins?: boolean;
   topicsEnabled?: boolean;
   welcomeText?: string | null;

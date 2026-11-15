@@ -32,6 +32,7 @@ export class ChatAdminService {
     if (body.approveJoins !== undefined) patch.approveJoins = body.approveJoins;
     if (body.signMessages !== undefined) patch.signMessages = body.signMessages;
     if (body.commentsOff !== undefined && chat.type === "channel") patch.commentsOff = body.commentsOff;
+    if (body.commentAllowedTypes !== undefined && chat.type === "channel") patch.commentAllowedTypes = body.commentAllowedTypes as ChatPatch["commentAllowedTypes"];
     if (body.anonymousAdmins !== undefined && chat.type === "group") patch.anonymousAdmins = body.anonymousAdmins;
     if (!Object.keys(patch).length) throw new ApiError(400, "Нечего менять");
     const updated = this.chats.update(chat.id, patch)!;

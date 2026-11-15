@@ -321,6 +321,7 @@ export class ChatsRepository {
     if ("bannedIds" in patch) set.bannedIds = JSON.stringify(patch.bannedIds ?? []);
     if ("wallpaper" in patch) set.wallpaper = patch.wallpaper ? JSON.stringify(patch.wallpaper) : null;
     if ("allowedReactions" in patch) set.allowedReactions = Array.isArray(patch.allowedReactions) ? JSON.stringify(patch.allowedReactions) : null;
+    if ("commentAllowedTypes" in patch) set.commentAllowedTypes = Array.isArray(patch.commentAllowedTypes) ? JSON.stringify(patch.commentAllowedTypes) : null;
     if (Object.keys(set).length > 0) this.db.update(chats).set(set).where(eq(chats.id, id)).run();
 
     if ("memberIds" in patch || "adminIds" in patch || "moderatorIds" in patch || "ownerIds" in patch) {

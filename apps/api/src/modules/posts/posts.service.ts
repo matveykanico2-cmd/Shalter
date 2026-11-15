@@ -150,6 +150,7 @@ export class PostsService {
       canComment: !(found.discussion.bannedIds ?? []).includes(uid),
       commentPriceStars: price,
       commentPriceFree: priceFree,
+      commentAllowedTypes: found.channel.commentAllowedTypes ?? null,
     };
   }
 
@@ -157,6 +158,22 @@ export class PostsService {
     const found = this.resolveComments(postId, uid);
     let discussion = found.discussion;
     if ((discussion.bannedIds ?? []).includes(uid)) throw new ApiError(403, "Вас заблокировали в обсуждении");
+    const allowed = found.channel.commentAllowedTypes;
+    if (allowed?.length) {
+      const kinds = new Set((Array.isArray(dto.attachments) ? dto.attachments : []).map((a) => String((a as Record<string, unknown>)?.kind ?? "")));
+      const types = new Set<string>();
+      if (typeof dto.text === "string" && dto.text.trim()) types.add("text");
+      if (dto.forwardedFrom) types.add("forward");
+      if (dto.sticker || kinds.has("sticker")) types.add("sticker");
+      for (const kind of kinds) {
+        if (kind === "image" || kind === "video") types.add("media");
+        else if (kind === "voice" || kind === "audio" || kind === "music") types.add("audio");
+        else if (kind === "poll") types.add("poll");
+        else if (kind) types.add("file");
+      }
+      const blocked = [...types].find((type) => !allowed.includes(type as never));
+      if (blocked) throw new ApiError(403, `В комментариях запрещён тип: ${blocked}`);
+    }
 
     if (dto.text != null && typeof dto.text !== "string") throw new ApiError(400, "Некорректный текст");
     const text = dto.text as string | null | undefined;

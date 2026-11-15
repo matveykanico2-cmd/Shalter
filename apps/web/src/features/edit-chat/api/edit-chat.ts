@@ -93,7 +93,8 @@ export const setChatPublic = (chatId: string, isPublic: boolean, username: strin
 /** revoke — старая ссылка перестаёт работать, создаётся новая. */
 export const createInviteLink = (chatId: string, revoke: boolean) => http.post<z.infer<typeof inviteCreateBody>>(`${chatPath(chatId)}/invite`, { revoke });
 
-export type ChatSettingsPatch = { approveJoins?: boolean; signMessages?: boolean; anonymousAdmins?: boolean; commentsOff?: boolean };
+export type CommentAllowedType = "text" | "media" | "audio" | "sticker" | "file" | "poll" | "forward";
+export type ChatSettingsPatch = { approveJoins?: boolean; signMessages?: boolean; anonymousAdmins?: boolean; commentsOff?: boolean; commentAllowedTypes?: readonly CommentAllowedType[] | null };
 
 export const setChatSettings = (chatId: string, patch: ChatSettingsPatch) => http.post<z.infer<typeof chatBody>>(`${chatPath(chatId)}/settings`, patch);
 

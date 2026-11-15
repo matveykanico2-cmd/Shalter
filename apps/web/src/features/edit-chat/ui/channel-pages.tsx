@@ -9,7 +9,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { plural } from "@/shared/lib/presence";
 import { askConfirm, Avatar, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
 
-import { type DiscussionAction, editChatQueries, setAllowedReactions, setChatDiscussion, setCommentPrice } from "../api/edit-chat";
+import { type CommentAllowedType, type DiscussionAction, editChatQueries, setAllowedReactions, setChatDiscussion, setChatSettings, setCommentPrice } from "../api/edit-chat";
 import { describeAdminAction } from "../lib/admin-log";
 import { allowedReactions } from "../lib/chat-fields";
 import { useApplyChat } from "../model/use-apply-chat";
@@ -95,6 +95,7 @@ export function DiscussionPage({ chat }: PageProps) {
   const apply = useApplyChat(chat.id);
   const [picking, setPicking] = useState(false);
   const [price, setPrice] = useState(String(chat.commentPriceStars ?? 0));
+  const [allowedTypes, setAllowedTypes] = useState<readonly CommentAllowedType[]>(chat.commentAllowedTypes ?? []);
   const linked = !!chat.linkedDiscussionChatId;
 
   const discussion = async (action: DiscussionAction, groupId?: string) => {
@@ -120,6 +121,17 @@ export function DiscussionPage({ chat }: PageProps) {
       toast(res.commentPriceStars > 0 ? `Комментарии стоят ${res.commentPriceStars} ⭐` : "Комментарии бесплатны");
     } catch (err) {
       fail("Не удалось сохранить")(err);
+    }
+  };
+  const toggleAllowedType = async (type: CommentAllowedType) => {
+    const next = allowedTypes.includes(type) ? allowedTypes.filter((item) => item !== type) : [...allowedTypes, type];
+    if (!next.length) return toast("Оставьте хотя бы один тип или выберите «Все»", { error: true });
+    setAllowedTypes(next);
+    try {
+      apply((await setChatSettings(chat.id, { commentAllowedTypes: next })).chat);
+    } catch (err) {
+      setAllowedTypes(allowedTypes);
+      fail("Не удалось сохранить ограничения комментариев")(err);
     }
   };
 
@@ -157,6 +169,33 @@ export function DiscussionPage({ chat }: PageProps) {
           </Button>
         </div>
       </Section>
+      {linked ? (
+        <Section name="Что можно отправлять в комментариях" caption="По умолчанию разрешены все типы.">
+          <div className={styles.commentTypes}>
+            {(["text", "media", "audio", "sticker", "file", "poll", "forward"] as const).map((type) => {
+              const labels = { text: "Текст", media: "Фото и видео", audio: "Аудио", sticker: "Стикеры", file: "Файлы", poll: "Опросы", forward: "Пересылки" };
+              const checked = chat.commentAllowedTypes == null ? true : allowedTypes.includes(type);
+              return (
+                <label key={type} className={styles.commentType}>
+                  <input type="checkbox" checked={checked} onChange={() => void toggleAllowedType(type)} />
+                  <span>{labels[type]}</span>
+                </label>
+              );
+            })}
+          </div>
+          <Button
+            variant="link"
+            onClick={() => {
+              setAllowedTypes([]);
+              void setChatSettings(chat.id, { commentAllowedTypes: null })
+                .then((res) => apply(res.chat))
+                .catch(fail("Не удалось снять ограничения комментариев"));
+            }}
+          >
+            Разрешить всё
+          </Button>
+        </Section>
+      ) : null}
       {picking ? (
         <GroupPicker
           title="Какую группу связать с каналом"

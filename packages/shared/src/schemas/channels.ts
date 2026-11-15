@@ -68,6 +68,7 @@ export const commentsBody = z.strictObject({
   canComment: z.boolean(),
   commentPriceStars: z.number(),
   commentPriceFree: z.boolean(),
+  commentAllowedTypes: z.array(z.enum(["text", "media", "audio", "sticker", "file", "poll", "forward"])).nullable(),
 });
 
 /** POST /api/posts/:postId/comments — chargedStars только когда списали звёзды. */
