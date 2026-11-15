@@ -21,7 +21,7 @@ import { openUserProfile, ProfileRows, ProfileStatusBadge } from "@/entities/use
 import { statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
 import { useEscape } from "@/shared/lib/use-escape";
-import { Avatar, Icon, type IconName, InfoRow, Menu } from "@/shared/ui";
+import { Avatar, Icon, type IconName, InfoRow, MediaViewer, Menu } from "@/shared/ui";
 
 import { ChatHistoryClear } from "../../message-feed/ui/chat-history-clear";
 import { membersLine, sortMembers } from "../lib/members";
@@ -39,6 +39,7 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, communit
   const [dialog, setDialog] = useState<Dialog>(null);
   const [giftPicker, setGiftPicker] = useState(false);
   const [clearHistoryOpen, setClearHistoryOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [autoDeleteAt, setAutoDeleteAt] = useState<{ x: number; y: number } | null>(null);
   // Вместо информации — «Изменить группу/канал» или статистика канала.
   const [screen, setScreen] = useState<"info" | "edit" | "stats">("info");
@@ -97,7 +98,7 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, communit
               <Icon name="Bookmark" size={52} />
             </span>
           ) : (
-            <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined} sticker={!other && chat.avatarType === "sticker"} />
+            <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined} sticker={!other && chat.avatarType === "sticker"} onClick={other?.avatarImage || chat.avatarImage ? () => setAvatarOpen(true) : undefined} />
           )}
           <p className={styles.title}>
             {other?.name ?? title}
@@ -250,6 +251,7 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, communit
       {dialog?.kind === "mute" ? <MuteDialog onMute={(opts) => void actions.mute(opts)} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === "report" ? <ReportDialog target={dialog.target} targetLabel={dialog.label} onClose={() => setDialog(null)} /> : null}
       {clearHistoryOpen ? <ChatHistoryClear chatId={chat.id} onClose={() => setClearHistoryOpen(false)} /> : null}
+      {avatarOpen && (other?.avatarImage || chat.avatarImage) ? <MediaViewer items={[{ kind: "image", url: other?.avatarImage ?? chat.avatarImage!, name: title }]} index={0} onClose={() => setAvatarOpen(false)} /> : null}
     </aside>
   );
 }

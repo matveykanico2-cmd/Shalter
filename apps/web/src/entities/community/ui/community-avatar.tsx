@@ -2,10 +2,10 @@ import { Avatar } from "@/shared/ui";
 
 import styles from "./community-avatar.module.css";
 
-type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null }; size?: number };
+type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null }; size?: number; onClick?: () => void };
 
 /** Аватар сообщества с двумя «карточками» за ним — CommunityAvatar (tweb CommunityAvatarDecoration). */
-export function CommunityAvatar({ community, size = 54 }: Props) {
+export function CommunityAvatar({ community, size = 54, onClick }: Props) {
   return (
     <span className={styles.wrap} style={{ width: size, height: size }}>
       <svg className={styles.decoration} viewBox="0 0 125 100" fill="none" aria-hidden="true">
@@ -20,7 +20,7 @@ export function CommunityAvatar({ community, size = 54 }: Props) {
           fill="currentColor"
         />
       </svg>
-      <Avatar size={size} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />
+      <Avatar size={size} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} onClick={onClick} />
     </span>
   );
 }

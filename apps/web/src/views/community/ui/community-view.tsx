@@ -62,6 +62,7 @@ function CommunityPage({ community }: { community: Community }) {
   const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const [actionsAt, setActionsAt] = useState<{ x: number; y: number } | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const rights = community.rights;
   const reload = () => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
@@ -123,7 +124,7 @@ function CommunityPage({ community }: { community: Community }) {
         </button>
         <span>Профиль сообщества</span>
       </div>
-      <CommunityAvatar community={community} size={88} />
+      <CommunityAvatar community={community} size={88} onClick={community.avatarImage ? () => setAvatarOpen(true) : undefined} />
       <h1 className={styles.title}>{community.title}</h1>
       <p className={styles.hint}>
         {community.membersCount == null
@@ -251,6 +252,7 @@ function CommunityPage({ community }: { community: Community }) {
       ) : null}
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
       {dialog === "qr" ? <ProfileQrDialog user={{ name: community.title, username: null, avatarColor: community.avatarColor, avatarImage: community.avatarImage, avatarEmoji: community.avatarEmoji }} url={publicUrl(`/community/${community.id}`)} onClose={() => setDialog(null)} /> : null}
+      {avatarOpen && community.avatarImage ? <MediaViewer items={[{ kind: "image", url: community.avatarImage, name: community.title }]} index={0} onClose={() => setAvatarOpen(false)} /> : null}
       {dialog === "members-add" && me ? <AddCommunityMembersDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {dialog === "admins" && me ? <AdminsDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {actionsAt ? (

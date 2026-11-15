@@ -14,6 +14,7 @@ type Props = {
   sticker?: boolean;
   size?: number;
   online?: boolean;
+  onClick?: () => void;
 };
 
 const initials = (name: string) =>
@@ -32,7 +33,7 @@ const initials = (name: string) =>
 /** Стикер из пака на аватарке хранится в поле смайла как «sticker:/uploads/…». */
 export const AVATAR_STICKER_PREFIX = "sticker:";
 
-export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: stickerProp = false, size = 44, online = false }: Props) {
+export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: stickerProp = false, size = 44, online = false, onClick }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
   const stickerUrl = rawEmoji?.startsWith(AVATAR_STICKER_PREFIX) ? rawEmoji.slice(AVATAR_STICKER_PREFIX.length) : null;
   const emoji = stickerUrl ? null : rawEmoji;
@@ -42,7 +43,7 @@ export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: st
   const showSticker = !emoji && !!image && sticker && broken !== image;
   const background = color ?? "var(--color-accent)";
   return (
-    <span className={styles.avatar} style={{ width: size, height: size }}>
+    <span className={styles.avatar} style={{ width: size, height: size, cursor: onClick ? "pointer" : undefined }} onClick={(e) => { if (onClick) { e.stopPropagation(); onClick(); } }}>
       {emoji && hasAnimatedEmoji(emoji) ? (
         <span className={styles.emojiAvatar} style={{ background }}>
           <DomNode key={`animated:${emoji}`} create={() => renderAnimatedEmoji(emoji, { size: size * 0.82, replay: true })} />
