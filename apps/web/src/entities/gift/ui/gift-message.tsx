@@ -46,10 +46,14 @@ export function GiftMessage({ messageId, gift, mine, meta, readByIds }: Props) {
   const me = useSession().data?.user;
   // Имя получателя у отправителя — из его профиля.
   const recipient = useQuery({ ...userQueries.profile(gift.recipientId), enabled: mine && !!gift.recipientId }).data?.user;
+  // В сообщении остаётся снимок данных на момент отправки, поэтому для чужого
+  // подарка всегда смотрим актуальный профиль отправителя. Снимок нужен только
+  // пока профиль ещё загружается.
+  const senderProfile = useQuery({ ...userQueries.profile(gift.fromId ?? ""), enabled: !mine && !!gift.fromId }).data?.user;
 
   const stars = giftStars(gift);
   const anon = !!gift.anon;
-  const fromName = anon ? "Аноним" : gift.fromName || (mine ? "Вы" : "Кто-то");
+  const fromName = anon ? "Аноним" : senderProfile?.name || gift.fromName || (mine ? "Вы" : "Кто-то");
   const priceText = gift.custom ? "" : ` за ${fmt(stars)} ⭐`;
   const serviceText = mine ? `Вы отправили подарок${priceText}` : anon ? `Вам анонимно подарили подарок${priceText}` : `${fromName} отправил(а) вам подарок${priceText}`;
   const isExclusive = !!gift.exclusive && gift.serial != null;
@@ -71,6 +75,9 @@ export function GiftMessage({ messageId, gift, mine, meta, readByIds }: Props) {
     </button>
   );
   const senderName = mine ? (me?.name ?? fromName) : fromName;
+  const senderColor = mine ? me?.avatarColor : (senderProfile?.avatarColor ?? gift.fromAvatarColor);
+  const senderImage = mine ? me?.avatarImage : (senderProfile?.avatarImage ?? gift.fromAvatarImage);
+  const senderEmoji = mine ? me?.avatarEmoji : (senderProfile?.avatarEmoji ?? null);
   const sender =
     anon || !gift.fromId ? (
       <span className={styles.fromUser}>{fromName}</span>
@@ -78,7 +85,7 @@ export function GiftMessage({ messageId, gift, mine, meta, readByIds }: Props) {
       link(
         gift.fromId,
         senderName,
-        <Avatar size={16} name={senderName} color={mine ? me?.avatarColor : gift.fromAvatarColor} image={mine ? me?.avatarImage : gift.fromAvatarImage} emoji={mine ? me?.avatarEmoji : null} />
+        <Avatar size={16} name={senderName} color={senderColor} image={senderImage} emoji={senderEmoji} />
       )
     );
   const note = mine ? (
