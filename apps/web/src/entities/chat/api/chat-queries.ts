@@ -26,5 +26,6 @@ export const chatQueries = {
       queryKey: [...baseKey, "card", chatId],
       queryFn: ({ signal }) => http.get<ChatCard>(`/api/chats/${encodeURIComponent(chatId)}`, signal),
       refetchOnMount: "always",
+      refetchOnWindowFocus: "always",
     }),
 };
