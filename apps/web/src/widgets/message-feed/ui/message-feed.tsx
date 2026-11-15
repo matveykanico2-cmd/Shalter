@@ -723,7 +723,7 @@ function MessageRow(props: RowProps) {
             }}
           >
             <Icon name="MessageSquare" size={20} />
-            {commentsLabel(message.commentCount ?? 0)}
+            <span className={styles.postCommentsLabel}>{commentsLabel(message.commentCount ?? 0)}</span>
           </button>
         ) : undefined
       }
