@@ -16,6 +16,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .dismiss {
@@ -33,11 +34,32 @@
   color: var(--color-muted);
   cursor: pointer;
   place-items: center;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
 }
 
 .ad:hover {
   border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
+.ad:active {
+  transform: scale(0.995);
+}
+
+.ad:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.dismiss:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  transform: scale(1.05);
+}
+
+.dismiss:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .picture {
@@ -94,4 +116,11 @@
 .text {
   color: var(--color-muted);
   font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 420px) {
+  .ad { gap: 9px; padding: 8px; }
+  .picture { width: 46px; height: 46px; border-radius: 12px; }
+  .action { padding-right: 18px; }
 }

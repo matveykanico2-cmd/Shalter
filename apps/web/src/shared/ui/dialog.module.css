@@ -79,6 +79,18 @@
   background: var(--color-surface-alt);
   color: var(--color-text);
   font: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.input:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 /* Пояснение под вопросом askConfirm (confirm-check-text). */
