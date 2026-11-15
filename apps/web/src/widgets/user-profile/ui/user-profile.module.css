@@ -2,7 +2,8 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* AppShell .main is a stacking context for call/live overlays (z-index: 100). */
+  z-index: 120;
   background: rgba(0, 0, 0, 0.25);
 }
 
@@ -11,7 +12,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 61;
+  z-index: 121;
   display: flex;
   width: min(400px, 100vw);
   flex-direction: column;

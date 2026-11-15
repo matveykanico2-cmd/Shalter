@@ -1,6 +1,8 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { nativeUpdateState } from "../../app/model/use-version-watch";
+
 import { fakeApi } from "./test";
 
 const STARTED_AT = "2026-11-03T10:00:00.000Z";
@@ -24,6 +26,13 @@ afterEach(() => {
 });
 
 describe("обновление веб-приложения", () => {
+  it("старой оболочке без версии предлагает новую сборку, сеть без ответа не ломает состояние", async () => {
+    const { checkForUpdate } = await load();
+    expect(nativeUpdateState({ version: "2.0.0", minimumVersion: null }, "0")).toEqual({ available: true, mandatory: false });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(await checkForUpdate()).toBe(false);
+  });
+
   it("версия страницы из <meta> — сервер с другой сборкой значит «есть обновление», откат — кнопка пропадает", async () => {
     pageVersion("aaa");
     const { checkForUpdate, currentVersion } = await load();
