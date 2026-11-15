@@ -16,7 +16,7 @@ import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
-import { Avatar, Button, Icon, MediaViewer, toast, type ViewerItem } from "@/shared/ui";
+import { Avatar, Button, Icon, MediaViewer, Menu, type MenuItem, toast, type ViewerItem } from "@/shared/ui";
 
 import styles from "./community-view.module.css";
 
@@ -60,6 +60,7 @@ function CommunityPage({ community }: { community: Community }) {
   const [dialog, setDialog] = useState<"add" | "settings" | "members-add" | "admins" | null>(null);
   const [tab, setTab] = useState<"chats" | "members" | "media" | "files" | "links">(community.isMember ? "members" : "chats");
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
+  const [actionsAt, setActionsAt] = useState<{ x: number; y: number } | null>(null);
   const rights = community.rights;
   const reload = () => {
     void client.invalidateQueries({ queryKey: communityQueries.detail(community.id).queryKey });
@@ -150,9 +151,22 @@ function CommunityPage({ community }: { community: Community }) {
           </>
         ) : null}
         {community.isMember ? (
-          <Button variant="secondary" onClick={() => setDialog("settings")}>
-            <Icon name={rights.editInfo || rights.editChats ? "Edit" : "Users"} size={15} /> {rights.editInfo || rights.editChats ? "Управление" : "Подробнее"}
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setDialog("settings")}>
+              <Icon name={rights.editInfo || rights.editChats ? "Edit" : "Users"} size={15} /> {rights.editInfo || rights.editChats ? "Управление" : "Подробнее"}
+            </Button>
+            {rights.editInfo || rights.editChats ? (
+              <button
+                type="button"
+                className={styles.moreButton}
+                aria-label="Действия сообщества"
+                title="Действия сообщества"
+                onClick={(e) => setActionsAt({ x: e.clientX, y: e.clientY })}
+              >
+                <Icon name="More" size={18} />
+              </button>
+            ) : null}
+          </>
         ) : null}
         {community.isMember && !community.isOwner ? (
           <Button variant="danger" onClick={() => void actions.leave(community).then((ok) => ok && reload())}>
@@ -190,7 +204,7 @@ function CommunityPage({ community }: { community: Community }) {
                     </span>
                   ) : null}
                 </p>
-                <p className={styles.hint}>{`${chatMembersLabel(c)}${c.username ? ` · @${c.username}` : ""}`}</p>
+                <p className={styles.hint}>{chatMembersLabel(c)}</p>
               </div>
               {chatAction(c)}
             </div>
@@ -228,6 +242,17 @@ function CommunityPage({ community }: { community: Community }) {
       {dialog === "settings" && me ? <CommunitySettingsDialog communityId={community.id} meId={me.id} onSaved={reload} onDeleted={() => void navigate("/")} onClose={() => setDialog(null)} /> : null}
       {dialog === "members-add" && me ? <AddCommunityMembersDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
       {dialog === "admins" && me ? <AdminsDialog community={community} meId={me.id} onChanged={reload} onClose={() => setDialog(null)} /> : null}
+      {actionsAt ? (
+        <Menu
+          at={actionsAt}
+          label="Действия сообщества"
+          items={[
+            ...(rights.editInfo || rights.editChats ? [{ icon: "Edit" as const, label: "Изменить сообщество", onClick: () => setDialog("settings") }] : []),
+            { icon: "Link" as const, label: "Скопировать ссылку", onClick: () => void copyText(publicUrl(`/community/${community.id}`), "Ссылка на сообщество скопирована") },
+          ] satisfies MenuItem[]}
+          onClose={() => setActionsAt(null)}
+        />
+      ) : null}
     </div>
   );
 }

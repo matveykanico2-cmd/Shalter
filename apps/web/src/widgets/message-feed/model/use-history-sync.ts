@@ -23,7 +23,11 @@ export function useHistorySync(chatId: string, meId: string) {
     let lastPoll = Date.now();
     const refresh = () => {
       lastPoll = Date.now();
-      void client.invalidateQueries({ queryKey });
+      // При входе в чат событие может прийти до первого успешного запроса истории.
+      // В этом случае одной invalidate недостаточно: активный query ещё находится в
+      // loading и иногда не запускает второй запрос, поэтому сообщение появлялось
+      // только после ручного обновления страницы.
+      void client.refetchQueries({ queryKey, type: "active" });
     };
     const scheduleRefresh = (delay = DEFAULT_REFRESH_MS) => {
       clearTimeout(timer);

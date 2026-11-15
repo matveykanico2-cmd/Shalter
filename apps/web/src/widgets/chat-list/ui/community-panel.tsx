@@ -218,7 +218,7 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
             </span>
           ) : null}
         </span>
-        <span className={styles.preview}>{`${c.username ? `@${c.username} · ` : ""}${chatMembersLabel(c)}`}</span>
+              <span className={styles.preview}>{chatMembersLabel(c)}</span>
       </span>
       {c.isPublic ? (
         <JoinButton label={c.approveJoins ? "Подать заявку" : c.type === "channel" ? "Подписаться" : "Вступить"} onJoin={() => join(c)} />

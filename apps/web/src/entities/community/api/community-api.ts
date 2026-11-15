@@ -79,6 +79,7 @@ export const communityQueries = {
       queryKey: [...baseKey, "detail", id],
       queryFn: async ({ signal }) => (await http.get<Body>(path(id), signal)).community,
       staleTime: 0,
+      refetchOnMount: "always",
       retry: false,
     }),
   byChat: (chatId: string) =>
@@ -86,6 +87,7 @@ export const communityQueries = {
       queryKey: [...baseKey, "by-chat", chatId],
       queryFn: async ({ signal }) => (await http.get<z.infer<typeof byChatBody>>(`/api/communities/by-chat/${encodeURIComponent(chatId)}`, signal)).community,
       staleTime: 30_000,
+      refetchOnMount: "always",
       retry: false,
     }),
   media: (id: string) =>

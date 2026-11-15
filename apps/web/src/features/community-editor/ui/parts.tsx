@@ -70,7 +70,7 @@ export function ChatLine({ chat, onClick, right }: { chat: Chatish; onClick?: ()
             </span>
           ) : null}
         </span>
-        <span className={styles.rowSub}>{chat.username ? `@${chat.username} · ${chatMembersLabel(chat)}` : chatMembersLabel(chat)}</span>
+        <span className={styles.rowSub}>{chatMembersLabel(chat)}</span>
       </span>
     </>
   );
