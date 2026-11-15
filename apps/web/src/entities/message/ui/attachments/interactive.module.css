@@ -47,7 +47,7 @@
 .optionWrap {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 22px;
   min-width: 0;
 }
 
@@ -160,7 +160,7 @@
   width: calc(100% - 50px);
   max-width: calc(100% - 50px);
   margin: 0 0 5px 50px;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 999px;
   background: var(--color-surface);
