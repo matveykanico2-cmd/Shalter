@@ -17,7 +17,9 @@ export function sortChats(list: readonly ChatSummary[]) {
     }
     const at = a.lastMessage?.createdAt ?? a.createdAt ?? "";
     const bt = b.lastMessage?.createdAt ?? b.createdAt ?? "";
-    return bt.localeCompare(at);
+    const byActivity = bt.localeCompare(at);
+    // При одинаковых датах (часто после WS/восстановления кэша) порядок не должен прыгать.
+    return byActivity || a.id.localeCompare(b.id);
   });
 }
 

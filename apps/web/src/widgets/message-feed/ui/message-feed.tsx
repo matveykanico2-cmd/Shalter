@@ -193,8 +193,10 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   // Сколько чужих сообщений пришло, пока лента не внизу, — число на кнопке «вниз» (missedWhileUp).
   const [leftAt, setLeftAt] = useState<string | null>(null);
   const lastId = data?.messages.at(-1)?.id ?? null;
-  if (atBottom && leftAt) setLeftAt(null);
-  if (!atBottom && !leftAt && lastId) setLeftAt(lastId);
+  useEffect(() => {
+    if (atBottom && leftAt) setLeftAt(null);
+    else if (!atBottom && !leftAt && lastId) setLeftAt(lastId);
+  }, [atBottom, lastId, leftAt]);
   const missed = useMemo(() => {
     const list = data?.messages ?? [];
     const from = leftAt ? list.findIndex((m) => m.id === leftAt) : -1;
@@ -241,7 +243,12 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (stuck.current) el.scrollTop = el.scrollHeight;
+    if (stuck.current) {
+      const target = Math.max(0, el.scrollHeight - el.clientHeight);
+      // Не трогаем scrollTop без необходимости: повторные записи во время измерения
+      // динамических пузырей вызывали заметное подёргивание на мобильных браузерах.
+      if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+    }
   }, [totalSize, rows.length]);
 
   // Пока истории нет (грузится, ошибка), нет и области прокрутки.
@@ -257,8 +264,13 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     const observer = new ResizeObserver(() => {
       const prev = height;
       height = el.clientHeight;
-      if (stuck.current) el.scrollTop = el.scrollHeight;
-      else if (height !== prev) el.scrollTop = el.scrollHeight - fromBottom.current + (prev - height);
+      if (stuck.current) {
+        const target = Math.max(0, el.scrollHeight - el.clientHeight);
+        if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+      } else if (height !== prev) {
+        const target = el.scrollHeight - fromBottom.current + (prev - height);
+        if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+      }
       fromBottom.current = el.scrollHeight - el.scrollTop;
     });
     observer.observe(el);
