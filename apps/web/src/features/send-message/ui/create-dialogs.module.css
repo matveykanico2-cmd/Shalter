@@ -3,6 +3,52 @@
   gap: 6px;
 }
 
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 1px;
+  scrollbar-width: none;
+}
+
+.steps::-webkit-scrollbar { display: none; }
+
+.step,
+.addStep {
+  flex: 0 0 auto;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stepActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.addStep {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.stepCaption {
+  margin: -3px 2px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .pollIntro {
   display: flex;
   align-items: center;

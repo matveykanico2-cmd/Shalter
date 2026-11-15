@@ -511,6 +511,17 @@ export function Composer(props: Props) {
     });
   };
 
+  const sendPollSteps = async (steps: Array<{ question: string; options: string[]; correctIndex: number | null }>, multiple: boolean, votersVisible: boolean, closesAt: string | null) => {
+    const reply = replyTo;
+    onCancelReply();
+    onSent?.();
+    for (const [i, step] of steps.entries()) {
+      await send(`${steps.length > 1 ? `Вопрос ${i + 1} из ${steps.length}: ` : ""}${step.question}`, i === 0 ? reply : null, [{ kind: "poll", meta: { options: step.options, votes: step.options.map(() => 0), voterIds: step.options.map(() => []), correctIndex: step.correctIndex, multiple, votersVisible, closesAt } }], undefined, takeIdentity()).catch((err: unknown) => {
+        setError(err instanceof TypeError ? "Нет связи с сервером — опрос отправлен не полностью" : errorText(err, "Не удалось отправить этап опроса"));
+      });
+    }
+  };
+
   // Статья — только с Premium (сервер проверяет то же: 403).
   const openArticle = () => {
     if (!isPremium) {
@@ -960,9 +971,7 @@ export function Composer(props: Props) {
       {creating === "poll" ? (
         <PollDialog
           onClose={() => setCreating(null)}
-          onCreate={({ question, options, correctIndex, multiple, votersVisible, closesAt }) =>
-            void sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple, votersVisible, closesAt } })
-          }
+          onCreate={({ steps, multiple, votersVisible, closesAt }) => void sendPollSteps(steps, multiple, votersVisible, closesAt)}
         />
       ) : null}
       {creating === "checklist" ? (
