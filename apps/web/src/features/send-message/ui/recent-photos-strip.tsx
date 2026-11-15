@@ -9,7 +9,7 @@ type Props = {
   onSend: (files: File[]) => void;
 };
 
-/** Лента последних фото галереи в шторке скрепки: тап выбирает (номер — порядок), «Отправить (N)». */
+/** Лента последних фото галереи в шторке скрепки: тап выбирает (номер — порядок), затем добавляет их в поле. */
 export function RecentPhotosStrip({ onSend }: Props) {
   const [photos, setPhotos] = useState<RecentPhoto[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
@@ -88,7 +88,7 @@ export function RecentPhotosStrip({ onSend }: Props) {
       </div>
       {picked.length ? (
         <button type="button" className={styles.recentPhotosSend} disabled={busy} onClick={() => void send()}>
-          {busy ? "Открываем…" : `Отправить (${picked.length})`}
+          {busy ? "Открываем…" : `Выбрать (${picked.length})`}
         </button>
       ) : null}
       {error ? <div className={styles.recentPhotosError} role="alert">{error}</div> : null}

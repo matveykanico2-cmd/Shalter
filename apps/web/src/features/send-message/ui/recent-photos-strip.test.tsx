@@ -110,7 +110,7 @@ describe("лента последних фото в шторке скрепки"
     expect(screen.getByRole("button", { name: "Фото 1" }).textContent).toBe("2");
     expect(screen.getByRole("button", { name: "Фото 2" }).getAttribute("aria-pressed")).toBe("false");
 
-    fireEvent.click(screen.getByRole("button", { name: "Отправить (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Выбрать (2)" }));
     await waitFor(() => expect(onFiles).toHaveBeenCalledTimes(1));
     const files = onFiles.mock.calls[0]![0] as File[];
     expect(files.map((f) => f.name)).toEqual(["13.bin", "11.bin"]);
