@@ -13,7 +13,9 @@
   bottom: 0;
   display: flex;
   width: min(400px, 100vw);
+  min-width: 0;
   flex-direction: column;
+  overflow: hidden;
   background: var(--color-surface);
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);
 }
@@ -64,8 +66,10 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   flex-direction: column;
   gap: 2px;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 12px;
   background: var(--color-chat-bg);
