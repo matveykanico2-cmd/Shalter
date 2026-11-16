@@ -102,6 +102,13 @@ export function LiveScreen({ live, screen, me }: Props) {
         ))}
       </div>
       <div className={styles.main} ref={main}>
+        <div className={styles.screenHeader}>
+          <button type="button" className={styles.backButton} title="Назад в канал" aria-label="Назад в канал" onClick={closeLive}>
+            <Icon name="ChevronLeft" size={18} />
+            <span>Назад</span>
+          </button>
+          <span className={styles.headerTitle}>{live.stream.title || screen.chatTitle || "Эфир"}</span>
+        </div>
         <div
           className={styles.stage}
           onDoubleClick={(e) => {

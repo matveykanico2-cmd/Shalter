@@ -1,4 +1,5 @@
 import type { SelfUser } from "@/entities/session";
+import { createPortal } from "react-dom";
 
 import { errorText } from "@/shared/lib/error-text";
 import { ChoiceDialog, toast } from "@/shared/ui";
@@ -28,7 +29,9 @@ export function LiveHost({ me }: { me: SelfUser }) {
           onClose={cancelLiveSource}
         />
       ) : null}
-      {screen ? <LiveScreen key={screen.streamId} live={live?.stream.id === screen.streamId ? live : null} screen={screen} me={me} /> : null}
+      {screen
+        ? createPortal(<LiveScreen key={screen.streamId} live={live?.stream.id === screen.streamId ? live : null} screen={screen} me={me} />, document.body)
+        : null}
     </>
   );
 }
