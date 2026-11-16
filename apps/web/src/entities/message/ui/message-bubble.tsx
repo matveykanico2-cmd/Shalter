@@ -4,6 +4,7 @@ import { GiftMessage, type MessageGift } from "@/entities/gift/@x/message";
 
 import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
+import { copyText } from "@/shared/lib/clipboard";
 import { Avatar, Icon } from "@/shared/ui";
 
 import { isArticle } from "../lib/article";
@@ -62,6 +63,9 @@ type Props = {
   onJumpTo?: (id: string) => void;
   /** Меню сообщения: «Ещё», правая кнопка, долгое нажатие пальцем. */
   onOpenMenu?: (m: Message, at: Point, quote?: string) => void;
+  /** Быстрые действия для сообщения, которое ещё не ушло из-за плохой сети. */
+  onEdit?: (m: Message) => void;
+  onDeletePending?: (m: Message) => void;
   /** Полоса реакций — двойное нажатие. */
   onOpenReactions?: (m: Message, at: Point) => void;
   onReact?: (m: Message, emoji: string) => void;
@@ -578,6 +582,25 @@ export function MessageBubble(props: Props) {
               onClick={(e) => props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY }, takeQuote())}
             >
               <Icon name="More" size={16} />
+            </button>
+          ) : null}
+        </span>
+      ) : null}
+      {m.pending && mine && !selecting ? (
+        <span className={styles.pendingActions} aria-label="Действия с отправляемым сообщением">
+          {m.text?.trim() ? (
+            <button type="button" className={styles.pendingAction} onClick={() => void copyText(m.text ?? "", "Текст скопирован")}>
+              Копировать
+            </button>
+          ) : null}
+          {props.onEdit ? (
+            <button type="button" className={styles.pendingAction} onClick={() => props.onEdit?.(m)}>
+              Изменить
+            </button>
+          ) : null}
+          {props.onDeletePending ? (
+            <button type="button" className={`${styles.pendingAction} ${styles.pendingDanger}`} onClick={() => props.onDeletePending?.(m)}>
+              Удалить
             </button>
           ) : null}
         </span>

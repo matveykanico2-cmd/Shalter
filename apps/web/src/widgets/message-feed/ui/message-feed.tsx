@@ -86,6 +86,7 @@ type Props = {
   /** quote — выделенная часть текста для цитаты. */
   onReply?: (m: Message, quote?: string) => void;
   onEdit?: (m: Message) => void;
+  onDeletePending?: (m: Message) => void;
   /** Тема группы: лента только её сообщений. */
   topic?: TopicFilter;
   ref?: Ref<MessageFeedHandle>;
@@ -531,6 +532,8 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                         senders={senders}
                         replyTo={row.message.replyToId ? (messagesById.get(row.message.replyToId) ?? data?.replyTargets[row.message.replyToId]) : undefined}
                         onReply={isChannel ? undefined : onReply}
+                        onEdit={onEdit}
+                        onDeletePending={(m) => void actions.remove(m, false)}
                         onJumpTo={jumpTo}
                         onOpenMenu={menu.openMenu}
                         onOpenReactions={menu.openReactions}
@@ -652,6 +655,8 @@ type RowProps = {
   senders: (m: { senderId: string; anonymous?: boolean }) => MessageSender | null;
   replyTo: Message | ReplyTarget | undefined;
   onReply?: (m: Message, quote?: string) => void;
+  onEdit?: (m: Message) => void;
+  onDeletePending?: (m: Message) => void;
   onJumpTo: (id: string) => void;
   onOpenMenu: (m: Message, at: { x: number; y: number }, quote?: string) => void;
   onOpenReactions: (m: Message, at: { x: number; y: number }) => void;
@@ -716,6 +721,8 @@ function MessageRow(props: RowProps) {
       replyToName={replyToName}
       meId={meId}
       onReply={onReply}
+      onEdit={props.onEdit}
+      onDeletePending={props.onDeletePending}
       onJumpTo={onJumpTo}
       onOpenMenu={onOpenMenu}
       onOpenReactions={onOpenReactions}

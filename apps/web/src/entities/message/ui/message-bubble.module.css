@@ -96,6 +96,35 @@
   flex-direction: row;
 }
 
+.pendingActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  max-width: min(520px, 82%);
+  margin: 0 2px 2px;
+}
+
+.pendingAction {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pendingAction:hover {
+  background: var(--color-accent-soft);
+}
+
+.pendingDanger {
+  color: var(--color-danger);
+}
+
 .avatarSlot {
   flex: none;
   width: 34px;
