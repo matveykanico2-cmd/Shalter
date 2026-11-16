@@ -1,5 +1,6 @@
-import type { SelfUser } from "@/entities/session";
 import { createPortal } from "react-dom";
+
+import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { ChoiceDialog, toast } from "@/shared/ui";

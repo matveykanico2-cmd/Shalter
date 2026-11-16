@@ -594,13 +594,13 @@ describe("шапка чата", () => {
     expect(await screen.findByText("в сети")).toBeTruthy();
   });
 
-  it("заблокировавший собеседник: «был(а) давно», без квитанции у сообщения", async () => {
+  it("заблокировавший собеседник: «был(а) недавно», без квитанции у сообщения", async () => {
     const dm = chat({ type: "dm", title: null, otherUser: { ...LENA, online: false, blockedViewer: true } as ChatSummary["otherUser"] });
     const mine = msg("не доставлено", { senderId: ME.id, readByIds: [ME.id] });
     fakeApi({ "GET /api/chats/c_1": card(dm), [HISTORY]: page([mine]) });
     renderChat(dm);
 
-    expect(await screen.findByText("был(а) давно")).toBeTruthy();
+    expect(await screen.findByText("был(а) недавно")).toBeTruthy();
     await screen.findByText("не доставлено");
     const bubble = document.querySelector(`[data-message-id="${mine.id}"]`)!;
     expect(within(bubble as HTMLElement).queryByLabelText(/Доставлено|Прочитано/)).toBeNull();

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { AVATAR_VIDEO_PREFIX, Avatar, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, AVATAR_VIDEO_PREFIX, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
 
 import { profileApi } from "../api/profile-api";
 

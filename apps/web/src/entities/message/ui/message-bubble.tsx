@@ -3,8 +3,8 @@ import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode,
 import { GiftMessage, type MessageGift } from "@/entities/gift/@x/message";
 
 import type { Sticker } from "@/shared/lib/anim";
-import { useLongPress } from "@/shared/lib/use-long-press";
 import { copyText } from "@/shared/lib/clipboard";
+import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
 
 import { isArticle } from "../lib/article";

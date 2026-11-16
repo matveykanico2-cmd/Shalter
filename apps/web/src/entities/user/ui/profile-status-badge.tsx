@@ -24,7 +24,7 @@ export function ProfileStatusBadge({ user, size = 16 }: { user: Subject; size?: 
         type="button"
         className={styles.badgeButton}
         title={user.statusName || "Статус"}
-        aria-label={user.statusName || "Открыть статус"}
+        aria-label={user.statusName || "Статус"}
         onClick={show}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);

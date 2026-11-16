@@ -68,7 +68,7 @@ describe("звонок", () => {
     expect(getCall()).toBeNull();
   });
 
-  it("видеозвонок: камера с подсказкой motion, после согласования — потолок 2,5 Мбит/с, 30 кадров, balanced", async () => {
+  it("видеозвонок: камера с подсказкой motion, после согласования — потолок 5 Мбит/с, 30 кадров, balanced", async () => {
     fakeApi({ "POST /api/calls": { body: { call: { ...CALL, kind: "video" } } }, "GET /api/chats/c_1": chatRoute,
       "POST /api/calls/cl_1/answer": { body: { ok: true } }, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
     const { getUserMedia } = fakeRtc();
@@ -76,13 +76,13 @@ describe("звонок", () => {
     // 720p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } },
-      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
+      video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
     });
     const peer = FakePeer.instances[0]!;
     const cam = peer.transceivers.find((t) => t.sender.track?.kind === "video")!.sender;
     expect((cam.track as unknown as { contentHint?: string }).contentHint).toBe("motion");
     // Дорожка камеры пришла через addTrack (не replaceTrack) — её тоже настраивают.
-    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 3_500_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
+    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 5_000_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
     // Голос: моно, FEC, без DTX.
     const offer = sentSignals().find((m) => m.kind === "offer")!.data as { sdp: string };
     expect(offer.sdp).toContain("stereo=0");
