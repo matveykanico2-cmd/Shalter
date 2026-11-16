@@ -14,6 +14,25 @@ export type CallPeer = { id: string; name: string; avatarColor?: string | null; 
 const id = encodeURIComponent;
 type CallBody = { call: Call };
 
+/**
+ * Отправляет завершение звонка во время pagehide/beforeunload. Обычный http-клиент
+ * здесь уже не подходит: браузер может оборвать его вместе с документом.
+ */
+function sendOnPageExit(path: string, method: "POST" | "PATCH", body: unknown) {
+  const payload = JSON.stringify(body);
+  if (method === "POST" && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+    const accepted = navigator.sendBeacon(path, new Blob([payload], { type: "application/json" }));
+    if (accepted) return;
+  }
+  void fetch(path, {
+    method,
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: payload,
+    keepalive: true,
+  }).catch(() => {});
+}
+
 const baseKey = ["calls"] as const;
 
 export const callQueries = {
@@ -33,7 +52,9 @@ export const callApi = {
     http.post<CallBody>("/api/calls", { chatId, kind, ringAll, ...(inviteOnly ? { inviteOnly: true } : {}) }),
   answer: (callId: string) => http.post<unknown>(`/api/calls/${id(callId)}/answer`),
   patch: (callId: string, patch: { status: Call["status"]; durationSec?: number }) => http.patch<CallBody>(`/api/calls/${id(callId)}`, patch),
+  patchOnPageExit: (callId: string, patch: { status: Call["status"]; durationSec?: number }) => sendOnPageExit(`/api/calls/${id(callId)}`, "PATCH", patch),
   leave: (callId: string, keepAlive = false) => http.post<unknown>(`/api/calls/${id(callId)}/leave`, keepAlive ? { keepAlive: true } : {}),
+  leaveOnPageExit: (callId: string, keepAlive = false) => sendOnPageExit(`/api/calls/${id(callId)}/leave`, "POST", keepAlive ? { keepAlive: true } : {}),
   addParticipant: (callId: string, userId: string) => http.post<unknown>(`/api/calls/${id(callId)}/participants`, { userId }),
   removeParticipant: (callId: string, userId: string) => http.delete<unknown>(`/api/calls/${id(callId)}/participants/${id(userId)}`),
   inviteLink: (callId: string) => http.post<{ url: string }>(`/api/calls/${id(callId)}/invite-link`),
@@ -42,6 +63,7 @@ export const callApi = {
   room: (chatId: string) => http.get<{ call: Call | null }>(`/api/calls/room/${id(chatId)}`),
   joinRoom: (chatId: string) => http.post<CallBody>(`/api/calls/room/${id(chatId)}/join`),
   leaveRoom: (chatId: string) => http.post<unknown>(`/api/calls/room/${id(chatId)}/leave`),
+  leaveRoomOnPageExit: (chatId: string) => sendOnPageExit(`/api/calls/room/${id(chatId)}/leave`, "POST", {}),
   sendSignal: (callId: string, toUserId: string, kind: string, data: unknown) => http.post<unknown>(`/api/calls/${id(callId)}/signal`, { toUserId, kind, data }),
   pollSignals: (callId: string, after: number) => http.get<{ signals: Signal[] }>(`/api/calls/${id(callId)}/signal?after=${after}`),
   iceServers: () => http.get<{ iceServers: z.infer<typeof iceServer>[] }>("/api/calls/ice-servers"),

@@ -189,6 +189,19 @@
   font-size: 12px;
 }
 
+.handRaised {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 55%);
+  font-size: 18px;
+}
+
 .remove {
   position: absolute;
   top: 8px;

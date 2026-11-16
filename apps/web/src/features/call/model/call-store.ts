@@ -10,7 +10,7 @@ import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
 
 export type CallPhase = "ringing" | "connected" | "ended";
-export type PeerMedia = { camera: boolean; sharing: boolean };
+export type PeerMedia = { camera: boolean; sharing: boolean; handRaised?: boolean };
 
 /** Снимок звонка для экранов (useCall). */
 export type CallState = {
@@ -32,6 +32,7 @@ export type CallState = {
   cameraError: string | null;
   cameraCount: number;
   sharing: boolean;
+  handRaised: boolean;
   screenStream: MediaStream | null;
   remoteMedia: Record<string, PeerMedia>;
   remoteStreams: Record<string, MediaStream>;
@@ -53,6 +54,7 @@ type State = CallState & {
   /** Сигналы приходят и по сокету, и опросом — второй раз не применяем. */
   handled: Set<string>;
   pendingIce: Map<string, RTCIceCandidateInit[]>;
+  pageExitHandled: boolean;
 };
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -126,7 +128,7 @@ function tunePeer(pc: RTCPeerConnection) {
 }
 
 function sendMedia(userId: string) {
-  if (state) sendSignal(userId, "media", { camera: state.cameraOn, sharing: state.sharing });
+  if (state) sendSignal(userId, "media", { camera: state.cameraOn, sharing: state.sharing, handRaised: state.handRaised });
 }
 
 const broadcastMedia = () => state?.others.forEach((p) => sendMedia(p.id));
@@ -321,7 +323,7 @@ async function handleSignal(sig: Signal) {
       removePeer(sig.fromUserId);
     } else if (sig.kind === "media") {
       const media = sig.data as Partial<PeerMedia> | null;
-      state.remoteMedia = { ...state.remoteMedia, [sig.fromUserId]: { camera: !!media?.camera, sharing: !!media?.sharing } };
+      state.remoteMedia = { ...state.remoteMedia, [sig.fromUserId]: { camera: !!media?.camera, sharing: !!media?.sharing, handRaised: !!media?.handRaised } };
       notify();
     }
   } catch {
@@ -388,6 +390,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     cameraError: null,
     cameraCount: 1,
     sharing: false,
+    handRaised: false,
     screenStream: null,
     screenTrack: null,
     screenAudio: null,
@@ -404,6 +407,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     mediaReady,
     handled: new Set(),
     pendingIce: new Map(),
+    pageExitHandled: false,
   };
   const mine = state;
   notify();
@@ -444,7 +448,29 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       () => {}
     );
   }, POLL_MS);
+  const onPageExit = () => {
+    if (state !== mine || mine.pageExitHandled || mine.phase === "ended") return;
+    mine.pageExitHandled = true;
+    const answered = mine.phase === "connected";
+    const leaveOnly = mine.joinedByLink || mine.isRoom || (mine.chatType === "group" && (answered || mine.call.callerId !== mine.me.id));
+    if (leaveOnly) {
+      if (mine.isRoom) callApi.leaveRoomOnPageExit(mine.call.chatId);
+      else callApi.leaveOnPageExit(mine.call.id, mine.joinedByLink);
+    } else {
+      callApi.patchOnPageExit(mine.call.id, { status: answered ? "completed" : "missed", durationSec: answered ? mine.elapsed : 0 });
+    }
+    release(mine);
+    if (state === mine) {
+      state = null;
+      snapshot = null;
+      notify();
+    }
+  };
+  window.addEventListener("pagehide", onPageExit);
+  window.addEventListener("beforeunload", onPageExit);
   cleanups = [
+    () => window.removeEventListener("pagehide", onPageExit),
+    () => window.removeEventListener("beforeunload", onPageExit),
     () => clearInterval(ticker),
     () => clearInterval(poll),
     ws.on("call:signal", (msg) => void handleSignal(msg.signal)),
@@ -593,6 +619,14 @@ export function toggleMute() {
   const muted = !state.muted;
   state.muted = muted;
   state.localStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  notify();
+}
+
+/** Поднять/опустить руку и сообщить состояние всем участникам звонка. */
+export function toggleHand() {
+  if (!state) return;
+  state.handRaised = !state.handRaised;
+  broadcastMedia();
   notify();
 }
 

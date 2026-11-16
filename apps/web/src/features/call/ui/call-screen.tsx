@@ -7,7 +7,7 @@ import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, Volu
 
 import { callApi, type CallPeer } from "../api/call-api";
 import { formatElapsed } from "../lib/format";
-import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleMute, toggleScreenShare } from "../model/call-store";
+import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleHand, toggleMute, toggleScreenShare } from "../model/call-store";
 import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
 import { GestureEffect } from "./call-gestures";
@@ -84,7 +84,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
     );
   }
 
-  const mediaOf = (p: CallPeer): PeerMedia => s.remoteMedia[p.id] ?? { camera: s.call.kind === "video", sharing: false };
+  const mediaOf = (p: CallPeer): PeerMedia => s.remoteMedia[p.id] ?? { camera: s.call.kind === "video", sharing: false, handRaised: false };
   const remoteSharerId = s.sharing ? null : (s.others.find((p) => mediaOf(p).sharing)?.id ?? null);
   // Кто-то показывает экран — он крупно, остальные полосой сверху.
   const stageMode = s.sharing || !!remoteSharerId;
@@ -172,6 +172,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         )}
         {role === "stage" ? <p className={styles.stageLabel}>Экран: {p.name}</p> : null}
         {showVideo && small ? <p className={styles.caption}>{p.name}</p> : null}
+        {m.handRaised ? <span className={styles.handRaised} title={`${p.name} поднял руку`} aria-label={`${p.name} поднял руку`}>✋</span> : null}
         <p className={styles.tileStatus}>{s.phase === "ringing" ? "вызов…" : s.connectedPeers[p.id] ? "" : "соединение…"}</p>
         {s.call.callerId === me.id && role !== "stage" ? (
           <button type="button" className={styles.remove} title={`Убрать из звонка: ${p.name}`} onClick={() => void remove(p)}>
@@ -333,6 +334,16 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>
             ✋
           </span>
+        </button>
+        <button
+          type="button"
+          className={s.handRaised ? `${styles.control} ${styles.accent}` : styles.control}
+          title={s.handRaised ? "Опустить руку" : "Поднять руку"}
+          aria-label={s.handRaised ? "Опустить руку" : "Поднять руку"}
+          aria-pressed={s.handRaised}
+          onClick={toggleHand}
+        >
+          <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>✋</span>
         </button>
         <VolumeControl className={styles.volume} />
         <button type="button" className={styles.control} title="Добавить участника" onClick={(e) => void openAddMenu(e)}>

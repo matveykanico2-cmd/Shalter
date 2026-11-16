@@ -1,6 +1,6 @@
 export { callApi, type CallKind, type CallListItem, callQueries } from "./api/call-api";
 export { formatElapsed } from "./lib/format";
-export { type CallState, decline, getCall, hangup, joinCallById, joinCallByLink, minimize, unminimize } from "./model/call-store";
+export { type CallState, decline, getCall, hangup, joinCallById, joinCallByLink, minimize, toggleHand, unminimize } from "./model/call-store";
 export { useCall } from "./model/use-call";
 export { useStartCall } from "./model/use-start-call";
 export { useVoiceRoomItem } from "./model/use-voice-room-item";
