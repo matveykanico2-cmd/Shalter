@@ -353,7 +353,7 @@ function removePeer(userId: string) {
   // Последний собеседник ушёл — звонок окончен. В голосовом чате группы остаются ждать
   // других: раньше клиент закрывал его у себя, а сервер продолжал считать участником.
   // Не завершаем сразу — даём времени другому участнику присоединиться.
-  if (state.others.length === 0 && !state.isRoom && state.phase !== "ended" && state.phase === "connected") {
+  if (state.others.length === 0 && !state.isRoom && !state.joinedByLink && state.phase !== "ended" && state.phase === "connected") {
     clearTimeout(noAnswerTimer);
     noAnswerTimer = setTimeout(() => {
       if (state && state.others.length === 0 && !state.isRoom && state.phase !== "ended") endLocally();
@@ -811,7 +811,9 @@ export async function hangup(): Promise<string | null> {
   if (!s) return null;
   const { call, others, elapsed } = s;
   const answered = s.phase === "connected";
-  others.forEach((p) => sendSignal(p.id, "end", null));
+  // Встреча и вход по ссылке — это выход одного участника. Не посылаем остальным
+  // сигнал завершения, иначе уход одного человека мог сбросить разговор у всех.
+  if (!s.isRoom && !s.joinedByLink) others.forEach((p) => sendSignal(p.id, "end", null));
   s.phase = "ended";
   stopRingtone();
   notify();

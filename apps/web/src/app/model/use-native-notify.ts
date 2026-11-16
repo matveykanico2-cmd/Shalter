@@ -152,7 +152,11 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
     ws.on("call:incoming", ({ call }) => {
       if (document.visibilityState === "visible") return;
       const caller = call.otherUser?.name ?? "Входящий звонок";
-      if (callUi) return void callUi.show({ callId: call.id, name: caller, video: call.kind === "video" }).catch(() => {});
+      if (callUi) {
+        return void callUi
+          .show({ callId: call.id, name: caller, video: call.kind === "video", fullScreen: true, ringtone: true, channelId: "calls" })
+          .catch(() => {});
+      }
       local
         .schedule({
           notifications: [

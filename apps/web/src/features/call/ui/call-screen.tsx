@@ -61,6 +61,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const [linkStatus, setLinkStatus] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [addMenu, setAddMenu] = useState<{ at: { x: number; y: number }; items: MenuItem[] } | null>(null);
+  const [callMenuAt, setCallMenuAt] = useState<{ x: number; y: number } | null>(null);
   const [pickingContact, setPickingContact] = useState(false);
   // Собеседник заполняет экран (cover, края обрезаются); «Кадр целиком» — без обрезки.
   const [wholeFrame, setWholeFrame] = useState(false);
@@ -241,6 +242,9 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const pipStream = swap ? (first && (mediaOf(first).camera || mediaOf(first).sharing) ? (s.remoteStreams[first.id] ?? null) : null) : s.cameraOn ? s.localStream : null;
   const ownPreview = !swap && s.cameraOn;
   const who = swap && first ? first : me;
+  const leaveLabel = s.isRoom || s.joinedByLink ? "Покинуть встречу" : "Завершить";
+  const hangupTitle = s.isRoom ? "Покинуть встречу" : "Завершить";
+  const finishCall = () => void hangup().then(onHangup);
 
   return (
     <div ref={screen} className={wholeFrame ? `${styles.screen} ${styles.wholeFrame}` : styles.screen}>
@@ -283,6 +287,9 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
               <Icon name="Link" size={17} />
               <span className={styles.inviteLabel}>Пригласить</span>
             </button>
+            <button type="button" className={styles.headerButton} title="Меню звонка" aria-label="Меню звонка" onClick={(e) => setCallMenuAt({ x: e.clientX, y: e.clientY })}>
+              <Icon name="More" size={19} />
+            </button>
           </div>
         </div>
         {s.mediaError ? <p className={styles.error}>{s.mediaError}</p> : null}
@@ -318,6 +325,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         ) : null}
         {s.cameraError ? <p className={styles.cameraError}>{s.cameraError}</p> : null}
       </div>
+      {!s.localStream && !s.mediaError && s.phase === "ringing" ? <div className={styles.loading} aria-live="polite"><span className={styles.loadingSpinner} />Подключаем звонок…</div> : null}
       <div className={styles.controls}>
         <button type="button" className={s.muted ? `${styles.control} ${styles.active}` : styles.control} title="Микрофон" aria-pressed={s.muted} onClick={toggleMute}>
           <Icon name="Mic" size={20} />
@@ -359,12 +367,24 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         <button type="button" className={styles.control} title="Добавить участника" onClick={(e) => void openAddMenu(e)}>
           <Icon name="Plus" size={20} />
         </button>
-        <button type="button" className={styles.hangup} title="Завершить" aria-label={s.joinedByLink ? "Выйти, не завершая звонок" : "Завершить"} onClick={() => void hangup().then(onHangup)}>
+        <button type="button" className={styles.hangup} title={hangupTitle} aria-label={leaveLabel} onClick={finishCall}>
           <Icon name="Phone" size={22} className={styles.hangupIcon} />
         </button>
       </div>
       <GestureEffect shown={gestures.shown} />
       {addMenu ? <Menu at={addMenu.at} label="Добавить участника" items={addMenu.items} onClose={() => setAddMenu(null)} /> : null}
+      {callMenuAt ? (
+        <Menu
+          at={callMenuAt}
+          label="Меню звонка"
+          items={[
+            { icon: "Link", label: "Пригласить по ссылке", onClick: () => void inviteByLink() },
+            { icon: "ChevronLeft", label: "Свернуть в чат", onClick: onMinimize },
+            { icon: "Phone", label: leaveLabel, danger: true, onClick: finishCall },
+          ]}
+          onClose={() => setCallMenuAt(null)}
+        />
+      ) : null}
       {pickingContact ? (
         <ContactPicker
           title="Кого добавить в звонок"

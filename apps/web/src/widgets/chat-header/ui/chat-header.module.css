@@ -16,6 +16,14 @@
   backdrop-filter: blur(24px) saturate(150%);
 }
 
+/* Не даём кнопкам звонка и закрытия делить один пиксель на узких экранах. */
+@media (max-width: 700px) {
+  .header {
+    gap: 4px;
+    overflow: hidden;
+  }
+}
+
 /* .chat-header-back: только на телефоне, где список и чат — разные экраны. */
 .back {
   display: none;

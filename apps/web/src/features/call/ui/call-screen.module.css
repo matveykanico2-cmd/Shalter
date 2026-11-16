@@ -105,6 +105,52 @@
   font-weight: 600;
 }
 
+@media (max-width: 560px) {
+  .header {
+    gap: 3px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .headerActions {
+    gap: 0;
+  }
+
+  .inviteLabel {
+    display: none;
+  }
+}
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transform: translate(-50%, -50%);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 48%);
+  color: rgb(255 255 255 / 82%);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.loadingSpinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgb(255 255 255 / 28%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: call-loading-spin 0.8s linear infinite;
+}
+
+@keyframes call-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .error {
   margin: 0 20px;
   padding: 8px 14px;
