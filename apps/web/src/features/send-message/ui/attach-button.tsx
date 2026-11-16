@@ -41,7 +41,8 @@ const DICE: [string, string][] = [
 /** Ширина, на которой меню — шторка снизу (как SHEET_QUERY в shared/ui/menu). */
 const PHONE_QUERY = "(max-width: 560px)";
 
-type Tile = { icon: IconName; label: string; color: string };
+type TileAction = "gallery" | "camera" | "video" | "file" | "audio" | "location" | "live-location" | "poll" | "checklist" | "contact" | "meme" | "paint" | "games" | "hugo" | "schedule";
+type Tile = { icon: IconName; label: string; color: string; action: TileAction };
 
 /** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, мем, рисунок, опрос, чек-лист, кубики, геолокация, контакт. */
 export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, onGames, onCoins, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
@@ -84,25 +85,38 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
 
   // Телефон — шторка как в Telegram: сверху круглые цветные кнопки главного, ниже — остальное списком.
   const tiles: Tile[] = [
-    { icon: "Image", label: "Галерея", color: "#3b82f6" },
-    { icon: "Camera", label: "Камера", color: "#8b5cf6" },
-    { icon: "File", label: "Файл", color: "#0ea5e9" },
-    { icon: "MapPin", label: "Геопозиция", color: "#22c55e" },
-    { icon: "BarChart", label: "Опрос", color: "#f59e0b" },
-    { icon: "CheckCheck", label: "Чек-лист", color: "#14b8a6" },
-    { icon: "Users", label: "Контакт", color: "#f97316" },
-    { icon: "Mic", label: "Музыка", color: "#ec4899" },
+    { icon: "Image", label: "Галерея", color: "#3b82f6", action: "gallery" },
+    { icon: "Camera", label: "Камера", color: "#8b5cf6", action: "camera" },
+    { icon: "Video", label: "Видео", color: "#6366f1", action: "video" },
+    { icon: "File", label: "Файл", color: "#0ea5e9", action: "file" },
+    { icon: "Mic", label: "Музыка", color: "#ec4899", action: "audio" },
+    { icon: "MapPin", label: "Геопозиция", color: "#22c55e", action: "location" },
+    { icon: "MapPin", label: "Живая гео", color: "#16a34a", action: "live-location" },
+    { icon: "BarChart", label: "Опрос", color: "#f59e0b", action: "poll" },
+    { icon: "CheckCheck", label: "Чек-лист", color: "#14b8a6", action: "checklist" },
+    { icon: "Users", label: "Контакт", color: "#f97316", action: "contact" },
+    { icon: "Zap", label: "Мем", color: "#eab308", action: "meme" },
+    { icon: "Edit", label: "Рисунок", color: "#f43f5e", action: "paint" },
+    { icon: "Smile", label: "Игры", color: "#a855f7", action: "games" },
+    { icon: "Check", label: "Проверка", color: "#64748b", action: "hugo" },
+    ...(onSchedule ? [{ icon: "Clock" as const, label: "Позже", color: "#475569", action: "schedule" as const }] : []),
   ];
-  const runTile = (label: string) => {
-    setAt(null);
-    if (label === "Галерея") media.current?.click();
-    else if (label === "Камера") photo.current?.click();
-    else if (label === "Файл") any.current?.click();
-    else if (label === "Музыка") audio.current?.click();
-    else if (label === "Геопозиция") onLocation(false);
-    else if (label === "Опрос") onPoll();
-    else if (label === "Чек-лист") onChecklist();
-    else if (label === "Контакт") onContact();
+  const runTile = (action: TileAction) => {
+    if (action === "gallery") media.current?.click();
+    else if (action === "camera") photo.current?.click();
+    else if (action === "video") video.current?.click();
+    else if (action === "file") any.current?.click();
+    else if (action === "audio") audio.current?.click();
+    else if (action === "location") onLocation(false);
+    else if (action === "live-location") onLocation(true);
+    else if (action === "poll") onPoll();
+    else if (action === "checklist") onChecklist();
+    else if (action === "contact") onContact();
+    else if (action === "meme") onMeme();
+    else if (action === "paint") onPaint();
+    else if (action === "games") onGames();
+    else if (action === "hugo") onHugo();
+    else if (action === "schedule") onSchedule?.();
   };
   const header = phone ? (
     <>
@@ -120,7 +134,10 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
             key={tile.label}
             type="button"
             className={styles.attachTile}
-            onClick={() => runTile(tile.label)}
+            onClick={() => {
+              setAt(null);
+              runTile(tile.action);
+            }}
           >
             <span className={styles.attachTileIcon} style={{ background: tile.color }}>
               <Icon name={tile.icon} size={24} />

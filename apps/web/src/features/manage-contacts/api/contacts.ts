@@ -23,6 +23,7 @@ export const contactsQueries = {
     queryOptions({
       queryKey: [...userQueries.contacts().queryKey, "full"],
       queryFn: async ({ signal }) => (await http.get<{ contacts: ContactItem[] }>("/api/contacts", signal)).contacts,
+      staleTime: 30_000,
     }),
 };
 

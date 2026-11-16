@@ -79,9 +79,11 @@ async function pickContacts() {
   for (let index = 0; index < contacts.length; index += 500) {
     const result = await http.post<{ found: ContactMatch[] }>("/api/contacts/match", { contacts: contacts.slice(index, index + 500) });
     const unique = new Map(result.found.map((entry) => [entry.user.id, entry]));
-    for (const entry of unique.values()) {
-      if (!entry.alreadyContact) await http.post("/api/contacts", { userId: entry.user.id, localName: entry.localName || null, sharePhone: false });
-    }
+    await Promise.all(
+      [...unique.values()]
+        .filter((entry) => !entry.alreadyContact)
+        .map((entry) => http.post("/api/contacts", { userId: entry.user.id, localName: entry.localName || null, sharePhone: false }))
+    );
   }
 }
 

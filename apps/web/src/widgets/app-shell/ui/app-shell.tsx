@@ -132,6 +132,13 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
 
   useKeyboardViewport();
 
+  // При переходе между чатами textarea размонтируется, но iOS иногда оставляет
+  // системную клавиатуру открытой ещё на один экран. Снимаем фокус явно.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (isEditable(active)) (active as HTMLElement).blur();
+  }, [pathname]);
+
   return (
     <div className={mainOpen ? `${styles.shell} ${styles.mainOpen}` : styles.shell}>
       {/* «Сейчас играет» — над всем приложением, как в ВК и Telegram: звук не прерывается при переходах. */}

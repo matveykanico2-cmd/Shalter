@@ -46,10 +46,10 @@ export function ChatPickerDialog({ title, exclude, onSend, onClose }: Props) {
   const send = async () => {
     if (!selected.size || sending !== null) return;
     const ids = candidates.filter((c) => selected.has(c.id)).map((c) => c.id);
-    for (let i = 0; i < ids.length; i++) {
+    await Promise.all(ids.map((id, i) => {
       setSending(i);
-      await onSend(ids[i]!).catch(() => {});
-    }
+      return onSend(id).catch(() => {});
+    }));
     onClose();
   };
 

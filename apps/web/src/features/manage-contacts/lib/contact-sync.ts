@@ -57,16 +57,18 @@ export async function matchAndAddAll(entries: PhoneEntry[]) {
   // показывала кнопку «Добавить», хотя контакт уже появился.
   const byUser = new Map<string, SyncedFound[]>();
   for (const entry of found) byUser.set(entry.user.id, [...(byUser.get(entry.user.id) ?? []), entry]);
-  for (const entries of byUser.values()) {
-    if (entries.some((entry) => entry.alreadyContact)) continue;
-    try {
-      const entry = entries[0]!;
-      await addContact(entry.user.id, entry.localName || null);
-      for (const match of entries) match.justAdded = true;
-      added++;
-    } catch {
-      // Не добавился один — остальных всё равно добавляем.
-    }
-  }
+  await Promise.all(
+    [...byUser.values()].map(async (entries) => {
+      if (entries.some((entry) => entry.alreadyContact)) return;
+      try {
+        const entry = entries[0]!;
+        await addContact(entry.user.id, entry.localName || null);
+        for (const match of entries) match.justAdded = true;
+        added++;
+      } catch {
+        // Не добавился один — остальные всё равно добавляем.
+      }
+    })
+  );
   return { found, notFound, checked, added };
 }

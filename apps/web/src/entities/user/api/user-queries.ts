@@ -25,5 +25,6 @@ export const userQueries = {
     queryOptions({
       queryKey: [...baseKey, "contacts"],
       queryFn: async ({ signal }) => (await http.get<{ contacts: z.infer<typeof contactListItem>[] }>("/api/contacts", signal)).contacts.map((c) => c.user),
+      staleTime: 30_000,
     }),
 };

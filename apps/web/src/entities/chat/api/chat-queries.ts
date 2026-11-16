@@ -13,6 +13,7 @@ export const chatQueries = {
     queryOptions({
       queryKey: [...baseKey, "list"],
       queryFn: async ({ signal }) => (await http.get<{ chats: ChatSummary[] }>("/api/chats", signal)).chats,
+      staleTime: 30_000,
     }),
   /** Папки чатов (GET /api/folders) — вкладки над списком. */
   folders: () =>
