@@ -381,6 +381,8 @@
   height: 112px;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .localPip:active {
@@ -398,6 +400,8 @@
   height: 100%;
   border-radius: 999px;
   object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .mirrored {

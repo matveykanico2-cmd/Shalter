@@ -43,6 +43,13 @@ export function useDraggable(key: string) {
   const onPointerDown = (e: PointerEvent<HTMLElement>) => {
     const node = e.currentTarget.closest<HTMLElement>("[data-draggable]") ?? e.currentTarget;
     if ((e.target as HTMLElement).closest("button")) return;
+    // Видеопревью иначе может начать нативное перетаскивание после первого
+    // движения и забрать pointer у нашего обработчика.
+    try {
+      node.setPointerCapture(e.pointerId);
+    } catch {
+      // Некоторые старые WebView не поддерживают захват pointer.
+    }
     const rect = node.getBoundingClientRect();
     const dx = e.clientX - rect.left;
     const dy = e.clientY - rect.top;
@@ -61,6 +68,11 @@ export function useDraggable(key: string) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      try {
+        if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
+      } catch {
+        // Pointer уже мог быть освобождён браузером.
+      }
       if (!moved) return;
       draggedAt.set(key, Date.now());
       try {
