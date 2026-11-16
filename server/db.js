@@ -1379,6 +1379,7 @@ CREATE TABLE IF NOT EXISTS communities (
   description TEXT,
   avatarColor TEXT,
   avatarImage TEXT,
+  avatarImages TEXT NOT NULL DEFAULT '[]',
   addMode TEXT NOT NULL DEFAULT 'all',
   createdAt TEXT NOT NULL,
   generalChatId TEXT
@@ -1394,6 +1395,7 @@ CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(comm
 {
   const communityCols = new Set(db.prepare("PRAGMA table_info(communities)").all().map((c) => c.name));
   if (!communityCols.has("avatarImage")) db.exec("ALTER TABLE communities ADD COLUMN avatarImage TEXT");
+  if (!communityCols.has("avatarImages")) db.exec("ALTER TABLE communities ADD COLUMN avatarImages TEXT NOT NULL DEFAULT '[]'");
   if (!communityCols.has("addMode")) db.exec("ALTER TABLE communities ADD COLUMN addMode TEXT NOT NULL DEFAULT 'all'");
   if (!communityCols.has("avatarEmoji")) db.exec("ALTER TABLE communities ADD COLUMN avatarEmoji TEXT");
   if (!communityCols.has("generalChatId")) db.exec("ALTER TABLE communities ADD COLUMN generalChatId TEXT");

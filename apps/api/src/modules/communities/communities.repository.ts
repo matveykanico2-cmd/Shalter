@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { communities, communityAutoMembers, communityBans, communityChats, communityMembers, communityRequests } from "../db/schema.js";
 import { ADD_MODES, cleanRights, parseRights } from "./lib/community-rights.js";
-import type { Community, CommunityBan, CommunityMemberRow, CommunityPatch, CommunityRequest, CommunityRights, CommunityRow } from "./model/domain.js";
+import type { Community, CommunityAvatar, CommunityBan, CommunityMemberRow, CommunityPatch, CommunityRequest, CommunityRights, CommunityRow } from "./model/domain.js";
 
 // Сообщества: сама вывеска, её чаты, участники с ролями и личными настройками, удалённые
 // участники и заявки на добавление чатов — как server/data/communities.js.
@@ -23,7 +23,7 @@ export class CommunitiesRepository {
   }
 
   /** Новое сообщество; владелец — первый участник. */
-  public create(c: { id: string; ownerId: string; title: string; description: string; avatarColor: string | null; avatarImage: string | null; avatarEmoji?: string | null; addMode: string }): Community {
+  public create(c: { id: string; ownerId: string; title: string; description: string; avatarColor: string | null; avatarImage: string | null; avatarEmoji?: string | null; avatarImages?: CommunityAvatar[]; addMode: string }): Community {
     const now = new Date().toISOString();
     this.db.transaction((tx) => {
       tx.insert(communities)
@@ -34,6 +34,7 @@ export class CommunitiesRepository {
           description: c.description || null,
           avatarColor: c.avatarColor ?? null,
           avatarImage: c.avatarImage ?? null,
+          avatarImages: JSON.stringify(c.avatarImages ?? []),
           avatarEmoji: c.avatarEmoji ?? null,
           addMode: ADD_MODES.has(c.addMode) ? c.addMode : "all",
           createdAt: now,
@@ -47,7 +48,7 @@ export class CommunitiesRepository {
   public update(id: string, patch: CommunityPatch): Community | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
-    const { title, description, avatarColor, avatarImage, avatarEmoji, addMode } = patch;
+    const { title, description, avatarColor, avatarImage, avatarEmoji, avatarImages, addMode } = patch;
     this.db
       .update(communities)
       .set({
@@ -56,6 +57,7 @@ export class CommunitiesRepository {
         avatarColor: avatarColor === undefined ? (existing.avatarColor ?? null) : avatarColor,
         avatarImage: avatarImage === undefined ? (existing.avatarImage ?? null) : avatarImage || null,
         avatarEmoji: avatarEmoji === undefined ? (existing.avatarEmoji ?? null) : avatarEmoji || null,
+        avatarImages: avatarImages === undefined ? JSON.stringify(existing.avatarImages) : JSON.stringify(avatarImages),
         addMode: addMode === undefined ? existing.addMode : ADD_MODES.has(addMode) ? addMode : existing.addMode,
       })
       .where(eq(communities.id, id))
@@ -330,6 +332,7 @@ export class CommunitiesRepository {
       avatarColor: row.avatarColor ?? undefined,
       avatarImage: row.avatarImage ?? undefined,
       avatarEmoji: row.avatarEmoji ?? undefined,
+      avatarImages: parseAvatarImages(row.avatarImages),
       generalChatId: row.generalChatId ?? undefined,
       addMode: ADD_MODES.has(row.addMode) ? (row.addMode as Community["addMode"]) : "all",
       createdAt: row.createdAt,
@@ -337,5 +340,19 @@ export class CommunitiesRepository {
       hiddenChatIds: chats.filter((c) => !c.visible).map((c) => c.chatId),
       addedBy: Object.fromEntries(chats.filter((c) => c.addedBy).map((c) => [c.chatId, c.addedBy!])),
     };
+  }
+}
+
+function parseAvatarImages(value: string | null | undefined): CommunityAvatar[] {
+  try {
+    const parsed = JSON.parse(value || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is CommunityAvatar => {
+      if (!entry || typeof entry !== "object" || !("kind" in entry)) return false;
+      const item = entry as { kind?: unknown; url?: unknown; emoji?: unknown };
+      return item.kind === "image" ? typeof item.url === "string" : item.kind === "emoji" && typeof item.emoji === "string";
+    }).slice(0, 20);
+  } catch {
+    return [];
   }
 }

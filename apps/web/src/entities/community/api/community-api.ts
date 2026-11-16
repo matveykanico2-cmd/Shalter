@@ -27,15 +27,16 @@ export type CommunityAdmin = z.infer<typeof adminsBody>["admins"][number];
 export type CommunityBan = z.infer<typeof bansBody>["users"][number];
 export type CommunityRequest = z.infer<typeof requestsBody>["requests"][number];
 export type AddMode = Community["addMode"];
+export type CommunityAvatarEntry = NonNullable<Community["avatarImages"]>[number];
 
 type Body = z.infer<typeof communityBody>;
 const path = (id: string) => `/api/communities/${encodeURIComponent(id)}`;
 
 /** Запросы сообществ — как api.*Community* в public/js/api.js. */
 export const communityApi = {
-  create: (body: { title: string; description: string; avatarColor?: string | null; avatarImage: string | null; avatarEmoji?: string | null; addMode: AddMode; chatId?: string; chatVisible?: boolean }) =>
+  create: (body: { title: string; description: string; avatarColor?: string | null; avatarImage: string | null; avatarEmoji?: string | null; avatarImages?: CommunityAvatarEntry[]; addMode: AddMode; chatId?: string; chatVisible?: boolean }) =>
     http.post<Body>("/api/communities", body),
-  update: (id: string, patch: { title?: string; description?: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; addMode?: AddMode }) => http.patch<Body>(path(id), patch),
+  update: (id: string, patch: { title?: string; description?: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; avatarImages?: CommunityAvatarEntry[]; addMode?: AddMode }) => http.patch<Body>(path(id), patch),
   remove: (id: string) => http.delete<unknown>(path(id)),
   join: (id: string) => http.post<Body>(`${path(id)}/join`),
   leave: (id: string) => http.post<unknown>(`${path(id)}/leave`),

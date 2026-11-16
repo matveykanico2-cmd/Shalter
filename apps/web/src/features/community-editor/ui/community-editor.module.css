@@ -144,6 +144,44 @@ button.row:hover:not(:disabled) {
   align-self: center;
 }
 
+.avatarGallery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.avatarGalleryItem {
+  position: relative;
+  min-width: 92px;
+}
+
+.removeAvatar {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
+  cursor: pointer;
+}
+
+.deleteCommunity {
+  width: 100%;
+  min-height: 60px;
+  margin-top: 12px;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
 .buttons {
   display: flex;
   flex-wrap: wrap;

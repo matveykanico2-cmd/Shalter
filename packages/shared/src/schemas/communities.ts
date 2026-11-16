@@ -15,6 +15,10 @@ export const communityRights = z.strictObject({
 export const communityRole = z.enum(["owner", "admin", "member"]);
 export const addPolicy = z.enum(["add", "suggest"]);
 export const addMode = z.enum(["all", "admins"]);
+export const communityAvatar = z.union([
+  z.strictObject({ kind: z.literal("image"), url: z.string() }),
+  z.strictObject({ kind: z.literal("emoji"), emoji: z.string() }),
+]);
 
 /** chatCard() — чат в списке сообщества. */
 export const communityChat = z.strictObject({
@@ -42,6 +46,7 @@ export const community = z.strictObject({
   avatarColor: z.string().nullable(),
   avatarImage: z.string().nullable(),
   avatarEmoji: z.string().nullable(),
+  avatarImages: z.array(communityAvatar).optional(),
   generalChatId: z.string().nullable(),
   generalChat: communityChat.nullable(),
   addMode,
@@ -78,6 +83,7 @@ export const mineBody = z.strictObject({
       avatarColor: z.string().nullable(),
       avatarImage: z.string().nullable(),
       avatarEmoji: z.string().nullable(),
+      avatarImages: z.array(communityAvatar).optional(),
       chatCount: z.number(),
       addPolicy,
     })
@@ -94,6 +100,7 @@ export const joinedBody = z.strictObject({
       avatarColor: z.string().nullable(),
       avatarImage: z.string().nullable(),
       avatarEmoji: z.string().nullable(),
+      avatarImages: z.array(communityAvatar).optional(),
       role: communityRole.nullable(),
       isOwner: z.boolean(),
       rights: communityRights,
@@ -116,6 +123,7 @@ export const byChatBody = z.strictObject({
       avatarColor: z.string().nullable(),
       avatarImage: z.string().nullable(),
       avatarEmoji: z.string().nullable(),
+      avatarImages: z.array(communityAvatar).optional(),
       isOwner: z.boolean(),
       isMember: z.boolean(),
       canRemoveChat: z.boolean(),

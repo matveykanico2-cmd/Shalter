@@ -2,10 +2,15 @@ import { Avatar } from "@/shared/ui";
 
 import styles from "./community-avatar.module.css";
 
-type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null }; size?: number; onClick?: () => void };
+type GalleryEntry = { kind: "image"; url: string } | { kind: "emoji"; emoji: string };
+type Props = { community: { title: string; avatarColor?: string | null; avatarImage?: string | null; avatarEmoji?: string | null; avatarImages?: readonly GalleryEntry[] }; size?: number; onClick?: () => void };
 
 /** Аватар сообщества с двумя «карточками» за ним — CommunityAvatar (tweb CommunityAvatarDecoration). */
 export function CommunityAvatar({ community, size = 54, onClick }: Props) {
+  const gallery = community.avatarImages ?? [];
+  const first = gallery[0];
+  const image = first?.kind === "image" ? first.url : community.avatarImage;
+  const emoji = first?.kind === "emoji" ? first.emoji : community.avatarEmoji;
   return (
     <span className={styles.wrap} style={{ width: size, height: size }}>
       <svg className={styles.decoration} viewBox="0 0 125 100" fill="none" aria-hidden="true">
@@ -20,7 +25,12 @@ export function CommunityAvatar({ community, size = 54, onClick }: Props) {
           fill="currentColor"
         />
       </svg>
-      <Avatar size={size} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} onClick={onClick} />
+      {gallery.slice(1, 3).map((entry, index) => (
+        <span key={`${entry.kind}:${entry.kind === "image" ? entry.url : entry.emoji}`} className={styles.galleryAvatar} style={{ width: size * 0.48, height: size * 0.48, right: index === 0 ? -size * 0.12 : size * 0.03, bottom: index === 0 ? size * 0.02 : -size * 0.07 }}>
+          <Avatar size={size * 0.48} name={community.title} color={community.avatarColor} image={entry.kind === "image" ? entry.url : null} emoji={entry.kind === "emoji" ? entry.emoji : null} />
+        </span>
+      ))}
+      <Avatar size={size} name={community.title} color={community.avatarColor} image={image} emoji={emoji} onClick={onClick} />
     </span>
   );
 }

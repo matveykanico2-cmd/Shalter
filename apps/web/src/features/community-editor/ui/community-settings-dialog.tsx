@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { type AddMode, chatsCountLabel, type Community, communityApi, type CommunityChat, communityQueries } from "@/entities/community";
+import { type AddMode, chatsCountLabel, type Community, communityApi, type CommunityAvatarEntry, type CommunityChat, communityQueries } from "@/entities/community";
 
 import { errorText } from "@/shared/lib/error-text";
 import { Avatar, AvatarEditor, type AvatarValue, Button, Dialog, Icon, TextField, toast } from "@/shared/ui";
@@ -65,24 +65,26 @@ type MainProps = { community: Community; onOpen: (s: Screen) => void; onClose: (
 function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProps) {
   const actions = useCommunityActions();
   const rights = community.rights;
-  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarColor: community.avatarColor ?? null, avatarImage: community.avatarImage ?? null, avatarEmoji: community.avatarEmoji ?? null };
+  const saved = { title: community.title, description: community.description ?? "", addMode: community.addMode, avatarColor: community.avatarColor ?? null, avatarImage: community.avatarImage ?? null, avatarEmoji: community.avatarEmoji ?? null, avatarImages: community.avatarImages ?? [] };
   const [title, setTitle] = useState(saved.title);
   const [description, setDescription] = useState(saved.description);
   const [addMode, setAddMode] = useState<AddMode>(saved.addMode);
-  const [avatar, setAvatar] = useState<AvatarValue>({ image: saved.avatarImage, emoji: saved.avatarEmoji });
+  const [avatars, setAvatars] = useState<AvatarValue[]>(() => saved.avatarImages.length ? saved.avatarImages.map((entry) => ({ image: entry.kind === "image" ? entry.url : null, emoji: entry.kind === "emoji" ? entry.emoji : null })) : [{ image: saved.avatarImage, emoji: saved.avatarEmoji }]);
   const [avatarColor, setAvatarColor] = useState<string | null>(saved.avatarColor);
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   // tweb hasCommunityEditChanges: «Сохранить» — только когда что-то изменилось.
   const dirty =
-    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatarColor !== saved.avatarColor || avatar.image !== saved.avatarImage || avatar.emoji !== saved.avatarEmoji)) || (rights.editChats && addMode !== saved.addMode);
+    (rights.editInfo && (title.trim() !== saved.title || description.trim() !== saved.description || avatarColor !== saved.avatarColor || JSON.stringify(avatars) !== JSON.stringify(saved.avatarImages.length ? saved.avatarImages.map((entry) => ({ image: entry.kind === "image" ? entry.url : null, emoji: entry.kind === "emoji" ? entry.emoji : null })) : [{ image: saved.avatarImage, emoji: saved.avatarEmoji }]))) || (rights.editChats && addMode !== saved.addMode);
 
   const save = async () => {
     const t = title.trim();
     if (!t) return setInvalid(true);
     setBusy(true);
     const patch: Parameters<typeof communityApi.update>[1] = {};
-    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarColor, avatarImage: avatar.image, avatarEmoji: avatar.emoji });
+    const gallery = avatars.filter((entry) => entry.image || entry.emoji).slice(0, 20).map((entry): CommunityAvatarEntry => entry.image ? { kind: "image", url: entry.image } : { kind: "emoji", emoji: entry.emoji! });
+    const first = gallery[0];
+    if (rights.editInfo) Object.assign(patch, { title: t, description: description.trim(), avatarColor, avatarImage: first?.kind === "image" ? first.url : null, avatarEmoji: first?.kind === "emoji" ? first.emoji : null, avatarImages: gallery });
     if (rights.editChats) patch.addMode = addMode;
     try {
       await communityApi.update(community.id, patch);
@@ -99,7 +101,16 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
   return (
     <Dialog title={rights.editInfo || rights.editChats ? "Изменить сообщество" : "Сообщество"} onClose={onClose} className={styles.wide}>
       {rights.editInfo ? (
-        <AvatarEditor name={title} color={avatarColor} image={avatar.image} emoji={avatar.emoji} onChange={setAvatar} onColor={setAvatarColor} />
+        <div className={styles.avatarGallery} aria-label="Аватары сообщества">
+          {avatars.map((entry, index) => (
+            <div className={styles.avatarGalleryItem} key={index}>
+              <AvatarEditor name={title} color={avatarColor} image={entry.image} emoji={entry.emoji} size={index === 0 ? 108 : 76} onChange={(next) => setAvatars((old) => old.map((item, i) => (i === index ? next : item)))} onColor={index === 0 ? setAvatarColor : undefined} />
+              {avatars.length > 1 ? <button type="button" className={styles.removeAvatar} aria-label={`Удалить аватар ${index + 1}`} onClick={() => setAvatars((old) => old.filter((_, i) => i !== index))}><Icon name="X" size={15} /></button> : null}
+            </div>
+          ))}
+          {avatars.length < 20 ? <Button variant="secondary" onClick={() => setAvatars((old) => [...old, { image: null, emoji: null }])}><Icon name="Plus" size={16} /> Добавить аватар</Button> : null}
+          <p className={styles.caption}>Можно добавить до 20 фото, смайлов или стикеров. Первый будет главным.</p>
+        </div>
       ) : (
         <span className={styles.center}>
           <Avatar size={120} name={community.title} color={community.avatarColor} image={community.avatarImage} emoji={community.avatarEmoji} />
@@ -168,7 +179,7 @@ function MainScreen({ community, onOpen, onClose, onSaved, onDeleted }: MainProp
       {community.isOwner ? (
         <Button
           variant="danger"
-          style={{ width: "100%", height: 56, fontSize: 16 }}
+          className={styles.deleteCommunity}
           onClick={() =>
             void actions.remove(community).then((ok) => {
               if (!ok) return;

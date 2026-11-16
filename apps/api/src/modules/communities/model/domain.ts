@@ -13,6 +13,7 @@ export interface CommunityRights {
 export type CommunityRight = keyof CommunityRights;
 
 export type CommunityRole = "owner" | "admin" | "member";
+export type CommunityAvatar = { kind: "image"; url: string } | { kind: "emoji"; emoji: string };
 
 /** Сообщество — rowToCommunity в server/data/communities.js. */
 export interface Community {
@@ -24,6 +25,7 @@ export interface Community {
   avatarImage?: string;
   /** Смайл вместо аватарки (анимированный, если есть). */
   avatarEmoji?: string;
+  avatarImages: CommunityAvatar[];
   addMode: "all" | "admins";
   createdAt: string;
   /** Системный общий чат сообщества; открыть его можно только из профиля сообщества. */
@@ -41,6 +43,7 @@ export interface CommunityPatch {
   avatarColor?: string | null;
   avatarImage?: string | null;
   avatarEmoji?: string | null;
+  avatarImages?: CommunityAvatar[];
   addMode?: string;
 }
 

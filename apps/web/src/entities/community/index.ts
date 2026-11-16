@@ -3,6 +3,7 @@ export {
   type Community,
   type CommunityAdmin,
   communityApi,
+  type CommunityAvatarEntry,
   type CommunityBan,
   type CommunityChat,
   type CommunityMedia,

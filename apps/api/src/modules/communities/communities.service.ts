@@ -10,7 +10,7 @@ import { UserSettingsService } from "../users/user-settings.service.js";
 import { CommunitiesRepository } from "./communities.repository.js";
 import { CommunityAccessService } from "./community-access.service.js";
 import { cleanAvatarImage, isChatAdmin } from "./lib/community-fields.js";
-import type { Community, CommunityPatch } from "./model/domain.js";
+import type { Community, CommunityAvatar, CommunityPatch } from "./model/domain.js";
 import type { AddMembersDto, CreateCommunityDto, MembersQuery, MuteDto, PatchCommunityDto, PrefsDto } from "./model/schemas/community.schema.js";
 
 const MAX_MEMBERS = 200;
@@ -39,7 +39,7 @@ export class CommunitiesService {
     for (const item of this.communities.listForUser(uid)) {
       const c = await this.ensureGeneralChat(item);
       const addPolicy = this.access.addPolicy(c, uid);
-      if (addPolicy) communities.push({ id: c.id, title: c.title, avatarColor: c.avatarColor ?? null, avatarImage: c.avatarImage ?? null, avatarEmoji: c.avatarEmoji ?? null, chatCount: c.chatIds.length, addPolicy });
+      if (addPolicy) communities.push({ id: c.id, title: c.title, avatarColor: c.avatarColor ?? null, avatarImage: c.avatarImage ?? null, avatarEmoji: c.avatarEmoji ?? null, avatarImages: c.avatarImages, chatCount: c.chatIds.length, addPolicy });
     }
     return {
       communities,
@@ -60,6 +60,7 @@ export class CommunitiesService {
         avatarColor: c.avatarColor ?? null,
         avatarImage: c.avatarImage ?? null,
         avatarEmoji: c.avatarEmoji ?? null,
+        avatarImages: c.avatarImages,
         role: this.access.roleOf(c, uid),
         isOwner: c.ownerId === uid,
         rights,
@@ -89,6 +90,7 @@ export class CommunitiesService {
         avatarColor: fresh.avatarColor ?? null,
         avatarImage: fresh.avatarImage ?? null,
         avatarEmoji: fresh.avatarEmoji ?? null,
+        avatarImages: fresh.avatarImages,
         isOwner: fresh.ownerId === uid,
         isMember: !!this.access.roleOf(fresh, uid),
         // Убрать чат может тот, кто управляет чатами сообщества, или админ самого чата.
@@ -105,6 +107,7 @@ export class CommunitiesService {
     const avatarEmoji = dto.avatarEmoji === undefined ? null : cleanAvatarEmoji(dto.avatarEmoji);
     if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
     if (usesForeignUpload(uid, avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
+    const avatarImages = cleanAvatarGallery(uid, dto.avatarImages);
     const community = this.communities.create({
       id: genId("cm"),
       ownerId: uid,
@@ -114,6 +117,7 @@ export class CommunitiesService {
       // Фото и смайл взаимоисключают друг друга: при обоих остаётся фото.
       avatarImage,
       avatarEmoji: avatarImage ? null : avatarEmoji,
+      avatarImages,
       addMode: dto.addMode,
     });
     const general = this.chats.create({
@@ -148,7 +152,7 @@ export class CommunitiesService {
     const community = await this.ensureGeneralChat(this.access.load(id, uid));
     const rights = this.access.rightsOf(community, uid);
     const patch: CommunityPatch = {};
-    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarColor !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined;
+    const infoTouched = dto.title !== undefined || dto.description !== undefined || dto.avatarColor !== undefined || dto.avatarImage !== undefined || dto.avatarEmoji !== undefined || dto.avatarImages !== undefined;
     if (infoTouched && !rights.editInfo) throw new ApiError(403, "Нет права менять информацию о сообществе");
     if (dto.title !== undefined) {
       if (!dto.title) throw new ApiError(400, "Введите название сообщества");
@@ -166,6 +170,21 @@ export class CommunitiesService {
       if (avatarEmoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
       if (usesForeignUpload(uid, avatarEmoji, community.avatarEmoji)) throw new ApiError(400, "Некорректное изображение");
       patch.avatarEmoji = avatarEmoji;
+    }
+    if (dto.avatarImages !== undefined) {
+      const gallery = cleanAvatarGallery(uid, dto.avatarImages);
+      patch.avatarImages = gallery;
+      const first = gallery[0];
+      if (first?.kind === "image") {
+        patch.avatarImage = first.url;
+        patch.avatarEmoji = null;
+      } else if (first?.kind === "emoji") {
+        patch.avatarImage = null;
+        patch.avatarEmoji = first.emoji;
+      } else {
+        patch.avatarImage = null;
+        patch.avatarEmoji = null;
+      }
     }
     // Фото и смайл на аватарке взаимоисключают друг друга: новое сменяет прежнее.
     if (patch.avatarImage && patch.avatarEmoji === undefined) patch.avatarEmoji = null;
@@ -345,4 +364,24 @@ export class CommunitiesService {
     }
     return { media, files, links };
   }
+}
+
+function cleanAvatarGallery(uid: string, value: unknown): CommunityAvatar[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new ApiError(400, "Некорректная галерея аватаров");
+  const result: CommunityAvatar[] = [];
+  for (const rawEntry of value.slice(0, 20)) {
+    if (!rawEntry || typeof rawEntry !== "object") continue;
+    const entry = rawEntry as { kind?: unknown; url?: unknown; emoji?: unknown };
+    if (entry.kind === "image" && typeof entry.url === "string") {
+      const url = cleanAvatarImage(entry.url);
+      if (url === undefined || usesForeignUpload(uid, url)) throw new ApiError(400, "Некорректное изображение");
+      if (url) result.push({ kind: "image", url });
+    } else if (entry.kind === "emoji" && typeof entry.emoji === "string") {
+      const emoji = cleanAvatarEmoji(entry.emoji);
+      if (emoji === undefined || usesForeignUpload(uid, emoji)) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+      if (emoji) result.push({ kind: "emoji", emoji });
+    }
+  }
+  return result;
 }

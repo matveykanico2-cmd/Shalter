@@ -17,7 +17,8 @@
 @media (max-width: 960px) {
   .page {
     /* Нижняя навигация оболочки не должна закрывать вкладки сообщества и последние строки. */
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
   }
 }
 

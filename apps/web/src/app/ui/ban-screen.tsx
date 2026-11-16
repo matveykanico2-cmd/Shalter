@@ -153,7 +153,7 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
             {left !== null && left > 0 && <p className={styles.left}>{`Осталось ${formatLeft(left)}`}</p>}
           </div>
         </div>
-        <a className={styles.appeal} href={`mailto:shalter.support@gmail.com?subject=${encodeURIComponent("Апелляция на блокировку аккаунта Shalter")}`}>
+        <a className={styles.appeal} aria-label="Написать апелляцию по электронной почте" href={`mailto:shalter.support@gmail.com?subject=${encodeURIComponent("Апелляция на блокировку аккаунта Shalter")}`}>
           Подать апелляцию
         </a>
         <p className={styles.hint}>shalter.support@gmail.com</p>
