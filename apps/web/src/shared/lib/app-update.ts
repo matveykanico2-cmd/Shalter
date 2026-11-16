@@ -77,6 +77,9 @@ function compareVersions(a: string, b: string) {
 export async function applyUpdate() {
   if (store.state.updating) return;
   store.set({ updating: true });
+  // Даём React один кадр показать понятное состояние «обновляется» до тяжёлой
+  // проверки service worker. Иначе на телефоне нажатие выглядит как зависшее.
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
     // Не дольше 3 с: на плохой сети перезагрузка всё равно возьмёт страницу из сети.

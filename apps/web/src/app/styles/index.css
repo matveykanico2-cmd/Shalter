@@ -109,6 +109,7 @@ html[data-power-saving-effects] * {
 @media (max-width: 720px), (pointer: coarse) {
   body {
     background-attachment: scroll;
+    background-image: none;
   }
 
   * {

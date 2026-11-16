@@ -13,6 +13,7 @@ import { StoryViewerHost } from "@/features/stories";
 import { openGamesCatalog } from "@/entities/game";
 import type { SelfUser } from "@/entities/session";
 
+import { useAppUpdate } from "@/shared/lib/app-update";
 import { Avatar, Icon, type IconName, NowPlayingBar } from "@/shared/ui";
 
 import styles from "./app-shell.module.css";
@@ -126,6 +127,7 @@ const LINKS: { to: string; icon: IconName; label: string; active: (path: string)
 export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
   const { pathname } = useLocation();
   const [downloadsOpen, setDownloadsOpen] = useState(false);
+  const appUpdate = useAppUpdate();
   const linkClass = (active: boolean) => (active ? `${styles.railButton} ${styles.railActive}` : styles.railButton);
 
   useKeyboardViewport();
@@ -173,6 +175,15 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
       <IncomingCall me={user} />
+      {appUpdate.updating ? (
+        <div className={styles.updateOverlay} role="status" aria-live="polite" aria-busy="true">
+          <div className={styles.updateCard}>
+            <span className={styles.updateSpinner} aria-hidden="true" />
+            <strong>Обновляется</strong>
+            <span>Пожалуйста, подождите. Приложение скоро перезапустится.</span>
+          </div>
+        </div>
+      ) : null}
       {/* Эфир — поверх всего, как overlay в public/js/components/liveScreen.js. */}
       <LiveHost me={user} />
       {/* Просмотр историй — из полосы над чатами и из профиля. */}

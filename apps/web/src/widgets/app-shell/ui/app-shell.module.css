@@ -158,6 +158,54 @@
   display: none;
 }
 
+.updateOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent);
+  pointer-events: auto;
+}
+
+.updateCard {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  width: min(100%, 300px);
+  padding: 24px 22px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  color: var(--color-text);
+  text-align: center;
+}
+
+.updateCard span:last-child {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.updateSpinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: update-spin 0.8s linear infinite;
+}
+
+@keyframes update-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .updateSpinner { animation: none; }
+}
+
 /* Телефон: список с панелью снизу или открытый экран во весь рост. */
 /* До 960 px две колонки оставляли чату меньше 600 px, а открытая информация о чате
    сжимала ленту ещё сильнее. На телефонах и узких планшетах показываем один экран. */
