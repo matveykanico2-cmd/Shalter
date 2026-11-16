@@ -184,7 +184,6 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         {role === "stage" ? <p className={styles.stageLabel}>Экран: {p.name}</p> : null}
         {showVideo && small ? <p className={styles.caption}>{p.name}</p> : null}
         {m.handRaised ? <span className={styles.handRaised} title={`${p.name} поднял руку`} aria-label={`${p.name} поднял руку`}>✋</span> : null}
-        <p className={styles.tileStatus}>{s.phase === "ringing" ? "вызов…" : s.connectedPeers[p.id] ? "" : "соединение…"}</p>
         {s.call.callerId === me.id && role !== "stage" ? (
           <button type="button" className={styles.remove} title={`Убрать из звонка: ${p.name}`} onClick={() => void remove(p)}>
             <Icon name="X" size={15} />
