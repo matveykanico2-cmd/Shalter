@@ -76,6 +76,7 @@
 .headerCenter {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   text-align: center;
 }
 
@@ -598,6 +599,7 @@
   }
 
   .headerActions {
+    flex-shrink: 0;
     gap: 0;
   }
 
@@ -607,5 +609,10 @@
 
   .inviteLabel {
     display: none;
+  }
+
+  .invite {
+    width: 34px;
+    padding: 7px;
   }
 }

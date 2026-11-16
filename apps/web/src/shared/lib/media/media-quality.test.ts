@@ -35,8 +35,8 @@ describe("качество звонков", () => {
     expect(phone.video).toEqual(pc.video);
     expect(phone.audio.channelCount).toBe(1);
     expect(phone).toMatchObject({ videoBitrate: 1_800_000, videoFramerate: 30, opusBitrate: 24_000 });
-    // Экран — до 1080p/30: мелкий текст должен читаться.
-    expect(HD_SCREEN.video).toMatchObject({ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } });
+    // Экран — до 1440p/30: мелкий текст должен читаться.
+    expect(HD_SCREEN.video).toMatchObject({ width: { ideal: 2560 }, height: { ideal: 1440 }, frameRate: { ideal: 30, max: 30 } });
     // Ни 60 кадров, ни 1080p с камеры: кодер и сеть (TURN) это не вытягивают.
     expect(HD_VIDEO).toEqual(pc.video);
   });
@@ -83,10 +83,10 @@ describe("качество звонков", () => {
       expect(phone.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 1_800_000, maxFramerate: 30 });
     });
 
-    it("экран: 3 Мбит/с, 30 кадров, держит разрешение", async () => {
+    it("экран: 8 Мбит/с, 30 кадров, держит разрешение", async () => {
       const screen = make();
       await tuneVideoSender(screen.sender, { screen: true, quality: mediaQuality(true) });
-      expect(screen.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 3_000_000, maxFramerate: 30 });
+      expect(screen.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 8_000_000, maxFramerate: 30 });
       expect(screen.applied[0]).toMatchObject({ degradationPreference: "maintain-resolution" });
     });
 

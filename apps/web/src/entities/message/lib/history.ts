@@ -5,6 +5,22 @@ import type { FeedMessage, History, HistoryPage, Message } from "../model/types"
 
 export const emptyHistory = (): History => ({ messages: [], hasMore: false, firstUnreadId: null, replyTargets: {}, unconfirmed: [] });
 
+/** Убирает повтор одного сообщения, оставляя его первое место и самые свежие данные. */
+function uniqueMessages(messages: readonly FeedMessage[]): FeedMessage[] {
+  const indexes = new Map<string, number>();
+  const result: FeedMessage[] = [];
+  for (const message of messages) {
+    const index = indexes.get(message.id);
+    if (index === undefined) {
+      indexes.set(message.id, result.length);
+      result.push(message);
+    } else {
+      result[index] = { ...result[index], ...message };
+    }
+  }
+  return result;
+}
+
 /**
  * Свежая последняя страница поверх того, что уже было: история старше неё остаётся,
  * временные пузыри и ещё не подтверждённые сервером сообщения — тоже.
@@ -12,7 +28,7 @@ export const emptyHistory = (): History => ({ messages: [], hasMore: false, firs
 export function mergeLatest(prev: History | undefined, page: HistoryPage): History {
   const fresh: FeedMessage[] = page.messages;
   const replyTargets = { ...prev?.replyTargets, ...page.replyTargets };
-  if (!prev) return { messages: fresh, hasMore: page.hasMore, firstUnreadId: page.firstUnreadId, replyTargets, unconfirmed: [] };
+  if (!prev) return { messages: uniqueMessages(fresh), hasMore: page.hasMore, firstUnreadId: page.firstUnreadId, replyTargets, unconfirmed: [] };
 
   const freshIds = new Set(fresh.map((m) => m.id));
   const unconfirmed = prev.unconfirmed.filter((id) => !freshIds.has(id));
@@ -27,7 +43,7 @@ export function mergeLatest(prev: History | undefined, page: HistoryPage): Histo
   const notYetListed = prev.messages.filter((m) => waiting.has(m.id) && !freshIds.has(m.id) && (!cutoff || m.createdAt >= cutoff));
   const stillPending = prev.messages.filter((m) => m.pending);
   return {
-    messages: [...older, ...fresh, ...notYetListed, ...stillPending],
+    messages: uniqueMessages([...older, ...fresh, ...notYetListed, ...stillPending]),
     hasMore: older.length ? prev.hasMore : page.hasMore,
     firstUnreadId: page.firstUnreadId,
     replyTargets,
@@ -40,7 +56,7 @@ export function prependOlder(prev: History, page: HistoryPage): History {
   const known = new Set(prev.messages.map((m) => m.id));
   return {
     ...prev,
-    messages: [...page.messages.filter((m) => !known.has(m.id)), ...prev.messages],
+    messages: uniqueMessages([...page.messages.filter((m) => !known.has(m.id)), ...prev.messages]),
     hasMore: page.hasMore,
     replyTargets: { ...prev.replyTargets, ...page.replyTargets },
   };
@@ -61,14 +77,14 @@ export function applyLive(prev: History, m: Message, insert: boolean): History |
     // Событие несёт сообщение целиком: нет keyboard — бот убрал клавиатуру.
     const merged: FeedMessage = { ...prev.messages[i], ...m };
     if (!("keyboard" in m)) delete merged.keyboard;
-    return { ...prev, messages: prev.messages.map((x, j) => (j === i ? merged : x)) };
+    return { ...prev, messages: uniqueMessages(prev.messages.map((x, j) => (j === i ? merged : x))) };
   }
   if (!insert) return null;
   const last = prev.messages.findLast((x) => !x.pending);
   if (last && m.createdAt < last.createdAt) return null;
   const pending = prev.messages.filter((x) => x.pending);
   const settled = prev.messages.filter((x) => !x.pending);
-  return { ...prev, messages: [...settled, m, ...pending], unconfirmed: [...prev.unconfirmed, m.id] };
+  return { ...prev, messages: uniqueMessages([...settled, m, ...pending]), unconfirmed: [...prev.unconfirmed, m.id] };
 }
 
 export function removeMessage(prev: History, id: string): History {

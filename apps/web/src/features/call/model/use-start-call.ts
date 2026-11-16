@@ -28,7 +28,7 @@ export function useStartCall(me: CallPeer) {
   };
   return {
     /** ringAll — в группе звонят всем участникам. */
-    call: (chatId: string, kind: CallKind, opts?: { ringAll?: boolean }) =>
+    call: (chatId: string, kind: CallKind, opts?: { ringAll?: boolean; inviteOnly?: boolean }) =>
       run(async () => {
         try {
           return await placeCall(chatId, kind, me, opts);
@@ -45,6 +45,14 @@ export function useStartCall(me: CallPeer) {
           return callId;
         }
       }, "Не удалось позвонить"),
+    /** Встреча по ссылке: звонок не обзванивает участников, войти можно по приглашению. */
+    linkCall: (chatId: string, opts?: { ringAll?: boolean }) =>
+      run(async () => {
+        const callId = await placeCall(chatId, "audio", me, { ...opts, inviteOnly: true });
+        const url = await createInviteLink();
+        await copyText(url, "Ссылка на встречу скопирована");
+        return callId;
+      }, "Не удалось создать встречу"),
     /** Голосовой чат группы — войти или начать. */
     joinRoom: (chatId: string) => run(() => joinVoiceRoom(chatId, me), "Не удалось войти в голосовой чат"),
   };

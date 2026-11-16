@@ -35,6 +35,9 @@ export function CallButtons({ chat, me }: Props) {
           <button type="button" className={styles.button} title={dm ? "Видеозвонок" : "Видеозвонок всем в группе"} onClick={() => void start.call(chat.id, "video", { ringAll: group })}>
             <Icon name="Video" size={18} />
           </button>
+          <button type="button" className={styles.button} title="Создать звонок по ссылке" aria-label="Создать звонок по ссылке" onClick={() => void start.linkCall(chat.id, { ringAll: group })}>
+            <Icon name="Link" size={18} />
+          </button>
         </>
       ) : null}
     </>

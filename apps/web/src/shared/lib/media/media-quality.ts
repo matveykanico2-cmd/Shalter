@@ -32,15 +32,16 @@ const QUALITY = mediaQuality(IS_MOBILE);
 export const HD_VIDEO: MediaTrackConstraints = QUALITY.video;
 export const CALL_AUDIO: MediaTrackConstraints = QUALITY.audio;
 
-// Экран — до 1080p (мелкий текст), 30 кадров; cursor и systemAudio знают не все браузеры (и не все типы DOM).
+// Экран — до 1440p (мелкий текст), 30 кадров; cursor и systemAudio знают не все браузеры (и не все типы DOM).
 export const HD_SCREEN = {
-  video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 }, cursor: "motion" },
+  video: { width: { ideal: 2560 }, height: { ideal: 1440 }, frameRate: { ideal: 30, max: 30 }, cursor: "motion" },
   audio: true,
   systemAudio: "include",
 } as DisplayMediaStreamOptions;
 
 /** Потолок показа экрана: чёткость важнее кадров. */
-export const SCREEN_BITRATE = 3_000_000;
+// Экран держит разрешение: для текста важнее пиксели, чем лишние кадры.
+export const SCREEN_BITRATE = 8_000_000;
 
 export const cameraConstraints = (extra: MediaTrackConstraints = {}): MediaTrackConstraints => ({ ...HD_VIDEO, ...extra });
 
