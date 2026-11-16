@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { openContactEditor } from "@/entities/user";
+
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
 import { Avatar, PhoneField, TextField } from "@/shared/ui";
@@ -118,6 +120,7 @@ export function AddContactPanel({ contacts, onAdded }: Props) {
       return;
     }
     writeDraft(null);
+    openContactEditor({ id: u.id, name: u.name, avatarColor: u.avatarColor, avatarImage: u.avatarImage, avatarEmoji: u.avatarEmoji }, mode === "phone" ? name.trim() || null : null);
     onAdded();
   };
 
@@ -193,8 +196,8 @@ export function AddContactPanel({ contacts, onAdded }: Props) {
         {result ? (
           <button type="button" className={styles.candidate} onClick={() => void confirmAdd(result)}>
             <Avatar name={result.name} color={result.avatarColor} image={result.avatarImage} emoji={result.avatarEmoji} size={32} />
-            <span className={styles.candidateName}>{result.name}</span>
-            {result.username ? <span className={styles.candidateUsername}>@{result.username}</span> : null}
+            <span className={styles.candidateName} translate="no">{result.name}</span>
+            {result.username ? <span className={styles.candidateUsername} translate="no">@{result.username}</span> : null}
           </button>
         ) : null}
         {notRegistered ? (

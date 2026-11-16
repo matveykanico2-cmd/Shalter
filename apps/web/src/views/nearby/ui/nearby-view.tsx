@@ -79,8 +79,8 @@ export function NearbyView() {
                 <button type="button" key={u.id} className={styles.row} onClick={() => openUserProfile(u.id)} aria-label={`Открыть профиль ${u.name}`}>
                   <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={40} />
                   <div className={styles.rowBody}>
-                    <p className={styles.name}>{u.name}</p>
-                    <p className={styles.label}>{u.label}</p>
+                    <p className={styles.name} translate="no">{u.name}</p>
+                    <p className={styles.label} translate="no">{u.label}</p>
                   </div>
                 </button>
               ))}

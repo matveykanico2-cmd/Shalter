@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 
+import { openContactEditor } from "@/entities/user";
+
 import { errorText } from "@/shared/lib/error-text";
 import { Avatar, Button, Dialog, Icon } from "@/shared/ui";
 
@@ -75,6 +77,7 @@ export function ImportContactsDialog({ onAdded, onClose }: Props) {
     setBusyId(entry.user.id);
     try {
       await addContact(entry.user.id, entry.localName || null);
+      openContactEditor({ id: entry.user.id, name: entry.user.name, avatarColor: entry.user.avatarColor, avatarImage: entry.user.avatarImage, avatarEmoji: entry.user.avatarEmoji }, entry.localName || null);
       setAddedIds((s) => new Set(s).add(entry.user.id));
       onAdded();
     } catch (err) {
@@ -166,8 +169,8 @@ export function ImportContactsDialog({ onAdded, onClose }: Props) {
                     <div key={u.id} className={styles.importRow}>
                       <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={36} online={u.online} />
                       <div className={styles.importText}>
-                        <p className={styles.importName}>{u.name}</p>
-                        {sub ? <p className={styles.importSub}>{sub}</p> : null}
+                        <p className={styles.importName} translate="no">{u.name}</p>
+                        {sub ? <p className={styles.importSub} translate="no">{sub}</p> : null}
                       </div>
                       {done ? (
                         <span className={styles.importDone}>{entry.alreadyContact ? "уже в контактах" : "добавлен ✓"}</span>

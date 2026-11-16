@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { chatQueries, type ChatSummary } from "@/entities/chat";
+import { openContactEditor } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, Icon, toast } from "@/shared/ui";
@@ -30,6 +31,7 @@ export function ContactBar({ chat, blocked, onToggleBlock }: Props) {
     try {
       const sharePhone = await askConfirm(`Поделиться своим номером телефона с ${other.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" });
       await addContact(other.id, name || null, sharePhone);
+      openContactEditor({ id: other.id, name: other.name, avatarColor: other.avatarColor, avatarImage: other.avatarImage, avatarEmoji: other.avatarEmoji }, name || null);
       setAdded(true);
       void client.invalidateQueries({ queryKey: chatQueries.baseKey });
     } catch (err) {
