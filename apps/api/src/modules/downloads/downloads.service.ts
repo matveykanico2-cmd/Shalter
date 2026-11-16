@@ -108,7 +108,7 @@ export class DownloadsService {
       url = release.get(file)?.url ?? localUrl ?? null;
       // Нет подписанной сборки для обновления — не предлагаем: отладочный APK поверх
       // release-версии не встанет («конфликт пакетов»).
-      if (!url) return { version: null };
+      if (!url) return { version: null, minimumVersion: minimum };
     }
     return { version, minimumVersion: minimum, url, page: "/download" };
   }
