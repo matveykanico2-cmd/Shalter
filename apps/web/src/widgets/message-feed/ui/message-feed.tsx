@@ -515,6 +515,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                     >
                       <MessageRow
                         message={row.message}
+                        me={me}
                         meId={meId}
                         canResolveReports={canResolveReports}
                         senderTag={isGroup && !row.message.anonymous ? memberTag(chat, row.message.senderId) : null}
@@ -634,6 +635,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
 
 type RowProps = {
   message: FeedMessage;
+  me: SelfUser;
   meId: string;
   /** Модератор Shalter решает жалобы прямо из сообщений-жалоб. */
   canResolveReports: boolean;
@@ -674,7 +676,7 @@ type RowProps = {
 };
 
 function MessageRow(props: RowProps) {
-  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick, onOpenStory } = props;
+  const { message, me, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick, onOpenStory } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   const comments = props.onOpenThread && message.type !== "system" && !message.threadRootId ? (message.commentCount ?? 0) : 0;
@@ -693,7 +695,10 @@ function MessageRow(props: RowProps) {
     <MessageBubble
       message={message}
       mine={mine}
-      sender={senders(message)}
+      // Свой пузырь всегда подписываем текущим пользователем. Это защищает UI от
+      // устаревшего списка участников или события бота, где профиль отправителя
+      // временно совпал с Shalter AI.
+      sender={mine ? me : senders(message)}
       // По умолчанию пост идёт от канала. При включённой подписи signedBy фиксирует,
       // что автор выбрал отправку от своего аккаунта, — показываем его имя и аватар.
       showSender={(isGroup || (isChannel && !!message.signedBy)) && groupStart}

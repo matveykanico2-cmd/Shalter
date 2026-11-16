@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { openUserProfile } from "@/entities/user";
+
 import { errorText } from "@/shared/lib/error-text";
 import { Avatar, Button, Icon } from "@/shared/ui";
 
@@ -74,13 +76,13 @@ export function NearbyView() {
           users.length ? (
             <div className={styles.list}>
               {users.map((u) => (
-                <div key={u.id} className={styles.row}>
+                <button type="button" key={u.id} className={styles.row} onClick={() => openUserProfile(u.id)} aria-label={`Открыть профиль ${u.name}`}>
                   <Avatar name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={40} />
                   <div className={styles.rowBody}>
                     <p className={styles.name}>{u.name}</p>
                     <p className={styles.label}>{u.label}</p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
