@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { openDm } from "@/entities/chat";
 import { useSession } from "@/entities/session";
@@ -13,6 +14,7 @@ export function UserProfileHost() {
   const editor = useContactEditor();
   const me = useSession().data?.user;
   const client = useQueryClient();
+  useEffect(() => () => closeContactEditor(), []);
   if (!me) return null;
   // key: другой человек — своё состояние (вкладка, окна поверх).
   return (

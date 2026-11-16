@@ -39,7 +39,7 @@ export class CommunitiesService {
     for (const item of this.communities.listForUser(uid)) {
       const c = await this.ensureGeneralChat(item);
       const addPolicy = this.access.addPolicy(c, uid);
-      if (addPolicy) communities.push({ id: c.id, title: c.title, avatarColor: c.avatarColor ?? null, avatarImage: c.avatarImage ?? null, avatarEmoji: c.avatarEmoji ?? null, avatarImages: c.avatarImages, chatCount: c.chatIds.length, addPolicy });
+      if (addPolicy) communities.push({ id: c.id, title: c.title, avatarColor: c.avatarColor ?? null, avatarImage: c.avatarImage ?? null, avatarEmoji: c.avatarEmoji ?? null, ...(c.avatarImages.length ? { avatarImages: c.avatarImages } : {}), chatCount: c.chatIds.length, addPolicy });
     }
     return {
       communities,
@@ -60,7 +60,7 @@ export class CommunitiesService {
         avatarColor: c.avatarColor ?? null,
         avatarImage: c.avatarImage ?? null,
         avatarEmoji: c.avatarEmoji ?? null,
-        avatarImages: c.avatarImages,
+        ...(c.avatarImages.length ? { avatarImages: c.avatarImages } : {}),
         role: this.access.roleOf(c, uid),
         isOwner: c.ownerId === uid,
         rights,
@@ -90,7 +90,7 @@ export class CommunitiesService {
         avatarColor: fresh.avatarColor ?? null,
         avatarImage: fresh.avatarImage ?? null,
         avatarEmoji: fresh.avatarEmoji ?? null,
-        avatarImages: fresh.avatarImages,
+        ...(fresh.avatarImages.length ? { avatarImages: fresh.avatarImages } : {}),
         isOwner: fresh.ownerId === uid,
         isMember: !!this.access.roleOf(fresh, uid),
         // Убрать чат может тот, кто управляет чатами сообщества, или админ самого чата.

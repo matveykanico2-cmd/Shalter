@@ -351,17 +351,21 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
 
   // Esc снимает выбор, если поверх ленты ничего не открыто (как onChatKeydown в chatView.js).
   const { active: selecting, clear: clearSelection } = selection;
-  const menuOpen = !!menu.state;
+  const selectMessage = useCallback((message: Message) => {
+    menu.close();
+    selection.toggle(message.id);
+  }, [menu, selection]);
   useEffect(() => {
     if (!selecting) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || menuOpen || document.querySelector("[role=dialog], [role=menu]")) return;
+      if (e.key !== "Escape" || document.querySelector("[data-thread]")) return;
       e.stopPropagation();
+      menu.close();
       clearSelection();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [selecting, menuOpen, clearSelection]);
+  }, [selecting, clearSelection, menu]);
 
   const messagesById = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
   const isGroup = chat.type === "group";
@@ -586,7 +590,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         userOf={userOf}
         onReply={isChannel ? undefined : onReply}
         onEdit={onEdit}
-        onSelect={toggleSelect}
+        onSelect={selectMessage}
         summaries={summaries}
         onOpenThread={isGroup ? openThread : undefined}
       />

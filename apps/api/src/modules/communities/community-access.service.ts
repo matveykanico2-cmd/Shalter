@@ -194,7 +194,7 @@ export class CommunityAccessService {
       avatarColor: community.avatarColor ?? null,
       avatarImage: community.avatarImage ?? null,
       avatarEmoji: community.avatarEmoji ?? null,
-      avatarImages: community.avatarImages,
+      ...(community.avatarImages.length ? { avatarImages: community.avatarImages } : {}),
       generalChatId: community.generalChatId ?? null,
       generalChat: general ? this.chatCard(community, general, uid) : null,
       addMode: community.addMode,

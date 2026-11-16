@@ -28,7 +28,7 @@ export function CreateCommunityDialog({ onCreated, onClose }: Props) {
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const chats = useQuery(chatQueries.list());
+  const chats = useQuery({ ...chatQueries.list(), staleTime: 0, refetchOnMount: "always" });
   const selectableChats = (chats.data ?? []).filter((c) => c.type === "group" || c.type === "channel");
 
   const create = async () => {

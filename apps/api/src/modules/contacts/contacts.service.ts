@@ -21,7 +21,7 @@ function withPhoto<T extends { localAvatar?: string | null; localAvatars?: strin
   let avatars: string[] = [];
   try { avatars = localAvatars ? JSON.parse(localAvatars) : []; } catch { avatars = []; }
   if (!avatars.length && localAvatar) avatars = [localAvatar];
-  return { ...rest, ...(localAvatar ? { localAvatar } : {}), ...(avatars.length ? { localAvatars: avatars } : {}) };
+  return { ...rest, ...(localAvatar ? { localAvatar } : {}), ...(avatars.length > 1 ? { localAvatars: avatars } : {}) };
 }
 
 // Контакты (/api/contacts) — как server/routes/contacts.js.
@@ -109,7 +109,7 @@ export class ContactsService {
     }
     const primary = avatars[0] ?? null;
     if (!this.contacts.setPhoto(uid, userId, primary, avatars)) throw new ApiError(404, "Сначала добавьте человека в контакты");
-    return { localAvatar: primary, localAvatars: avatars };
+    return { localAvatar: primary, ...(avatars.length > 1 ? { localAvatars: avatars } : {}) };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {

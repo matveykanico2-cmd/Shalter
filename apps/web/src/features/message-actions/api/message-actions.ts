@@ -45,7 +45,7 @@ export function forwardMessage(targetChatId: string, m: Message, origin: Forward
   });
 }
 
-export const votePoll = (chatId: string, id: string, optionIndex: number, questionIndex = 0) => http.post<Envelope>(`${messagePath(chatId, id)}/vote`, { optionIndex, questionIndex });
+export const votePoll = (chatId: string, id: string, optionIndex: number, questionIndex = 0) => http.post<Envelope>(`${messagePath(chatId, id)}/vote`, { optionIndex, ...(questionIndex > 0 ? { questionIndex } : {}) });
 
 export const retractVote = (chatId: string, id: string) => http.delete<Envelope>(`${messagePath(chatId, id)}/vote`);
 
