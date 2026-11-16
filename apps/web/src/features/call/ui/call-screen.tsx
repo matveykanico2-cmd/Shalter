@@ -2,6 +2,7 @@ import { type MouseEvent, useEffect, useRef, useState, useSyncExternalStore } fr
 
 import { ContactPicker } from "@/entities/user";
 
+import { ApiError } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, VolumeControl } from "@/shared/ui";
 
@@ -95,11 +96,21 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   };
 
   const inviteByLink = async () => {
+    if (s.phase === "ended") {
+      onHangup(s.call.chatId);
+      return;
+    }
     setLinkStatus("Создаём ссылку…");
     try {
       setInviteUrl(await createInviteLink());
       setLinkStatus(null);
     } catch (err) {
+      // Звонок мог завершиться на сервере между отрисовкой экрана и нажатием.
+      if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
+        await hangup().catch(() => null);
+        onHangup(s.call.chatId);
+        return;
+      }
       const text = errorText(err, "Не удалось создать ссылку");
       setLinkStatus(text);
       setTimeout(() => setLinkStatus((cur) => (cur === text ? null : cur)), 2500);

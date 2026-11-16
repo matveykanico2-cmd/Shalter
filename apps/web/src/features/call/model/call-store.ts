@@ -606,7 +606,7 @@ export async function joinVoiceRoom(chatId: string, me: CallPeer) {
 }
 
 export async function createInviteLink() {
-  if (!state) throw new Error("Нет активного звонка");
+  if (!state || state.phase === "ended") throw new Error("Звонок уже завершён");
   return (await callApi.inviteLink(state.call.id)).url;
 }
 
