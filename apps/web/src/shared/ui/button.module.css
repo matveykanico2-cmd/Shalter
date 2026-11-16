@@ -1,21 +1,21 @@
 .button {
-  height: 48px;
+  height: 44px;
   padding: 0 20px;
   border: none;
-  border-radius: 14px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 88%, white), var(--color-accent));
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
   color: var(--color-accent-contrast);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--color-accent) 24%, transparent);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 }
 
 .button:hover:not(:disabled) {
-  filter: brightness(1.03);
+  background: color-mix(in srgb, var(--color-accent) 90%, white);
   transform: translateY(-1px);
-  box-shadow: 0 7px 18px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 24%, transparent);
 }
 
 .button:active:not(:disabled) {
@@ -40,7 +40,7 @@
 .danger {
   composes: button;
   background: var(--color-danger);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--color-danger) 22%, transparent);
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--color-danger) 18%, transparent);
 }
 
 .secondary {

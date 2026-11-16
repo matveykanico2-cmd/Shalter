@@ -1,14 +1,14 @@
 /* Цвета и шрифты — те же, что у текущего клиента (public/styles/base.css). */
 :root {
-  --color-bg: #eef3f8;
+  --color-bg: #dfe7ef;
   --color-surface: #ffffff;
-  --color-surface-alt: #f3f6f9;
+  --color-surface-alt: #f1f3f5;
   --color-text: #17212b;
-  --color-muted: #708499;
+  --color-muted: #707579;
   --color-border: rgba(23, 33, 43, 0.1);
-  --color-accent: #2aabee;
+  --color-accent: #3390ec;
   --color-accent-contrast: #ffffff;
-  --color-accent-soft: #e3f3fc;
+  --color-accent-soft: #e2f0ff;
   --color-danger: #e53935;
   --color-warning: #e39d2b;
   --color-success: #4fae4e;
@@ -17,26 +17,26 @@
   --color-bubble-out-meta: #4fae4e;
   --color-bubble-out-accent: #3a8e26;
   --color-chat-bg: #ffffff;
-  --chat-gradient: linear-gradient(135deg, #dbddbb 0%, #a8c89a 30%, #d5d88d 60%, #88b884 100%);
+  --chat-gradient: linear-gradient(135deg, #dce8d3 0%, #c8dfc0 35%, #dbe5c6 68%, #b8d2b0 100%);
   --color-date-pill: rgba(0, 0, 0, 0.18);
-  --bubble-radius: 21px;
-  --bubble-radius-small: 8px;
-  --bubble-shadow: 0 1px 2px rgba(15, 35, 52, 0.16);
+  --bubble-radius: 18px;
+  --bubble-radius-small: 7px;
+  --bubble-shadow: 0 1px 2px rgba(15, 35, 52, 0.12);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --radius-control: 14px;
+  --radius-control: 12px;
   --control-height: 44px;
-  --card-radius: 22px;
-  --shadow-soft: 0 2px 8px rgba(15, 35, 52, 0.08), 0 12px 32px rgba(15, 35, 52, 0.06);
-  --shadow-float: 0 12px 40px rgba(15, 35, 52, 0.18);
-  --panel-bg: rgba(255, 255, 255, 0.94);
+  --card-radius: 18px;
+  --shadow-soft: 0 2px 8px rgba(15, 35, 52, 0.07), 0 8px 22px rgba(15, 35, 52, 0.05);
+  --shadow-float: 0 10px 32px rgba(15, 35, 52, 0.16);
+  --panel-bg: rgba(255, 255, 255, 0.97);
   --panel-border: rgba(23, 33, 43, 0.09);
   --panel-shadow: var(--shadow-soft);
   --panel-x: 10px;
   --panel-y: 10px;
-  --panel-radius: 22px;
+  --panel-radius: 18px;
   --composer-bg: rgba(255, 255, 255, 0.96);
-  --composer-radius: 24px;
+  --composer-radius: 18px;
   /* Общие цвета tweb из public/styles/components.css («tweb: общие компоненты»). */
   --tw-secondary: #c4c9cc;
   --tw-hover: color-mix(in srgb, var(--color-text) 8%, transparent);
