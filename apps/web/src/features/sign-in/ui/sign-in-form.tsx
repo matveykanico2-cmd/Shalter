@@ -164,7 +164,13 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
     });
 
   return (
-    <form className={styles.form} onSubmit={submit}>
+    <div className={styles.flipViewport} data-auth-mode={isRegister ? "register" : "login"}>
+      <form className={`${styles.form} ${styles.flipCard} ${isRegister ? styles.flipCardRegister : ""}`} onSubmit={submit}>
+      <div className={styles.authHeading}>
+        <span className={styles.authKicker}>Shalter</span>
+        <h2>{isRegister ? "Регистрация" : "Вход"}</h2>
+        <p>{isRegister ? "Создайте новый аккаунт" : "Войдите в свой аккаунт"}</p>
+      </div>
       <div className={styles.modeTabs} role="tablist" aria-label="Режим авторизации">
         <button type="button" role="tab" aria-selected={!isRegister} className={!isRegister ? styles.modeTabActive : styles.modeTab} onClick={() => isRegister && onToggle()}>
           Вход
@@ -243,6 +249,7 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
           Скачать приложение для Windows, Linux и Android
         </a>
       )}
-    </form>
+      </form>
+    </div>
   );
 }

@@ -40,7 +40,7 @@ export function SignInView() {
   const notice = params.get("reason") === "revoked" ? "Сеанс на этом устройстве был завершён — войдите снова." : undefined;
   return (
     <AuthFrame
-      title={addMode ? "Добавить аккаунт" : "Shalter"}
+      title={addMode ? `Добавить аккаунт — ${mode === "register" ? "регистрация" : "вход"}` : "Shalter"}
       subtitle={mode === "login" ? "Рады видеть вас снова" : mode === "setup" ? "Почти готово" : "Быстро, красиво и по-настоящему безопасно"}
       onBack={addMode ? () => window.location.assign("/") : undefined}
     >
