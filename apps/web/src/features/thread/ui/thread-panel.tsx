@@ -125,7 +125,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
             <Icon name="X" size={18} />
           </button>
         </header>
-        <div ref={body} className={styles.body}>
+        <div ref={body} className={isComments ? `${styles.body} ${styles.commentsBody}` : styles.body}>
           <div className={styles.root}>
             <MessageBubble message={displayRoot} mine={displayRoot.senderId === me.id && !fromChannel(root)} sender={sender(root)} showSender meId={me.id} />
           </div>
