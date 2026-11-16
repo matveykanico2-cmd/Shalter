@@ -1,30 +1,40 @@
 .button {
+  position: relative;
+  isolation: isolate;
   height: 44px;
   padding: 0 20px;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
   border-radius: var(--radius-control);
-  background: var(--color-accent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 94%, white), var(--color-accent));
   color: var(--color-accent-contrast);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 7px color-mix(in srgb, var(--color-accent) 18%, transparent);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--color-accent) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
 
 .button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 90%, white);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  filter: saturate(1.08) brightness(1.03);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-accent) 26%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .button:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(1px) scale(0.985);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.button:focus-visible,
+.link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+  outline-offset: 2px;
 }
 
 .button:disabled {
   opacity: 0.6;
   cursor: default;
+  filter: saturate(0.55);
 }
 
 .link {
@@ -45,12 +55,14 @@
 
 .secondary {
   composes: button;
-  background: none;
+  border-color: var(--color-border);
+  background: var(--color-surface-alt);
   color: var(--color-muted);
   font-weight: 500;
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .secondary:hover {
-  background: var(--color-surface-alt);
+  background: var(--color-surface);
+  box-shadow: 0 5px 14px rgba(8, 18, 28, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }

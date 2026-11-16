@@ -18,12 +18,14 @@
 }
 
 .spinner {
+  position: relative;
   width: 20px;
   height: 20px;
-  border: 2px solid color-mix(in srgb, var(--color-muted) 25%, transparent);
+  border: 2px solid color-mix(in srgb, var(--color-accent) 18%, transparent);
   border-top-color: var(--color-accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 5%, transparent), 0 4px 12px color-mix(in srgb, var(--color-accent) 16%, transparent);
+  animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
   contain: strict;
   will-change: transform;
 }
