@@ -21,9 +21,6 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
   const s = useCall();
   const current = s?.call.id === callId ? s : null;
   const [missing, setMissing] = useState(false);
-  // Чат звонка — туда экран уходит, когда звонок закончился.
-  const [chatId, setChatId] = useState<string | null>(null);
-  if (current && chatId !== current.call.chatId) setChatId(current.call.chatId);
 
   // «Отклонить» и «Ответить» в уведомлении-звонке (Android): ?decline=1 и ?answer=1.
   const action = params.get("decline") === "1" ? "decline" : params.get("answer") === "1" ? "answer" : null;
@@ -72,13 +69,14 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
   }, [callId]);
 
   // Звонок закончился (положили трубку здесь или у собеседника) — в его чат.
-  const ended = !current && !!chatId;
+  const ended = current?.phase === "ended";
+  const endedChatId = ended ? current?.call.chatId ?? null : null;
   useEffect(() => {
-    if (ended) void navigate(`/chat/${chatId}`, { replace: true });
-  }, [ended, chatId, navigate]);
+    if (endedChatId) void navigate(`/chat/${endedChatId}`, { replace: true });
+  }, [endedChatId, navigate]);
 
   if (action === "decline") return null;
-  if (!current) return missing && !ended ? <p className={styles.missing}>Звонок не найден или уже завершён.</p> : null;
+  if (!current) return missing ? <p className={styles.missing}>Звонок не найден или уже завершён.</p> : null;
   return (
     <CallScreen
       s={current}
