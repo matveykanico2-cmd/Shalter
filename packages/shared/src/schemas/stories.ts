@@ -27,7 +27,7 @@ const storyRowShape = {
   /** Автор: id пользователя или id канала (c_…). */
   userId: z.string(),
   /** kind/url — первый элемент (наследие одноэлементных историй). */
-  kind: z.enum(["image", "video"]),
+  kind: z.enum(["image", "video", "poll", "checklist", "contact", "location", "game", "dice"]),
   url: z.string(),
   items: z.array(storyItem).min(1),
   createdAt: isoDate,
