@@ -888,19 +888,8 @@ export function Composer(props: Props) {
                 setSelected(false);
                 setMenuClosed(true);
               }}
-              onFocus={(e) => {
+              onFocus={() => {
                 setMenuClosed(false);
-                // Не прокручиваем всю страницу на каждый фокус: это давало скачок между
-                // предпросмотром ответа и полем ввода при открытии клавиатуры.
-                const keepVisible = () => {
-                  if (document.activeElement !== e.currentTarget) return;
-                  const viewport = window.visualViewport;
-                  const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  if (rect.bottom > bottom - 8) e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
-                };
-                requestAnimationFrame(keepVisible);
-                window.setTimeout(keepVisible, 280);
               }}
               onKeyDown={onKeyDown}
               onPaste={onPaste}

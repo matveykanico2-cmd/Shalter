@@ -29,6 +29,15 @@ describe("разметка сообщения (как public/js/lib/formatText.j
     ]);
   });
 
+  it("распознаёт домены без протокола", () => {
+    expect(parseInline("сайт example.com и www.example.org/help")).toEqual([
+      { kind: "text", text: "сайт " },
+      { kind: "link", href: "https://example.com", label: "example.com" },
+      { kind: "text", text: " и " },
+      { kind: "link", href: "https://www.example.org/help", label: "www.example.org/help" },
+    ]);
+  });
+
   it("блок кода с языком, без разметки внутри", () => {
     expect(parseText("до\n```js\nconst **a** = 1\n```")).toEqual([
       { kind: "line", inline: [{ kind: "text", text: "до" }] },

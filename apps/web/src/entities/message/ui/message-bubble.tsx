@@ -1,4 +1,4 @@
-import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, use, useEffect, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, use, useEffect, useRef, useState } from "react";
 
 import { GiftMessage, type MessageGift } from "@/entities/gift/@x/message";
 
@@ -166,6 +166,7 @@ export function MessageBubble(props: Props) {
   const actionable = !!props.onOpenMenu;
   const rowRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const [pendingMenu, setPendingMenu] = useState(false);
   // Выделение снимается раньше, чем дойдёт click, — запоминаем его при нажатии.
   const quote = useRef("");
   const remember = () => {
@@ -588,20 +589,27 @@ export function MessageBubble(props: Props) {
       ) : null}
       {m.pending && mine && !selecting ? (
         <span className={styles.pendingActions} aria-label="Действия с отправляемым сообщением">
-          {m.text?.trim() ? (
-            <button type="button" className={styles.pendingAction} onClick={() => void copyText(m.text ?? "", "Текст скопирован")}>
-              Копировать
-            </button>
-          ) : null}
-          {props.onEdit ? (
-            <button type="button" className={styles.pendingAction} onClick={() => props.onEdit?.(m)}>
-              Изменить
-            </button>
-          ) : null}
-          {props.onDeletePending ? (
-            <button type="button" className={`${styles.pendingAction} ${styles.pendingDanger}`} onClick={() => props.onDeletePending?.(m)}>
-              Удалить
-            </button>
+          <button type="button" className={styles.pendingMore} aria-label="Действия с отправляемым сообщением" aria-expanded={pendingMenu} onClick={(e) => { e.stopPropagation(); setPendingMenu((open) => !open); }}>
+            <Icon name="More" size={16} />
+          </button>
+          {pendingMenu ? (
+            <span className={styles.pendingMenu} role="menu">
+              {m.text?.trim() ? (
+                <button type="button" role="menuitem" className={styles.pendingAction} onClick={() => { setPendingMenu(false); void copyText(m.text ?? "", "Текст скопирован"); }}>
+                  Копировать
+                </button>
+              ) : null}
+              {props.onEdit ? (
+                <button type="button" role="menuitem" className={styles.pendingAction} onClick={() => { setPendingMenu(false); props.onEdit?.(m); }}>
+                  Изменить
+                </button>
+              ) : null}
+              {props.onDeletePending ? (
+                <button type="button" role="menuitem" className={`${styles.pendingAction} ${styles.pendingDanger}`} onClick={() => { setPendingMenu(false); props.onDeletePending?.(m); }}>
+                  Удалить
+                </button>
+              ) : null}
+            </span>
           ) : null}
         </span>
       ) : null}

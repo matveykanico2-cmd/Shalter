@@ -108,7 +108,7 @@ function table(rows: string[]): Block {
 }
 
 const INLINE_RE =
-  /(\[[^\]\n]{1,200}\]\(https?:\/\/[^\s)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|__[^_]+__|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|#[\p{L}\p{N}_]{2,64}|https?:\/\/\S+)/gu;
+  /(\[[^\]\n]{1,200}\]\(https?:\/\/[^\s)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|__[^_]+__|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|#[\p{L}\p{N}_]{2,64}|(?<![@\w])(?:www\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z]{2,63})+(?:[/?#][^\s]*)?|https?:\/\/\S+)/gu;
 
 export function parseInline(text: string): Inline[] {
   return text
@@ -127,6 +127,9 @@ export function parseInline(text: string): Inline[] {
       if (tok.startsWith("||") && tok.endsWith("||")) return { kind: "spoiler", text: tok.slice(2, -2) };
       if (tok.startsWith("@")) return { kind: "mention", handle: tok.slice(1).toLowerCase(), text: tok };
       if (tok.startsWith("http://") || tok.startsWith("https://")) return { kind: "link", href: tok, label: tok };
+      if (/^(?:www\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z]{2,63})+(?:[/?#][^\s]*)?$/u.test(tok)) {
+        return { kind: "link", href: `https://${tok}`, label: tok };
+      }
       if (tok.startsWith("*") && tok.endsWith("*")) return { kind: "italic", text: tok.slice(1, -1) };
       return { kind: "text", text: tok };
     });

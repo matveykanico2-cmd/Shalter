@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { parseText } from "@/entities/message";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 import { closeStoryViewer, framesOf, storyApi, type StoryAuthor, type StoryComment, storyQueries, type StoryViewerRequest } from "@/entities/story";
-import { openUserProfile } from "@/entities/user";
+import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
 
 import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
@@ -365,6 +365,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
           <div className={styles.titles}>
             <p className={`${styles.name} ${styles.nameLink}`} onClick={() => openAuthor(asWho(author))}>
               {author.name}
+              <ProfileStatusBadge user={{ ...(author as StoryAuthor & { statusIcon?: string | null; statusName?: string | null }), name: author.name ?? undefined }} size={15} />
             </p>
             <p className={styles.time}>{timeAgo(story.createdAt)}</p>
           </div>
