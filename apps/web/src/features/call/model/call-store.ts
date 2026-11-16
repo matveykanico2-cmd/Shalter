@@ -455,9 +455,12 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     const leaveOnly = mine.joinedByLink || mine.isRoom || (mine.chatType === "group" && (answered || mine.call.callerId !== mine.me.id));
     if (leaveOnly) {
       if (mine.isRoom) callApi.leaveRoomOnPageExit(mine.call.chatId);
-      else callApi.leaveOnPageExit(mine.call.id, mine.joinedByLink);
+      else callApi.leaveOnPageExit(mine.call.id);
     } else {
-      callApi.patchOnPageExit(mine.call.id, { status: answered ? "completed" : "missed", durationSec: answered ? mine.elapsed : 0 });
+      // При закрытии страницы PATCH часто обрывается браузером. POST /leave
+      // отправляется через sendBeacon и гарантированно убирает пользователя
+      // из звонка, а сервер сам завершает звонок, если участников больше нет.
+      callApi.leaveOnPageExit(mine.call.id);
     }
     release(mine);
     if (state === mine) {
