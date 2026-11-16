@@ -27,7 +27,6 @@ test("облачный пароль: включение в настройках,
   await expect(row).toHaveAccessibleName("Двухэтапная аутентификация Выкл.");
   await row.click();
   await expect(s.getByRole("heading", { name: "Двухфакторная аутентификация" })).toBeVisible();
-  await s.getByRole("button", { name: /Облачный пароль/ }).click();
 
   // Проверки формы: короткий пароль и несовпадение.
   await s.getByLabel("Облачный пароль", { exact: true }).fill("abc");
