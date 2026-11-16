@@ -32,12 +32,14 @@ const initials = (name: string) =>
  */
 /** Стикер из пака на аватарке хранится в поле смайла как «sticker:/uploads/…». */
 export const AVATAR_STICKER_PREFIX = "sticker:";
+export const AVATAR_VIDEO_PREFIX = "video:";
 
 export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: stickerProp = false, size = 44, online = false, onClick }: Props) {
   const [broken, setBroken] = useState<string | null>(null);
   const stickerUrl = rawEmoji?.startsWith(AVATAR_STICKER_PREFIX) ? rawEmoji.slice(AVATAR_STICKER_PREFIX.length) : null;
   const emoji = stickerUrl ? null : rawEmoji;
-  const image = stickerUrl ?? photo;
+  const videoUrl = !stickerUrl && photo?.startsWith(AVATAR_VIDEO_PREFIX) ? photo.slice(AVATAR_VIDEO_PREFIX.length) : null;
+  const image = stickerUrl ?? (videoUrl ? null : photo);
   const sticker = stickerUrl ? true : stickerProp;
   const showImage = !emoji && !!image && !sticker && broken !== image;
   const showSticker = !emoji && !!image && sticker && broken !== image;
@@ -50,6 +52,8 @@ export function Avatar({ name, color, image: photo, emoji: rawEmoji, sticker: st
         </span>
       ) : showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
+      ) : videoUrl && broken !== photo ? (
+        <video className={styles.video} src={videoUrl} muted loop autoPlay playsInline onError={() => setBroken(photo ?? null)} />
       ) : showSticker ? (
         <span className={styles.stickerWrap} style={{ background }}>
           <img className={styles.sticker} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />

@@ -1,7 +1,7 @@
 export { AnimatorDialog } from "./animator-dialog";
 export { AskHost } from "./ask-host";
 export { askConfirm, askText } from "./ask-store";
-export { Avatar } from "./avatar";
+export { AVATAR_VIDEO_PREFIX, Avatar } from "./avatar";
 export { AvatarBackgroundPicker, AvatarEditor, type AvatarValue } from "./avatar-editor";
 export { BirthdayField } from "./birthday-field";
 export { BrowserHost } from "./browser-host";

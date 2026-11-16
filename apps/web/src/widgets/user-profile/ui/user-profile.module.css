@@ -958,6 +958,14 @@
   padding: 4px 0 6px;
 }
 
+.contactPreviewVideo {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(8, 18, 28, 0.22);
+}
+
 .contactAvatarGallery {
   display: flex;
   flex-wrap: wrap;
@@ -968,6 +976,14 @@
 
 .contactAvatarItem {
   position: relative;
+}
+
+.contactAvatarVideo {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .contactAvatarRemove {

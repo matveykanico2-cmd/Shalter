@@ -5,6 +5,7 @@
 }
 
 .image,
+.video,
 .fallback,
 .stickerWrap,
 .emojiAvatar {
@@ -14,6 +15,10 @@
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.video {
+  display: block;
 }
 
 .stickerWrap {

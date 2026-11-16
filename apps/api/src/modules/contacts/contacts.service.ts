@@ -14,6 +14,11 @@ import { indexUsersByPhone, phoneKey } from "./lib/phone-match.js";
 import type { AddContactDto, ContactNoteDto, ContactPhotoDto, MatchContactsDto, RemoveContactDto, RenameContactDto } from "./model/schemas/contact.schema.js";
 
 const MAX_PHONES_PER_REQUEST = 1000;
+const CONTACT_VIDEO_PREFIX = "video:";
+
+function uploadUrl(value: string) {
+  return value.startsWith(CONTACT_VIDEO_PREFIX) ? value.slice(CONTACT_VIDEO_PREFIX.length) : value;
+}
 
 /** Строка контакта для ответа: своё фото — только если поставлено (иначе ответ как раньше). */
 function withPhoto<T extends { localAvatar?: string | null; localAvatars?: string | null }>(row: T) {
@@ -98,14 +103,14 @@ export class ContactsService {
     // Стикер — ссылка на файл: чужой закрытый файл на аватарку не поставить (как у чатов).
     if (emoji && usesForeignUpload(uid, emoji)) throw new ApiError(400, "Некорректное изображение");
     // Как у аватарок: только свой загруженный файл (общая проверка из server/lib/uploadAccess.js).
-    if (!emoji && url && !(await isOwnUploadUrl(uid, url))) throw new ApiError(400, "Некорректное фото");
+    if (!emoji && url && !(await isOwnUploadUrl(uid, uploadUrl(url)))) throw new ApiError(400, "Некорректное фото");
     const value = emoji ? `${CONTACT_EMOJI_PREFIX}${emoji}` : url || null;
     const avatars = requested?.length ? requested : value ? [value] : [];
     for (const avatar of avatars) {
       if (avatar.startsWith(CONTACT_EMOJI_PREFIX)) {
         const clean = cleanAvatarEmoji(avatar.slice(CONTACT_EMOJI_PREFIX.length));
         if (!clean || usesForeignUpload(uid, clean)) throw new ApiError(400, AVATAR_EMOJI_ERROR);
-      } else if (!(await isOwnUploadUrl(uid, avatar))) throw new ApiError(400, "Некорректное изображение");
+      } else if (!(await isOwnUploadUrl(uid, uploadUrl(avatar)))) throw new ApiError(400, "Некорректное изображение");
     }
     const primary = avatars[0] ?? null;
     if (!this.contacts.setPhoto(uid, userId, primary, avatars)) throw new ApiError(404, "Сначала добавьте человека в контакты");

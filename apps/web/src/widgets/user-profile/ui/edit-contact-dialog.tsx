@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { Avatar, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
+import { AVATAR_VIDEO_PREFIX, Avatar, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
 
 import { profileApi } from "../api/profile-api";
 
@@ -37,6 +37,9 @@ function splitName(name: string): [string, string] {
 }
 
 const EMOJI_PREFIX = "emoji:";
+const VIDEO_PREFIX = AVATAR_VIDEO_PREFIX;
+const isVideo = (value: string | null | undefined) => !!value?.startsWith(VIDEO_PREFIX);
+const mediaUrl = (value: string) => (isVideo(value) ? value.slice(VIDEO_PREFIX.length) : value);
 
 /**
  * «Изменить контакт», как в Telegram: имя и фамилия для себя, заметка, своё фото или
@@ -56,10 +59,11 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
   const firstName = first.trim() || user.name;
   const localEmoji = localPhoto?.startsWith(EMOJI_PREFIX) ? localPhoto.slice(EMOJI_PREFIX.length) : null;
   // Аватарка из профиля: сервер уже подставил своё фото или смайл, исходные — в profileAvatar*.
-  const photoIsImage = !!photo && !photo.startsWith(EMOJI_PREFIX);
+  const photoIsImage = !!photo && !photo.startsWith(EMOJI_PREFIX) && !isVideo(photo);
   const profileImage = (photoIsImage ? user.profileAvatarImage : user.avatarImage) ?? null;
   const profileEmoji = (photo ? user.profileAvatarEmoji : user.avatarEmoji) ?? null;
-  const shownImage = localPhoto ? (localEmoji ? null : localPhoto) : profileImage;
+  const shownVideo = localPhoto ? (isVideo(localPhoto) ? mediaUrl(localPhoto) : null) : profileImage && isVideo(profileImage) ? mediaUrl(profileImage) : null;
+  const shownImage = localPhoto ? (localEmoji || shownVideo ? null : localPhoto) : profileImage && !isVideo(profileImage) ? profileImage : null;
   const shownEmoji = localPhoto ? localEmoji : profileEmoji;
 
   const save = async () => {
@@ -86,9 +90,11 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
     setEmojiOpen(false);
     setBusy(true);
     try {
-      const url = (await uploadFile(file, "image")).url;
-      setLocalAvatars((all) => [...all, url]);
-      setLocalPhoto(url);
+      const video = file.type.startsWith("video/");
+      const url = (await uploadFile(file, video ? "avatar-video" : "avatar")).url;
+      const value = video ? VIDEO_PREFIX + url : url;
+      setLocalAvatars((all) => [...all, value]);
+      setLocalPhoto(value);
     } catch (err) {
       toast(errorText(err, "Не удалось загрузить фото"), { error: true });
     }
@@ -99,9 +105,10 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
     if (!file) return;
     setBusy(true);
     try {
-      const [image, chatId] = await Promise.all([uploadFile(file, "image"), openDm()]);
+      const kind = file.type.startsWith("video/") ? "avatar-video" : "avatar";
+      const [image, chatId] = await Promise.all([uploadFile(file, kind), openDm()]);
       await profileApi.suggestPhoto(chatId, image);
-      toast(`Фото предложено ${user.name}`);
+      toast(`Медиа предложено ${user.name}`);
     } catch (err) {
       toast(errorText(err, "Не удалось предложить фото"), { error: true });
     }
@@ -111,7 +118,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
   return (
     <Dialog title="Изменить контакт" onClose={onClose} className={styles.editContact}>
       <div className={styles.editContactHead}>
-        <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />
+        {shownVideo ? <video className={styles.contactPreviewVideo} src={shownVideo} muted loop autoPlay playsInline /> : <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />}
       </div>
       <label className={styles.editContactField}>
         <span>Имя</span>
@@ -126,11 +133,11 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
         <textarea className={styles.editContactNote} value={text} maxLength={1000} rows={3} onChange={(e) => setText(e.target.value)} />
       </label>
 
-      <input ref={setInput} type="file" accept="image/*" hidden onChange={(e) => void pickLocal(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
-      <input ref={suggestInput} type="file" accept="image/*" hidden onChange={(e) => void suggest(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
+      <input ref={setInput} type="file" accept="image/*,video/*" hidden onChange={(e) => void pickLocal(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
+      <input ref={suggestInput} type="file" accept="image/*,video/*" hidden onChange={(e) => void suggest(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
       <button type="button" className={styles.actionButton} disabled={busy} onClick={() => setInput.current?.click()}>
         <Icon name="Camera" size={22} />
-        Установить фото для {firstName}
+        Установить фото, видео или GIF для {firstName}
       </button>
       <button type="button" className={styles.actionButton} disabled={busy} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((v) => !v)}>
         <Icon name="Smile" size={22} />
@@ -153,7 +160,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
             const emoji = value.startsWith(EMOJI_PREFIX) ? value.slice(EMOJI_PREFIX.length) : null;
             return (
               <div className={styles.contactAvatarItem} key={`${value}-${index}`}>
-                <Avatar size={48} name={firstName} color={user.avatarColor} image={emoji ? null : value} emoji={emoji} />
+                {isVideo(value) ? <video className={styles.contactAvatarVideo} src={mediaUrl(value)} muted loop autoPlay playsInline /> : <Avatar size={48} name={firstName} color={user.avatarColor} image={emoji ? null : value} emoji={emoji} />}
                 <button type="button" className={styles.contactAvatarRemove} aria-label={`Убрать аватар ${index + 1}`} onClick={() => {
                   setLocalAvatars((all) => all.filter((_, i) => i !== index));
                   setLocalPhoto(index === localAvatars.length - 1 ? (localAvatars[index - 1] ?? null) : (localAvatars[index + 1] ?? null));
@@ -166,12 +173,12 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
       {localPhoto ? (
         <button type="button" className={`${styles.actionButton} ${styles.danger}`} disabled={busy} onClick={() => { setLocalPhoto(null); setLocalAvatars([]); }}>
           <Icon name="Trash" size={22} />
-          {localEmoji ? "Убрать свой смайл" : "Убрать своё фото"}
+          {localEmoji ? "Убрать свой смайл" : isVideo(localPhoto) ? "Убрать своё видео" : "Убрать своё фото"}
         </button>
       ) : null}
       <button type="button" className={styles.actionButton} disabled={busy} onClick={() => suggestInput.current?.click()}>
         <Icon name="Image" size={22} />
-        Предложить фото для {firstName}
+        Предложить фото или видео для {firstName}
       </button>
       <p className={styles.hint}>Своё фото, смайл и имя видите только вы. Предложенное фото придёт {user.name} сообщением.</p>
 
