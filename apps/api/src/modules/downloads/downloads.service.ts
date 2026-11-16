@@ -98,7 +98,7 @@ export class DownloadsService {
     }
     const release = await this.release.latestAssets();
     const version = process.env.NATIVE_LATEST_VERSION || this.release.version;
-    if (!version) return { version: null, minimumVersion: minimum };
+    if (!version) return { version: null };
     let url: string | null = null;
     if (platform === "ios") {
       url = process.env.IOS_APP_URL || null;
@@ -108,7 +108,7 @@ export class DownloadsService {
       url = release.get(file)?.url ?? localUrl ?? null;
       // Нет подписанной сборки для обновления — не предлагаем: отладочный APK поверх
       // release-версии не встанет («конфликт пакетов»).
-      if (!url) return { version: null, minimumVersion: minimum };
+      if (!url) return { version: null };
     }
     return { version, minimumVersion: minimum, url, page: "/download" };
   }

@@ -20,7 +20,10 @@ export class UploadsService {
 
   public limits() {
     const { UPLOAD_LIMITS, DEFAULT_LIMIT } = uploadLimits();
-    return { limits: UPLOAD_LIMITS, defaultLimit: DEFAULT_LIMIT };
+    // story-audio is accepted by uploads, but remains an internal media limit;
+    // the public limits response is kept backward-compatible with older clients.
+    const { ["story-audio"]: _storyAudio, ...publicLimits } = UPLOAD_LIMITS;
+    return { limits: publicLimits, defaultLimit: DEFAULT_LIMIT };
   }
 
   /** Тип файла уже проверен схемой. */

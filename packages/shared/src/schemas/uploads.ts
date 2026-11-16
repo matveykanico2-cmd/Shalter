@@ -1,7 +1,7 @@
 // Загрузка файлов: server/routes/uploads.js и server/lib/uploadLimits.js.
 import { z } from "zod";
 
-export const uploadKind = z.enum(["video", "image", "file", "voice", "video-note", "avatar", "avatar-video", "gift", "profile-track"]);
+export const uploadKind = z.enum(["video", "image", "file", "voice", "video-note", "avatar", "avatar-video", "gift", "profile-track", "story-audio"]);
 
 /** POST /api/uploads — mimeType есть, только если его передали в ?mimeType. */
 export const uploadResult = z.strictObject({

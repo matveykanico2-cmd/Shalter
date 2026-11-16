@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS chats (
   muted INTEGER NOT NULL DEFAULT 0,
   archived INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL,
-  linkedDiscussionChatId TEXT
+  linkedDiscussionChatId TEXT,
+  commentAllowedTypes TEXT
 );
 
 CREATE TABLE IF NOT EXISTS chat_members (
