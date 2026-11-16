@@ -5,6 +5,8 @@ import { type Contact, userQueries } from "@/entities/user";
 
 import { Avatar, Button, Dialog, Icon } from "@/shared/ui";
 
+import { searchPeople } from "../api/create-chat";
+
 import styles from "./create-chat.module.css";
 
 type Props = {
@@ -25,8 +27,14 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReadonlyMap<string, Contact>>(new Map());
   const [admins, setAdmins] = useState<ReadonlySet<string>>(new Set());
-  const people = (contacts.data ?? []).filter((u) => !exclude.includes(u.id)).sort((a, b) => a.name.localeCompare(b.name, "ru"));
   const q = query.trim().toLowerCase();
+  const remote = useQuery({ ...searchPeople(q), enabled: q.length >= 2 });
+  const contactsPeople = (contacts.data ?? []).filter((u) => !exclude.includes(u.id));
+  // В создании чата ищем не только среди сохранённых контактов: Telegram-подобный
+  // сценарий должен находить пользователя по имени и @username через глобальный поиск.
+  const people = q.length >= 2
+    ? [...contactsPeople, ...(remote.data?.users ?? []).filter((u) => !exclude.includes(u.id) && !contactsPeople.some((contact) => contact.id === u.id))]
+    : contactsPeople;
   const shown = q ? people.filter((u) => `${u.name} ${u.username ?? ""}`.toLowerCase().includes(q)) : people;
 
   const toggle = (u: Contact) => {
@@ -63,12 +71,14 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
           ))}
         </div>
       ) : null}
-      <input className={styles.search} placeholder={single ? "Поиск" : "Кого добавить?"} aria-label={single ? "Поиск" : "Кого добавить?"} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus disabled={!people.length} />
+      <input className={styles.search} placeholder={single ? "Имя или @username" : "Имя или @username"} aria-label={single ? "Поиск" : "Кого добавить?"} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
       <div className={styles.people}>
         {contacts.isPending ? (
           <p className={styles.hint}>Загружаем…</p>
+        ) : q.length >= 2 && remote.isFetching ? (
+          <p className={styles.hint}>Ищем пользователей…</p>
         ) : !people.length ? (
-          <p className={styles.hint}>Список контактов пуст — сначала добавьте людей в контакты.</p>
+          <p className={styles.hint}>{q ? "Никого не нашлось" : "Список контактов пуст — сначала добавьте людей в контакты."}</p>
         ) : !shown.length ? (
           <p className={styles.hint}>Никого не нашлось</p>
         ) : (
