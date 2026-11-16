@@ -20,20 +20,18 @@ export function ProfileStatusBadge({ user, size = 16 }: { user: Subject; size?: 
   };
   return (
     <>
-      <span
+      <button
+        type="button"
         className={styles.badgeButton}
-        role="button"
-        tabIndex={0}
         title={user.statusName || "Статус"}
+        aria-label={user.statusName || "Открыть статус"}
         onClick={show}
         onKeyDown={(e) => {
-          if (e.key !== "Enter" && e.key !== " ") return;
-          e.preventDefault();
-          show(e);
+          if (e.key === "Escape") setOpen(false);
         }}
       >
         <img className={styles.badge} src={user.statusIcon} alt="" style={{ width: size, height: size }} />
-      </span>
+      </button>
       {open ? <StatusViewer subject={user} onClose={() => setOpen(false)} /> : null}
     </>
   );

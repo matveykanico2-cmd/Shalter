@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -86,5 +86,11 @@ describe("ChatHeader", () => {
   it("на компьютере даёт закрыть открытый чат", () => {
     renderHeader(dmWithBadges());
     expect(screen.getByRole("link", { name: "Закрыть чат" }).getAttribute("href")).toBe("/");
+  });
+
+  it("открывает статус собеседника прямо из шапки открытого чата", () => {
+    renderHeader(dmWithBadges());
+    fireEvent.click(screen.getByRole("button", { name: "Огонь" }));
+    expect(screen.getByRole("dialog", { name: "Огонь" })).toBeTruthy();
   });
 });
