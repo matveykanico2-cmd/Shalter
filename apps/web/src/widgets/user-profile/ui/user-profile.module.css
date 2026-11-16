@@ -14,7 +14,7 @@
   bottom: 0;
   z-index: 121;
   display: flex;
-  width: min(400px, 100vw);
+  width: min(460px, 100vw);
   flex-direction: column;
   background: var(--color-surface);
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);

@@ -4,9 +4,9 @@
 .poll,
 .checklist {
   box-sizing: border-box;
-  width: min(340px, 100%);
+  width: min(420px, 100%);
   max-width: 100%;
-  min-width: min(260px, 100%);
+  min-width: min(280px, 100%);
   margin-bottom: 4px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
