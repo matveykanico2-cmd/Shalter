@@ -17,8 +17,9 @@ import type { ChecklistDto, DeleteMessageDto, EditMessageDto, LocationDto, PinDt
 function canPin(chat: Chat, userId: string): boolean {
   if (!chat.memberIds.includes(userId)) return false;
   if (chat.type === "dm") return true;
-  if ((chat.type === "group" || chat.type === "channel") && can(chat, userId, "pinMessages")) return true;
-  return isStaff(chat, userId);
+  if (chat.type === "channel") return isStaff(chat, userId);
+  if (chat.type === "group") return can(chat, userId, "pinMessages");
+  return false;
 }
 
 /** Звонок из журнала звонков до 2026-10-03 — обычный текст, но править его нельзя. */

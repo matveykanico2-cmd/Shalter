@@ -39,7 +39,8 @@ type PermissionData = Record<string, boolean> & { members?: Record<string, Recor
 
 export function memberPermissionsOf(chat: Pick<WithPermissions, "permissions"> | undefined, userId: string): Record<Permission, boolean> {
   const data = (chat?.permissions ?? {}) as PermissionData;
-  return { ...MEMBER_DEFAULTS, ...DEFAULTS, ...data.members?.[userId] };
+  const { members: _members, ...global } = data;
+  return { ...MEMBER_DEFAULTS, ...DEFAULTS, ...global, ...data.members?.[userId] };
 }
 
 export function sanitizeMemberPermissions(raw: unknown): Record<Permission, boolean> {

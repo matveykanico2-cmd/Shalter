@@ -44,8 +44,10 @@ export class PostsService {
     const chat = this.chats.findById(channelId);
     // Постороннему закрытый канал не раскрываем: 404, как будто его нет.
     if (!chat || chat.type !== "channel" || (!chat.isPublic && !chat.memberIds.includes(uid))) throw new ApiError(404, "not found");
-    const isOwnerOrAdmin = chat.ownerId === uid || (chat.ownerIds ?? []).includes(uid) || chat.adminIds?.includes(uid);
-    if (!isOwnerOrAdmin && !can(chat, uid, "publishPosts")) throw new ApiError(403, DENIED.publishPosts);
+    // Публикация в канале доступна только владельцу/админам; право publishPosts
+    // дополнительно позволяет ограничить публикацию для отдельных участников.
+    if (!isStaff(chat, uid)) throw new ApiError(403, "Публиковать могут только администраторы канала");
+    if (!can(chat, uid, "publishPosts")) throw new ApiError(403, DENIED.publishPosts);
 
     if (body.text != null && typeof body.text !== "string") throw new ApiError(400, "Некорректный текст");
     const text = body.text as string | null | undefined;
@@ -90,6 +92,12 @@ export class PostsService {
           reactions: [],
           attachments: post.attachments,
           readByIds: [uid],
+          forwardedFrom: {
+            chatId: chat.id,
+            chatTitle: chat.title ?? "",
+            senderId: uid,
+            senderName: author?.name ?? "",
+          },
           // Якорь комментариев — обычное сообщение в обсуждении, а не пересылка:
           // в комментариях не показываем лишнюю подпись «Переслано от…».
           signedBy: chat.signMessages ? (author?.name ?? null) : null,
