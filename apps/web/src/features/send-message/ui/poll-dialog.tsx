@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Button, Dialog } from "@/shared/ui";
+import { Button, Dialog, Icon } from "@/shared/ui";
 
 import styles from "./create-dialogs.module.css";
 
@@ -21,6 +21,18 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
   const [error, setError] = useState<string | null>(null);
   const step = steps[stepIndex]!;
   const updateStep = (patch: Partial<PollStepDraft>) => setSteps((list) => list.map((item, i) => (i === stepIndex ? { ...item, ...patch } : item)));
+  const removeStep = () => {
+    if (steps.length === 1) return;
+    setSteps((list) => list.filter((_, i) => i !== stepIndex));
+    setStepIndex((i) => Math.min(i, steps.length - 2));
+    setError(null);
+  };
+  const removeOption = (optionIndex: number) => {
+    if (step.options.length <= 2) return;
+    const options = step.options.filter((_, i) => i !== optionIndex);
+    const correctIndex = step.correctIndex === null ? null : step.correctIndex === optionIndex ? Math.min(optionIndex, options.length - 1) : step.correctIndex > optionIndex ? step.correctIndex - 1 : step.correctIndex;
+    updateStep({ options, correctIndex });
+  };
 
   const create = () => {
     const prepared = steps.map((item) => {
@@ -81,6 +93,11 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
             + Вопрос
           </button>
         ) : null}
+        {steps.length > 1 ? (
+          <button type="button" className={styles.removeStep} onClick={removeStep}>
+            <Icon name="Trash" size={14} /> Удалить вопрос
+          </button>
+        ) : null}
       </div>
       <p className={styles.stepCaption}>Вопрос {stepIndex + 1} из {steps.length}</p>
       <p className={styles.hint}>
@@ -88,7 +105,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
       </p>
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Вопрос</span>
-        <input className={`${styles.input} ${styles.questionInput}`} placeholder="Например: Куда пойдём вечером?" aria-label="Вопрос" autoFocus value={step.question} onChange={(e) => { updateStep({ question: e.target.value }); setError(null); }} />
+        <input className={`${styles.input} ${styles.questionInput}`} placeholder="Вопрос" aria-label="Вопрос" autoFocus value={step.question} onChange={(e) => { updateStep({ question: e.target.value }); setError(null); }} />
       </label>
       <div className={styles.optionsHeader}>
         <span>Варианты ответа</span>
@@ -110,6 +127,11 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
               value={value}
               onChange={(e) => updateStep({ options: step.options.map((o, j) => (j === i ? e.target.value : o)) })}
             />
+            {step.options.length > 2 ? (
+              <button type="button" className={styles.removeOption} title="Удалить вариант" aria-label={`Удалить вариант ${i + 1}`} onClick={() => removeOption(i)}>
+                <Icon name="X" size={15} />
+              </button>
+            ) : null}
           </div>
         ))}
         {step.options.length < MAX_OPTIONS ? (

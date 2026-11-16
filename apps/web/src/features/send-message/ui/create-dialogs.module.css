@@ -31,6 +31,21 @@
   cursor: pointer;
 }
 
+.removeStep {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-danger) 7%, transparent);
+  color: var(--color-danger);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .stepActive {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
@@ -168,6 +183,47 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.removeOption {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, var(--color-border));
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.removeOption:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+}
+
+.checklistDialog {
+  overflow-anchor: none;
+}
+
+.checklistList {
+  max-height: min(42vh, 360px);
+  flex: 0 1 auto;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.checklistRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.checklistRow .input {
+  flex: 1;
 }
 
 .optionNumber {

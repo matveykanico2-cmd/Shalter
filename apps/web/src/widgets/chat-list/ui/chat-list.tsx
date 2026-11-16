@@ -164,7 +164,11 @@ export function ChatList({ meId }: { meId: string }) {
     // одна строка сообщества, если новое есть хотя бы в одном внутреннем чате.
     const shown = activeTab !== "all" ? [] : unreadOnly ? communities.filter((community) => memberChatsOf(community, chats).some(hasUnread)) : communities;
     const notArchived = chats.filter((c) => !c.archived);
-    const out: Row[] = [...head, ...shown.filter((cm) => cm.pinned).map((community): Row => ({ kind: "community", community }))];
+    const out: Row[] = [
+      ...head,
+      ...shown.filter((cm) => cm.pinned).map((community): Row => ({ kind: "community", community })),
+      ...list.filter((chat) => chat.pinned).map((chat): Row => ({ kind: "chat", chat })),
+    ];
     const queue = shown
       .filter((cm) => !cm.pinned)
       .map((cm) => ({ cm, at: communityActivity(cm, notArchived) }))
@@ -172,8 +176,8 @@ export function ChatList({ meId }: { meId: string }) {
     const flush = (beforeAt: string | null) => {
       while (queue.length && (beforeAt === null || queue[0]!.at >= beforeAt)) out.push({ kind: "community", community: queue.shift()!.cm });
     };
-    for (const chat of list) {
-      if (!chat.pinned) flush(chat.lastMessage?.createdAt ?? chat.createdAt ?? "");
+    for (const chat of list.filter((item) => !item.pinned)) {
+      flush(chat.lastMessage?.createdAt ?? chat.createdAt ?? "");
       out.push({ kind: "chat", chat });
     }
     flush(null);

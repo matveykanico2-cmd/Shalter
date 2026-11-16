@@ -891,11 +891,14 @@ export function Composer(props: Props) {
               }}
               onFocus={(e) => {
                 setMenuClosed(false);
-                // Android WebView иногда оставляет курсор под клавиатурой после resize:
-                // мягко возвращаем поле в видимую область после первого layout и ещё раз
-                // после показа клавиатуры, не прокручивая всю страницу.
+                // Не прокручиваем всю страницу на каждый фокус: это давало скачок между
+                // предпросмотром ответа и полем ввода при открытии клавиатуры.
                 const keepVisible = () => {
-                  if (document.activeElement === e.currentTarget) e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                  if (document.activeElement !== e.currentTarget) return;
+                  const viewport = window.visualViewport;
+                  const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (rect.bottom > bottom - 8) e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
                 };
                 requestAnimationFrame(keepVisible);
                 window.setTimeout(keepVisible, 280);
