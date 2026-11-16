@@ -328,9 +328,44 @@
   margin-top: 2px;
 }
 
+.pollDialog {
+  width: min(520px, 100%);
+  max-height: min(94dvh, 820px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 @media (max-width: 420px) {
+  .pollDialog {
+    gap: 8px;
+    max-height: calc(100dvh - 8px);
+    padding: 12px;
+    border-radius: 20px 20px 14px 14px;
+  }
+
   .pollIntro {
     padding: 9px 10px;
+  }
+
+  .pollDialog .list {
+    max-height: 30dvh;
+  }
+
+  .pollDialog .setting {
+    min-height: 32px;
+    padding: 5px 7px;
+    font-size: 13px;
+  }
+
+  .pollDialog .fieldRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .pollDialog .select {
+    width: 100%;
+    max-width: none;
   }
 
   .actions {

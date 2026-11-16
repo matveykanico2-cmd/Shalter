@@ -58,7 +58,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
   };
 
   return (
-    <Dialog title={quiz ? "Новая викторина" : "Новый опрос"} onClose={onClose}>
+    <Dialog title={quiz ? "Новая викторина" : "Новый опрос"} onClose={onClose} className={styles.pollDialog}>
       <div className={styles.pollIntro}>
         <span className={styles.pollIntroIcon}>{quiz ? "✓" : "?"}</span>
         <div>
