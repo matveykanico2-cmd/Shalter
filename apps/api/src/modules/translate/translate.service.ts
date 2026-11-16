@@ -56,7 +56,9 @@ export class TranslateService {
 
     if (missing.length) {
       const chunks = splitIntoChunks(missing);
-      const results = await mapWithConcurrency(chunks, 4, (chunk) => translateChunk(chunk, lang));
+      // Google’s free endpoint rate-limits concurrent requests with 429.
+      // Chunks are cheap compared with retry storms, so process them serially.
+      const results = await mapWithConcurrency(chunks, 1, (chunk) => translateChunk(chunk, lang));
       const fresh: [string, string][] = [];
       chunks.forEach((chunk, ci) =>
         chunk.forEach((text, i) => {

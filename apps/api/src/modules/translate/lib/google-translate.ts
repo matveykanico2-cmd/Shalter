@@ -1,12 +1,19 @@
 // Перевод через бесплатный эндпоинт Google — как translateOne, translateChunk и splitIntoChunks
 // в server/routes/translate.js.
 
+export class TranslationUpstreamError extends Error {
+  public constructor(public readonly status: number) {
+    super(`upstream responded ${status}`);
+    this.name = "TranslationUpstreamError";
+  }
+}
+
 export async function translateOne(text: string, target: string, source = "auto"): Promise<{ translated: string; detectedLang: unknown }> {
   const url =
     `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t` +
     `&sl=${encodeURIComponent(source)}&tl=${encodeURIComponent(target)}&q=${encodeURIComponent(text)}`;
   const upstream = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!upstream.ok) throw new Error(`upstream responded ${upstream.status}`);
+  if (!upstream.ok) throw new TranslationUpstreamError(upstream.status);
   const data: any = await upstream.json();
   return { translated: (data?.[0] ?? []).map((chunk: any) => chunk?.[0] ?? "").join(""), detectedLang: data?.[2] ?? null };
 }
@@ -36,14 +43,21 @@ export async function translateChunk(texts: string[], target: string): Promise<(
       const lines = translated.split("\n").map((l) => l.trim());
       if (lines.length === texts.length && lines.every(Boolean)) return lines;
     } catch (err) {
-      console.error("batch translate chunk failed:", err);
+      // 429 means the upstream is rate-limiting us. Do not immediately retry
+      // every line separately: that turns one limit response into hundreds.
+      if (err instanceof TranslationUpstreamError && err.status === 429) return texts.map(() => null);
+      console.warn("batch translate chunk unavailable", err instanceof Error ? err.message : err);
     }
   }
-  return mapWithConcurrency(texts, 4, async (text) => {
+  return mapWithConcurrency(texts, 1, async (text) => {
     try {
       return (await translateOne(text, target, "ru")).translated.trim() || null;
     } catch (err) {
-      console.error("batch translate item failed:", err);
+      // A batch response may be malformed even when the upstream is healthy;
+      // keep the fallback, but do not flood logs for expected upstream errors.
+      if (!(err instanceof TranslationUpstreamError && err.status === 429)) {
+        console.warn("batch translate item unavailable", err instanceof Error ? err.message : err);
+      }
       return null;
     }
   });
