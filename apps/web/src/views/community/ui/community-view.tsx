@@ -144,6 +144,11 @@ function CommunityPage({ community }: { community: Community }) {
             Вступить в сообщество
           </Button>
         )}
+        {community.isMember && !community.isOwner ? (
+          <Button variant="secondary" onClick={() => void actions.leave(community).then((ok) => ok && reload())}>
+            Покинуть сообщество
+          </Button>
+        ) : null}
         <button type="button" className={styles.moreButton} aria-label="Действия сообщества" title="Действия сообщества" onClick={(e) => setActionsAt({ x: e.clientX, y: e.clientY })}>
           <Icon name="More" size={20} />
         </button>

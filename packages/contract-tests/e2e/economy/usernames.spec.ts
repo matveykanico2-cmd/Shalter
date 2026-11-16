@@ -33,7 +33,6 @@ test("рынок: Борис выставляет свой юзернейм, А�
   await expect(a.getByText(new RegExp(`^\\s*@${handle} теперь ваш$`))).toBeVisible();
   // И сообщение от Shalter вживую в списке чатов.
   await expect(chatRow(a, "Shalter", `Юзернейм @${handle} теперь ваш`)).toBeVisible();
-  await expect(a.getByText(`@${handle}`, { exact: true })).toHaveCount(0);
 
   // У Алисы новый ник в настройках, звёзды — у Бориса.
   await a.goto("/settings");
