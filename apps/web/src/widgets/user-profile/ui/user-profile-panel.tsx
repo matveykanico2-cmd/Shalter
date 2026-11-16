@@ -644,7 +644,6 @@ export function UserProfilePanel({ userId, me }: Props) {
               {!isSelf && !u.isBot && !blocked ? <ActionButton icon="Video" onClick={() => { setShowDotsMenu(false); void call("video"); }}>Видеозвонок</ActionButton> : null}
               {!isSelf && !u.isBot && !blocked ? <ActionButton icon="Lock" onClick={() => { setShowDotsMenu(false); void startSecretChat(); }}>Начать секретный чат</ActionButton> : null}
               {!isSelf ? <ActionButton icon="Forward" onClick={() => { setShowDotsMenu(false); shareContact(); }}>Поделиться контактом</ActionButton> : null}
-              {!isSelf ? <ActionButton icon="Lock" danger onClick={() => { setShowDotsMenu(false); void toggleBlock(); }}>{blocked ? "Разблокировать" : "Заблокировать"}</ActionButton> : null}
               {!isSelf ? <ActionButton icon="Info" danger onClick={() => { setShowDotsMenu(false); setOverlay("report"); }}>Пожаловаться</ActionButton> : null}
             </div>
           </div>

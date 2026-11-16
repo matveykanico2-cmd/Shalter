@@ -950,6 +950,7 @@ export function Composer(props: Props) {
             editing={!!editing}
             disabled={mediaSending || (!text.trim() && !mediaChoice)}
             allowEffects={!!props.allowEffects}
+            textLength={text.trim().length}
             onSend={submit}
             onSchedule={thread ? undefined : openSchedule}
           />

@@ -20,6 +20,7 @@ type Props = {
   editing: boolean;
   disabled: boolean;
   allowEffects: boolean;
+  textLength?: number;
   onSend: (options?: SendOptions) => void;
   /** Нет — «Отправить позже» не показываем (ответ в ветке). */
   onSchedule?: () => void;
@@ -29,7 +30,7 @@ type Props = {
  * «Отправить» — как в Telegram (composer.js): правая кнопка или долгое нажатие — «без звука»,
  * «позже» и, в личке, «с эффектом».
  */
-export function SendButton({ editing, disabled, allowEffects, onSend, onSchedule }: Props) {
+export function SendButton({ editing, disabled, allowEffects, textLength = 0, onSend, onSchedule }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number; effects: boolean } | null>(null);
   const openAt = (x: number, y: number) => !editing && !disabled && setMenu({ x: x - 220, y: y - 8, effects: false });
   const hold = useLongPress((at) => openAt(at.x, at.y));
@@ -49,7 +50,7 @@ export function SendButton({ editing, disabled, allowEffects, onSend, onSchedule
       <button
         type="button"
         className={styles.send}
-        aria-label={editing ? "Сохранить" : "Отправить"}
+        aria-label={editing ? "Сохранить" : textLength > 0 ? `Отправить (${textLength})` : "Отправить"}
         title={editing ? "Сохранить" : "Отправить (правый клик — другие варианты)"}
         disabled={disabled}
         onClick={(e) => {
