@@ -1,7 +1,13 @@
+.dialog {
+  width: min(520px, 100%);
+  max-width: 520px;
+  min-height: min(52vh, 480px);
+}
+
 .people {
   display: flex;
   flex-direction: column;
-  max-height: 300px;
+  max-height: min(52vh, 480px);
   overflow-y: auto;
 }
 
@@ -9,7 +15,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 8px;
+  min-height: 54px;
+  padding: 10px 8px;
   border: none;
   border-radius: 12px;
   background: none;
@@ -27,4 +34,14 @@
   margin: 0;
   color: var(--color-muted);
   font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .dialog {
+    min-height: min(70dvh, 640px);
+  }
+
+  .people {
+    max-height: min(60dvh, 540px);
+  }
 }

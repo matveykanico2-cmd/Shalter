@@ -29,7 +29,7 @@ export function ContactPicker({ title, extra = NONE, exclude, onPick, onClose }:
     ? [...loaded, ...extra.filter((u) => !loaded.some((c) => c.id === u.id))].filter((u) => !exclude.includes(u.id))
     : null;
   return (
-    <Dialog title={title} onClose={onClose}>
+    <Dialog title={title} onClose={onClose} className={styles.dialog}>
       <div className={styles.people}>
         {people === null ? (
           <p className={styles.hint}>Загружаем…</p>

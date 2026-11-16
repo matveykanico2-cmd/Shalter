@@ -1,6 +1,8 @@
 /* Как .forward-* в public/styles (forwardDialog.js). */
 .dialog {
-  max-width: 420px;
+  width: min(560px, 100%);
+  max-width: 560px;
+  min-height: min(58vh, 560px);
 }
 
 .search {
@@ -15,8 +17,8 @@
 
 .list {
   display: flex;
-  min-height: 120px;
-  max-height: 46vh;
+  min-height: 180px;
+  max-height: min(54vh, 520px);
   flex-direction: column;
   overflow-y: auto;
   margin: 0 -8px;
@@ -26,7 +28,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 8px;
+  min-height: 52px;
+  padding: 8px;
   border: none;
   border-radius: 12px;
   background: none;
@@ -97,4 +100,18 @@
 .actions button {
   height: 40px;
   padding: 0 14px;
+}
+
+@media (max-width: 520px) {
+  .dialog {
+    min-height: min(72dvh, 680px);
+  }
+
+  .list {
+    max-height: min(62dvh, 560px);
+  }
+
+  .row {
+    min-height: 58px;
+  }
 }

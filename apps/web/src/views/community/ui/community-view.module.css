@@ -11,6 +11,14 @@
   overflow-y: auto;
   overscroll-behavior: auto;
   text-align: center;
+  scroll-padding-bottom: 88px;
+}
+
+@media (max-width: 960px) {
+  .page {
+    /* Нижняя навигация оболочки не должна закрывать вкладки сообщества и последние строки. */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .pageHeader {
