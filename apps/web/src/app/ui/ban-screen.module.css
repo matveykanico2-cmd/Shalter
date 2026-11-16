@@ -165,6 +165,8 @@
 
 .account span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account > svg { flex: none; color: var(--color-muted); }
+.accountRemove { display: grid; flex: none !important; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--color-muted); }
+.accountRemove:hover { background: color-mix(in srgb, var(--color-danger) 12%, transparent); color: var(--color-danger); }
 
 .addButton {
   display: inline-flex;

@@ -65,7 +65,9 @@ async function leave() {
  * настроек — причина, до какого времени и сколько осталось, и «Назад», чтобы выйти.
  */
 export function BanScreen({ ban }: { ban: BanInfo }) {
-  const accounts = useQuery(sessionQueries.current()).data?.accounts ?? [];
+  const session = useQuery(sessionQueries.current()).data;
+  const accounts = session?.accounts ?? [];
+  const currentId = session?.user?.id;
   const parsedUntil = ban.bannedUntil ? Date.parse(ban.bannedUntil) : NaN;
   const until = Number.isFinite(parsedUntil) ? parsedUntil : null;
   const [now, setNow] = useState(Date.now);
@@ -78,9 +80,25 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
 
   const switchTo = async (userId: string) => {
     if (leaving) return;
+    if (userId === currentId) return;
     setLeaving(true);
     try {
       await switchAccount(userId);
+    } catch {
+      setLeaving(false);
+    }
+  };
+
+  const removeAccount = async (userId: string) => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      if (userId === currentId) {
+        await leave();
+        return;
+      }
+      await http.post("/api/auth/logout", { userId });
+      window.location.reload();
     } catch {
       setLeaving(false);
     }
@@ -145,8 +163,28 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
             {accounts.map((account) => (
               <button type="button" className={styles.account} key={account.id} disabled={leaving} onClick={() => void switchTo(account.id)}>
                 <Avatar name={account.name || account.email || "?"} color={account.avatarColor} image={account.avatarImage} emoji={account.avatarEmoji} size={34} />
-                <span>{account.name || account.email || "Аккаунт"}</span>
+                <span>{account.name || account.email || "Аккаунт"}{account.id === currentId ? " · заблокирован" : ""}</span>
                 <Icon name="ChevronRight" size={17} />
+                <span
+                  role="button"
+                  tabIndex={leaving ? -1 : 0}
+                  className={styles.accountRemove}
+                  title="Выйти из аккаунта"
+                  aria-label={`Выйти из аккаунта ${account.name || account.email || ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void removeAccount(account.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void removeAccount(account.id);
+                    }
+                  }}
+                >
+                  <Icon name="X" size={16} />
+                </span>
               </button>
             ))}
           </div>
