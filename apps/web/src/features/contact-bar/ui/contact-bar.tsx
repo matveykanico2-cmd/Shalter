@@ -27,11 +27,10 @@ export function ContactBar({ chat, blocked, onToggleBlock }: Props) {
 
   const add = async () => {
     try {
-      const sharePhone = await askConfirm(`Поделиться своим номером телефона с ${other.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" });
       // Сначала создаём контакт с именем профиля, затем сразу открываем полноценный
       // редактор: имя, фамилия, заметка, локальные аватары и предложение фото меняются
       // в одном окне, без дополнительного маленького prompt.
-      await addContact(other.id, other.name, sharePhone);
+      await addContact(other.id, other.name, false);
       openContactEditor({ id: other.id, name: other.name, avatarColor: other.avatarColor, avatarImage: other.avatarImage, avatarEmoji: other.avatarEmoji }, other.name);
       setAdded(true);
       void client.invalidateQueries({ queryKey: chatQueries.baseKey });

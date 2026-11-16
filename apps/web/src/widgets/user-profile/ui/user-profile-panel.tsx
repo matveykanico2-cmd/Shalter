@@ -211,8 +211,9 @@ export function UserProfilePanel({ userId, me }: Props) {
     try {
       if (inContacts) await profileApi.removeContact(userId);
       else {
-        const sharePhone = !u.isBot && (await askConfirm(`Поделиться своим номером телефона с ${u.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" }));
-        await profileApi.addContact(userId, sharePhone);
+        // Добавление не должно прерываться отдельным диалогом о номере телефона.
+        // Номер не открываем автоматически; его можно будет разрешить отдельно.
+        await profileApi.addContact(userId, false);
       }
       patchProfile({ inContacts: !inContacts });
       // После добавления сразу даём настроить локальные имя/фамилию, заметку и

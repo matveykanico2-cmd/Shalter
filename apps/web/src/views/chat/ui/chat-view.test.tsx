@@ -1299,8 +1299,6 @@ describe("плашки и низ чата", () => {
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/contacts": { body: { ok: true } } });
     renderChat(dm());
     fireEvent.click(await screen.findByRole("button", { name: "Добавить в контакты" }));
-    const share = await screen.findByRole("dialog", { name: "Поделиться своим номером телефона с Лена?" });
-    fireEvent.click(within(share).getByRole("button", { name: "Не делиться" }));
     await waitFor(() => expect(calls.find((c) => c.key === "POST /api/contacts")?.body).toEqual({ userId: LENA.id, localName: LENA.name, sharePhone: false }));
     const editor = await screen.findByRole("dialog", { name: "Изменить контакт" });
     expect(within(editor).getByDisplayValue(LENA.name)).toBeTruthy();
