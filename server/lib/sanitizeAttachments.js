@@ -85,7 +85,14 @@ function sanitizeAttachments(attachments) {
         const closesAtRaw = typeof a.meta?.closesAt === "string" ? Date.parse(a.meta.closesAt) : NaN;
         const maxClose = Date.now() + 7 * 24 * 60 * 60 * 1000;
         const closesAt = Number.isFinite(closesAtRaw) && closesAtRaw > Date.now() && closesAtRaw <= maxClose ? new Date(closesAtRaw).toISOString() : null;
-        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false, votersVisible, closesAt };
+        const questions = Array.isArray(a.meta?.questions) ? a.meta.questions.slice(0, 8).map((q) => ({
+          question: String(q?.question ?? "").slice(0, 500),
+          options: Array.isArray(q?.options) ? q.options.slice(0, 8).map((o) => String(o).slice(0, 200)) : [],
+          voterIds: (Array.isArray(q?.options) ? q.options : []).map(() => []),
+          votes: (Array.isArray(q?.options) ? q.options : []).map(() => 0),
+          correctIndex: Number.isInteger(q?.correctIndex) ? q.correctIndex : null,
+        })).filter((q) => q.question && q.options.length >= 2) : [];
+        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false, votersVisible, closesAt, ...(questions.length > 1 ? { questions } : {}) };
       } else if (a.kind === "game") {
         // Карточка игры: только ссылка на игру, код и рекорды — на сервере.
         const gameId = typeof a.meta?.gameId === "string" && /^(builtin-[a-z0-9-]{1,32}|g_[A-Za-z0-9_-]{4,40})$/.test(a.meta.gameId) ? a.meta.gameId : null;

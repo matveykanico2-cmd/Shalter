@@ -563,6 +563,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           contactName={data.contactName}
           note={data.contactNote}
           photo={data.contactPhoto ?? null}
+          avatars={data.contactAvatars}
           openDm={async () => {
             const { chat } = await openDm(userId, u.name, u.avatarColor);
             return chat.id;

@@ -1,6 +1,6 @@
 .modes {
   display: flex;
-  gap: 6px;
+  gap: 10px;
 }
 
 .steps {
@@ -207,6 +207,30 @@
 
 .checklistDialog {
   overflow-anchor: none;
+  gap: 16px;
+  padding: 22px;
+}
+
+.questionNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 420px) {
+  .pollDialog,
+  .checklistDialog {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+    padding: 16px;
+    gap: 14px;
+  }
+  .actions { flex-wrap: wrap; }
 }
 
 .checklistList {

@@ -23,6 +23,16 @@
   overflow-wrap: anywhere;
 }
 
+.questionNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .kind {
   display: inline-flex;
   align-items: center;

@@ -11,7 +11,7 @@ import type { FeedMessage as Message } from "../../model/types";
 import styles from "./interactive.module.css";
 
 export type PollActions = {
-  onVote?: (m: Message, optionIndex: number) => void;
+  onVote?: (m: Message, optionIndex: number, questionIndex?: number) => void;
   onRetract?: (m: Message) => void;
   onClose?: (m: Message) => void;
   /** Остановить чужой опрос — админы и модераторы группы. */
@@ -26,10 +26,14 @@ const POLL_AVATARS = 3;
 /** Опрос и викторина — PollAttachment из messageBubble.js. Вопрос — текст сообщения. */
 export function PollAttachment({ message: m, attachment, meId, userOf, onVote, onRetract, onClose, canCloseOthers }: Props) {
   const meta = pollMeta(attachment);
+  const questions = meta.questions?.length ? meta.questions : [{ question: m.text, options: meta.options, votes: meta.votes, voterIds: meta.voterIds, correctIndex: meta.correctIndex }];
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const current = questions[Math.min(questionIndex, questions.length - 1)]!;
+  const viewMeta = { ...meta, ...current };
   const [now, setNow] = useState(Date.now);
   const { onOpenProfile } = use(MessageLinks);
   useEffect(() => {
-    if (!meta.closesAt || Date.parse(meta.closesAt) <= Date.now()) return;
+    if (!meta.closesAt || Date.parse(meta.closesAt) <= now) return;
     const deadline = Date.parse(meta.closesAt);
     const timer = setInterval(() => {
       const next = Date.now();
@@ -37,14 +41,21 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
       if (next >= deadline) clearInterval(timer);
     }, 1000);
     return () => clearInterval(timer);
-  }, [meta.closesAt]);
-  const v = pollView(meta, meId, now);
+  }, [meta.closesAt, now]);
+  const v = pollView(viewMeta, meId, now);
   const canClose = !v.closed && !m.pending && (m.senderId === meId || canCloseOthers) && !!onClose;
   const allVoters = [...new Set(v.voterIds.flat())];
   const deadline = v.closesAt && !v.closed ? deadlineLabel(v.closesAt - now) : null;
   return (
     <div className={[styles.poll, v.isQuiz ? styles.quiz : "", v.closed ? styles.closed : ""].filter(Boolean).join(" ")}>
-      <p className={styles.question}>{m.text}</p>
+      <p className={styles.question}>{current.question}</p>
+      {questions.length > 1 ? (
+        <div className={styles.questionNav}>
+          <button type="button" className={styles.action} disabled={questionIndex === 0} onClick={() => setQuestionIndex((i) => i - 1)}>Назад</button>
+          <span>Вопрос {questionIndex + 1} из {questions.length}</span>
+          <button type="button" className={styles.action} disabled={questionIndex === questions.length - 1} onClick={() => setQuestionIndex((i) => i + 1)}>Дальше</button>
+        </div>
+      ) : null}
       <p className={styles.kind}>{v.kindLabel}</p>
       <div className={styles.options}>
         {v.options.map((o, i) => (
@@ -54,7 +65,7 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
               className={[styles.option, o.mine ? styles.selected : "", o.leader ? styles.leader : "", o.mark ? styles[o.mark] : ""].filter(Boolean).join(" ")}
               disabled={!v.canVote || m.pending || !onVote}
               aria-pressed={o.mine}
-              onClick={() => onVote?.(m, i)}
+              onClick={() => onVote?.(m, i, questionIndex)}
             >
               {v.showResults ? <span className={styles.pct}>{o.pct}%</span> : <span className={v.multiple ? `${styles.radio} ${styles.square}` : styles.radio} />}
               <span className={styles.label}>

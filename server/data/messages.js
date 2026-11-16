@@ -490,11 +490,23 @@ function readersOf(messageId) {
   return readByIds.map((userId) => ({ userId, readAt: times[userId] ?? null }));
 }
 
-function votePoll(id, optionIndex, userId) {
+function votePoll(id, optionIndex, userId, questionIndex = 0) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "poll") return a;
       if (a.meta?.closed) return a;
+      if (Array.isArray(a.meta?.questions) && questionIndex > 0) {
+        const questions = a.meta.questions.map((q) => ({ ...q, voterIds: (q.voterIds ?? q.options.map(() => [])).map((ids) => [...ids]), votes: [...(q.votes ?? [])] }));
+        const q = questions[questionIndex];
+        if (!q || optionIndex < 0 || optionIndex >= q.options.length) return a;
+        const voterIds = q.voterIds;
+        const isQuiz = Number.isInteger(q.correctIndex);
+        if (isQuiz && voterIds.some((ids) => ids.includes(userId))) return a;
+        if (a.meta?.multiple && !isQuiz) voterIds[optionIndex] = voterIds[optionIndex].includes(userId) ? voterIds[optionIndex].filter((v) => v !== userId) : [...voterIds[optionIndex], userId];
+        else { let same = false; for (let i = 0; i < voterIds.length; i++) { if (voterIds[i].includes(userId)) { if (i === optionIndex) same = true; voterIds[i] = voterIds[i].filter((v) => v !== userId); } } if (!same) voterIds[optionIndex].push(userId); }
+        q.voterIds = voterIds; q.votes = voterIds.map((v) => v.length); questions[questionIndex] = q;
+        return { ...a, meta: { ...a.meta, questions } };
+      }
       const options = a.meta?.options ?? [];
       if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) return a;
       const voterIds = options.map((_, i) => [...(a.meta?.voterIds?.[i] ?? [])]);

@@ -15,6 +15,7 @@ const contactBase = {
   localName: z.string().nullable(),
   /** Своё фото контакта — только если поставлено. */
   localAvatar: z.string().optional(),
+  localAvatars: z.array(z.string()).optional(),
 };
 
 /** Контакт с расшифрованной заметкой: GET /api/contacts (без user) и POST /rename. */

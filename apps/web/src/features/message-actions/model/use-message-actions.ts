@@ -210,9 +210,17 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
 
       // Опрос и чек-лист — как handleVote/handlePollAction в chatView.js и run() чек-листа:
       // своё сразу, ответ сервера поверх, при ошибке — сверка с сервером.
-      async vote(m: Message, optionIndex: number) {
-        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => applyVote(meta, optionIndex, me.id)));
-        await applyServer(votePoll(chatId, m.id, optionIndex), "Не удалось проголосовать");
+      async vote(m: Message, optionIndex: number, questionIndex = 0) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => {
+          if (!meta.questions?.length || questionIndex === 0) return applyVote(meta, optionIndex, me.id);
+          const questions = meta.questions.map((q) => ({ ...q }));
+          const current = questions[questionIndex];
+          if (!current) return meta;
+          const next = applyVote({ ...meta, ...current, questions: undefined }, optionIndex, me.id);
+          questions[questionIndex] = { ...current, voterIds: next.voterIds, votes: next.votes };
+          return { ...meta, questions };
+        }));
+        await applyServer(votePoll(chatId, m.id, optionIndex, questionIndex), "Не удалось проголосовать");
       },
 
       async retractVote(m: Message) {

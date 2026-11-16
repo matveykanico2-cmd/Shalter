@@ -103,7 +103,7 @@ export type PinDto = z.infer<typeof pinSchema>;
 export const reactSchema = requestBody({ emoji: raw() });
 export type ReactDto = z.infer<typeof reactSchema>;
 
-export const voteSchema = requestBody({ optionIndex: raw() });
+export const voteSchema = requestBody({ optionIndex: raw(), questionIndex: raw() });
 export type VoteDto = z.infer<typeof voteSchema>;
 
 /** add — новые пункты (непустые, до 200 символов; не список — отметка пункта itemId). */

@@ -16,9 +16,12 @@ import type { AddContactDto, ContactNoteDto, ContactPhotoDto, MatchContactsDto, 
 const MAX_PHONES_PER_REQUEST = 1000;
 
 /** Строка контакта для ответа: своё фото — только если поставлено (иначе ответ как раньше). */
-function withPhoto<T extends { localAvatar?: string | null }>(row: T): Omit<T, "localAvatar"> & { localAvatar?: string } {
-  const { localAvatar, ...rest } = row;
-  return localAvatar ? { ...rest, localAvatar } : rest;
+function withPhoto<T extends { localAvatar?: string | null; localAvatars?: string | null }>(row: T) {
+  const { localAvatar, localAvatars, ...rest } = row;
+  let avatars: string[] = [];
+  try { avatars = localAvatars ? JSON.parse(localAvatars) : []; } catch { avatars = []; }
+  if (!avatars.length && localAvatar) avatars = [localAvatar];
+  return { ...rest, ...(localAvatar ? { localAvatar } : {}), ...(avatars.length ? { localAvatars: avatars } : {}) };
 }
 
 // Контакты (/api/contacts) — как server/routes/contacts.js.
@@ -89,7 +92,7 @@ export class ContactsService {
    * Своё фото или смайл контакта — видите только вы (как «Установить фото» в Telegram).
    * Смайл сменяет фото и наоборот; пусто — убрать.
    */
-  public async setPhoto(uid: string, { userId, url, emoji: rawEmoji }: ContactPhotoDto) {
+  public async setPhoto(uid: string, { userId, url, emoji: rawEmoji, avatars: requested }: ContactPhotoDto) {
     const emoji = rawEmoji === undefined ? null : cleanAvatarEmoji(rawEmoji);
     if (emoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
     // Стикер — ссылка на файл: чужой закрытый файл на аватарку не поставить (как у чатов).
@@ -97,8 +100,16 @@ export class ContactsService {
     // Как у аватарок: только свой загруженный файл (общая проверка из server/lib/uploadAccess.js).
     if (!emoji && url && !(await isOwnUploadUrl(uid, url))) throw new ApiError(400, "Некорректное фото");
     const value = emoji ? `${CONTACT_EMOJI_PREFIX}${emoji}` : url || null;
-    if (!this.contacts.setPhoto(uid, userId, value)) throw new ApiError(404, "Сначала добавьте человека в контакты");
-    return { localAvatar: value };
+    const avatars = requested?.length ? requested : value ? [value] : [];
+    for (const avatar of avatars) {
+      if (avatar.startsWith(CONTACT_EMOJI_PREFIX)) {
+        const clean = cleanAvatarEmoji(avatar.slice(CONTACT_EMOJI_PREFIX.length));
+        if (!clean || usesForeignUpload(uid, clean)) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+      } else if (!(await isOwnUploadUrl(uid, avatar))) throw new ApiError(400, "Некорректное изображение");
+    }
+    const primary = avatars[0] ?? null;
+    if (!this.contacts.setPhoto(uid, userId, primary, avatars)) throw new ApiError(404, "Сначала добавьте человека в контакты");
+    return { localAvatar: primary, localAvatars: avatars };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {

@@ -11,6 +11,7 @@ export type PollMeta = {
   closed?: boolean;
   votersVisible?: boolean;
   closesAt?: string | null;
+  questions?: Array<{ question: string; options: string[]; votes?: number[]; voterIds?: string[][]; correctIndex?: number | null }>;
 };
 
 export type ChecklistItem = { id: number; text: string; doneBy?: string; doneAt?: string };

@@ -18,6 +18,15 @@ import type { PinnedChannelsDto } from "./model/schemas/profile.schema.js";
 const LINK_RE = /https?:\/\/\S+/;
 const MAX_PINNED_CHANNELS = 6;
 
+function parseContactAvatars(raw: string | null | undefined): string[] {
+  try {
+    const value: unknown = JSON.parse(raw ?? "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 interface BusinessSettings {
   enabled?: boolean;
   showHours?: boolean;
@@ -123,6 +132,7 @@ export class ProfilesService {
       contactName: myContact?.localName ?? null,
       contactNote: contactNote(myContact),
       ...(myContact?.localAvatar ? { contactPhoto: myContact.localAvatar } : {}),
+      ...(myContact?.localAvatars ? { contactAvatars: parseContactAvatars(myContact.localAvatars) } : {}),
       commonGroupsCount,
       pinnedChannels: await this.pinnedChannelsOf(id, uid),
     };

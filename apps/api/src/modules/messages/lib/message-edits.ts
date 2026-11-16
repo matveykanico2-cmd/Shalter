@@ -73,10 +73,23 @@ export const cleanReaction = (emoji: unknown): string => (typeof emoji === "stri
  * Голос в опросе. Один вариант: повтор того же снимает голос, другой — переносит.
  * Несколько ответов — варианты независимы. Викторина — голос один раз.
  */
-export function votePoll(m: Message, optionIndex: unknown, userId: string): Message {
+export function votePoll(m: Message, optionIndex: unknown, userId: string, questionIndex: unknown = 0): Message {
   const attachments = m.attachments?.map((a) => {
     if (a.kind !== "poll") return a;
     if (a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now())) return a;
+    if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && (questionIndex as number) > 0) {
+      const questions = (a.meta.questions as Array<{ question: string; options: string[]; voterIds?: string[][]; votes?: number[]; correctIndex?: number | null }>).map((q) => ({ ...q, voterIds: (q.voterIds ?? q.options.map(() => [] as string[])).map((ids: string[]) => [...ids]), votes: [...(q.votes ?? [])] }));
+      const q = questions[questionIndex as number];
+      const index = Number(optionIndex);
+      if (!q || !Number.isInteger(index) || index < 0 || index >= q.options.length) return a;
+      const voterIds = q.voterIds;
+      const isQuiz = Number.isInteger(q.correctIndex);
+      if (isQuiz && voterIds.some((ids) => ids.includes(userId))) return a;
+      if (a.meta?.multiple && !isQuiz) voterIds[index] = voterIds[index]!.includes(userId) ? voterIds[index]!.filter((v) => v !== userId) : [...voterIds[index]!, userId];
+      else { let same = false; for (let i = 0; i < voterIds.length; i++) { if (voterIds[i]!.includes(userId)) { if (i === index) same = true; voterIds[i] = voterIds[i]!.filter((v) => v !== userId); } } if (!same) voterIds[index]!.push(userId); }
+      questions[questionIndex as number] = { ...q, voterIds, votes: voterIds.map((v) => v.length) };
+      return { ...a, meta: { ...a.meta, questions } };
+    }
     const options: unknown[] = a.meta?.options ?? [];
     if (!Number.isInteger(optionIndex) || (optionIndex as number) < 0 || (optionIndex as number) >= options.length) return a;
     const index = optionIndex as number;

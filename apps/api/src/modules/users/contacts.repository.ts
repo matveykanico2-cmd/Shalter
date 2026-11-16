@@ -58,8 +58,8 @@ export class ContactsRepository {
   }
 
   /** Своё фото контакта (видит только владелец); false — такого контакта нет. */
-  public setPhoto(ownerId: string, userId: string, url: string | null): boolean {
-    return this.db.update(contacts).set({ localAvatar: url }).where(and(eq(contacts.ownerId, ownerId), eq(contacts.userId, userId))).run().changes > 0;
+  public setPhoto(ownerId: string, userId: string, url: string | null, avatars: string[] = url ? [url] : []): boolean {
+    return this.db.update(contacts).set({ localAvatar: url, localAvatars: JSON.stringify(avatars) }).where(and(eq(contacts.ownerId, ownerId), eq(contacts.userId, userId))).run().changes > 0;
   }
 
   /** false — такого контакта нет. */

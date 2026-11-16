@@ -23,6 +23,7 @@ type Props = {
   note: string | null;
   /** Своё фото контакта — ссылка на файл, или смайл как «emoji:😀» (так его хранит сервер). */
   photo: string | null;
+  avatars?: string[];
   /** Открыть личный чат (создать, если нет) — для «Предложить фото». */
   openDm: () => Promise<string>;
   onSaved: (next: { contactName: string | null; note: string | null; photo: string | null }) => void;
@@ -41,12 +42,13 @@ const EMOJI_PREFIX = "emoji:";
  * «Изменить контакт», как в Telegram: имя и фамилия для себя, заметка, своё фото или
  * анимированный смайл (видите только вы) и «Предложить фото» — фото уходит человеку в личку.
  */
-export function EditContactDialog({ user, contactName, note, photo, openDm, onSaved, onClose }: Props) {
+export function EditContactDialog({ user, contactName, note, photo, avatars, openDm, onSaved, onClose }: Props) {
   const [initialFirst, initialLast] = splitName(contactName ?? user.profileName ?? user.name);
   const [first, setFirst] = useState(initialFirst);
   const [last, setLast] = useState(initialLast);
   const [text, setText] = useState(note ?? "");
   const [localPhoto, setLocalPhoto] = useState(photo);
+  const [localAvatars, setLocalAvatars] = useState<string[]>(() => avatars?.length ? avatars : photo ? [photo] : []);
   const [busy, setBusy] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const setInput = useRef<HTMLInputElement>(null);
@@ -66,7 +68,10 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
       const name = [first.trim(), last.trim()].filter(Boolean).join(" ");
       await profileApi.renameContact(user.id, name);
       const res = await profileApi.setNote(user.id, text);
-      if (localPhoto !== photo) await profileApi.setContactPhoto(user.id, localEmoji ? { emoji: localEmoji } : { url: localPhoto ?? "" });
+      if (localPhoto !== photo || localAvatars.length !== (avatars?.length ?? (photo ? 1 : 0))) {
+        const gallery = localAvatars.length > 1 || (avatars?.length ?? 0) > 1 ? { avatars: localAvatars } : {};
+        await profileApi.setContactPhoto(user.id, localEmoji ? { emoji: localEmoji, ...gallery } : { url: localPhoto ?? "", ...gallery });
+      }
       onSaved({ contactName: name || null, note: res.note ?? null, photo: localPhoto });
       onClose();
     } catch (err) {
@@ -81,7 +86,9 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
     setEmojiOpen(false);
     setBusy(true);
     try {
-      setLocalPhoto((await uploadFile(file, "image")).url);
+      const url = (await uploadFile(file, "image")).url;
+      setLocalAvatars((all) => [...all, url]);
+      setLocalPhoto(url);
     } catch (err) {
       toast(errorText(err, "Не удалось загрузить фото"), { error: true });
     }
@@ -133,13 +140,31 @@ export function EditContactDialog({ user, contactName, note, photo, openDm, onSa
         <EmojiAvatarPicker
           withStickers
           onPick={(e) => {
-            setLocalPhoto(EMOJI_PREFIX + e);
+            const value = EMOJI_PREFIX + e;
+            setLocalAvatars((all) => [...all, value]);
+            setLocalPhoto(value);
             setEmojiOpen(false);
           }}
         />
       ) : null}
+      {localAvatars.length ? (
+        <div className={styles.contactAvatarGallery} aria-label="Аватары контакта">
+          {localAvatars.map((value, index) => {
+            const emoji = value.startsWith(EMOJI_PREFIX) ? value.slice(EMOJI_PREFIX.length) : null;
+            return (
+              <div className={styles.contactAvatarItem} key={`${value}-${index}`}>
+                <Avatar size={48} name={firstName} color={user.avatarColor} image={emoji ? null : value} emoji={emoji} />
+                <button type="button" className={styles.contactAvatarRemove} aria-label={`Убрать аватар ${index + 1}`} onClick={() => {
+                  setLocalAvatars((all) => all.filter((_, i) => i !== index));
+                  setLocalPhoto(index === localAvatars.length - 1 ? (localAvatars[index - 1] ?? null) : (localAvatars[index + 1] ?? null));
+                }}><Icon name="X" size={12} /></button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       {localPhoto ? (
-        <button type="button" className={`${styles.actionButton} ${styles.danger}`} disabled={busy} onClick={() => setLocalPhoto(null)}>
+        <button type="button" className={`${styles.actionButton} ${styles.danger}`} disabled={busy} onClick={() => { setLocalPhoto(null); setLocalAvatars([]); }}>
           <Icon name="Trash" size={22} />
           {localEmoji ? "Убрать свой смайл" : "Убрать своё фото"}
         </button>

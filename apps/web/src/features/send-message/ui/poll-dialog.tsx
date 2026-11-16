@@ -166,7 +166,8 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
         </p>
       ) : null}
       <div className={styles.actions}>
-        <Button onClick={create}>Создать</Button>
+        {stepIndex > 0 ? <Button variant="secondary" onClick={() => { setStepIndex((i) => i - 1); setError(null); }}>Назад</Button> : null}
+        {stepIndex < steps.length - 1 ? <Button variant="secondary" onClick={() => { setStepIndex((i) => i + 1); setError(null); }}>Дальше</Button> : <Button onClick={create}>Создать опрос</Button>}
         <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Dialog>

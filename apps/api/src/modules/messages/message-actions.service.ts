@@ -187,7 +187,7 @@ export class MessageActionsService {
   }
 
   public vote(uid: string, chatId: string, messageId: string, dto: VoteDto) {
-    return this.update(uid, chatId, messageId, (m) => edits.votePoll(m, dto.optionIndex, uid));
+    return this.update(uid, chatId, messageId, (m) => edits.votePoll(m, dto.optionIndex, uid, dto.questionIndex));
   }
 
   public retractVote(uid: string, chatId: string, messageId: string) {
