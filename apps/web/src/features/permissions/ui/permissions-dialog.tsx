@@ -140,11 +140,16 @@ export function PermissionsDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let alive = true;
-    for (const item of list) {
-      if (item.available) void alreadyGranted(item.key).then((ok) => alive && ok && setState((s) => (s[item.key] ? s : { ...s, [item.key]: "ok" })));
-    }
+    const refresh = () => {
+      for (const item of list) {
+        if (item.available) void alreadyGranted(item.key).then((ok) => alive && setState((s) => (ok ? { ...s, [item.key]: "ok" } : s[item.key] === "ok" ? { ...s, [item.key]: "denied" } : s)));
+      }
+    };
+    refresh();
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       alive = false;
+      document.removeEventListener("visibilitychange", refresh);
     };
   }, [list]);
 
