@@ -342,6 +342,9 @@ async function joinLive(streamId: string, meId: string) {
     s.participants = data.participants;
     s.messages = data.messages;
     s.myRole = roleOf(data.participants, meId);
+    // Показываем экран сразу после входа. ICE и разрешения камеры нужны только
+    // для подключения медиа и не должны блокировать кнопку «Смотреть».
+    notify();
   } catch (err) {
     if (state === s) {
       s.unsubs.forEach((u) => u());
