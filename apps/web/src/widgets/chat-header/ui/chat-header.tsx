@@ -92,7 +92,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
         className={styles.info}
         role="button"
         tabIndex={0}
-        aria-label={chat.type === "dm" ? title : "Информация о чате"}
+        aria-label={chat.type === "dm" ? `${title} · Открыть профиль` : "Информация о чате"}
         onClick={() => onInfo(true)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

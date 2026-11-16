@@ -64,7 +64,7 @@ test("шапка лички открывает панель собеседник
 
   const a = (await openAs(alice.api, `/chat/${chat.id}`)).page;
   await expect(messageText(a, "Загляни в профиль")).toBeVisible();
-  await a.getByRole("banner").getByRole("button", { name: /^(Б\s*)?Борис/ }).click();
+  await a.getByRole("banner").getByRole("button", { name: /Борис/ }).click();
   const info = profilePanel(a);
   await expect(info).toBeVisible();
   await expect(info.getByText(`@${boris.username}`)).toBeVisible();

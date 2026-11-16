@@ -338,6 +338,7 @@ export function UserProfilePanel({ userId, me }: Props) {
       <div className={styles.quickActions}>
         <QuickAction icon={isSelf ? "Bookmark" : "MessageSquare"} label={isSelf ? "Избранное" : "Написать"} onClick={() => void startChat()} />
         {!isSelf && !u.isBot && !blocked ? <QuickAction icon="Phone" label="Позвонить" onClick={() => void call("audio")} /> : null}
+        {!isSelf && !u.isBot ? <QuickAction icon="Lock" label={blocked ? "Разблокировать" : "Заблокировать"} onClick={() => void toggleBlock()} /> : null}
         {!isSelf && !u.isBot ? (
           <QuickAction
             icon="Mic"

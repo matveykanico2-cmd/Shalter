@@ -84,10 +84,10 @@ test("блокировка из контактов и разблокировка
   await a.goto(`/u/${boris.username}`);
   const panel = profilePanel(a);
   await expect(panel.getByRole("button", { name: /Разблокировать/ })).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Звонок", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Позвонить", exact: true })).toHaveCount(0);
   await panel.getByRole("button", { name: /Разблокировать/ }).click();
   await expect(panel.getByRole("button", { name: /Заблокировать/ })).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Звонок", exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Позвонить", exact: true })).toBeVisible();
 
   await sendMessage(b, "Ура, снова можно");
   await expect.poll(() => texts(alice, chat.id)).toContain("Ура, снова можно");
