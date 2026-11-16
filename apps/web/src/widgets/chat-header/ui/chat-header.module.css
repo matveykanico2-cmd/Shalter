@@ -44,6 +44,27 @@
   color: var(--color-accent-contrast);
 }
 
+.avatarStoryButton {
+  display: flex;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarStoryRing {
+  display: flex;
+  padding: 2px;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.avatarStoryUnseen {
+  border-color: var(--color-accent);
+}
+
 .titles {
   display: flex;
   min-width: 0;

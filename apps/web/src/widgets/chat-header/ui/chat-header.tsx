@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -14,6 +15,7 @@ import { useTopicsToggle } from "@/features/topics";
 import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
+import { hasUnseen, openStoryViewer, storyQueries } from "@/entities/story";
 import { ProfileStatusBadge } from "@/entities/user";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
@@ -63,6 +65,23 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
   const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
   const chatCall = activeCall?.call.chatId === chat.id ? activeCall : null;
+  const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
+  const openAvatar = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (stories?.stories.length) openStoryViewer([stories], 0);
+    else onInfo(true);
+  };
+  const avatar = (
+    <Avatar
+      size={40}
+      name={other?.name ?? title}
+      color={other?.avatarColor ?? chat.avatarColor}
+      image={other?.avatarImage ?? chat.avatarImage}
+      emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined}
+      sticker={!other && chat.avatarType === "sticker"}
+      online={chat.type === "dm" && !!other?.online}
+    />
+  );
   return (
     // Шапка чата — banner, как <header> старого клиента вне <main>.
     <header className={styles.header} role="banner">
@@ -86,16 +105,14 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
           <span className={styles.saved}>
             <Icon name="Bookmark" size={20} />
           </span>
+        ) : chat.type === "dm" ? (
+          <button type="button" className={styles.avatarStoryButton} aria-label={stories?.stories.length ? `Открыть истории ${other?.name ?? title}` : `Открыть профиль ${other?.name ?? title}`} onClick={openAvatar}>
+            <span className={stories?.stories.length ? `${styles.avatarStoryRing} ${hasUnseen(stories) ? styles.avatarStoryUnseen : ""}` : undefined}>
+              {avatar}
+            </span>
+          </button>
         ) : (
-          <Avatar
-            size={40}
-            name={other?.name ?? title}
-            color={other?.avatarColor ?? chat.avatarColor}
-            image={other?.avatarImage ?? chat.avatarImage}
-            emoji={other ? other.avatarEmoji : !chat.avatarType || chat.avatarType === "emoji" ? chat.avatarEmoji : undefined}
-            sticker={!other && chat.avatarType === "sticker"}
-            online={chat.type === "dm" && !!other?.online}
-          />
+          avatar
         )}
         <div className={styles.titles}>
           <h1 className={chat.secret ? `${styles.title} ${styles.secretTitle}` : styles.title} translate="no">
