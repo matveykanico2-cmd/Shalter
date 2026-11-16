@@ -5,7 +5,7 @@ import { chatQueries, type ChatSummary } from "@/entities/chat";
 import { openContactEditor } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, askText, Icon, toast } from "@/shared/ui";
+import { askConfirm, Icon, toast } from "@/shared/ui";
 
 import { addContact } from "../api/contact-bar";
 import { dismiss, isDismissed } from "../lib/dismissed";
@@ -26,12 +26,13 @@ export function ContactBar({ chat, blocked, onToggleBlock }: Props) {
   if (chat.type !== "dm" || chat.isSaved || !other || other.isBot || other.isServiceBot || other.inContacts || hidden || added) return null;
 
   const add = async () => {
-    const name = (await askText("Как записать в контактах?", { initial: other.name }))?.trim();
-    if (name === undefined) return;
     try {
       const sharePhone = await askConfirm(`Поделиться своим номером телефона с ${other.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" });
-      await addContact(other.id, name || null, sharePhone);
-      openContactEditor({ id: other.id, name: other.name, avatarColor: other.avatarColor, avatarImage: other.avatarImage, avatarEmoji: other.avatarEmoji }, name || null);
+      // Сначала создаём контакт с именем профиля, затем сразу открываем полноценный
+      // редактор: имя, фамилия, заметка, локальные аватары и предложение фото меняются
+      // в одном окне, без дополнительного маленького prompt.
+      await addContact(other.id, other.name, sharePhone);
+      openContactEditor({ id: other.id, name: other.name, avatarColor: other.avatarColor, avatarImage: other.avatarImage, avatarEmoji: other.avatarEmoji }, other.name);
       setAdded(true);
       void client.invalidateQueries({ queryKey: chatQueries.baseKey });
     } catch (err) {

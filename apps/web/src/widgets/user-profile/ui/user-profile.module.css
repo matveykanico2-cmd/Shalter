@@ -945,9 +945,11 @@
 
 /* «Изменить контакт» */
 .editContact {
+  max-width: min(560px, 100%);
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .editContactHead {

@@ -1294,17 +1294,17 @@ describe("комментарии: права", () => {
 describe("плашки и низ чата", () => {
   const dm = () => chat({ type: "dm", title: "", otherUser: LENA as ChatSummary["otherUser"] });
 
-  it("личка не с контактом: «Добавить в контакты» с именем и без номера; крестик прячет", async () => {
+  it("личка не с контактом: добавление открывает единое окно редактирования; крестик прячет", async () => {
     localStorage.clear();
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/contacts": { body: { ok: true } } });
     renderChat(dm());
     fireEvent.click(await screen.findByRole("button", { name: "Добавить в контакты" }));
-    const ask = await screen.findByRole("dialog", { name: "Как записать в контактах?" });
-    fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Леночка" } });
-    fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
     const share = await screen.findByRole("dialog", { name: "Поделиться своим номером телефона с Лена?" });
     fireEvent.click(within(share).getByRole("button", { name: "Не делиться" }));
-    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/contacts")?.body).toEqual({ userId: LENA.id, localName: "Леночка", sharePhone: false }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/contacts")?.body).toEqual({ userId: LENA.id, localName: LENA.name, sharePhone: false }));
+    const editor = await screen.findByRole("dialog", { name: "Изменить контакт" });
+    expect(within(editor).getByDisplayValue(LENA.name)).toBeTruthy();
+    fireEvent.click(within(editor).getByRole("button", { name: "Отмена" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Добавить в контакты" })).toBeNull());
     cleanup();
 
