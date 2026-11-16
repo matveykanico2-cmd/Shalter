@@ -2,7 +2,7 @@
   position: relative;
   display: flex;
   height: 100%;
-  background: var(--color-surface-alt);
+  background: var(--panel-bg);
 }
 
 /* Колонка чата; справа от неё — «Информация о чате». */
@@ -11,7 +11,7 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  background: var(--color-surface-alt);
+  background: var(--panel-bg);
 }
 
 .missing {
