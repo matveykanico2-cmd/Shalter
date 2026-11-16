@@ -145,6 +145,8 @@
 }
 
 .attachmentCard {
+  position: relative;
+  z-index: 3;
   display: flex;
   width: min(86vw, 420px);
   max-height: 70vh;
@@ -177,10 +179,20 @@
 }
 
 .attachmentOption {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-surface-alt);
+}
+
+.attachmentOption:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .storyAudio {
   position: absolute;

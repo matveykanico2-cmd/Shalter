@@ -14,7 +14,7 @@ import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { STORY_TTL_MS } from "./lib/story.mapper.js";
 import type { Story, StoryItem } from "./model/domain.js";
-import type { CreateChannelStoryDto, CreateStoryDto, EditStoryCommentDto, StoryCommentDto } from "./model/schemas/story.schema.js";
+import type { CreateChannelStoryDto, CreateStoryDto, EditStoryCommentDto, StoryAttachmentActionDto, StoryCommentDto } from "./model/schemas/story.schema.js";
 import { StoriesRepository } from "./stories.repository.js";
 import { StoryAudienceService } from "./story-audience.service.js";
 
@@ -155,6 +155,37 @@ export class StoriesService {
       likeCount: story.likedByIds.length,
     });
     return { story: this.storyForOne(story, uid), liked: story.likedByIds.includes(uid), likeCount: story.likedByIds.length };
+  }
+
+  public attachmentAction(uid: string, id: string, dto: StoryAttachmentActionDto) {
+    const story = this.visibleStory(uid, id);
+    const item = story.items[dto.itemIndex];
+    if (!item?.meta || (item.kind !== "poll" && item.kind !== "checklist")) throw new ApiError(400, "Это вложение нельзя изменить");
+    const meta = { ...item.meta } as Record<string, any>;
+    if (item.kind === "poll") {
+      if (dto.action !== "vote" || dto.optionIndex === undefined) throw new ApiError(400, "Нужно выбрать вариант");
+      const options = Array.isArray(meta.options) ? meta.options : [];
+      if (dto.optionIndex >= options.length) throw new ApiError(400, "Вариант не найден");
+      const voterIds = Array.from({ length: options.length }, (_, i) => new Set<string>(Array.isArray(meta.voterIds?.[i]) ? meta.voterIds[i] : []));
+      voterIds.forEach((ids) => ids.delete(uid));
+      voterIds[dto.optionIndex]!.add(uid);
+      meta.voterIds = voterIds.map((ids) => [...ids]);
+      meta.votes = voterIds.map((ids) => ids.size);
+    } else {
+      if (dto.action !== "toggle" || dto.optionIndex === undefined) throw new ApiError(400, "Нужно выбрать пункт");
+      const values = Array.isArray(meta.items) ? meta.items : [];
+      if (dto.optionIndex >= values.length || !values[dto.optionIndex] || typeof values[dto.optionIndex] !== "object") throw new ApiError(400, "Пункт не найден");
+      const next = values.map((value: any, index: number) => {
+        if (index !== dto.optionIndex) return value;
+        const doneByIds = new Set<string>(Array.isArray(value.doneByIds) ? value.doneByIds : []);
+        if (doneByIds.has(uid)) doneByIds.delete(uid); else doneByIds.add(uid);
+        return { ...value, done: doneByIds.size > 0, doneByIds: [...doneByIds] };
+      });
+      meta.items = next;
+    }
+    const updated = this.stories.updateItem(id, dto.itemIndex, { meta })!;
+    this.realtime.broadcastToUsers(this.audienceForStory(updated), { type: "story:updated", storyId: id, userId: updated.userId });
+    return { story: this.storyForOne(updated, uid) };
   }
 
   public comments(uid: string, id: string) {

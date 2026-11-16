@@ -5,21 +5,32 @@ import type { StoryItem } from "../domain.js";
 
 // Как server/routes/stories.js.
 const MAX_ITEMS = 10;
+const MAX_META_BYTES = 32_000;
+
+function safeMeta(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const json = JSON.stringify(value);
+    return json.length <= MAX_META_BYTES ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Кадры истории: items, а без него — один кадр из kind и url; неподходящие отбрасываются. */
 const storyItems = requestBody({ kind: z.unknown().optional(), url: z.unknown().optional(), meta: z.unknown().optional(), items: z.unknown().optional() }).transform(({ kind, url, meta, items }): StoryItem[] => {
-  const rawItems: any[] = Array.isArray(items) && items.length ? items : [{ kind, url }];
+  const rawItems: any[] = Array.isArray(items) && items.length ? items : [{ kind, url, meta }];
   return rawItems
     .slice(0, MAX_ITEMS)
     .filter((it) => {
       if (!it || typeof it.kind !== "string") return false;
       if (["image", "video"].includes(it.kind)) return !!it.url && isSafeUrl(it.url);
-      return ["poll", "checklist", "contact", "location", "game", "dice"].includes(it.kind) && it.meta && typeof it.meta === "object";
+      return ["poll", "checklist", "contact", "location", "game", "dice"].includes(it.kind) && !!safeMeta(it.meta);
     })
     .map((it) => ({
       kind: it.kind,
       url: typeof it.url === "string" ? it.url : "",
-      ...(it.meta && typeof it.meta === "object" ? { meta: it.meta } : {}),
+      ...(safeMeta(it.meta) ? { meta: safeMeta(it.meta) } : {}),
       ...(typeof it.audioUrl === "string" && isSafeUrl(it.audioUrl) ? { audioUrl: it.audioUrl } : {}),
     }));
 });
@@ -33,6 +44,13 @@ export type CreateStoryDto = z.infer<typeof createStorySchema>;
 /** История канала: пустую отклоняет сервис — после проверки канала и прав. */
 export const createChannelStorySchema = storyItems.transform((items) => ({ items }));
 export type CreateChannelStoryDto = z.infer<typeof createChannelStorySchema>;
+
+export const storyAttachmentActionSchema = requestBody({
+  itemIndex: z.number().int().min(0).max(MAX_ITEMS - 1),
+  action: z.enum(["vote", "toggle"]),
+  optionIndex: z.number().int().min(0).max(19).optional(),
+});
+export type StoryAttachmentActionDto = z.infer<typeof storyAttachmentActionSchema>;
 
 // Пустой текст отклоняет сервис: сначала проверяется, что история видна (404).
 const commentText = () => text().transform((v) => v.trim().slice(0, 500));

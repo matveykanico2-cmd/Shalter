@@ -75,6 +75,15 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
     void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
     request.onChanged?.();
   };
+  const attachmentAction = async (action: "vote" | "toggle", optionIndex: number) => {
+    if (!story || !frame) return;
+    try {
+      const { story: updated } = await storyApi.attachmentAction(story.id, frame.index, action, optionIndex);
+      dispatch({ type: "patchStory", storyId: story.id, patch: updated });
+    } catch (err) {
+      toast(errorText(err, "Не удалось изменить вложение"), { error: true });
+    }
+  };
 
   const gone = s.done || !frame;
   useEffect(() => {
@@ -401,7 +410,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             />
           )
         ) : isAttachment ? (
-          <StoryAttachment item={frame.item} />
+          <StoryAttachment item={frame.item} onAction={(action, index) => void attachmentAction(action, index)} />
         ) : (
           imageFailed === frameKey ? (
             <div className={`${styles.media} ${styles.processing}`}>
@@ -551,15 +560,16 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
   );
 }
 
-function StoryAttachment({ item }: { item: { kind: string; meta?: Record<string, unknown> } }) {
+function StoryAttachment({ item, onAction }: { item: { kind: string; meta?: Record<string, unknown> }; onAction: (action: "vote" | "toggle", index: number) => void }) {
   const meta = item.meta ?? {};
   if (item.kind === "poll") {
     const options = Array.isArray(meta.options) ? meta.options.filter((v): v is string => typeof v === "string") : [];
-    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>?</span><h2>{String(meta.question ?? "Опрос")}</h2>{options.map((option) => <div key={option} className={styles.attachmentOption}>{option}</div>)}</div>;
+    const voterIds = Array.isArray(meta.voterIds) ? meta.voterIds : [];
+    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>?</span><h2>{String(meta.question ?? "Опрос")}</h2>{options.map((option, index) => <button type="button" key={`${option}-${index}`} className={styles.attachmentOption} onClick={() => onAction("vote", index)}>{option} <small>{Array.isArray(voterIds[index]) ? voterIds[index].length : 0}</small></button>)}</div>;
   }
   if (item.kind === "checklist") {
     const values = Array.isArray(meta.items) ? meta.items.filter((v): v is { text?: unknown; done?: unknown } => !!v && typeof v === "object") : [];
-    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>✓</span><h2>{String(meta.title ?? "Чек-лист")}</h2>{values.map((value, index) => <div key={index} className={styles.attachmentOption}>{value.done ? "✓" : "○"} {String(value.text ?? "")}</div>)}</div>;
+    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>✓</span><h2>{String(meta.title ?? "Чек-лист")}</h2>{values.map((value, index) => <button type="button" key={index} className={styles.attachmentOption} onClick={() => onAction("toggle", index)}>{value.done ? "✓" : "○"} {String(value.text ?? "")}</button>)}</div>;
   }
   return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>📎</span><h2>{String(meta.title ?? "Вложение")}</h2></div>;
 }

@@ -5,10 +5,12 @@ import { AuthGuard } from "../auth/guards/auth.guard.js";
 import {
   createChannelStorySchema,
   createStorySchema,
+  storyAttachmentActionSchema,
   editStoryCommentSchema,
   storyCommentSchema,
   type CreateChannelStoryDto,
   type CreateStoryDto,
+  type StoryAttachmentActionDto,
   type EditStoryCommentDto,
   type StoryCommentDto,
 } from "./model/schemas/story.schema.js";
@@ -57,6 +59,12 @@ export class StoriesController {
   @HttpCode(200)
   public like(@Req() req: Request, @Param("id") id: string) {
     return this.stories.like(req.uid!, id);
+  }
+
+  @Post(":id/attachment-action")
+  @HttpCode(200)
+  public attachmentAction(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(storyAttachmentActionSchema)) dto: StoryAttachmentActionDto) {
+    return this.stories.attachmentAction(req.uid!, id, dto);
   }
 
   @Get(":id/comments")

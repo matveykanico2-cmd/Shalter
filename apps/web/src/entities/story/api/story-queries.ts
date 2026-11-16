@@ -61,6 +61,8 @@ export const storyApi = {
   view: (storyId: string) => http.post<z.infer<typeof viewBody>>(`/api/stories/${id(storyId)}/view`),
   remove: (storyId: string) => http.delete<unknown>(`/api/stories/${id(storyId)}`),
   like: (storyId: string) => http.post<z.infer<typeof likeBody>>(`/api/stories/${id(storyId)}/like`),
+  attachmentAction: (storyId: string, itemIndex: number, action: "vote" | "toggle", optionIndex: number) =>
+    http.post<z.infer<typeof storyRowBody>>(`/api/stories/${id(storyId)}/attachment-action`, { itemIndex, action, optionIndex }),
   viewers: (storyId: string) => http.get<z.infer<typeof viewersBody>>(`/api/stories/${id(storyId)}/viewers`),
   comments: (storyId: string) => http.get<z.infer<typeof commentsBody>>(`/api/stories/${id(storyId)}/comments`),
   addComment: (storyId: string, text: string, parentId: string | null) => http.post<z.infer<typeof commentBody>>(`/api/stories/${id(storyId)}/comments`, { text, parentId }),
