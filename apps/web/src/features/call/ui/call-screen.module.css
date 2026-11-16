@@ -13,7 +13,7 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background: #14161f;
+  background: radial-gradient(circle at 50% 18%, #28334a 0%, #151923 46%, #090b10 100%);
   color: #fff;
 }
 
@@ -47,7 +47,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 16px;
+  margin: 8px max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+  padding: 7px 8px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 18px;
+  background: rgb(8 11 18 / 42%);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 18%), inset 0 1px 0 rgb(255 255 255 / 8%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
 }
 
 .headerActions {
@@ -60,7 +67,10 @@
 .headerButton {
   display: flex;
   align-items: center;
-  padding: 8px;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
   border: none;
   border-radius: 999px;
   background: none;
@@ -70,7 +80,14 @@
 }
 
 .headerButton:hover {
-  background: rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 14%);
+}
+
+.headerButton:focus-visible,
+.control:focus-visible,
+.hangup:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 90%);
+  outline-offset: 2px;
 }
 
 .headerCenter {
@@ -83,7 +100,8 @@
 .title {
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -92,7 +110,7 @@
   margin: 0;
   color: rgb(255 255 255 / 60%);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .invite {
@@ -199,7 +217,8 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 24px;
-  background: rgb(255 255 255 / 5%);
+  background: linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 3%));
+  box-shadow: 0 18px 42px rgb(0 0 0 / 18%);
 }
 
 /* Видео заполняет плитку (края обрезаются), «Кадр целиком» — без обрезки. */
@@ -336,7 +355,9 @@
   max-width: calc(100% - 24px);
   padding: 6px;
   border-radius: 16px;
-  background: rgb(10 12 18 / 55%);
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(10 12 18 / 72%);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 28%);
   transform: translateX(-50%);
   backdrop-filter: blur(6px);
 }
@@ -437,8 +458,13 @@
   right: max(16px, env(safe-area-inset-right));
   bottom: calc(140px + env(safe-area-inset-bottom));
   z-index: 20;
-  width: 112px;
-  height: 112px;
+  width: 116px;
+  height: 116px;
+  padding: 3px;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 999px;
+  background: rgb(9 12 18 / 70%);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -529,24 +555,31 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   max-height: 42vh;
   overflow-y: auto;
-  padding: 32px max(12px, env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  background: linear-gradient(transparent, rgb(0 0 0 / 55%));
+  padding: 36px max(14px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: linear-gradient(transparent, rgb(0 0 0 / 72%));
 }
 
 .control {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border: none;
   border-radius: 999px;
-  background: rgb(255 255 255 / 15%);
+  background: rgb(255 255 255 / 12%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%);
+  transition: transform 0.16s ease, background-color 0.16s ease;
   color: #fff;
   cursor: pointer;
+}
+
+.control:hover {
+  transform: translateY(-1px);
+  background: rgb(255 255 255 / 21%);
 }
 
 .active {
@@ -580,7 +613,14 @@
   border-radius: 999px;
   background: var(--color-danger);
   color: #fff;
+  box-shadow: 0 8px 22px rgb(239 68 68 / 28%);
+  transition: transform 0.16s ease, filter 0.16s ease;
   cursor: pointer;
+}
+
+.hangup:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
 }
 
 .hangupIcon {
