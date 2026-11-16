@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import type { MouseEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -66,7 +65,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
   const chatCall = activeCall?.call.chatId === chat.id ? activeCall : null;
   const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
-  const openAvatar = (event: MouseEvent<HTMLButtonElement>) => {
+  const openAvatar = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
     if (stories?.stories.length) openStoryViewer([stories], 0);
     else onInfo(true);
@@ -93,6 +92,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
         className={styles.info}
         role="button"
         tabIndex={0}
+        aria-label={title}
         onClick={() => onInfo(true)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

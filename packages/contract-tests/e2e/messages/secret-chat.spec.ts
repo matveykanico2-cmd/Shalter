@@ -14,6 +14,7 @@ test("секретный чат из профиля: переписка без �
 
   // Профиль Бориса по его адресу /u/<username> → «Начать секретный чат» → подтверждение.
   const a = (await openAs(alice.api, `/u/${boris.username}`)).page;
+  await a.getByRole("button", { name: "Дополнительные действия профиля" }).click();
   await a.getByRole("button", { name: "Начать секретный чат" }).click();
   await expect(a.getByRole("heading", { name: "Начать секретный чат с Борис?" })).toBeVisible();
   await a.getByRole("button", { name: "Начать", exact: true }).click();
