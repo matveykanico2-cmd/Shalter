@@ -90,9 +90,24 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     }
   };
 
-  const attachmentStory = async (kind: "poll" | "checklist") => {
-    const title = await askText(kind === "poll" ? "Вопрос опроса" : "Название чек-листа", { placeholder: kind === "poll" ? "Например: Куда пойдём?" : "Например: План на день", okLabel: "Дальше" });
+  const attachmentStory = async (kind: "poll" | "checklist" | "contact" | "location" | "game" | "dice") => {
+    const titleLabel = kind === "poll" ? "Вопрос опроса" : kind === "checklist" ? "Название чек-листа" : kind === "contact" ? "Имя контакта" : kind === "location" ? "Название места" : kind === "game" ? "Название игры" : "Название броска";
+    const title = await askText(titleLabel, { placeholder: "Введите название", okLabel: kind === "poll" || kind === "checklist" ? "Дальше" : "Опубликовать" });
     if (!title?.trim()) return;
+    if (!["poll", "checklist"].includes(kind)) {
+      const details = await askText(kind === "contact" ? "Телефон или ник контакта" : kind === "location" ? "Адрес или координаты" : "Описание", { placeholder: "Можно оставить пустым", okLabel: "Опубликовать" });
+      try {
+        setProgress("Публикуем историю…");
+        await storyApi.post([{ kind, meta: { title: title.trim(), text: details?.trim() ?? "" } }]);
+        await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+      } catch (err) {
+        toast(errorText(err, "Не удалось выложить историю"), { error: true });
+      } finally {
+        setProgress(null);
+        setCreating(null);
+      }
+      return;
+    }
     const raw = await askText(kind === "poll" ? "Варианты ответа через запятую" : "Пункты через запятую", { placeholder: kind === "poll" ? "Море, горы, город" : "Позвонить, купить продукты", okLabel: "Опубликовать" });
     const values = (raw ?? "").split(",").map((v) => v.trim()).filter(Boolean).slice(0, 10);
     if (values.length < 2) {
@@ -173,6 +188,18 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           </button>
           <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}>
             <Icon name="CheckCheck" size={18} /> Чек-лист
+          </button>
+          <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}>
+            <Icon name="User" size={18} /> Контакт
+          </button>
+          <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}>
+            <Icon name="MapPin" size={18} /> Место
+          </button>
+          <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}>
+            <Icon name="Zap" size={18} /> Игра
+          </button>
+          <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}>
+            <Icon name="Star" size={18} /> Кубик
           </button>
           <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
         </div>
