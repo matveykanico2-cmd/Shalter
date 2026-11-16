@@ -92,7 +92,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
         className={styles.info}
         role="button"
         tabIndex={0}
-        aria-label={title}
+        aria-label={chat.type === "dm" ? title : "Информация о чате"}
         onClick={() => onInfo(true)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -106,11 +106,11 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
             <Icon name="Bookmark" size={20} />
           </span>
         ) : chat.type === "dm" ? (
-          <button type="button" className={styles.avatarStoryButton} aria-label={stories?.stories.length ? `Открыть истории ${other?.name ?? title}` : `Открыть профиль ${other?.name ?? title}`} onClick={openAvatar}>
+          <span className={styles.avatarStoryButton} onClick={openAvatar}>
             <span className={stories?.stories.length ? `${styles.avatarStoryRing} ${hasUnseen(stories) ? styles.avatarStoryUnseen : ""}` : undefined}>
               {avatar}
             </span>
-          </button>
+          </span>
         ) : (
           avatar
         )}
