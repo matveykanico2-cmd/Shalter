@@ -69,6 +69,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
   const paneOpen = s.commentsOpen || s.viewersOpen;
   const running = !held && !paneOpen && !typing;
   const isVideo = frame?.item.kind === "video";
+  const isAttachment = !!frame && !["image", "video"].includes(frame.item.kind);
 
   const changed = () => {
     void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
@@ -399,6 +400,8 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
               onError={() => (frame.item.previewUrl ? undefined : setVideoFailed(frameKey))}
             />
           )
+        ) : isAttachment ? (
+          <StoryAttachment item={frame.item} />
         ) : (
           imageFailed === frameKey ? (
             <div className={`${styles.media} ${styles.processing}`}>
@@ -546,6 +549,19 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
     </div>,
     document.body
   );
+}
+
+function StoryAttachment({ item }: { item: { kind: string; meta?: Record<string, unknown> } }) {
+  const meta = item.meta ?? {};
+  if (item.kind === "poll") {
+    const options = Array.isArray(meta.options) ? meta.options.filter((v): v is string => typeof v === "string") : [];
+    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>?</span><h2>{String(meta.question ?? "Опрос")}</h2>{options.map((option) => <div key={option} className={styles.attachmentOption}>{option}</div>)}</div>;
+  }
+  if (item.kind === "checklist") {
+    const values = Array.isArray(meta.items) ? meta.items.filter((v): v is { text?: unknown; done?: unknown } => !!v && typeof v === "object") : [];
+    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>✓</span><h2>{String(meta.title ?? "Чек-лист")}</h2>{values.map((value, index) => <div key={index} className={styles.attachmentOption}>{value.done ? "✓" : "○"} {String(value.text ?? "")}</div>)}</div>;
+  }
+  return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>📎</span><h2>{String(meta.title ?? "Вложение")}</h2></div>;
 }
 
 const asWho = (author: StoryAuthor) => ({ id: author.id, isChannel: "isChannel" in author ? author.isChannel : false });

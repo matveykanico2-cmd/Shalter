@@ -11,8 +11,9 @@ export const commentId = z.string().regex(/^stc_\d+_[a-f0-9]{8}$/);
 
 /** Элемент истории; поля обработанного видео дописывает processStoryVideos. */
 export const storyItem = z.strictObject({
-  kind: z.enum(["image", "video"]),
+  kind: z.enum(["image", "video", "poll", "checklist", "contact", "location", "game", "dice"]),
   url: z.string(),
+  meta: z.record(z.string(), z.unknown()).optional(),
   audioUrl: z.string().optional(),
   previewUrl: z.string().optional(),
   posterUrl: z.string().optional(),

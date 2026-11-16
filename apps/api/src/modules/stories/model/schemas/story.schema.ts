@@ -7,14 +7,19 @@ import type { StoryItem } from "../domain.js";
 const MAX_ITEMS = 10;
 
 /** Кадры истории: items, а без него — один кадр из kind и url; неподходящие отбрасываются. */
-const storyItems = requestBody({ kind: z.unknown().optional(), url: z.unknown().optional(), items: z.unknown().optional() }).transform(({ kind, url, items }): StoryItem[] => {
+const storyItems = requestBody({ kind: z.unknown().optional(), url: z.unknown().optional(), meta: z.unknown().optional(), items: z.unknown().optional() }).transform(({ kind, url, meta, items }): StoryItem[] => {
   const rawItems: any[] = Array.isArray(items) && items.length ? items : [{ kind, url }];
   return rawItems
     .slice(0, MAX_ITEMS)
-    .filter((it) => it && ["image", "video"].includes(it.kind) && it.url && isSafeUrl(it.url))
+    .filter((it) => {
+      if (!it || typeof it.kind !== "string") return false;
+      if (["image", "video"].includes(it.kind)) return !!it.url && isSafeUrl(it.url);
+      return ["poll", "checklist", "contact", "location", "game", "dice"].includes(it.kind) && it.meta && typeof it.meta === "object";
+    })
     .map((it) => ({
       kind: it.kind,
-      url: it.url,
+      url: typeof it.url === "string" ? it.url : "",
+      ...(it.meta && typeof it.meta === "object" ? { meta: it.meta } : {}),
       ...(typeof it.audioUrl === "string" && isSafeUrl(it.audioUrl) ? { audioUrl: it.audioUrl } : {}),
     }));
 });

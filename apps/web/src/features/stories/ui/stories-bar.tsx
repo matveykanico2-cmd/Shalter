@@ -2,12 +2,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SelfUser } from "@/entities/session";
-import { hasUnseen, openStoryViewer, type StoryGroup, storyQueries } from "@/entities/story";
+import { hasUnseen, openStoryViewer, storyApi, type StoryGroup, storyQueries } from "@/entities/story";
 
 import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { plural } from "@/shared/lib/presence";
-import { Avatar, Icon, toast } from "@/shared/ui";
+import { askText, Avatar, Icon, toast } from "@/shared/ui";
 
 import { postStory, postTextStory } from "../model/post-story";
 
@@ -90,6 +90,27 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     }
   };
 
+  const attachmentStory = async (kind: "poll" | "checklist") => {
+    const title = await askText(kind === "poll" ? "Вопрос опроса" : "Название чек-листа", { placeholder: kind === "poll" ? "Например: Куда пойдём?" : "Например: План на день", okLabel: "Дальше" });
+    if (!title?.trim()) return;
+    const raw = await askText(kind === "poll" ? "Варианты ответа через запятую" : "Пункты через запятую", { placeholder: kind === "poll" ? "Море, горы, город" : "Позвонить, купить продукты", okLabel: "Опубликовать" });
+    const values = (raw ?? "").split(",").map((v) => v.trim()).filter(Boolean).slice(0, 10);
+    if (values.length < 2) {
+      toast(kind === "poll" ? "Добавьте минимум два варианта" : "Добавьте минимум два пункта", { error: true });
+      return;
+    }
+    try {
+      setProgress("Публикуем историю…");
+      await storyApi.post([{ kind, meta: kind === "poll" ? { question: title.trim(), options: values, votes: values.map(() => 0) } : { title: title.trim(), items: values.map((text) => ({ text, done: false })) } }]);
+      await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+    } catch (err) {
+      toast(errorText(err, "Не удалось выложить историю"), { error: true });
+    } finally {
+      setProgress(null);
+      setCreating(null);
+    }
+  };
+
   const myIndex = groups.findIndex((g) => g.user.id === me.id);
   const myGroup = groups[myIndex] ?? null;
   const addStory = () => fileRef.current?.click();
@@ -146,6 +167,12 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           </button>
           <button type="button" className={styles.createAction} title="История" onClick={addStory}>
             <Icon name="Image" size={18} /> История
+          </button>
+          <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}>
+            <Icon name="BarChart" size={18} /> Опрос
+          </button>
+          <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}>
+            <Icon name="CheckCheck" size={18} /> Чек-лист
           </button>
           <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
         </div>
