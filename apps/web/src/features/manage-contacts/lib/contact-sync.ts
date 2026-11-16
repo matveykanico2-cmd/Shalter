@@ -1,6 +1,8 @@
 // Контакты как в Telegram — public/js/lib/contactSync.js: кто из телефонной книги уже в Shalter,
 // сразу в контакты, без «Добавить» у каждого. Книгу целиком читает только нативное приложение
 // (плагин @capacitor-community/contacts), в браузере её нет.
+import { Contacts as CapacitorContacts } from "@capacitor-community/contacts";
+
 import { addContact, matchContacts, type MatchFound, type PhoneEntry } from "../api/contacts";
 
 const CHUNK = 500;
@@ -17,7 +19,7 @@ type CapacitorWindow = Window & { Capacitor?: { isNativePlatform?: () => boolean
 
 function contactsPlugin() {
   const cap = (window as CapacitorWindow).Capacitor;
-  return cap?.isNativePlatform?.() ? (cap.Plugins?.Contacts ?? null) : null;
+  return cap?.isNativePlatform?.() ? (cap.Plugins?.Contacts ?? (CapacitorContacts as unknown as ContactsPlugin)) : null;
 }
 
 export const canReadPhoneBook = () => !!contactsPlugin();

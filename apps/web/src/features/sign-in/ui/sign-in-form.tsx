@@ -165,6 +165,14 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
 
   return (
     <form className={styles.form} onSubmit={submit}>
+      <div className={styles.modeTabs} role="tablist" aria-label="Режим авторизации">
+        <button type="button" role="tab" aria-selected={!isRegister} className={!isRegister ? styles.modeTabActive : styles.modeTab} onClick={() => isRegister && onToggle()}>
+          Вход
+        </button>
+        <button type="button" role="tab" aria-selected={isRegister} className={isRegister ? styles.modeTabActive : styles.modeTab} onClick={() => !isRegister && onToggle()}>
+          Регистрация
+        </button>
+      </div>
       <TextField type="email" placeholder="you@example.com" aria-label="Почта" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
       <TextField
         type="password"
@@ -180,14 +188,14 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
       <Button type="submit" disabled={pending}>
         {pending ? "Проверка…" : isRegister ? "Создать аккаунт" : "Войти"}
       </Button>
+      <button type="button" className={`${styles.link} ${styles.muted}`} onClick={onToggle}>
+        {isRegister ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Зарегистрироваться"}
+      </button>
       {!isRegister && !embedded && (
         <button type="button" className={`${styles.link} ${styles.muted}`} onClick={() => onMode("recover")}>
           Забыли пароль?
         </button>
       )}
-      <button type="button" className={styles.link} onClick={onToggle}>
-        {isRegister ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Зарегистрироваться"}
-      </button>
       {!isRegister && !embedded && (
         <div className={styles.altMethods}>
           <button type="button" className={`${styles.link} ${styles.entry}`} aria-expanded={more} onClick={() => setMore((v) => !v)}>

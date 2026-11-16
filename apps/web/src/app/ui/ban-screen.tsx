@@ -1,9 +1,15 @@
 import type { remainingBody } from "@shalter/shared/schemas/auth";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { z } from "zod";
 
-import { type BanInfo, http, ws } from "@/shared/api";
-import { Icon } from "@/shared/ui";
+import { switchAccount } from "@/features/accounts";
+import { SignInForm } from "@/features/sign-in";
+
+import { sessionQueries } from "@/entities/session";
+
+import { type BanInfo,clearBanned, http, ws } from "@/shared/api";
+import { Avatar, Icon } from "@/shared/ui";
 
 import styles from "./ban-screen.module.css";
 
@@ -59,14 +65,26 @@ async function leave() {
  * настроек — причина, до какого времени и сколько осталось, и «Назад», чтобы выйти.
  */
 export function BanScreen({ ban }: { ban: BanInfo }) {
+  const accounts = useQuery(sessionQueries.current()).data?.accounts ?? [];
   const parsedUntil = ban.bannedUntil ? Date.parse(ban.bannedUntil) : NaN;
   const until = Number.isFinite(parsedUntil) ? parsedUntil : null;
   const [now, setNow] = useState(Date.now);
   const [leaving, setLeaving] = useState(false);
+  const [adding, setAdding] = useState(false);
   const backRef = useRef<HTMLButtonElement>(null);
   const left = until !== null ? until - now : null;
   const started = ban.bannedAt ? Date.parse(ban.bannedAt) : NaN;
   const duration = until !== null && Number.isFinite(started) && until > started ? until - started : null;
+
+  const switchTo = async (userId: string) => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await switchAccount(userId);
+    } catch {
+      setLeaving(false);
+    }
+  };
 
   useEffect(() => {
     backRef.current?.focus();
@@ -121,7 +139,39 @@ export function BanScreen({ ban }: { ban: BanInfo }) {
           Подать апелляцию
         </a>
         <p className={styles.hint}>shalter.support@gmail.com</p>
-        <p className={styles.hint}>«Назад» — выйти из этого аккаунта и войти в другой</p>
+        {accounts.length > 1 ? (
+          <div className={styles.accounts}>
+            <p className={styles.accountsTitle}>Другие аккаунты</p>
+            {accounts.map((account) => (
+              <button type="button" className={styles.account} key={account.id} disabled={leaving} onClick={() => void switchTo(account.id)}>
+                <Avatar name={account.name || account.email || "?"} color={account.avatarColor} image={account.avatarImage} emoji={account.avatarEmoji} size={34} />
+                <span>{account.name || account.email || "Аккаунт"}</span>
+                <Icon name="ChevronRight" size={17} />
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {adding ? (
+          <div className={styles.addAccount}>
+            <div className={styles.addHeader}>
+              <strong>Добавить аккаунт</strong>
+              <button type="button" className={styles.closeAdd} aria-label="Закрыть добавление аккаунта" onClick={() => setAdding(false)}>
+                <Icon name="X" size={18} />
+              </button>
+            </div>
+            <SignInForm
+              onSignedIn={() => {
+                clearBanned();
+                window.location.reload();
+              }}
+            />
+          </div>
+        ) : (
+          <button type="button" className={styles.addButton} onClick={() => setAdding(true)}>
+            <Icon name="Plus" size={17} /> Добавить аккаунт
+          </button>
+        )}
+        <p className={styles.hint}>«Назад» — выйти из заблокированного аккаунта</p>
       </div>
     </div>
   );

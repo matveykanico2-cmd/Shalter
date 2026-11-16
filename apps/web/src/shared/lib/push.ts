@@ -1,3 +1,4 @@
+import { PushNotifications as CapacitorPushNotifications } from "@capacitor/push-notifications";
 import type { endpointsBody, vapidKeyBody } from "@shalter/shared/schemas/push";
 import type { z } from "zod";
 
@@ -26,7 +27,10 @@ type PushWindow = Window & {
 };
 
 const win = () => window as PushWindow;
-const nativePlugin = (): NativePushPlugin | null => (win().Capacitor?.isNativePlatform?.() ? (win().Capacitor?.Plugins?.PushNotifications ?? null) : null);
+const nativePlugin = (): NativePushPlugin | null =>
+  win().Capacitor?.isNativePlatform?.()
+    ? ((win().Capacitor?.Plugins?.PushNotifications as NativePushPlugin | undefined) ?? (CapacitorPushNotifications as unknown as NativePushPlugin))
+    : null;
 const localPlugin = (): CapPlugin | null => {
   const cap = win().Capacitor;
   if (!cap?.isNativePlatform?.() || nativePlugin()) return null;

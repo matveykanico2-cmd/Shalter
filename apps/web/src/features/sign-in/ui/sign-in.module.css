@@ -4,6 +4,41 @@
   gap: 16px;
 }
 
+.modeTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--color-surface-alt);
+}
+
+.modeTab,
+.modeTabActive {
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.modeTabActive {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  animation: modeIn 0.2s ease-out;
+}
+
+@keyframes modeIn {
+  from { opacity: 0.5; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .panel {
   display: flex;
   flex-direction: column;

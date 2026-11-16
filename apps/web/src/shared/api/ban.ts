@@ -19,6 +19,13 @@ export function reportBanned(body: { bannedAt?: unknown; banReason?: unknown; ba
   listeners.forEach((l) => l());
 }
 
+/** Сбрасывает экран блокировки после переключения или добавления другого аккаунта. */
+export function clearBanned() {
+  if (!current) return;
+  current = null;
+  listeners.forEach((l) => l());
+}
+
 const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => void listeners.delete(l);

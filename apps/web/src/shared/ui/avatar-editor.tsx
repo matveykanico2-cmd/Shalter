@@ -12,7 +12,7 @@ import { toast } from "./toast-store";
 const AVATAR_BACKGROUNDS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#5e35b1", "#8e24aa", "transparent"];
 
 /** Аватар группы, канала или сообщества: фото или смайл (стикер) — одно сменяет другое. */
-export type AvatarValue = { image: string | null; emoji: string | null };
+export type AvatarValue = { image: string | null; emoji: string | null; color?: string | null };
 
 type Props = {
   name: string;

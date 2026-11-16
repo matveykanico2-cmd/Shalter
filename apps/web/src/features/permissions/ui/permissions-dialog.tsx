@@ -1,4 +1,6 @@
+import { Contacts as CapacitorContacts } from "@capacitor-community/contacts";
 import { useQueryClient } from "@tanstack/react-query";
+import { AndroidSettings, IOSSettings, NativeSettings } from "capacitor-native-settings";
 import { useEffect, useState } from "react";
 
 import { http } from "@/shared/api";
@@ -33,7 +35,7 @@ async function alreadyGranted(key: Key) {
   if (key === "camera") return permissionGranted("camera");
   if (key === "location") return permissionGranted("geolocation");
   if (key === "contacts") {
-    const native = plugins()?.isNativePlatform?.() ? plugins()?.Plugins?.Contacts : undefined;
+  const native = plugins()?.isNativePlatform?.() ? (plugins()?.Plugins?.Contacts ?? CapacitorContacts) : undefined;
     if (!native) return false;
     const permission = (await native.checkPermissions()).contacts;
     return permission === "granted" || permission === "limited";
@@ -51,10 +53,10 @@ type ContactsPlugin = {
 type NativePlugins = { Contacts?: ContactsPlugin };
 
 const plugins = () => (window as Window & { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: NativePlugins } }).Capacitor;
-const contactPicker = () => ("contacts" in navigator && "ContactsManager" in window) || !!(plugins()?.isNativePlatform?.() && plugins()?.Plugins?.Contacts);
+const contactPicker = () => ("contacts" in navigator && "ContactsManager" in window) || !!(plugins()?.isNativePlatform?.() && (plugins()?.Plugins?.Contacts ?? CapacitorContacts));
 
 async function selectedContacts(): Promise<PhoneEntry[]> {
-  const native = plugins()?.isNativePlatform?.() ? plugins()?.Plugins?.Contacts : undefined;
+    const native = plugins()?.isNativePlatform?.() ? (plugins()?.Plugins?.Contacts ?? CapacitorContacts) : undefined;
   if (native) {
     let permission = (await native.checkPermissions()).contacts;
     if (permission !== "granted" && permission !== "limited") permission = (await native.requestPermissions()).contacts;
@@ -89,7 +91,6 @@ async function pickContacts() {
 
 async function openAppSettings() {
   if (!plugins()?.isNativePlatform?.()) throw new Error("Откройте настройки браузера и разрешите доступ вручную");
-  const { AndroidSettings, IOSSettings, NativeSettings } = await import("capacitor-native-settings");
   await NativeSettings.open({ optionAndroid: AndroidSettings.ApplicationDetails, optionIOS: IOSSettings.App });
 }
 

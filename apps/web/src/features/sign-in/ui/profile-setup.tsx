@@ -24,6 +24,7 @@ export function ProfileSetup({ user, password, onDone }: Props) {
   const initialName = user.name ?? "";
   const initialUsername = user.username ?? "";
   const [avatar, setAvatar] = useState<AvatarValue>({ image: null, emoji: null });
+  const [avatarColor, setAvatarColor] = useState(user.avatarColor ?? "#2E56D9");
   const [name, setName] = useState(initialName);
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState(initialUsername);
@@ -47,6 +48,7 @@ export function ProfileSetup({ user, password, onDone }: Props) {
     if (birthday) patch.birthday = birthday;
     if (avatar.image) patch.avatarImage = avatar.image;
     if (avatar.emoji) patch.avatarEmoji = avatar.emoji;
+    if (avatarColor !== (user.avatarColor ?? "#2E56D9")) patch.avatarColor = avatarColor;
     if (!Object.keys(patch).length) return onDone(user);
     setError(null);
     setPending(true);
@@ -61,7 +63,7 @@ export function ProfileSetup({ user, password, onDone }: Props) {
   return (
     <form className={styles.form} onSubmit={(e) => void submit(e)}>
       <p className={styles.instructions}>Аккаунт создан. Расскажите о себе — так друзьям будет проще вас найти. Всё это можно поменять потом в настройках.</p>
-      <AvatarEditor name={name} image={avatar.image} emoji={avatar.emoji} size={88} photoSize={256} onChange={setAvatar} />
+      <AvatarEditor name={name} image={avatar.image} emoji={avatar.emoji} color={avatarColor} size={88} photoSize={256} onChange={setAvatar} onColor={setAvatarColor} />
       <TextField placeholder="Имя" aria-label="Имя" maxLength={64} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
       <TextField placeholder="Фамилия (необязательно)" aria-label="Фамилия" maxLength={60} value={lastName} onChange={(e) => setLastName(e.target.value)} />
       <UsernameInput value={username} own={initialUsername} onChange={setUsername} />

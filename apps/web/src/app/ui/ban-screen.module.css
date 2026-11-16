@@ -132,6 +132,67 @@
   font-size: 12px;
 }
 
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  text-align: left;
+}
+
+.accountsTitle {
+  margin: 0 0 2px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account > svg { flex: none; color: var(--color-muted); }
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.addAccount {
+  width: 100%;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-surface-alt);
+  text-align: left;
+}
+
+.addHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.closeAdd { display: grid; place-items: center; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--color-muted); cursor: pointer; }
+.addAccount form { gap: 12px; }
+
 .icon > svg {
   animation: clock-turn 8s linear infinite;
 }
