@@ -32,6 +32,8 @@ test("добавить по юзернейму, переименовать у с
   const candidate = page.getByRole("button", { name: new RegExp(`Борис\\s*@${boris.username}`) });
   await expect(candidate).toBeVisible();
   await candidate.click();
+  // После добавления открывается общий редактор контакта (имя/аватар/заметка).
+  await page.getByRole("button", { name: "Готово", exact: true }).click();
 
   await expect(page.getByText("Контакты — 1", { exact: true })).toBeVisible();
   await expect(contactEntry(page, "Борис")).toBeVisible();
@@ -49,7 +51,9 @@ test("добавить по юзернейму, переименовать у с
   await contactEntry(page, "Боря с работы").click();
   const panel = profilePanel(page);
   await expect(panel.getByText("Имя в профиле: Борис")).toBeVisible();
-  await expect(panel.getByRole("button", { name: /Удалить из контактов/ })).toBeVisible();
+  await panel.getByRole("button", { name: "Дополнительные действия профиля" }).click();
+  await expect(page.getByRole("button", { name: /Удалить из контактов/ })).toBeVisible();
+  await page.getByRole("button", { name: "Закрыть меню" }).click();
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
 
@@ -95,6 +99,7 @@ test("добавить по номеру телефона с именем «ка
   const candidate = page.getByRole("button", { name: new RegExp(`Борис.*@${boris.username}`) });
   await expect(candidate).toBeVisible();
   await candidate.click();
+  await page.getByRole("button", { name: "Готово", exact: true }).click();
 
   await expect(page.getByText("Контакты — 1", { exact: true })).toBeVisible();
   await expect(contactEntry(page, "Борис Сосед")).toBeVisible();
