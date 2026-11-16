@@ -155,7 +155,7 @@ export function UsernamesSection() {
               </div>
               <div className={styles.row}>
                 {session.data?.user?.username?.toLowerCase() === item.username.toLowerCase() ? (
-                  <span className={styles.activeBadge}>Активный</span>
+                  <span className={styles.activeBadge}>Главный</span>
                 ) : session.data?.user ? (
                   <Button
                     variant="secondary"
@@ -165,7 +165,7 @@ export function UsernamesSection() {
                       if (user) void act(() => activateUsername(user.id, item.username), `@${item.username} установлен`);
                     }}
                   >
-                    Сделать активным
+                    Сделать главным
                   </Button>
                 ) : null}
                 <Button

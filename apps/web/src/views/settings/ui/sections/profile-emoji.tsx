@@ -41,14 +41,16 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
         <div className={styles.grow}>
           <p className={profileStyles.rowTitle}>{me.avatarEmoji ? (me.avatarEmoji.startsWith("sticker:") ? "Стикер выбран" : "Смайл выбран") : "Без смайла"}</p>
         </div>
-        <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => setOpen((v) => !v)}>
-          {me.avatarEmoji ? "Сменить смайл" : "Выбрать смайл"}
-        </Button>
-        {me.avatarEmoji ? (
-          <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => void save({ avatarEmoji: null }, true)}>
-            Убрать смайл
+        <div className={profileStyles.emojiActions}>
+          <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => setOpen((v) => !v)}>
+            {me.avatarEmoji ? "Сменить смайл" : "Выбрать смайл"}
           </Button>
-        ) : null}
+          {me.avatarEmoji ? (
+            <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => void save({ avatarEmoji: null }, true)}>
+              Убрать смайл
+            </Button>
+          ) : null}
+        </div>
       </div>
       {open ? (
         <>

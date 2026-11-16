@@ -156,7 +156,10 @@ export function MessageBubble(props: Props) {
   const { message: m, mine, sender, showSender, showAvatar, groupStart = true, groupEnd = true, isChannel = false } = props;
   const { selecting = false, onToggleSelect } = props;
   const { onOpenProfile } = use(MessageLinks);
-  const actionable = !m.pending && !!props.onOpenMenu;
+  // Исходящее сообщение остаётся доступным для действий, пока сеть не ответила:
+  // пользователь может скопировать текст, поправить черновик или убрать зависшую
+  // отправку, не ожидая восстановления соединения.
+  const actionable = !!props.onOpenMenu;
   const rowRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   // Выделение снимается раньше, чем дойдёт click, — запоминаем его при нажатии.
@@ -559,7 +562,7 @@ export function MessageBubble(props: Props) {
           {body}
         </div>
       )}
-      {!m.pending && !selecting && (props.onReply || props.onOpenMenu) ? (
+      {!selecting && (props.onReply || props.onOpenMenu) ? (
         <span className={styles.actions}>
           {props.onReply ? (
             <button type="button" className={styles.actionButton} title="Ответить" onPointerDown={remember} onClick={() => props.onReply?.(m, takeQuote())}>

@@ -81,6 +81,9 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         const editedAt = new Date().toISOString();
         const before = historyCache.patch(client, chatId, m.id, (x) => ({ ...x, text, editedAt }));
         chatCache.patchLastMessage(client, chatId, m.id, { text, editedAt });
+        // Pending-сообщение ещё не существует на сервере. Оставляем правку в
+        // локальной очереди; повторная отправка использует актуальный текст.
+        if ((m as Message & { pending?: boolean }).pending) return;
         try {
           const { message } = await editMessage(chatId, m.id, text);
           historyCache.replace(client, chatId, message);
@@ -100,6 +103,7 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         const before = historyCache.find(client, chatId, m.id);
         historyCache.remove(client, chatId, m.id);
         chatCache.dropLastMessage(client, chatId, m.id, lastSettled(client, chatId));
+        if ((m as Message & { pending?: boolean }).pending) return;
         try {
           await deleteMessage(chatId, m.id, forEveryone);
         } catch (err) {

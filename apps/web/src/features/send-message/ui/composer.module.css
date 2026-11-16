@@ -8,6 +8,8 @@
      клавиатурой полоски нет. */
   margin: 0 auto calc(10px + env(safe-area-inset-bottom, 0px));
   padding: 0;
+  /* Android WebView не должен прокручивать страницу при фокусе textarea. */
+  overscroll-behavior: contain;
 }
 
 :global(html.keyboard-open) .composer {
@@ -78,13 +80,15 @@
   background: none;
   color: var(--color-text);
   font: inherit;
-  font-size: 15px;
+  /* 16px отключает автоматический zoom поля на Android/iOS WebView. */
+  font-size: 16px;
   line-height: 1.35;
   resize: none;
   outline: none;
   /* Без системного вида: iOS Safari иначе рисует у textarea свой фон с углами. */
   appearance: none;
   border-radius: 0;
+  touch-action: manipulation;
 }
 
 .send {

@@ -280,6 +280,25 @@
   padding-inline: 16px;
 }
 
+.emojiActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .emojiActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .emojiActions .actionButton {
+    flex: 1 1 150px;
+  }
+}
+
 .trackList {
   display: flex;
   flex-direction: column;

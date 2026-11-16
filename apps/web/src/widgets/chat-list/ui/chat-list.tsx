@@ -131,9 +131,17 @@ export function ChatList({ meId }: { meId: string }) {
   // Ушли со списка чатов на другой экран — панель сообщества закрывается (как в chatList.js).
   const { pathname } = useLocation();
   const lastPath = useRef(pathname);
+  const resetAfterChat = useRef(false);
+  const returnPosition = useRef<{ key: string | null; top: number; offset: number } | null>(null);
   useEffect(() => {
     if (lastPath.current === pathname) return;
+    const cameFromChat = lastPath.current.startsWith("/chat/");
     lastPath.current = pathname;
+    // На телефоне список не размонтируется при открытии чата. После возврата его
+    // прежний offset мог оставить закреплённые строки вне видимой области.
+    if (pathname === "/" && cameFromChat) {
+      resetAfterChat.current = true;
+    }
     if (pathname !== "/" && !pathname.startsWith("/chat/")) setCommunityPanel(null);
   }, [pathname]);
 
@@ -198,11 +206,19 @@ export function ChatList({ meId }: { meId: string }) {
     getItemKey: (i) => rowKey(rows[i]!),
   });
 
+  useLayoutEffect(() => {
+    if (!resetAfterChat.current || pathname !== "/") return;
+    resetAfterChat.current = false;
+    didInitialScroll.current = true;
+    returnPosition.current = null;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    virtualizer.scrollToOffset(0, { align: "start" });
+  }, [pathname, virtualizer]);
+
   // На телефоне колонка списка получает display:none, пока открыт чат. ResizeObserver
   // виртуализатора в этот момент видит нулевую высоту; после возврата старый scrollTop мог
   // указывать уже на середину или конец списка. Запоминаем строку, которой коснулись, и её
   // место в окне, затем восстанавливаем именно её — даже если чат поднялся из-за сообщения.
-  const returnPosition = useRef<{ key: string | null; top: number; offset: number } | null>(null);
   const previousChatId = useRef(currentId);
   // После выхода/смены аккаунта виртуализатор мог сохранить offset старого списка.
   // Сбрасываем его до расчёта новых строк, чтобы первый закреплённый чат не оказался выше окна.
