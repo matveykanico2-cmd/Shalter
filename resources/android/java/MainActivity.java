@@ -84,7 +84,7 @@ public class MainActivity extends BridgeActivity {
     // по истории WebView, а если некуда — в фон.
     private void handleBack() {
         WebView webView = bridge != null ? bridge.getWebView() : null;
-        if (webView == null || webView.isDestroyed()) {
+        if (webView == null) {
             moveTaskToBack(true);
             return;
         }
@@ -93,7 +93,7 @@ public class MainActivity extends BridgeActivity {
                 "(function(){try{return window.__shalterBack?(window.__shalterBack()?'handled':'root'):'none'}catch(e){return 'none'}})()",
                 (result) -> {
                     if ("\"handled\"".equals(result)) return;
-                    if (!webView.isDestroyed() && !"\"root\"".equals(result) && webView.canGoBack()) webView.goBack();
+                    if (!"\"root\"".equals(result) && webView.canGoBack()) webView.goBack();
                     else moveTaskToBack(true);
                 }
             );
