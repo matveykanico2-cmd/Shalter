@@ -80,15 +80,28 @@ export function fitTextarea(el: HTMLTextAreaElement, max: number): void {
   if (el.style.overflowY !== overflow) el.style.overflowY = overflow;
   if (overflow === "hidden") {
     if (el.scrollTop !== 0) el.scrollTop = 0;
-  } else if (document.activeElement === el && el.selectionEnd === el.value.length) {
-    keepTailVisible(el);
+  } else if (document.activeElement === el) {
+    keepCaretVisible(el);
   }
 }
 
 /** Android WebView и Safari могут дважды сбросить внутреннюю прокрутку textarea после layout. */
-function keepTailVisible(el: HTMLTextAreaElement): void {
+function keepCaretVisible(el: HTMLTextAreaElement): void {
+  const cs = getComputedStyle(el);
+  const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.35 || 22;
+  const copy = getMirror();
+  const update = () => {
+    const caret = Math.max(0, Math.min(el.value.length, el.selectionStart ?? el.value.length));
+    copy.style.height = "auto";
+    copy.style.maxHeight = "none";
+    copy.value = el.value.slice(0, caret);
+    const bottom = Math.max(lineHeight, copy.scrollHeight);
+    if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
+    else if (bottom - lineHeight < el.scrollTop) el.scrollTop = Math.max(0, bottom - lineHeight);
+  };
+  update();
   const scroll = () => {
-    if (el.isConnected && document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight;
+    if (el.isConnected && document.activeElement === el) update();
   };
   scroll();
   queueMicrotask(scroll);

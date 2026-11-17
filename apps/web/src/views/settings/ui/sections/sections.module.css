@@ -97,6 +97,38 @@
   color: var(--color-muted);
 }
 
+.qrLoginCode {
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  margin: 12px auto 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.qrScanner {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  aspect-ratio: 1;
+  margin: 4px auto 12px;
+  border-radius: 16px;
+  background: #111;
+  object-fit: cover;
+}
+
+.qrTokenInput {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
 .kbdGroup {
   display: flex;
   gap: 4px;

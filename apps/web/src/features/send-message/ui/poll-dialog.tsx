@@ -7,13 +7,18 @@ import styles from "./create-dialogs.module.css";
 const MAX_OPTIONS = 8;
 const MAX_STEPS = 8;
 
-export type PollStepDraft = { question: string; options: string[]; correctIndex: number | null };
+function newStep(): PollStepDraft {
+  const id = globalThis.crypto?.randomUUID?.() ?? `step_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  return { id, question: "", options: ["", ""], correctIndex: 0 };
+}
+
+export type PollStepDraft = { id?: string; question: string; options: string[]; correctIndex: number | null };
 export type PollDraft = { steps: PollStepDraft[]; multiple: boolean; votersVisible: boolean; closesAt: string | null };
 
 /** «Новый опрос» / «Новая викторина» — как public/js/components/pollDialog.js. */
 export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) => void; onClose: () => void }) {
   const [quiz, setQuiz] = useState(false);
-  const [steps, setSteps] = useState<PollStepDraft[]>([{ question: "", options: ["", ""], correctIndex: 0 }]);
+  const [steps, setSteps] = useState<PollStepDraft[]>([newStep()]);
   const [stepIndex, setStepIndex] = useState(0);
   const [multiple, setMultiple] = useState(false);
   const [votersVisible, setVotersVisible] = useState(true);
@@ -75,8 +80,8 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
         </button>
       </div>
       <div className={styles.steps} aria-label="Этапы опроса">
-        {steps.map((_, i) => (
-          <button key={i} type="button" className={i === stepIndex ? `${styles.step} ${styles.stepActive}` : styles.step} onClick={() => { setStepIndex(i); setError(null); }}>
+        {steps.map((item, i) => (
+          <button key={item.id ?? i} type="button" className={i === stepIndex ? `${styles.step} ${styles.stepActive}` : styles.step} onClick={() => { setStepIndex(i); setError(null); }}>
             {i + 1}
           </button>
         ))}
@@ -85,7 +90,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
             type="button"
             className={styles.addStep}
             onClick={() => {
-              setSteps((list) => [...list, { question: "", options: ["", ""], correctIndex: 0 }]);
+              setSteps((list) => [...list, newStep()]);
               setStepIndex(steps.length);
               setError(null);
             }}
@@ -113,7 +118,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
       </div>
       <div className={styles.list}>
         {step.options.map((value, i) => (
-          <div key={i} className={styles.optionRow}>
+            <div key={`${step.id ?? stepIndex}:${i}`} className={styles.optionRow}>
             <span className={styles.optionNumber}>{i + 1}</span>
             {quiz ? (
               <button type="button" className={step.correctIndex === i ? `${styles.correct} ${styles.active}` : styles.correct} title={step.correctIndex === i ? "Это правильный вариант" : "Правильный ответ"} aria-label={`Правильный ответ: вариант ${i + 1}`} aria-pressed={step.correctIndex === i} onClick={() => updateStep({ correctIndex: i })}>

@@ -328,6 +328,8 @@
   padding: 0;
   background: none;
   box-shadow: none;
+  border: none;
+  backdrop-filter: none;
 }
 
 /* Время под стикером — на полупрозрачной плашке (.message-meta-sticker). */
@@ -702,6 +704,8 @@
   padding: 0;
   background: none;
   box-shadow: none;
+  border: none;
+  backdrop-filter: none;
 }
 
 .mediaOnly > :first-child:not(.sender) {

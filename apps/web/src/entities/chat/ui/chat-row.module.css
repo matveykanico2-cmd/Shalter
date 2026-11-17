@@ -218,7 +218,8 @@
 }
 
 .withMore {
-  padding-right: 38px;
+  padding-right: 48px;
+  box-sizing: border-box;
 }
 
 .row {
