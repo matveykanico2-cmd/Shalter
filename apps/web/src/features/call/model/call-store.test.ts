@@ -73,16 +73,16 @@ describe("звонок", () => {
       "POST /api/calls/cl_1/answer": { body: { ok: true } }, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
     const { getUserMedia } = fakeRtc();
     await placeCall("c_1", "video", ME);
-    // 720p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
+    // До 1440p/30 с фронтальной камеры, моно-микрофон с эхо- и шумоподавлением.
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } },
-      video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
+      video: { width: { ideal: 2560 }, height: { ideal: 1440 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" },
     });
     const peer = FakePeer.instances[0]!;
     const cam = peer.transceivers.find((t) => t.sender.track?.kind === "video")!.sender;
     expect((cam.track as unknown as { contentHint?: string }).contentHint).toBe("motion");
     // Дорожка камеры пришла через addTrack (не replaceTrack) — её тоже настраивают.
-    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 5_000_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
+    await vi.waitFor(() => expect(cam.params).toMatchObject({ encodings: [{ maxBitrate: 8_000_000, maxFramerate: 30 }], degradationPreference: "balanced" }));
     // Голос: моно, FEC, без DTX.
     const offer = sentSignals().find((m) => m.kind === "offer")!.data as { sdp: string };
     expect(offer.sdp).toContain("stereo=0");
@@ -127,6 +127,16 @@ describe("звонок", () => {
     expect(calls.find((c) => c.key === "PATCH /api/calls/cl_1")?.body).toEqual({ status: "missed", durationSec: 0 });
   });
 
+  it("переход в bfcache по назад/вперёд не отправляет выход из звонка", async () => {
+    fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute });
+    await placeCall("c_1", "audio", ME);
+    const pagehide = new Event("pagehide");
+    Object.defineProperty(pagehide, "persisted", { value: true });
+    window.dispatchEvent(pagehide);
+    expect(getCall()).not.toBeNull();
+    expect(getCall()?.phase).toBe("ringing");
+  });
+
   it("сохраняет ICE до offer и применяет после remote description ровно один раз", async () => {
     const incoming = { ...CALL, callerId: BORIS.id };
     fakeApi({
@@ -134,7 +144,7 @@ describe("звонок", () => {
       "GET /api/chats/c_1": chatRoute,
       "POST /api/calls/cl_1/answer": { body: { ok: true } },
     });
-    await joinCallById("cl_1", ME);
+    await joinCallById("cl_1", ME, { answer: true });
     const ice = signal("ice", { candidate: "candidate:test", sdpMid: "0", sdpMLineIndex: 0 }, 1);
     FakeSocket.last().receive({ type: "call:signal", signal: ice });
     expect(FakePeer.instances).toHaveLength(0);
@@ -153,7 +163,7 @@ describe("звонок", () => {
       "POST /api/calls/cl_1/answer": { body: { ok: true } },
       "GET /api/calls/cl_1/signal?after=0": { body: { signals: [signal("offer", { type: "offer", sdp: "v=0" }, 1)] } },
     });
-    await joinCallById("cl_1", ME);
+    await joinCallById("cl_1", ME, { answer: true });
     // Ответ на входящий — только по кнопке «Ответить» (IncomingCall.answer), не при входе.
     expect(calls.some((c) => c.key === "POST /api/calls/cl_1/answer")).toBe(true);
     // Без offer от отвечающего: offer шлёт звонящий.

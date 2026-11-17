@@ -138,6 +138,7 @@ describe("истории", () => {
     await screen.findByRole("button", { name: /Алиса$/ });
     fireEvent.click(screen.getByRole("button", { name: /Моя история$/ }));
     const viewer = await screen.findByRole("dialog", { name: "История" });
+    expect(viewer.querySelector<HTMLImageElement>(`img[src="/uploads/${MY_STORY}.jpg"]`)).toBeTruthy();
     // Своей истории не лайкают и не отвечают.
     expect(within(viewer).queryByRole("button", { name: "Нравится" })).toBeNull();
     expect(within(viewer).queryByRole("textbox")).toBeNull();

@@ -1,0 +1,68 @@
+package ru.shalter.app;
+
+import android.app.Activity;
+import android.graphics.Color;
+import android.os.Build;
+import android.view.View;
+import android.view.Window;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+// Цвет полос под строкой состояния и навигацией (на Android 15 окно во весь экран,
+// и в отступах виден фон окна) — под тему приложения, а не системы: иначе тёмное
+// приложение на светлом телефоне получало белые полосы сверху и снизу.
+// JS: Capacitor.Plugins.SystemBars.setColor({ color: "#212121", light: false }).
+// Файл копирует scripts/apply-native-resources.js — android/ генерируется заново.
+@CapacitorPlugin(name = "SystemBars")
+public class SystemBarsPlugin extends Plugin {
+    @PluginMethod
+    public void setColor(PluginCall call) {
+        final int color;
+        try {
+            color = Color.parseColor(call.getString("color", "#ffffff"));
+        } catch (IllegalArgumentException e) {
+            call.reject("bad color");
+            return;
+        }
+        // light = светлый фон → тёмные значки времени/батареи.
+        final boolean light = Boolean.TRUE.equals(call.getBoolean("light", true));
+        Activity activity = getActivity();
+        if (activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+            call.reject("activity unavailable");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            Activity current = getActivity();
+            if (current == null || current.isFinishing() || (Build.VERSION.SDK_INT >= 17 && current.isDestroyed())) {
+                call.reject("activity unavailable");
+                return;
+            }
+            try {
+                Window window = current.getWindow();
+                View decor = window.getDecorView();
+                decor.setBackgroundColor(color);
+                View content = current.findViewById(android.R.id.content);
+                if (content != null) content.setBackgroundColor(color);
+                if (getBridge() != null && getBridge().getWebView() != null && getBridge().getWebView().getParent() instanceof View) {
+                    ((View) getBridge().getWebView().getParent()).setBackgroundColor(color);
+                }
+                // До Android 15 окно не во весь экран, и полосы красит не фон окна, а их собственный цвет.
+                if (Build.VERSION.SDK_INT < 35) {
+                    window.setStatusBarColor(color);
+                    window.setNavigationBarColor(color);
+                }
+                WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, decor);
+                controller.setAppearanceLightStatusBars(light);
+                controller.setAppearanceLightNavigationBars(light);
+                call.resolve(new JSObject());
+            } catch (RuntimeException e) {
+                call.reject("system bars unavailable", e);
+            }
+        });
+    }
+}

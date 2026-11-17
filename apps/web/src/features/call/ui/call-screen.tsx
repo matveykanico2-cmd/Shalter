@@ -7,6 +7,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, VolumeControl } from "@/shared/ui";
 
 import { callApi, type CallPeer } from "../api/call-api";
+import { formatElapsed } from "../lib/format";
 import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleHand, toggleMute, toggleScreenShare } from "../model/call-store";
 import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
@@ -257,6 +258,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <Avatar size={36} name={headerPerson.name} color={headerPerson.avatarColor} image={headerPerson.avatarImage} emoji={headerPerson.avatarEmoji} />
           <div className={styles.headerCenter}>
             <p className={styles.title}>{s.chatTitle}</p>
+            <p className={styles.subtitle}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
           </div>
           <div className={styles.headerActions}>
             {stageMode ? null : (

@@ -35,6 +35,8 @@ type Props = {
   /** Внутри чужого экрана (QR-подтверждение, OAuth): только почта и пароль, без ссылки на загрузку. */
   embedded?: boolean;
   onModeChange?: (mode: SignInMode) => void;
+  /** В режиме добавления аккаунта не раскрываем клавиатуру без явного тапа. */
+  autoFocus?: boolean;
 };
 
 /**
@@ -42,7 +44,7 @@ type Props = {
  * доступа и по коду из сообщения, восстановление пароля и второй шаг (2FA, облачный пароль).
  * Вошли — сессия перечитывается, дальше решает onSignedIn.
  */
-export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props) {
+export function SignInForm({ onSignedIn, notice, embedded, onModeChange, autoFocus = true }: Props) {
   const queryClient = useQueryClient();
   const [mode, setModeState] = useState<SignInMode>("login");
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
@@ -93,6 +95,7 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
   return (
     <EmailForm
       register={mode === "register"}
+      autoFocus={autoFocus}
       notice={notice}
       message={message}
       embedded={embedded}
@@ -117,6 +120,7 @@ type EmailFormProps = {
   onMode: (mode: SignInMode) => void;
   onResult: (res: LoginResult | TwoFactorChallenge) => void;
   onRegistered: (user: SignedInUser, password: string) => void;
+  autoFocus: boolean;
 };
 
 /**
@@ -124,7 +128,7 @@ type EmailFormProps = {
  * два поля, остальное спрашиваем после. Остальные способы входа (QR, ключ доступа, код, гость) —
  * под «Другие способы входа», чтобы не загромождать карточку.
  */
-function EmailForm({ register: isRegister, notice, message, embedded, onToggle, onMode, onResult, onRegistered }: EmailFormProps) {
+function EmailForm({ register: isRegister, notice, message, embedded, onToggle, onMode, onResult, onRegistered, autoFocus }: EmailFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(message);
@@ -185,7 +189,7 @@ function EmailForm({ register: isRegister, notice, message, embedded, onToggle, 
           Регистрация
         </button>
       </div>
-      <TextField type="email" placeholder="you@example.com" aria-label="Почта" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+      <TextField type="email" placeholder="you@example.com" aria-label="Почта" autoComplete="email" autoFocus={autoFocus} value={email} onChange={(e) => setEmail(e.target.value)} />
       <TextField
         type="password"
         placeholder="Пароль"

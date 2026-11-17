@@ -10,7 +10,7 @@ import styles from "./call-dock.module.css";
 /**
  * Звонок вне своего экрана — как call-bubble-slot и call-audio-sink в public/js/app.js:
  * звук собеседников играет здесь (экран звонка можно закрыть), а свёрнутый звонок —
- * пузырь в углу; нажатие возвращает на экран звонка.
+ * компактная зелёная полоса сверху, как в Telegram; нажатие возвращает на экран звонка.
  */
 export function CallDock() {
   const s = useCall();
@@ -26,10 +26,18 @@ export function CallDock() {
         ))}
       </div>
       {s.minimized && !onCallScreen ? (
-        <button type="button" className={styles.bubble} onClick={() => void navigate(`/call/${s.call.id}`)}>
+        <button
+          type="button"
+          className={styles.strip}
+          aria-label={`${s.chatTitle} ${formatElapsed(s.elapsed)}`}
+          onClick={() => void navigate(`/call/${s.call.id}`)}
+        >
           <Avatar size={28} name={other?.name ?? s.chatTitle} color={other?.avatarColor ?? "#8A8F98"} image={other?.avatarImage} emoji={other?.avatarEmoji} />
-          <span className={styles.title}>{s.chatTitle}</span>
-          <span className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</span>
+          <span className={styles.info}>
+            <span className={styles.title}>{s.chatTitle}</span>
+            <span className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</span>
+          </span>
+          <span className={styles.live} aria-hidden="true" />
         </button>
       ) : null}
     </>

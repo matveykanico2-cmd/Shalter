@@ -173,45 +173,69 @@ export function StoriesBar({ me }: { me: SelfUser }) {
 
   return (
     <div className={styles.bar}>
-      {postItem}
-      {ownItem}
-      {creating ? (
-        <div className={styles.createChoice}>
-          <button type="button" className={styles.createAction} title="Статья" onClick={() => void textStory()}>
-            <Icon name="FileText" size={18} /> Статья
-          </button>
-          <button type="button" className={styles.createAction} title="История" onClick={addStory}>
-            <Icon name="Image" size={18} /> История
-          </button>
-          <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}>
-            <Icon name="BarChart" size={18} /> Опрос
-          </button>
-          <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}>
-            <Icon name="CheckCheck" size={18} /> Чек-лист
-          </button>
-          <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}>
-            <Icon name="User" size={18} /> Контакт
-          </button>
-          <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}>
-            <Icon name="MapPin" size={18} /> Место
-          </button>
-          <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}>
-            <Icon name="Zap" size={18} /> Игра
-          </button>
-          <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}>
-            <Icon name="Star" size={18} /> Кубик
-          </button>
-          <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
-        </div>
-      ) : null}
+      <div className={styles.storyItems}>
+        {postItem}
+        {ownItem}
+        {creating ? (
+          <div className={styles.createChoice}>
+            <button type="button" className={styles.createAction} title="Статья" onClick={() => void textStory()}>
+              <Icon name="FileText" size={18} /> Статья
+            </button>
+            <button type="button" className={styles.createAction} title="История" onClick={addStory}>
+              <Icon name="Image" size={18} /> История
+            </button>
+            <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}>
+              <Icon name="BarChart" size={18} /> Опрос
+            </button>
+            <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}>
+              <Icon name="CheckCheck" size={18} /> Чек-лист
+            </button>
+            <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}>
+              <Icon name="User" size={18} /> Контакт
+            </button>
+            <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}>
+              <Icon name="MapPin" size={18} /> Место
+            </button>
+            <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}>
+              <Icon name="Zap" size={18} /> Игра
+            </button>
+            <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}>
+              <Icon name="Star" size={18} /> Кубик
+            </button>
+            <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
+          </div>
+        ) : null}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = "";
+            if (files.length) void pick(files);
+          }}
+        />
+        {groups.map((g, i) =>
+          g.user.id === me.id ? null : (
+            <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
+              <span className={ring(g)}>
+                <Avatar name={g.user.name ?? ""} color={g.user.avatarColor} image={g.user.avatarImage} emoji={g.user.avatarEmoji} size={52} />
+              </span>
+              <span className={styles.label}>{(g.user.name ?? "").split(" ")[0]}</span>
+            </button>
+          )
+        )}
+      </div>
       {selectedFiles.length > 0 ? (
         <div className={styles.mediaSelection}>
           <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} {plural(selectedFiles.length, "файл", "файла", "файлов")}</div>
-          <div className={styles.mediaSelectionGrid}>
+          <div className={styles.mediaSelectionGrid} aria-label="Выбранные фото и видео">
             {selectedFiles.map((file, i) => {
               const url = previewUrls[i]!;
               return (
-                <div key={i} className={styles.mediaSelectionItem}>
+                <div key={`${file.name}-${file.lastModified}-${i}`} className={styles.mediaSelectionItem}>
                   <span className={styles.mediaSelectionKind}>{file.type.startsWith("video/") ? "Видео" : "Фото"}</span>
                   {file.type.startsWith("video/") ? (
                     <video src={url} className={styles.mediaSelectionThumb} muted playsInline preload="metadata" />
@@ -239,28 +263,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           </div>
         </div>
       ) : null}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        hidden
-        onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
-          e.target.value = "";
-          if (files.length) void pick(files);
-        }}
-      />
-      {groups.map((g, i) =>
-        g.user.id === me.id ? null : (
-          <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
-            <span className={ring(g)}>
-              <Avatar name={g.user.name ?? ""} color={g.user.avatarColor} image={g.user.avatarImage} emoji={g.user.avatarEmoji} size={52} />
-            </span>
-            <span className={styles.label}>{(g.user.name ?? "").split(" ")[0]}</span>
-          </button>
-        )
-      )}
       {editing ? (
         <StoryEditor
           key={editing.file ? editing.file.name + editing.file.lastModified : "text"}

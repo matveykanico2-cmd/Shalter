@@ -1,0 +1,1 @@
+import{It as e,cn as t}from"./ui-CGugVuhU.js";import{n}from"./open-profile-DgOWy-i_.js";var r=t();function i(){let{code:t=``}=e();return(0,r.jsx)(n,{code:t},t)}export{i as JoinView};

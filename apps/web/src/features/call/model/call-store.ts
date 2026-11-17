@@ -364,9 +364,10 @@ function removePeer(userId: string) {
   }
 }
 
-type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean; joinedByLink?: boolean };
+type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean; joinedByLink?: boolean; canStart?: () => boolean };
 
-async function join({ call, chatTitle, chatType, participants, me, isRoom = false, joinedByLink = false }: JoinInput) {
+async function join({ call, chatTitle, chatType, participants, me, isRoom = false, joinedByLink = false, canStart }: JoinInput) {
+  if (canStart && !canStart()) return;
   const others = participants.filter((p) => p.id !== me.id);
   // Новый звонок поверх старого (ответили на другой) — старый отпускает микрофон и пиров.
   if (state) release(state);
@@ -469,14 +470,22 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       notify();
     }
   };
-  window.addEventListener("pagehide", onPageExit);
+  const onPageHide = (event: PageTransitionEvent) => {
+    // Back/forward can put the document into bfcache. Keep the call alive there.
+    if (event.persisted) return;
+    onPageExit();
+  };
+  window.addEventListener("pagehide", onPageHide);
   window.addEventListener("beforeunload", onPageExit);
   cleanups = [
-    () => window.removeEventListener("pagehide", onPageExit),
+    () => window.removeEventListener("pagehide", onPageHide),
     () => window.removeEventListener("beforeunload", onPageExit),
     () => clearInterval(ticker),
     () => clearInterval(poll),
     ws.on("call:signal", (msg) => void handleSignal(msg.signal)),
+    ws.on("ws:reconnected", () => {
+      if (state === mine) void syncCallAfterReconnect(mine);
+    }),
     ws.on("call:updated", (msg) => {
       if (state && msg.call.id === state.call.id && msg.call.status !== "ongoing" && state.phase !== "ended") endLocally();
     }),
@@ -505,6 +514,22 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   notify();
   for (const p of others) {
     if (state === mine && shouldOffer(p.id)) await offerTo(p.id);
+  }
+}
+
+/** События о завершении могли прийти, пока сокет переподключался. */
+async function syncCallAfterReconnect(owner: State) {
+  const { calls } = await callApi.list().catch(() => ({ calls: [] as Array<{ id: string; status: string; participantIds: string[] }> }));
+  if (state !== owner) return;
+  const current = calls.find((call) => call.id === owner.call.id);
+  if (!current || current.status !== "ongoing") {
+    endLocally();
+    return;
+  }
+  const changed = current.participantIds.length !== owner.call.participantIds.length || current.participantIds.some((id) => !owner.call.participantIds.includes(id));
+  if (changed) {
+    owner.call = current as Call;
+    await onParticipants(current as Call);
   }
 }
 
@@ -552,22 +577,32 @@ export async function placeCall(chatId: string, kind: CallKind, me: CallPeer, { 
   return call.id;
 }
 
-/** Войти в идущий звонок: ответ на входящий, ссылка-приглашение, экран /call/:id после перезагрузки. */
-export function joinCallById(callId: string, me: CallPeer): Promise<void> {
+/** Войти в идущий звонок. Ответ на входящий выполняется только явно. */
+type JoinCallOptions = { answer?: boolean; canStart?: () => boolean };
+
+export function joinCallById(callId: string, me: CallPeer, { answer = false, canStart = () => true }: JoinCallOptions = {}): Promise<void> {
+  if (!canStart()) return Promise.resolve();
   if (state?.call.id === callId) return Promise.resolve();
-  if (joining?.callId === callId) return joining.done;
+  if (joining?.callId === callId) {
+    const pending = joining.done;
+    return pending.then(() => {
+      if (!canStart() || state?.call.id === callId) return;
+      return joinCallById(callId, me, { answer, canStart });
+    });
+  }
   const done = (async () => {
     const { calls } = await callApi.list();
     const found = calls.find((c) => c.id === callId);
     if (!found || found.status !== "ongoing") return;
-    const answer = found.callerId !== me.id && found.kind !== "voice-room" ? callApi.answer(callId) : Promise.resolve();
+    if (!canStart()) return;
+    const answerRequest = answer && found.callerId !== me.id && found.kind !== "voice-room" ? callApi.answer(callId) : Promise.resolve();
     // Строка истории: направление и собеседник — не часть звонка.
     const call = omit(found, ["direction", "otherUser", "group", "answered"]);
     let chatTitle: string | null = "Звонок";
     let chatType = "dm";
     let participants: CallPeer[];
     try {
-      const [{ chat, members }] = await Promise.all([callApi.chat(call.chatId), answer]);
+      const [{ chat, members }] = await Promise.all([callApi.chat(call.chatId), answerRequest]);
       chatTitle = chat.title;
       chatType = chat.type;
       participants = await resolveParticipants(call, members);
@@ -575,7 +610,8 @@ export function joinCallById(callId: string, me: CallPeer): Promise<void> {
       const users = await Promise.all(call.participantIds.map((id) => callApi.user(id).then((r) => r.user, () => null)));
       participants = users.filter((u): u is CallPeer => !!u);
     }
-    await join({ call, chatTitle, chatType, participants, me: peerOf(me) });
+    if (!canStart()) return;
+    await join({ call, chatTitle, chatType, participants, me: peerOf(me), canStart });
   })().finally(() => {
     if (joining?.done === done) joining = null;
   });

@@ -1,0 +1,1 @@
+function e(){let{protocol:e,hostname:t,origin:n}=window.location;return e!==`https:`&&e!==`http:`||/^(localhost|127\.|10\.|192\.168\.|tauri\.)/.test(t)||t.endsWith(`.localhost`)?`https://shalter.ru`:n}var t=t=>`${e()}${t.startsWith(`/`)?t:`/${t}`}`;export{t as n,e as t};

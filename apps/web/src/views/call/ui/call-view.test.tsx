@@ -164,6 +164,29 @@ describe("звонки в оболочке", () => {
     await waitFor(() => expect(screen.queryByText("Входящий звонок")).toBeNull());
   });
 
+  it("назад/вперёд не сбрасывают активный звонок: экран возвращается, зелёная полоса остаётся", async () => {
+    fakeApi({
+      "GET /api/calls": listed({ ...CALL, callerId: ME.id, answered: true }),
+      "GET /api/chats/c_1": { body: { chat: { id: "c_1", type: "dm", title: null }, members: [ME, BORIS] } },
+    });
+    const router = renderApp("/chat/c_1");
+    await act(() => router.navigate("/call/cl_1"));
+    await screen.findByTitle("Завершить");
+
+    await act(() => router.navigate(-1));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_1"));
+    const strip = await screen.findByRole("button", { name: /Борис.*\d{2}:\d{2}/ });
+    expect(getCall()).toMatchObject({ minimized: true, call: { id: "cl_1" } });
+
+    await act(() => router.navigate(1));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/call/cl_1"));
+    await waitFor(() => expect(getCall()).toMatchObject({ minimized: false }));
+    expect(screen.queryByRole("button", { name: /Борис.*\d{2}:\d{2}/ })).toBeNull();
+    expect(strip.isConnected).toBe(false);
+    fireEvent.click(screen.getByTitle("Завершить"));
+    await waitFor(() => expect(getCall()).toBeNull());
+  });
+
   it("групповой видеозвонок подписан «Групповой видеозвонок»", async () => {
     fakeApi({ "GET /api/calls": { body: { calls: [] } } });
     renderApp();

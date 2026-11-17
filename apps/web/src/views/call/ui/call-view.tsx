@@ -34,7 +34,6 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
         .then(() => navigate("/", { replace: true }));
       return;
     }
-    if (action === "answer") void navigate(`/call/${callId}`, { replace: true });
     // Обычное открытие ссылки /call/:id не означает согласие принять входящий.
     // Раньше любой переход на экран сразу вызывал /answer, из-за чего трубка
     // «бралась сама», ещё до разрешения микрофона. Явный ?answer=1 приходит только
@@ -43,12 +42,16 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
       if (getCall()?.call.id === callId) return;
       if (action !== "answer") {
         const found = (await callApi.list()).calls.find((call) => call.id === callId);
-        if (found && found.callerId !== me.id && found.answered === false && found.kind !== "voice-room") {
+        if (!alive) return;
+        if (found && found.callerId !== me.id && found.answered !== true && found.kind !== "voice-room") {
           await navigate("/", { replace: true });
           return;
         }
       }
-      await joinCallById(callId, me);
+      await joinCallById(callId, me, { answer: action === "answer", canStart: () => alive });
+      // Ответ из системного уведомления — явное действие. Убираем маркер после
+      // входа, не создавая дополнительную запись истории.
+      if (alive && action === "answer") await navigate(`/call/${callId}`, { replace: true });
     };
     open()
       .catch(() => {})

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SelfUser } from "@/entities/session";
 
@@ -23,7 +23,39 @@ beforeEach(() => {
   fakeApi({ "GET /api/stories": { body: { groups: [] } } });
 });
 
+afterEach(() => cleanup());
+
 describe("публикация истории", () => {
+  it("показывает выбранные фото и видео адаптивной сеткой", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <StoriesBar me={ME} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Выложить историю$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "История" }));
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["one"], "one.jpg", { type: "image/jpeg", lastModified: 1 }),
+          new File(["two"], "two.jpg", { type: "image/jpeg", lastModified: 2 }),
+          new File(["clip"], "clip.mp4", { type: "video/mp4", lastModified: 3 }),
+        ],
+      },
+    });
+
+    const grid = await screen.findByLabelText("Выбранные фото и видео");
+    expect(grid.querySelectorAll("img, video")).toHaveLength(3);
+    expect(within(grid).getByRole("button", { name: "Добавить фото или видео" })).toBeTruthy();
+    expect(within(grid).getAllByText("Фото")).toHaveLength(2);
+    expect(within(grid).getByText("Видео")).toBeTruthy();
+  });
+
   it("двойной тап запускает одну публикацию и один редактор", async () => {
     postStory.mockImplementation(async (_files, hooks) => {
       const edited = await hooks.edit(new File(["photo"], "photo.jpg", { type: "image/jpeg", lastModified: 1 }));

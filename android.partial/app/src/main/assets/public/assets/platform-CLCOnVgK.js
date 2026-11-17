@@ -1,0 +1,1 @@
+function e(){let e=window;return!!(e.Capacitor?.isNativePlatform?.()||e.__TAURI_INTERNALS__||e.shalterDesktop)}export{e as t};

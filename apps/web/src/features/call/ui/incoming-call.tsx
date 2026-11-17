@@ -32,7 +32,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
     setError(null);
     stopRingtone();
     try {
-      await joinCallById(ringing.id, me);
+      await joinCallById(ringing.id, me, { answer: true });
       dismiss();
       void navigate(`/call/${ringing.id}`);
     } catch (err) {

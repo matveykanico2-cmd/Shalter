@@ -6,7 +6,8 @@ import { type SelfUser, useSession } from "@/entities/session";
 import { settingsQueries, useUpdateSettings } from "@/entities/settings";
 
 import { errorText } from "@/shared/lib/error-text";
-import { type MenuItem, toast } from "@/shared/ui";
+import { isInstalledApp } from "@/shared/lib/platform";
+import { type MenuItem, openExternally, toast } from "@/shared/ui";
 
 import { switchAccount } from "./switch-account";
 
@@ -40,6 +41,11 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
   const theme = settings?.theme ?? "system";
   const dark = theme === "dark" || (theme === "system" && prefersDark());
   const reduceMotion = !!settings?.reduceMotion;
+  const openDownloadPage = () => {
+    const url = new URL("/download", window.location.origin).href;
+    if (isInstalledApp()) return openExternally(url);
+    void navigate("/download");
+  };
 
   return [
     { label: me.name || me.phone || "Аккаунт" },
@@ -63,7 +69,7 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
     { icon: "Zap", label: reduceMotion ? "Включить анимации" : "Отключить анимации", onClick: () => update.mutate({ reduceMotion: !reduceMotion }) },
     { icon: "Globe", label: "Каталог каналов", onClick: () => void navigate("/discover-channels") },
     // И внутри приложения: оттуда скачивают версию для другого устройства.
-    { icon: "Download", label: "Скачать приложение", onClick: () => void navigate("/download") },
+    { icon: "Download", label: "Скачать приложение", onClick: openDownloadPage },
     { icon: "Bug", label: "Сообщить об ошибке", onClick: () => void openChat(() => openServiceChat("bug"), "Не удалось открыть чат с поддержкой") },
   ];
 }

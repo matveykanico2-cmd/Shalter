@@ -1,0 +1,1 @@
+import{f as e,l as t}from"./api-DhNWRP33.js";import{sn as n}from"./ui-CGugVuhU.js";import{n as r}from"./use-session-CW71y-I9.js";var i=e(t(),1);function a(){let e=n();return(0,i.useCallback)(t=>e.setQueryData(r.current().queryKey,e=>{if(!e?.user)return e;let n={...e.user,...t};return{...e,user:n,accounts:e.accounts.map(e=>e.id===n.id?{...e,...t}:e)}}),[e])}export{a as t};

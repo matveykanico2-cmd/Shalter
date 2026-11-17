@@ -1,0 +1,20 @@
+{
+	"appId": "ru.shalter.app",
+	"appName": "Shalter",
+	"webDir": "apps/web/dist",
+	"server": {
+		"url": "https://shalter.ru",
+		"cleartext": false
+	},
+	"android": {
+		"allowMixedContent": false,
+		"adjustMarginsForEdgeToEdge": "force"
+	},
+	"backgroundColor": "#f5f6f9",
+	"plugins": {
+		"Keyboard": {
+			"resize": "native",
+			"resizeOnFullScreen": false
+		}
+	}
+}

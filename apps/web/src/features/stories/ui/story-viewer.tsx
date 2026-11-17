@@ -421,7 +421,18 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
               <p>Картинка не загрузилась — повторите позже</p>
             </div>
           ) : (
-            <img key={frameKey} className={styles.media} src={frame.item.url} alt="" decoding="async" loading="eager" onError={() => setImageFailed(frameKey)} />
+            <img
+              key={frameKey}
+              className={styles.media}
+              // Новые истории используют items, старые — верхнеуровневый url.
+              // Если feed обновился между этими форматами, картинка всё равно должна открыться.
+              src={frame.item.url || story.url}
+              alt=""
+              decoding="async"
+              loading="eager"
+              onLoad={() => setImageFailed((failed) => (failed === frameKey ? null : failed))}
+              onError={() => setImageFailed(frameKey)}
+            />
           )
         )}
         {frame.item.audioUrl ? (

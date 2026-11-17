@@ -1,0 +1,1 @@
+var e=e=>!!e.isDeveloper||(e.adminSections??[]).includes(`moderation`);export{e as t};

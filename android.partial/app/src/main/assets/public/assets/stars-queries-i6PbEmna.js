@@ -1,0 +1,1 @@
+import{o as e}from"./api-DhNWRP33.js";import{t}from"./queryOptions-Dfvzj6n2.js";var n=[`stars`],r={baseKey:n,info:()=>t({queryKey:[...n,`info`],queryFn:({signal:t})=>e.get(`/api/stars`,t)})};export{r as t};

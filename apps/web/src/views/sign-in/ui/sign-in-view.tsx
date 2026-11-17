@@ -42,9 +42,10 @@ export function SignInView() {
     <AuthFrame
       title={addMode ? `Добавить аккаунт — ${mode === "register" ? "регистрация" : "вход"}` : "Shalter"}
       subtitle={mode === "login" ? "Рады видеть вас снова" : mode === "setup" ? "Почти готово" : "Быстро, красиво и по-настоящему безопасно"}
-      onBack={addMode ? () => window.location.assign("/") : undefined}
+      onBack={addMode ? () => void navigate("/", { replace: true }) : undefined}
     >
       <SignInForm
+        autoFocus={!addMode}
         notice={notice}
         onModeChange={(m) => {
           if (m === "setup") registered.current = true;

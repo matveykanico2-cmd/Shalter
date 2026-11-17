@@ -1,7 +1,9 @@
 /* Полоса историй — как .stories-bar и .story-item в public/styles/components.css. */
 .bar {
   display: flex;
+  flex-wrap: wrap;
   flex-shrink: 0;
+  align-items: flex-start;
   gap: 4px;
   padding: 10px 8px;
   overflow-x: auto;
@@ -9,6 +11,18 @@
   scrollbar-width: none;
 }
 .bar::-webkit-scrollbar {
+  display: none;
+}
+.storyItems {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  flex-shrink: 0;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.storyItems::-webkit-scrollbar {
   display: none;
 }
 .item {
@@ -132,10 +146,13 @@
 /* Выбор медиа перед публикацией истории — можно добавить ещё фото/видео. */
 .mediaSelection {
   display: flex;
+  flex: 1 1 100%;
   flex-direction: column;
   gap: 8px;
-  min-width: min(320px, calc(100vw - 32px));
-  max-width: 460px;
+  width: min(100%, 560px);
+  min-width: 0;
+  max-width: 560px;
+  box-sizing: border-box;
   padding: 14px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -148,7 +165,7 @@
 }
 .mediaSelectionGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(112px, 100%), 1fr));
   gap: 8px;
 }
 .mediaSelectionItem {
@@ -196,9 +213,12 @@
   font-weight: 600;
 }
 .mediaSelectionAdd {
-  min-height: 72px;
   display: flex;
+  aspect-ratio: 4 / 5;
+  min-height: 0;
   align-items: center;
+  justify-content: center;
+  flex-direction: column;
   gap: 6px;
   padding: 10px;
   border: 1px dashed var(--color-border);
@@ -207,6 +227,7 @@
   color: inherit;
   font: inherit;
   font-size: 12px;
+  text-align: center;
   cursor: pointer;
 }
 .mediaSelectionAdd:hover {
@@ -245,4 +266,29 @@
 }
 .mediaSelectionPublish:hover {
   opacity: 0.9;
+}
+
+@media (max-width: 420px) {
+  .mediaSelection {
+    padding: 10px;
+  }
+
+  .mediaSelectionGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .mediaSelectionRemove {
+    top: 3px;
+    right: 3px;
+  }
+
+  .mediaSelectionActions {
+    justify-content: stretch;
+  }
+
+  .mediaSelectionCancel,
+  .mediaSelectionPublish {
+    flex: 1;
+  }
 }

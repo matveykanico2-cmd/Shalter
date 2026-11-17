@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Shalter</title>
+  <meta name="theme-color" content="#2e56d9" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Shalter" />
+  <meta name="google-site-verification" content="8GoOFKRDGnRBmq-O6MQbp9NcQWYvYWdoVmCF4nVVDFY" />
+  <script>
+    // Тема до первой отрисовки: настройки приходят с сервера позже, и до них
+    // мелькала светлая тема. Последнюю выбранную помним в localStorage.
+    (function () {
+      var root = document.documentElement;
+      try {
+        var savedTheme = localStorage.getItem("shalter.theme");
+        if (savedTheme === "dark") root.setAttribute("data-theme", "dark");
+        else if (savedTheme === "light") root.setAttribute("data-theme", "light");
+        else {
+          try {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+              root.setAttribute("data-theme", "dark");
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+      try {
+        var savedAccent = localStorage.getItem("shalter.accent");
+        if (savedAccent) root.style.setProperty("--color-accent", savedAccent);
+      } catch (e) {}
+      try {
+        var savedFont = localStorage.getItem("shalter.fontSize");
+        if (savedFont) {
+          var n = parseInt(savedFont, 10);
+          if (n && n !== 16) root.style.setProperty("--messages-text", n + "px");
+        }
+      } catch (e) {}
+      try {
+        var iconSvg = localStorage.getItem("shalter.appIcon.splash");
+        var splashEl = document.getElementById("boot-splash");
+        if (iconSvg && splashEl) {
+          var holder = document.createElement("div");
+          holder.innerHTML = iconSvg;
+          var svgEl = holder.querySelector("svg");
+          var oldSvg = splashEl.querySelector("svg.bs-logo-svg");
+          if (svgEl && oldSvg) {
+            svgEl.classList.add("bs-logo-svg");
+            oldSvg.replaceWith(svgEl);
+          }
+        }
+      } catch (e) {}
+      new MutationObserver(function () {
+        try {
+          var t = root.getAttribute("data-theme");
+          if (t) localStorage.setItem("shalter.theme", t);
+          else localStorage.removeItem("shalter.theme");
+        } catch (e) {}
+      }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
+  
+  </script>
+  <meta name="color-scheme" content="light dark" />
+  <style>#boot-splash{--bs-bg:#3d6df0;--bs-fg:#fff;--bs-soft:#ffffff38;--bs-dot:#3d6df0;z-index:999;background:var(--bs-bg);flex-direction:column;justify-content:center;align-items:center;gap:14px;transition:opacity .25s,visibility .25s;display:flex;position:fixed;inset:0}#boot-splash[data-hiding="1"]{pointer-events:none}@media (prefers-color-scheme:dark){:root:not([data-theme=light]) #boot-splash{--bs-bg:#0f0f12;--bs-fg:#8774e1;--bs-soft:#8774e140;--bs-dot:#fff}}:root[data-theme=dark] #boot-splash{--bs-bg:#0f0f12;--bs-fg:#8774e1;--bs-soft:#8774e140;--bs-dot:#fff}#boot-splash .bs-logo{justify-content:center;align-items:center;display:flex;position:relative}#boot-splash svg.bs-logo-svg{width:96px;height:96px;overflow:visible}#boot-splash .bs-bubble{fill:var(--bs-fg);transform-box:fill-box;transform-origin:50%;animation:.7s cubic-bezier(.5,0,.3,1) both bs-gather}#boot-splash .bs-bubble:nth-child(2){animation-delay:60ms}#boot-splash .bs-bubble:nth-child(3){animation-delay:.12s}#boot-splash .bs-bubble:nth-child(4){animation-delay:.18s}#boot-splash .bs-bubble:nth-child(5){animation-delay:.24s}#boot-splash .bs-halo{fill:var(--bs-soft);transform-box:fill-box;transform-origin:50%;opacity:0;animation:2s ease-out .9s infinite bs-halo}#boot-splash .bs-shield-line{fill:none;stroke:var(--bs-fg);stroke-width:5px;stroke-linejoin:round;stroke-dasharray:300;stroke-dashoffset:300px;animation:.6s ease-out .45s forwards bs-draw}#boot-splash .bs-shield-fill{fill:var(--bs-fg);opacity:0;transform-box:fill-box;transform-origin:50%;animation:.35s ease-out .9s forwards bs-fill}#boot-splash .bs-dot{fill:var(--bs-dot);opacity:0;transform-box:fill-box;transform-origin:50%;animation:1.2s ease-in-out 1.1s infinite bs-type}#boot-splash .bs-dot:nth-of-type(2){animation-delay:1.25s}#boot-splash .bs-dot:nth-of-type(3){animation-delay:1.4s}#boot-splash .bs-word{letter-spacing:.01em;color:var(--bs-fg);gap:1px;font:700 34px/1 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;display:flex;position:relative;transform:translateZ(0)}#boot-splash .bs-word i{opacity:0;will-change:transform, opacity;font-style:normal;transition:opacity .4s cubic-bezier(.2,0,.2,1),transform .4s cubic-bezier(.2,0,.2,1);display:inline-block;transform:translateY(18px)scale(.7)}#boot-splash.bs-leave svg.bs-logo-svg{opacity:0;transition:transform .4s cubic-bezier(.5,0,.75,0),opacity .4s;transform:scale(1.6)}@keyframes bs-gather{0%{opacity:0;transform:translate(var(--bx), var(--by)) scale(.4)}60%{opacity:1}to{opacity:0;transform:translate(0)scale(.2)}}@keyframes bs-draw{to{stroke-dashoffset:0}}@keyframes bs-fill{0%{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}@keyframes bs-halo{0%{opacity:.9;transform:scale(.9)}to{opacity:0;transform:scale(1.35)}}@keyframes bs-type{0%,to{opacity:.45;transform:translateY(0)}30%{opacity:1;transform:translateY(-5px)}60%{opacity:.45;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){#boot-splash .bs-bubble,#boot-splash .bs-halo{display:none}#boot-splash .bs-shield-line,#boot-splash .bs-shield-fill,#boot-splash .bs-dot{stroke-dashoffset:0;opacity:1;animation:none}}</style>
+  <meta name="yandex-verification" content="5d613c81ddf70c98" />
+<script type="text/javascript">
+    window.addEventListener("load", function () {
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=111690384', 'ym');
+
+    // Вебвизор выключен: он записывает каждое изменение страницы (в мессенджере — постоянно),
+    // на телефонах это заметно тормозило ленту, и в запись попадал текст личных переписок.
+    ym(111690384, 'init', {ssr:true, webvisor:false, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    });
+</script>
+  <script type="module" crossorigin src="/assets/index-CIf0Xho3.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/api-DhNWRP33.js">
+  <link rel="modulepreload" crossorigin href="/assets/ui-CGugVuhU.js">
+  <link rel="modulepreload" crossorigin href="/assets/useMutation-CTicUkk8.js">
+  <link rel="modulepreload" crossorigin href="/assets/queryOptions-Dfvzj6n2.js">
+  <link rel="modulepreload" crossorigin href="/assets/upload-B9B4ty1X.js">
+  <link rel="modulepreload" crossorigin href="/assets/use-session-CW71y-I9.js">
+  <link rel="modulepreload" crossorigin href="/assets/profile-store-tnjx-XfG.js">
+  <link rel="modulepreload" crossorigin href="/assets/stars-queries-i6PbEmna.js">
+  <link rel="modulepreload" crossorigin href="/assets/gift-message-Cov8Jap7.js">
+  <link rel="modulepreload" crossorigin href="/assets/time-format-DopfinPm.js">
+  <link rel="modulepreload" crossorigin href="/assets/safety-badge-B9CrbDav.js">
+  <link rel="modulepreload" crossorigin href="/assets/profile-status-badge-CPlJMuMR.js">
+  <link rel="modulepreload" crossorigin href="/assets/chat-CGm4L6_j.js">
+  <link rel="modulepreload" crossorigin href="/assets/permissions-VDzdXJa9.js">
+  <link rel="modulepreload" crossorigin href="/assets/session-BUvVB9QP.js">
+  <link rel="modulepreload" crossorigin href="/assets/presence-DqYISTF3.js">
+  <link rel="modulepreload" crossorigin href="/assets/user-yXom5-2O.js">
+  <link rel="modulepreload" crossorigin href="/assets/platform-CLCOnVgK.js">
+  <link rel="modulepreload" crossorigin href="/assets/pretty-qr-BqXBnYqY.js">
+  <link rel="modulepreload" crossorigin href="/assets/sounds-CNfCGdIC.js">
+  <link rel="modulepreload" crossorigin href="/assets/camera-switch-B0BoR5-g.js">
+  <link rel="modulepreload" crossorigin href="/assets/game-store-CFxvomiT.js">
+  <link rel="modulepreload" crossorigin href="/assets/game-BBimDAXC.js">
+  <link rel="modulepreload" crossorigin href="/assets/gift-DdNb_d8O.js">
+  <link rel="modulepreload" crossorigin href="/assets/plans-DDqppy0H.js">
+  <link rel="modulepreload" crossorigin href="/assets/stars-BKZrmzwD.js">
+  <link rel="modulepreload" crossorigin href="/assets/power-saving-OQEBgPk3.js">
+  <link rel="modulepreload" crossorigin href="/assets/message-CmF-ZIfz.js">
+  <link rel="modulepreload" crossorigin href="/assets/public-link--3rl-lca.js">
+  <link rel="modulepreload" crossorigin href="/assets/message-outbox-2Zgvy44p.js">
+  <link rel="modulepreload" crossorigin href="/assets/qr-card-C52AtXuF.js">
+  <link rel="modulepreload" crossorigin href="/assets/dist-CkZPNkHb.js">
+  <link rel="modulepreload" crossorigin href="/assets/esm--HNqjiLp.js">
+  <link rel="stylesheet" crossorigin href="/assets/ui-BPTxikpb.css">
+  <link rel="stylesheet" crossorigin href="/assets/gift-message-CU8QaYkY.css">
+  <link rel="stylesheet" crossorigin href="/assets/safety-badge-Bu0NGeXp.css">
+  <link rel="stylesheet" crossorigin href="/assets/profile-status-badge-B5H5muVN.css">
+  <link rel="stylesheet" crossorigin href="/assets/chat-BTv6Ys5J.css">
+  <link rel="stylesheet" crossorigin href="/assets/user-DxV_-6Bb.css">
+  <link rel="stylesheet" crossorigin href="/assets/stars-wLWTPFoZ.css">
+  <link rel="stylesheet" crossorigin href="/assets/message-BlyW-O3z.css">
+  <link rel="stylesheet" crossorigin href="/assets/message-outbox-DStRK50G.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-BjDig_sg.css">
+</head>
+<body>
+  <noscript><div><img src="https://mc.yandex.ru/watch/111690384" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+  <div id="boot-splash">
+    <div class="bs-logo">
+      <svg class="bs-logo-svg" viewBox="0 0 120 120" aria-hidden="true">
+        <g>
+          <circle class="bs-bubble" cx="60" cy="62" r="7" style="--bx:-46px;--by:-40px"/>
+          <circle class="bs-bubble" cx="60" cy="62" r="5" style="--bx:48px;--by:-30px"/>
+          <circle class="bs-bubble" cx="60" cy="62" r="8" style="--bx:-40px;--by:42px"/>
+          <circle class="bs-bubble" cx="60" cy="62" r="6" style="--bx:44px;--by:46px"/>
+          <circle class="bs-bubble" cx="60" cy="62" r="4" style="--bx:0px;--by:-56px"/>
+        </g>
+        <path class="bs-halo" d="M60 12 100 26V58C100 84 83 101 60 110 37 101 20 84 20 58V26Z"/>
+        <path class="bs-shield-fill" d="M60 12 100 26V58C100 84 83 101 60 110 37 101 20 84 20 58V26Z"/>
+        <path class="bs-shield-line" d="M60 12 100 26V58C100 84 83 101 60 110 37 101 20 84 20 58V26Z"/>
+        <circle class="bs-dot" cx="45" cy="60" r="6"/>
+        <circle class="bs-dot" cx="60" cy="60" r="6"/>
+        <circle class="bs-dot" cx="75" cy="60" r="6"/>
+      </svg>
+    </div>
+    <div class="bs-word" aria-label="Shalter"></div>
+  </div>
+  <script>
+    // Lightweight boot splash - CSS-driven animation, no heavy JS math
+    (function () {
+      var word = document.querySelector("#boot-splash .bs-word");
+      if (!word) return;
+      var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var letters = "Shalter".split("").map(function (ch, i) {
+        var el = document.createElement("i");
+        el.textContent = ch;
+        el.style.transitionDelay = (0.45 + i * 0.05) + "s";
+        word.appendChild(el);
+        return el;
+      });
+      var start = Date.now();
+      if (reduced) {
+        letters.forEach(function (el) { el.style.opacity = "1"; el.style.transform = "none"; });
+        window.__splashExit = function (done) { done && done(); };
+        return;
+      }
+      // Trigger animation
+      requestAnimationFrame(function() {
+        letters.forEach(function (el) {
+          el.style.opacity = "1";
+          el.style.transform = "none";
+        });
+      });
+      window.__splashStart = start;
+      window.__splashExit = function (done) {
+        var sp = document.getElementById("boot-splash");
+        if (sp) sp.classList.add("bs-leave");
+        letters.forEach(function (el, i) {
+          el.style.transitionDelay = (i * 0.03) + "s";
+          el.style.opacity = "0";
+          el.style.transform = "translateY(-18px) scale(0.7)";
+        });
+        setTimeout(done, 500);
+      };
+    })();
+  </script>
+  <script>
+    // Выбранная иконка приложения (lib/appIcons.js) — на заставке и во вкладке сразу,
+    // ещё до загрузки модулей.
+    try {
+      var iconSvg = localStorage.getItem("shalter.appIcon.splash");
+      var splashEl = document.getElementById("boot-splash");
+      if (iconSvg && splashEl) {
+        var holder = document.createElement("div");
+        holder.innerHTML = iconSvg;
+        var svgEl = holder.querySelector("svg");
+        var oldSvg = splashEl.querySelector("svg.bs-logo-svg");
+        if (svgEl && oldSvg) {
+          svgEl.setAttribute("aria-hidden", "true");
+          svgEl.classList.add("bs-logo-svg");
+          if (oldSvg.parentNode) oldSvg.parentNode.replaceChild(svgEl, oldSvg);
+        }
+      }
+    } catch (e) {}
+    // Приложение убирает заставку после первой отрисовки экрана (app/model/boot-splash.ts);
+    // на случай сбоя (модуль не догрузился на плохой сети) — не дольше 3 с.
+    function killSplash() {
+      try {
+        var s = document.getElementById("boot-splash");
+        if (s) s.remove();
+      } catch (e) {}
+    }
+    setTimeout(killSplash, 3000);
+    // Необработанная ошибка при загрузке не должна оставить пользователя под заставкой.
+    window.addEventListener("error", killSplash);
+    window.addEventListener("unhandledrejection", killSplash);
+  </script>
+  <div id="root"></div>
+</body>
+</html>

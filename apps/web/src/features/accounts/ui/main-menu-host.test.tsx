@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type SelfUser,sessionQueries } from "@/entities/session";
 import { settingsQueries } from "@/entities/settings";
@@ -33,7 +33,11 @@ function setup() {
   return router;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  delete (window as Window & { Capacitor?: unknown }).Capacitor;
+  vi.restoreAllMocks();
+});
 
 describe("главное меню", () => {
   it.each([
@@ -56,5 +60,20 @@ describe("главное меню", () => {
     for (const label of ["Мой профиль", "Shalter AI", "Избранное", "Включить тёмную тему", "Отключить анимации", "Скачать приложение", "Сообщить об ошибке"]) {
       expect(await screen.findByRole("button", { name: label })).toBeTruthy();
     }
+  });
+
+  it("в native shell открывает страницу загрузки во внешнем браузере", async () => {
+    const open = vi.fn().mockResolvedValue(undefined);
+    (window as Window & { Capacitor?: unknown }).Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { Browser: { open } },
+    };
+    const router = setup();
+    openMainMenu({ x: 10, y: 10 });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Скачать приложение" }));
+
+    expect(router.state.location.pathname).toBe("/");
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ url: `${location.origin}/download` }));
   });
 });
