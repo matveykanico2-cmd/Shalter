@@ -29,6 +29,8 @@ const DOC_PAGES: Record<string, string> = {
 };
 const PAGES: Record<string, string> = {
   "/download": "download.html",
+  "/privacy": "privacy.html",
+  "/terms": "terms.html",
   "/promo": "promo.html",
   "/short": "short.html",
   "/premium": "premium.html",

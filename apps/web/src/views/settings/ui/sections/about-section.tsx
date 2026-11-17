@@ -60,6 +60,8 @@ export function AboutSection() {
       </SettingsSection>
       <SettingsSection title="Ссылки">
         <SettingsRow icon="Download" color="green" title="Скачать приложение" href="/download" external />
+        <SettingsRow icon="Lock" color="grey" title="Политика конфиденциальности" href="/privacy" external newTab />
+        <SettingsRow icon="FileText" color="grey" title="Условия использования" href="/terms" external newTab />
         <SettingsRow icon="Users" color="orange" title="Сотрудничество" href="/promo" external />
         <SettingsRow icon="MessageSquare" color="blue" title="Поддержка — Hugo" onClick={openSupport} />
       </SettingsSection>

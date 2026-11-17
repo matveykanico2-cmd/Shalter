@@ -31,6 +31,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     // IncomingCall; OfflineShell) поверх сгенерированного.
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
+    wireReleaseSigning();
     setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
@@ -359,4 +360,42 @@ function pinDebugSigningKey() {
   );
   fs.writeFileSync(gradlePath, gradle);
   console.log("android: debug-сборки подписываются постоянным ключом");
+}
+
+// Release подписывается только если разработчик явно положил android/keystore.properties.
+// Файл игнорируется git и содержит секреты; без него debug-сборка остаётся доступной, но
+// случайно отдать её в RuStore невозможно — release-сборка завершится понятной ошибкой.
+function wireReleaseSigning() {
+  const propertiesPath = path.join(ROOT, "android/keystore.properties");
+  if (!fs.existsSync(propertiesPath)) {
+    console.log("android: keystore.properties не найден — release-подпись не меняется (создайте файл для публикации)");
+    return;
+  }
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  let gradle = fs.readFileSync(gradlePath, "utf8");
+  if (gradle.includes("shalterReleaseSigning") || (gradle.includes("signingConfig signingConfigs.release") && gradle.includes("keystorePropertiesFile"))) return;
+  const loader = `
+// shalterReleaseSigning — scripts/apply-native-resources.js
+def shalterReleasePropertiesFile = rootProject.file("keystore.properties")
+def shalterReleaseProperties = new Properties()
+shalterReleaseProperties.load(new FileInputStream(shalterReleasePropertiesFile))
+`;
+  gradle = gradle.replace("apply plugin: 'com.android.application'\n", `apply plugin: 'com.android.application'${loader}`);
+  gradle = gradle.replace(
+    /android \{\n/,
+    `android {
+    signingConfigs {
+        release {
+            // shalterReleaseSigning — значения читаются только из локального ignored-файла
+            storeFile file(shalterReleaseProperties['storeFile'])
+            storePassword shalterReleaseProperties['storePassword']
+            keyAlias shalterReleaseProperties['keyAlias']
+            keyPassword shalterReleaseProperties['keyPassword']
+        }
+    }
+`
+  );
+  gradle = gradle.replace(/(buildTypes \{\n\s*release \{\n)/, "$1            signingConfig signingConfigs.release\n");
+  fs.writeFileSync(gradlePath, gradle);
+  console.log("android: release-сборки подписываются ключом из android/keystore.properties");
 }
