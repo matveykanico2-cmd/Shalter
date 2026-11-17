@@ -51,6 +51,13 @@ function useKeyboardViewport() {
   useEffect(() => {
     const root = document.documentElement;
     const vv = window.visualViewport;
+    // На Android Capacitor WebView окно уже получает adjustResize. Повторное
+    // position:fixed + visualViewport resize здесь даёт двойное изменение высоты:
+    // при каждом символе поле наезжает вверх, затем возвращается вниз. Android
+    // оставляем нативному resize, а visualViewport используем для iOS/PWA.
+    const capacitor = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const androidNative = /Android/i.test(navigator.userAgent) && !!capacitor?.isNativePlatform?.();
+    if (androidNative) return;
     let frame = 0;
     let blurTimer: ReturnType<typeof setTimeout> | undefined;
     let lastHeight = "";

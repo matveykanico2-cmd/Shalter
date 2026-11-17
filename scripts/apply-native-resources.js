@@ -238,7 +238,10 @@ function wirePushNotifications() {
   // CAMERA/RECORD_AUDIO/MODIFY_AUDIO_SETTINGS: без них в манифесте WebView отказывал
   // getUserMedia, не спрашивая, — звонки, голосовые и кружки на Android не работали.
   // USE_FULL_SCREEN_INTENT — экран входящего звонка поверх блокировки (CallNotifier.java).
-  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS", "CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "USE_FULL_SCREEN_INTENT", "VIBRATE", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]) {
+  // ContactsPlugin объявляет пару READ/WRITE даже когда Shalter только читает
+  // телефонную книгу. Без WRITE_CONTACTS Capacitor считает alias contacts
+  // неполным и системный запрос разрешения завершается ошибкой.
+  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS", "WRITE_CONTACTS", "CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "USE_FULL_SCREEN_INTENT", "VIBRATE", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]) {
     const line = `<uses-permission android:name="android.permission.${perm}" />`;
     if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    ${line}\n</manifest>`);
   }
