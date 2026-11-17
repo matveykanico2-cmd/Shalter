@@ -17,7 +17,30 @@ import styles from "./confirm.module.css";
 export function QrLoginView() {
   const token = new URLSearchParams(window.location.search).get("token");
   const session = useSession();
-  return <AuthFrame>{token ? session.isPending ? null : <Content token={token} user={session.data?.user ?? null} /> : <BadLink />}</AuthFrame>;
+  return (
+    <AuthFrame>
+      {!token ? <BadLink /> : session.isPending ? <Loading /> : session.isError ? <SessionError token={token} /> : <Content token={token} user={session.data?.user ?? null} />}
+    </AuthFrame>
+  );
+}
+
+function Loading() {
+  return (
+    <div className={styles.panel} role="status" aria-live="polite">
+      <p className={styles.title}>Проверяем вход…</p>
+      <p className={styles.instructions}>Подождите немного, мы загружаем данные аккаунта.</p>
+    </div>
+  );
+}
+
+function SessionError({ token }: { token: string }) {
+  return (
+    <div className={styles.panel} role="alert">
+      <p className={styles.error}>Не удалось проверить вход.</p>
+      <p className={styles.instructions}>Проверьте интернет и откройте QR-код ещё раз.</p>
+      <a href={`/qr-login?token=${encodeURIComponent(token)}`} className={styles.link}>Повторить</a>
+    </div>
+  );
 }
 
 function BadLink() {

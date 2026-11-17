@@ -206,8 +206,13 @@ function wirePushNotifications() {
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
-        </service>`
+        </service>
+        <receiver android:name=".MessageNotificationReceiver" android:exported="false" />`
     );
+  }
+  if (useShalterMessagingService && !manifest.includes("MessageNotificationReceiver")) {
+    manifest = manifest.replace(/<application([^>]*)>/, `<application$1>
+        <receiver android:name=".MessageNotificationReceiver" android:exported="false" />`);
   }
   // Фоновая служба (lib/nativeNotify.js): держит приложение на связи без Firebase.
   if (!manifest.includes("AndroidForegroundService")) {
