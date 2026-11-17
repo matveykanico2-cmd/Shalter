@@ -78,10 +78,10 @@ function msg(text: string, patch: Partial<Message> = {}): Message {
 
 const page = (messages: Message[], patch = {}) => ({ body: { messages, hasMore: false, firstUnreadId: null, replyTargets: {}, ...patch } });
 
-function renderChat(c: ChatSummary = chat()) {
+function renderChat(c: ChatSummary = chat(), cacheList = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(sessionQueries.current().queryKey, { user: ME } as never);
-  client.setQueryData(chatQueries.list().queryKey, [c]);
+  if (cacheList) client.setQueryData(chatQueries.list().queryKey, [c]);
   const router = createMemoryRouter(
     [
       {
@@ -135,6 +135,14 @@ afterEach(() => {
 });
 
 describe("открытый чат", () => {
+  it("показывает загрузчик, пока чат ещё загружается, а не пустую область", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+
+    renderChat(chat(), false);
+
+    expect(await screen.findByRole("status", { name: "Загрузка" })).toBeTruthy();
+  });
+
   it("история с плашками, автором, ответом; счётчик в списке гаснет", async () => {
     const first = msg("Привет **всем**");
     const reply = msg("и тебе", { senderId: ME.id, replyToId: first.id, readByIds: [ME.id, LENA.id] });

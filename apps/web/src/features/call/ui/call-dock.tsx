@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
@@ -7,6 +8,13 @@ import { formatElapsed } from "../lib/format";
 import { useCall } from "../model/use-call";
 
 import styles from "./call-dock.module.css";
+
+const ActualPathContext = createContext<string | null>(null);
+
+/** Outer router path; nested AppRoutes may render the chat under a synthetic location. */
+export function ActualPathProvider({ pathname, children }: { pathname: string; children: React.ReactNode }) {
+  return <ActualPathContext.Provider value={pathname}>{children}</ActualPathContext.Provider>;
+}
 
 /**
  * Звонок вне своего экрана — как call-bubble-slot и call-audio-sink в public/js/app.js:
@@ -54,9 +62,9 @@ export function CallBar({ chatId }: { chatId: string }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // AppRoutes keeps ChatView mounted under a synthetic location while a desktop
-  // side panel (Contacts/Settings) is open. The browser path is the real visible
-  // route, so use it to avoid rendering both the inline bar and the global PiP.
-  const visiblePath = typeof window === "undefined" ? pathname : window.location.pathname;
+  // side panel (Contacts/Settings) is open. The provider supplies the real outer
+  // path there; direct renders (including memory-router tests) use their route.
+  const visiblePath = useContext(ActualPathContext) ?? pathname;
   if (!s || !s.minimized || s.call.chatId !== chatId || !visiblePath.startsWith("/chat/")) return null;
   const other = s.others[0];
   return (

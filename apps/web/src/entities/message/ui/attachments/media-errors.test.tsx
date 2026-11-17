@@ -43,6 +43,15 @@ describe("медиа, которое не загрузилось, — «Повт
     expect(screen.queryByLabelText("Видео обрабатывается")).toBeNull();
   });
 
+  it("видео без даты сообщения не зависает в состоянии обработки", () => {
+    const a: Attachment = { kind: "video", url: "/uploads/v_0123456789abcdef.mp4", previewPending: true };
+
+    render(<VideoAttachment attachment={a} messageId="m1" />);
+
+    expect(screen.queryByLabelText("Видео обрабатывается")).toBeNull();
+    expect(screen.getByLabelText("Видео")).toBeTruthy();
+  });
+
   it("кружок: ролик не загрузился — спрятан, вместо «играть» — «Не загрузилось»", () => {
     const a: Attachment = { kind: "video-note", url: "/uploads/n_0123456789abcdef.mp4", durationSec: 7 };
     const { container } = render(<VideoNotePlayer attachment={a} message={msg()} senderName="Боб" />);

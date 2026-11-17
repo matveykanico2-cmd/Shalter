@@ -146,7 +146,7 @@ export const buyNotEnough = z.strictObject({ error: z.string(), needStars: z.num
 /** POST /request от главного админа — подарок выдаётся сразу. */
 export const requestDeliveredBody = z.strictObject({ chatId: z.string(), adminPhone: z.string(), delivered: z.literal(true), serial: z.number().nullable() });
 /** POST /deliver. */
-export const deliverBody = z.strictObject({ user: userWithGifts, serial: z.number().nullable() });
+export const deliverBody = z.strictObject({ chatId: z.string(), user: userWithGifts, serial: z.number().nullable() });
 /** POST /received/:id/convert. */
 export const convertBody = z.strictObject({ balance: z.number(), gained: z.number(), user: userWithGifts });
 /** DELETE /received/:id, POST /received/:id/pin. */

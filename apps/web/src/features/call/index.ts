@@ -5,6 +5,6 @@ export { useCall } from "./model/use-call";
 export { useStartCall } from "./model/use-start-call";
 export { useVoiceRoomItem } from "./model/use-voice-room-item";
 export { CallButtons } from "./ui/call-buttons";
-export { CallBar, CallDock } from "./ui/call-dock";
+export { ActualPathProvider, CallBar, CallDock } from "./ui/call-dock";
 export { CallScreen } from "./ui/call-screen";
 export { IncomingCall } from "./ui/incoming-call";

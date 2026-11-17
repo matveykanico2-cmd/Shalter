@@ -7,6 +7,7 @@ import { AppShell } from "@/widgets/app-shell";
 import { ChatList } from "@/widgets/chat-list";
 import { UserProfileHost } from "@/widgets/user-profile";
 
+import { ActualPathProvider } from "@/features/call";
 import { usePhoneBookSync } from "@/features/manage-contacts";
 import { ShareInboxHost, ShareRoute } from "@/features/share-inbox";
 
@@ -100,7 +101,7 @@ export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: bo
   if (!chatsReady) return <Splash />;
 
   return (
-    <>
+    <ActualPathProvider pathname={location.pathname}>
       <AppShell
         user={user}
         mainOpen={!side && location.pathname !== "/"}
@@ -111,6 +112,6 @@ export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: bo
       {/* Профиль человека — панель поверх всего, открывается откуда угодно (openUserProfile). */}
       <UserProfileHost />
       <ShareInboxHost />
-    </>
+    </ActualPathProvider>
   );
 }

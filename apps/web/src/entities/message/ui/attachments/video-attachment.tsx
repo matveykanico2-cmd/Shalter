@@ -40,7 +40,9 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
   const [bust, setBust] = useState("");
   const [mountedAt] = useState(() => Date.now());
   const sentMs = sentAt ? Date.parse(sentAt) : NaN;
-  const pending = !!a.previewPending && !(mountedAt - sentMs > PENDING_MAX_MS);
+  // Без даты нельзя надёжно определить возраст задания: не превращаем ролик в
+  // вечный «обрабатывается», если старый клиент не прислал createdAt.
+  const pending = !!a.previewPending && Number.isFinite(sentMs) && mountedAt - sentMs <= PENDING_MAX_MS;
   const retry = (e: MouseEvent) => {
     e.stopPropagation();
     setPosterBroken(false);

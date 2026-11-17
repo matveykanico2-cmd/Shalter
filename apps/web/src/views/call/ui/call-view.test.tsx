@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/widgets/app-shell";
 
-import { getCall } from "@/features/call";
+import { CallBar, getCall } from "@/features/call";
 
 import { type SelfUser, sessionQueries } from "@/entities/session";
 
@@ -30,7 +30,7 @@ function renderApp(path = "/") {
         element: <AppShell user={ME} sidebar={null} main={<Outlet />} mainOpen />,
         children: [
           { path: "/", element: <p>Список чатов</p> },
-          { path: "/chat/:chatId", element: <Link to="/">чат</Link> },
+          { path: "/chat/:chatId", element: <><CallBar chatId="c_1" /><Link to="/">чат</Link></> },
           { path: "/call/:callId", element: <CallView /> },
           { path: "/call-join/:token", element: <CallJoinView /> },
         ],
@@ -125,13 +125,17 @@ describe("звонки в оболочке", () => {
     // Свернуть — в чат звонка; звонок идёт, в углу пузырь с собеседником и таймером.
     fireEvent.click(screen.getByTitle("Свернуть (PiP)"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_1"));
-    const bubble = await screen.findByRole("button", { name: /Борис\s*\d{2}:\d{2}/ });
+    await waitFor(() => {
+      const match = screen.getAllByRole("button", { name: /Борис\s*\d{2}:\d{2}/ }).find((el) => el.className.includes("_bar_"));
+      if (!match) throw new Error("inline call bar is not visible");
+    });
     // Ушли и из чата — пузырь остаётся.
     fireEvent.click(screen.getByRole("link", { name: "чат" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(screen.getByRole("button", { name: /Борис\s*\d{2}:\d{2}/ })).toBe(bubble);
+    const strip = screen.getByRole("button", { name: /Борис\s*\d{2}:\d{2}/ });
+    expect(strip.className).toContain("_strip_");
 
-    fireEvent.click(bubble);
+    fireEvent.click(strip);
     await waitFor(() => expect(router.state.location.pathname).toBe("/call/cl_1"));
     expect(screen.queryByRole("button", { name: /Борис\s*\d{2}:\d{2}/ })).toBeNull();
 

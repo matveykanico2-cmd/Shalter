@@ -27,7 +27,7 @@ import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
 import { useWsEvent } from "@/shared/api";
-import { Button, wallpaperProps } from "@/shared/ui";
+import { Button, ScreenLoader, wallpaperProps } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
 
@@ -49,7 +49,7 @@ export function ChatView() {
 
   if (!me) return null;
   if (!chat) {
-    if (listed.isPending || card.isPending) return null;
+    if (listed.isPending || card.isPending) return <ScreenLoader />;
     return <div className={styles.missing}>Чат не найден</div>;
   }
   // key: новый чат — новое состояние ленты и поля ввода (ответ, плашка непрочитанных).

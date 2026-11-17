@@ -80,7 +80,7 @@ export class GiftsService {
 
     const result = await this.delivery.deliver({ gift, recipientId: recipient.id, fromId: uid, announceFromId: uid });
     if (!result.ok) throw new ApiError(410, soldOutError(gift));
-    return { user: this.shelfOf(recipient.id, uid), serial: result.serial };
+    return { chatId: result.chat.id, user: this.shelfOf(recipient.id, uid), serial: result.serial };
   }
 
   public async buy(uid: string, dto: SendGiftDto) {

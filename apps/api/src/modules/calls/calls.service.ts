@@ -152,10 +152,9 @@ export class CallsService {
   public answer(uid: string, id: string) {
     const call = this.participantCall(id, uid);
     this.calls.markAnswered(call.id, uid, new Date().toISOString());
-    // Ответ должен увидеть и звонящий: иначе его вкладка остаётся в `ringing`
-    // и быстрый сброс после ответа записывает звонок как пропущенный.
-    // Все устройства ответившего тоже получают событие и закрывают свои входящие.
-    this.realtime.broadcastToUsers(call.participantIds, { type: "call:answered", callId: call.id });
+    // Событие нужно только устройствам ответившего: они закрывают лишние
+    // входящие баннеры. Вызывающий узнаёт о соединении по WebRTC-сигналу.
+    this.realtime.broadcastToUsers([uid], { type: "call:answered", callId: call.id });
     return { ok: true };
   }
 

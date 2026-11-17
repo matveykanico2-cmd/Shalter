@@ -436,20 +436,6 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
       notify();
     }
   }, 1000);
-  // The API marks the answering participant separately. The caller may miss the
-  // one-shot WS notification while navigating, so reconcile the semantic answer
-  // before hangup; otherwise a real answered call could be recorded as missed.
-  const answerWatch = setInterval(() => {
-    if (state !== mine || mine.phase !== "ringing") return;
-    void callApi.list().then(({ calls }) => {
-      if (state !== mine || mine.phase !== "ringing") return;
-      const current = calls.find((item) => item.id === mine.call.id);
-      if (!current?.answered) return;
-      mine.phase = "connected";
-      stopRingtone();
-      notify();
-    }).catch(() => {});
-  }, 1000);
   let after = 0;
   const poll = setInterval(() => {
     if (!state) return;
@@ -495,7 +481,6 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     () => window.removeEventListener("pagehide", onPageHide),
     () => window.removeEventListener("beforeunload", onPageExit),
     () => clearInterval(ticker),
-    () => clearInterval(answerWatch),
     () => clearInterval(poll),
     ws.on("call:signal", (msg) => void handleSignal(msg.signal)),
     ws.on("call:answered", (msg) => {
