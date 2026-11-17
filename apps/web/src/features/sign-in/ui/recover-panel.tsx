@@ -35,6 +35,9 @@ export function RecoverPanel({ onSignedIn, onBack }: Props) {
   });
   const pending = check.isPending || reset.isPending;
   const error = step === "email" ? check.error : reset.error;
+  const supportMail = `mailto:shalter.support@gmail.com?subject=${encodeURIComponent("Восстановление доступа к Shalter")}&body=${encodeURIComponent(
+    "Здравствуйте! Не могу восстановить доступ к аккаунту Shalter.\n\nМой username, email или другие данные для идентификации:\n\n"
+  )}`;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -91,6 +94,14 @@ export function RecoverPanel({ onSignedIn, onBack }: Props) {
           Изменить данные
         </button>
       )}
+      {step === "email" ? (
+        <p className={styles.hint}>
+          Нет доступа к почте или номер не привязан?{" "}
+          <a className={styles.link} href={supportMail}>
+            Написать в поддержку
+          </a>
+        </p>
+      ) : null}
       <button type="button" className={styles.link} onClick={onBack}>
         Назад ко входу
       </button>
