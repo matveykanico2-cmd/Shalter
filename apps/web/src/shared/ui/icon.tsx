@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 // Иконки — те же контуры, что в public/js/icons.js (24×24, обводка currentColor).
 const PATHS = {
   Accounts: '<circle cx="9" cy="9" r="5"/><path d="M15 6a5 5 0 0 1 0 9.8"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',
@@ -98,12 +100,13 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-type Props = { name: IconName; size?: number; className?: string };
+type Props = { name: IconName; size?: number; className?: string; style?: CSSProperties };
 
-export function Icon({ name, size = 20, className }: Props) {
+export function Icon({ name, size = 20, className, style }: Props) {
   return (
     <svg
       className={className}
+      style={style}
       width={size}
       height={size}
       viewBox="0 0 24 24"

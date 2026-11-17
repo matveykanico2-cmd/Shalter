@@ -7,6 +7,8 @@ import styles from "./menu.module.css";
 export type MenuItem = {
   label: string;
   icon?: IconName;
+  /** Цвет иконки для тематических меню (например, вложения). */
+  iconColor?: string;
   danger?: boolean;
   /** Без onClick — строка-подпись (например, «Прочитано в 12:30»). */
   onClick?: () => void;
@@ -141,7 +143,7 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
                   item.onClick?.();
                 }}
               >
-                {item.icon ? <Icon name={item.icon} size={18} /> : null}
+                {item.icon ? <Icon name={item.icon} size={18} style={{ color: item.iconColor }} /> : null}
                 <span>{item.label}</span>
               </button>
             ) : (

@@ -62,14 +62,14 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onArticle, onDice, 
   };
   // На телефоне главное — круглыми кнопками в шапке шторки (tiles ниже), в списке остальное.
   const items: MenuItem[] = [
-    ...(phone ? [] : [{ icon: "Image" as const, label: "Фото или видео", onClick: () => media.current?.click() }]),
-    ...(phone ? [] : [{ icon: "Camera" as const, label: "Снять фото", onClick: () => photo.current?.click() }]),
-    { icon: "Video", label: "Снять видео", onClick: () => video.current?.click() },
-    ...(phone ? [] : [{ icon: "File" as const, label: "Файл", onClick: () => any.current?.click() }]),
+    ...(phone ? [] : [{ icon: "Image" as const, iconColor: "#3b82f6", label: "Фото или видео", onClick: () => media.current?.click() }]),
+    ...(phone ? [] : [{ icon: "Camera" as const, iconColor: "#8b5cf6", label: "Снять фото", onClick: () => photo.current?.click() }]),
+    { icon: "Video", iconColor: "#6366f1", label: "Снять видео", onClick: () => video.current?.click() },
+    ...(phone ? [] : [{ icon: "File" as const, iconColor: "#0ea5e9", label: "Файл", onClick: () => any.current?.click() }]),
     // accept="audio/*" открывает на телефоне музыку, а не галерею; трек уходит файлом с плеером.
-    ...(phone ? [] : [{ icon: "Mic" as const, label: "Аудио", onClick: () => audio.current?.click() }]),
-    { icon: "Zap", label: "Мем", onClick: onMeme },
-    { icon: "Edit", label: "Рисунок", onClick: onPaint },
+    ...(phone ? [] : [{ icon: "Mic" as const, iconColor: "#ec4899", label: "Аудио", onClick: () => audio.current?.click() }]),
+    { icon: "Zap", iconColor: "#eab308", label: "Мем", onClick: onMeme },
+    { icon: "Edit", iconColor: "#f43f5e", label: "Рисунок", onClick: onPaint },
     ...(phone ? [] : [{ icon: "BarChart" as const, label: "Опрос", onClick: onPoll }]),
     ...(phone ? [] : [{ icon: "CheckCheck" as const, label: "Чек-лист", onClick: onChecklist }]),
     ...(onArticle ? [{ icon: "Star" as const, label: "Статья (Premium)", onClick: onArticle }] : []),
