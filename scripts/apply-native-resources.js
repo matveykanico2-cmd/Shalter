@@ -5,6 +5,9 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
+// Пакет release-приложения Shalter для RuStore. Не меняйте его после первой
+// публикации: обновления должны иметь тот же applicationId и подпись.
+const ANDROID_APPLICATION_ID = "ru.shalter.messenger";
 const TARGETS = {
   android: { from: "resources/android/res", to: "android/app/src/main/res" },
   ios: { from: "resources/ios", to: "ios/App/App/Assets.xcassets" },
@@ -32,6 +35,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
     wireReleaseSigning();
+    setAndroidApplicationId();
     setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
@@ -334,6 +338,24 @@ function setAppVersion() {
     .replace(/versionName "[^"]*"/, `versionName "${version}"`);
   fs.writeFileSync(gradlePath, gradle);
   console.log(`android: версия ${version} (versionCode ${code})`);
+}
+
+// Capacitor генерирует applicationId из capacitor.config.json, но старый ID уже
+// занят другой карточкой. Namespace Java оставляем совместимым с нативным кодом,
+// а package name APK задаём отдельно — это именно значение, которое видит RuStore.
+function setAndroidApplicationId() {
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  let gradle = fs.readFileSync(gradlePath, "utf8").replace(/applicationId "[^"]*"/, `applicationId "${ANDROID_APPLICATION_ID}"`);
+  fs.writeFileSync(gradlePath, gradle);
+  const stringsPath = path.join(ROOT, "android/app/src/main/res/values/strings.xml");
+  if (fs.existsSync(stringsPath)) {
+    const strings = fs
+      .readFileSync(stringsPath, "utf8")
+      .replace(/(<string name="package_name">)[^<]*/, `$1${ANDROID_APPLICATION_ID}`)
+      .replace(/(<string name="custom_url_scheme">)[^<]*/, `$1${ANDROID_APPLICATION_ID}`);
+    fs.writeFileSync(stringsPath, strings);
+  }
+  console.log(`android: package name ${ANDROID_APPLICATION_ID}`);
 }
 
 // Постоянный ключ для debug-сборок (resources/android/debug.keystore). Иначе каждая

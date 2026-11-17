@@ -5,7 +5,7 @@
 - APK: `public/downloads/Shalter.apk`
 - Версия: `1.0.1`
 - `versionCode`: `10001`
-- Package name: `ru.shalter.app`
+- Package name: `ru.shalter.messenger`
 - Минимальная версия Android: 8.0 (API 23)
 - Target SDK: 35
 - Тип: бесплатное приложение с необязательными платными функциями

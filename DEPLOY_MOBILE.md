@@ -36,7 +36,7 @@ from the Capacitor one above:
 
 | | Capacitor (`android/`, this doc's main path) | PWABuilder TWA (in use now) |
 |---|---|---|
-| Package name | `ru.shalter.app` | `ru.shalter.twa` |
+| Package name | `ru.shalter.messenger` | `ru.shalter.twa` |
 | Built via | Android Studio / `build-android.yml` CI | pwabuilder.com, no local toolchain |
 | Native plugin access | Yes (push, camera, etc. via Capacitor plugins) | No — pure web view |
 
