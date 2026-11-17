@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useMatch, useNavigate } from "react-router";
 
 import { Avatar, StreamAudio } from "@/shared/ui";
@@ -18,7 +19,7 @@ export function CallDock() {
   const onCallScreen = !!useMatch("/call/:callId");
   if (!s) return null;
   const other = s.others[0];
-  return (
+  return createPortal(
     <>
       <div hidden>
         {Object.entries(s.remoteStreams).map(([id, stream]) => (
@@ -40,6 +41,7 @@ export function CallDock() {
           <span className={styles.live} aria-hidden="true" />
         </button>
       ) : null}
-    </>
+    </>,
+    document.body,
   );
 }

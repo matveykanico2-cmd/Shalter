@@ -152,7 +152,10 @@ export class CallsService {
   public answer(uid: string, id: string) {
     const call = this.participantCall(id, uid);
     this.calls.markAnswered(call.id, uid, new Date().toISOString());
-    this.realtime.broadcastToUsers([uid], { type: "call:answered", callId: call.id });
+    // Ответ должен увидеть и звонящий: иначе его вкладка остаётся в `ringing`
+    // и быстрый сброс после ответа записывает звонок как пропущенный.
+    // Все устройства ответившего тоже получают событие и закрывают свои входящие.
+    this.realtime.broadcastToUsers(call.participantIds, { type: "call:answered", callId: call.id });
     return { ok: true };
   }
 

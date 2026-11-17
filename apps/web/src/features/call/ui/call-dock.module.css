@@ -4,7 +4,10 @@
   top: env(safe-area-inset-top);
   right: 12px;
   left: 12px;
-  z-index: 55;
+  /* Полоса должна быть выше stacking-context шапки чата, иначе она видна,
+     но клики перехватывает основной контент. Ниже меню/диалогов звонка. */
+  z-index: 1000;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 8px;
