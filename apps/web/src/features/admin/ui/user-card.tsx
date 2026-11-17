@@ -78,15 +78,15 @@ function untilLabel(active?: boolean, forever?: boolean, until?: string | null) 
   return until ? `активен до ${new Date(until).toLocaleDateString("ru-RU")}` : "активен";
 }
 
-type Props = { user: AdminUser; onClose: () => void };
+type Props = { user: AdminUser; onClose: () => void; onChanged?: (user: Partial<AdminUser> & { id: string }) => void };
 
-export function UserCard({ user, onClose }: Props) {
+export function UserCard({ user, onClose, onChanged }: Props) {
   const me = useSession().data?.user;
   if (!me) return null;
-  return <UserCardBody initial={user} me={me} onClose={onClose} />;
+  return <UserCardBody initial={user} me={me} onClose={onClose} onChanged={onChanged} />;
 }
 
-function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUser; onClose: () => void }) {
+function UserCardBody({ initial, me, onClose, onChanged }: { initial: AdminUser; me: SelfUser; onClose: () => void; onChanged?: (user: Partial<AdminUser> & { id: string }) => void }) {
   const client = useQueryClient();
   const [state, setState] = useState<AdminUser>(initial);
   const [localPatch, setLocalPatch] = useState<Partial<AdminUser>>({});
@@ -127,6 +127,7 @@ function UserCardBody({ initial, me, onClose }: { initial: AdminUser; me: SelfUs
     try {
       const result = (await fn()) ?? {};
       if (result.patch) {
+        onChanged?.({ id: state.id, ...result.patch });
         setLocalPatch((patch) => ({ ...patch, ...result.patch }));
         setState((s) => ({ ...s, ...result.patch }));
       }

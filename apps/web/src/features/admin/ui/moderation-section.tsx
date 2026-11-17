@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { SafetyBadge } from "@/entities/safety-label";
@@ -6,7 +6,7 @@ import { SafetyBadge } from "@/entities/safety-label";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, SettingsPage, SettingsSection, TextField } from "@/shared/ui";
 
-import { adminQueries, type AdminUser, lookupUser } from "../api/admin";
+import { adminQueries, type AdminUser, lookupUser,type Moderation } from "../api/admin";
 import { dateTime } from "../lib/format";
 
 import { AdReviewQueue } from "./ad-review-queue";
@@ -20,6 +20,7 @@ import { UserCard } from "./user-card";
 const LOOKUP_HINT = "В карточке — выдача Premium, рекламы, звёзд и подарков, метка безопасности, блокировка и разблокировка, жалобы и выгрузка данных.";
 
 export function ModerationSection() {
+  const client = useQueryClient();
   const query = useQuery(adminQueries.moderation());
   const [card, setCard] = useState<AdminUser | null>(null);
   const subtitle = "Жалобы, блокировки и метки безопасности. Нажмите на строку, чтобы открыть карточку пользователя.";
@@ -40,8 +41,43 @@ export function ModerationSection() {
     );
   }
 
+  const syncUser = (user: Partial<AdminUser> & { id: string }) => {
+    client.setQueryData<Moderation>(adminQueries.moderation().queryKey, (current) => {
+      if (!current) return current;
+      const update = (list: AdminUser[], include: boolean) => {
+        const next = list.filter((item) => item.id !== user.id);
+        if (!include) return next;
+        const previous = list.find((item) => item.id === user.id);
+        return [...next, { ...previous, ...user } as AdminUser];
+      };
+      return {
+        ...current,
+        banned: update(current.banned, user.isBanned === true) as Moderation["banned"],
+        labeled: update(current.labeled, !!user.safetyLabel) as Moderation["labeled"],
+      };
+    });
+    void client.invalidateQueries({ queryKey: adminQueries.moderation().queryKey });
+  };
+
+  const refresh = () => void query.refetch();
+
   return (
     <SettingsPage subtitle={subtitle}>
+      <div className={styles.moderationHero}>
+        <div>
+          <p className={styles.moderationEyebrow}>Центр контроля</p>
+          <h2 className={styles.moderationTitle}>Модерация</h2>
+          <p className={styles.moderationLead}>Все изменения применяются сразу. Списки обновляются автоматически после действия.</p>
+        </div>
+        <button type="button" className={styles.outline} onClick={refresh} disabled={query.isFetching}>
+          <Icon name="RotateCw" size={14} /> {query.isFetching ? "Обновляем…" : "Обновить"}
+        </button>
+      </div>
+      <div className={styles.moderationStats} aria-label="Сводка модерации">
+        <div className={styles.moderationStat}><span className={styles.moderationStatValue}>{data.openReports.length}</span><span>открытых жалоб</span></div>
+        <div className={styles.moderationStat}><span className={styles.moderationStatValue}>{data.banned.length}</span><span>заблокированных</span></div>
+        <div className={styles.moderationStat}><span className={styles.moderationStatValue}>{data.labeled.length}</span><span>с метками</span></div>
+      </div>
       <UserLookup onFound={setCard} />
       <ChatLookup />
       <Directory onOpenUser={setCard} />
@@ -92,7 +128,7 @@ export function ModerationSection() {
           data.labeled.map((u) => <UserRow key={u.id} user={u} meta={u.safetyLabelAt ? dateTime(u.safetyLabelAt) : ""} onOpen={setCard} />)
         )}
       </SettingsSection>
-      {card ? <UserCard key={card.id} user={card} onClose={() => setCard(null)} /> : null}
+      {card ? <UserCard key={card.id} user={card} onChanged={syncUser} onClose={() => setCard(null)} /> : null}
     </SettingsPage>
   );
 }
