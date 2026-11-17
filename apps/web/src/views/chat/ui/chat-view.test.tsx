@@ -375,6 +375,27 @@ describe("действия с сообщением", () => {
     expect(screen.queryByText("Изменение")).toBeNull();
   });
 
+  it("ошибка правки оставляет режим редактирования и текст для повторной попытки", async () => {
+    const mine = msg("исходный", { senderId: ME.id });
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([mine]),
+      [`PATCH /api/chats/c_1/messages/${mine.id}`]: { status: 403, body: { error: "Сообщение уже изменено" } },
+    });
+    renderChat();
+    await screen.findByText("исходный");
+
+    openMenu(mine.id);
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+    const input = screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "новая версия" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Сообщение уже изменено");
+    expect(screen.getByText("Изменение")).toBeTruthy();
+    expect(input.value).toBe("новая версия");
+  });
+
   it("удаление у всех; отказ сервера возвращает сообщение и показывает причину", async () => {
     const a = msg("первое", { senderId: ME.id });
     const b = msg("второе", { senderId: ME.id });

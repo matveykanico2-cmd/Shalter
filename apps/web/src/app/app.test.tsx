@@ -48,6 +48,26 @@ afterEach(() => {
 });
 
 describe("вход и оболочка", () => {
+  it("после восстановления сети автоматически повторяет проверку сессии", async () => {
+    let attempts = 0;
+    fakeApi({
+      "GET /api/auth/session": () => {
+        attempts++;
+        return attempts <= 3 ? { status: 503, body: { error: "offline" } } : { body: { user: null, accounts: [] } };
+      },
+    });
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+
+    render(<App />);
+    expect(await screen.findByRole("alert", undefined, { timeout: 5000 })).toBeTruthy();
+
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+
+    expect(await screen.findByText("Рады видеть вас снова")).toBeTruthy();
+    expect(attempts).toBe(4);
+  });
+
   it("без сессии — экран входа, сокет не открывается", async () => {
     fakeApi({ "GET /api/auth/session": { body: { user: null, accounts: [] } } });
     window.history.replaceState(null, "", "/chat/c_abc");

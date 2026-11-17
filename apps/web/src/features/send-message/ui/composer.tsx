@@ -87,7 +87,7 @@ type Props = {
   onBeforeSend?: (text: string) => void;
   /** Правка своего сообщения: в поле его текст, Enter — сохранить. */
   editing?: Message | null;
-  onSaveEdit?: (m: Message, text: string) => void;
+  onSaveEdit?: (m: Message, text: string) => void | Promise<boolean | void>;
   onCancelEdit?: () => void;
   /** Стрелка вверх в пустом поле — править последнее своё сообщение. */
   onEditLast?: () => void;
@@ -354,8 +354,15 @@ export function Composer(props: Props) {
     let value = typed.trim();
     if (editing) {
       if (!value) return;
-      if (value !== (editing.text ?? "").trim()) onSaveEdit?.(editing, value);
-      onCancelEdit?.();
+      if (value === (editing.text ?? "").trim()) {
+        onCancelEdit?.();
+        return;
+      }
+      // Не закрываем режим правки до ответа сервера. Если правка не прошла,
+      // Telegram оставляет текст в поле — его можно исправить и повторить.
+      void Promise.resolve(onSaveEdit?.(editing, value)).then((ok) => {
+        if (ok !== false) onCancelEdit?.();
+      });
       return;
     }
     if (mediaChoice && !mediaSending) {

@@ -199,7 +199,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                   if (chat.otherUser?.id === "bot_shalter_ai" && /^\/settings\b/i.test(text)) setAiSettingsOpen(true);
                 }}
                 editing={editing}
-                onSaveEdit={(m, text) => void actions.edit(m, text)}
+                onSaveEdit={(m, text) => actions.edit(m, text)}
                 onCancelEdit={() => setEditing(null)}
                 onEditLast={() => {
                   const last = feed.current?.lastEditable();

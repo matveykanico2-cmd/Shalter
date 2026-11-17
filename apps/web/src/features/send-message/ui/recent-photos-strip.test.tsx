@@ -78,11 +78,24 @@ describe("recent photos bridge", () => {
 
   it("большой снимок читается по кускам, пока done: false", async () => {
     const chunks: Record<number, { data: string; done: boolean }> = { 0: { data: btoa("abc"), done: false }, 3: { data: btoa("def"), done: true } };
-    const plugin = installPlugin({ read: vi.fn(async ({ offset = 0 }: { id: string; offset?: number }) => ({ ...chunks[offset]!, mime: "image/jpeg", name: "big.jpg" })) });
+    const plugin = installPlugin({ read: vi.fn(async ({ offset = 0 }: { id: string; offset?: number }) => ({ ...chunks[offset]!, ...(offset ? {} : { mime: "image/jpeg", name: "big.jpg" }) })) });
     const file = await readRecentPhoto(PHOTOS[0]!);
     expect(plugin.read).toHaveBeenNthCalledWith(1, { id: "11" });
     expect(plugin.read).toHaveBeenNthCalledWith(2, { id: "11", offset: 3 });
     expect(await file.text()).toBe("abcdef");
+    expect(file.type).toBe("image/jpeg");
+    expect(file.name).toBe("big.jpg");
+  });
+
+  it("при data URL и чанке без метаданных сохраняет тип и имя фото", async () => {
+    installPlugin({
+      read: vi.fn(async ({ offset = 0 }: { id: string; offset?: number }) =>
+        offset ? { data: btoa("def"), done: true } : { data: `data:image/png;base64,${btoa("abc")}`, done: false, mime: "image/png", name: "photo.png" }),
+    });
+    const file = await readRecentPhoto(PHOTOS[0]!);
+    expect(await file.text()).toBe("abcdef");
+    expect(file.type).toBe("image/png");
+    expect(file.name).toBe("photo.png");
   });
 });
 

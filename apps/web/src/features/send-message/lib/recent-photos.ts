@@ -47,7 +47,9 @@ export function thumbSrc(photo: RecentPhoto): string {
 }
 
 function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
-  const bin = atob(data);
+  // Some native bridges return a data URL while others return raw base64.
+  // Normalising here keeps chunked reads interchangeable between Android builds.
+  const bin = atob(data.includes(",") ? data.slice(data.indexOf(",") + 1) : data);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
@@ -61,13 +63,16 @@ export async function readRecentPhoto(photo: RecentPhoto): Promise<File> {
   const parts: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
   let res = await p.read({ id: photo.id });
+  // Metadata is optional on continuation chunks. Keep the first reliable value
+  // instead of allowing an Android bridge to overwrite it with undefined.
+  const mime = res.mime || photo.mime || "image/jpeg";
+  const name = res.name || photo.name || `photo-${photo.id}.jpg`;
   for (;;) {
     const bytes = base64Bytes(res.data);
     parts.push(bytes);
     offset += bytes.length;
     if (res.done !== false || !bytes.length) break;
-    res = { ...res, ...(await p.read({ id: photo.id, offset })) };
+    res = await p.read({ id: photo.id, offset });
   }
-  const type = res.mime || photo.mime || "image/jpeg";
-  return new File(parts, res.name || photo.name || `photo-${photo.id}.jpg`, { type });
+  return new File(parts, name, { type: mime });
 }

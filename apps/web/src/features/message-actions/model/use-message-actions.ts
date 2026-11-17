@@ -83,7 +83,7 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         chatCache.patchLastMessage(client, chatId, m.id, { text, editedAt });
         // Pending-сообщение ещё не существует на сервере. Оставляем правку в
         // локальной очереди; повторная отправка использует актуальный текст.
-        if ((m as Message & { pending?: boolean }).pending) return;
+        if ((m as Message & { pending?: boolean }).pending) return true;
         try {
           const { message } = await editMessage(chatId, m.id, text);
           historyCache.replace(client, chatId, message);
@@ -94,9 +94,10 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
             chatCache.patchLastMessage(client, chatId, m.id, { text: before.text, editedAt: before.editedAt });
           }
           fail(err, "Не удалось изменить сообщение");
-          return;
+          return false;
         }
         reconcile();
+        return true;
       },
 
       async remove(m: Message, forEveryone: boolean) {

@@ -64,6 +64,14 @@ export function RequireSession() {
 
 function OfflineState({ retry }: { retry: () => void }) {
   const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  useEffect(() => {
+    // Не заставляем пользователя возвращаться к экрану и нажимать кнопку после
+    // восстановления сети: браузер уже сообщает, что соединение вернулось.
+    const onOnline = () => retry();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [retry]);
+
   return (
     <main className={styles.offline} role="alert">
       <div className={styles.offlineGlow} />

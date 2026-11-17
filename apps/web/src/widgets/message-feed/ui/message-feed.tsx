@@ -68,6 +68,11 @@ const HIGHLIGHT_MS = 1600;
 /** Сколько страниц старее листать в поисках сообщения — как jumpTo в chatView.js. */
 const JUMP_MAX_PAGES = 20;
 
+// Сохраняем позицию открытого чата между переходами назад/вперёд. Это особенно
+// заметно на телефоне: возврат из профиля или поиска должен вернуть к тому же
+// сообщению, как в Telegram, а не каждый раз к низу ленты.
+const scrollPositions = new Map<string, number>();
+
 export type MessageFeedHandle = {
   /** Прокрутить вниз и держать низ — после своей отправки. */
   stickToBottom: () => void;
@@ -189,6 +194,8 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const showsBotThinking = !!typing && (!!members.find((u) => u.id === typing.userId)?.isBot || typing.userId === "bot_shalter_ai" || typing.userId === "bot_support");
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollPositionKey = `${chat.id}:${topic ?? "all"}`;
+  const restoredPosition = useRef(false);
   const stuck = useRef(true);
   const fromBottom = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
@@ -245,13 +252,25 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (!restoredPosition.current) {
+      const saved = scrollPositions.get(scrollPositionKey);
+      if (saved !== undefined && data) {
+        restoredPosition.current = true;
+        el.scrollTop = Math.min(saved, Math.max(0, el.scrollHeight - el.clientHeight));
+        virtualizer.scrollToOffset(el.scrollTop);
+        stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_PX;
+        setAtBottom(stuck.current);
+        return;
+      }
+      if (data) restoredPosition.current = true;
+    }
     if (stuck.current) {
       const target = Math.max(0, el.scrollHeight - el.clientHeight);
       // Не трогаем scrollTop без необходимости: повторные записи во время измерения
       // динамических пузырей вызывали заметное подёргивание на мобильных браузерах.
       if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
     }
-  }, [totalSize, rows.length]);
+  }, [data, scrollPositionKey, totalSize, rows.length, virtualizer]);
 
   // Пока истории нет (грузится, ошибка), нет и области прокрутки.
   const hasScroller = !!data;
@@ -296,12 +315,20 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
+    scrollPositions.set(scrollPositionKey, el.scrollTop);
     fromBottom.current = el.scrollHeight - el.scrollTop;
     const bottom = fromBottom.current - el.clientHeight < STICK_PX;
     stuck.current = bottom;
     if (bottom !== atBottom) setAtBottom(bottom);
     if (el.scrollTop < LOAD_OLDER_PX) void loadOlder();
   };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    return () => {
+      if (el) scrollPositions.set(scrollPositionKey, el.scrollTop);
+    };
+  }, [scrollPositionKey]);
 
   // Открыли чат с непрочитанными — как в Telegram, к плашке «Непрочитанные сообщения», а не в
   // самый низ (раньше плашка оставалась за экраном, а всё уже считалось прочитанным).
