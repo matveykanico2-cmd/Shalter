@@ -7,7 +7,6 @@ import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, VolumeControl } from "@/shared/ui";
 
 import { callApi, type CallPeer } from "../api/call-api";
-import { formatElapsed } from "../lib/format";
 import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleHand, toggleMute, toggleScreenShare } from "../model/call-store";
 import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
@@ -242,6 +241,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const pipStream = swap ? (first && (mediaOf(first).camera || mediaOf(first).sharing) ? (s.remoteStreams[first.id] ?? null) : null) : s.cameraOn ? s.localStream : null;
   const ownPreview = !swap && s.cameraOn;
   const who = swap && first ? first : me;
+  const headerPerson = first ?? me;
   const leaveLabel = s.isRoom || s.joinedByLink ? "Покинуть встречу" : "Завершить";
   const hangupTitle = s.isRoom ? "Покинуть встречу" : "Завершить";
   const finishCall = () => void hangup().then(onHangup);
@@ -254,9 +254,9 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <button type="button" className={styles.headerButton} title="Свернуть (PiP)" onClick={onMinimize}>
             <Icon name="ChevronLeft" size={20} />
           </button>
+          <Avatar size={36} name={headerPerson.name} color={headerPerson.avatarColor} image={headerPerson.avatarImage} emoji={headerPerson.avatarEmoji} />
           <div className={styles.headerCenter}>
             <p className={styles.title}>{s.chatTitle}</p>
-            <p className={styles.timer}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
           </div>
           <div className={styles.headerActions}>
             {stageMode ? null : (

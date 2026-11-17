@@ -57,6 +57,12 @@ function urlBase64ToUint8Array(base64String: string) {
 let nativeReady: Promise<void> | null = null;
 let nativeToken: string | null = null;
 
+function bindNativeToken(token: string) {
+  nativeToken = token;
+  // Токен нужно повторно привязать после выхода и входа другого аккаунта.
+  return http.post("/api/push/subscribe-native", { token, callUi: !!win().Capacitor?.Plugins?.IncomingCall }).catch(() => {});
+}
+
 /** Каналы, токен и нажатие на уведомление — один раз за запуск (setupNativePush в push.js). */
 function setupNativePush(plugin: NativePushPlugin) {
   nativeReady ??= (async () => {
@@ -64,9 +70,8 @@ function setupNativePush(plugin: NativePushPlugin) {
     await plugin.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
     await plugin.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
     await plugin.addListener("registration", ({ value }: { value: string }) => {
-      nativeToken = value;
+      bindNativeToken(value);
       // callUi: сборка умеет сама показывать экран звонка — сервер шлёт звонок data-сообщением.
-      void http.post("/api/push/subscribe-native", { token: value, callUi: !!win().Capacitor?.Plugins?.IncomingCall }).catch(() => {});
     });
     await plugin.addListener("registrationError", (err: { error?: string }) => {
       lastError = `Не удалось получить токен уведомлений: ${err?.error || "ошибка"}`;
@@ -99,6 +104,7 @@ async function registerNative(prompt: boolean) {
     lastError = "Уведомления запрещены в настройках Android для Shalter.";
     return false;
   }
+  if (nativeToken) await bindNativeToken(nativeToken);
   await plugin.register();
   return true;
 }

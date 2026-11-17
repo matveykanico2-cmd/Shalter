@@ -83,9 +83,8 @@ describe("экран звонка на весь экран", () => {
     expect(z).toBeLessThan(100);
     expect(block(".top")).toMatch(/env\(safe-area-inset-top\)/);
     expect(block(".controls")).toMatch(/env\(safe-area-inset-bottom\)/);
-    // Собеседник заполняет экран; «Кадр целиком» — без обрезки.
-    expect(block(".tileVideo")).toMatch(/object-fit: cover;/);
-    expect(block(".wholeFrame .grid .tileVideo")).toMatch(/object-fit: contain;/);
+    // Кадр целиком показывается сразу — лицо и края не должны обрезаться.
+    expect(block(".tileVideo")).toMatch(/object-fit: contain;/);
   });
 
   it("«На весь экран»: Fullscreen API на весь документ, aria-pressed по состоянию, выход (и по Esc) — снова не нажата", async () => {

@@ -26,18 +26,18 @@ describe("качество звонков", () => {
     expect(isMobileUa("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130")).toBe(false);
   });
 
-  it("камера 1080p/30 на ПК и 720p/30 на телефоне; моно-голос и потолок видео 5 Мбит/с", () => {
+  it("камера 1440p/30 на ПК и 720p/30 на телефоне; моно-голос и потолок видео 8 Мбит/с", () => {
     const pc = mediaQuality(false);
-    expect(pc.video).toEqual({ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } });
+    expect(pc.video).toEqual({ width: { ideal: 2560 }, height: { ideal: 1440 }, frameRate: { ideal: 30, max: 30 } });
     expect(pc.audio).toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } });
-    expect(pc).toMatchObject({ videoBitrate: 5_000_000, videoFramerate: 30, opusBitrate: 48_000 });
+    expect(pc).toMatchObject({ videoBitrate: 8_000_000, videoFramerate: 30, opusBitrate: 48_000 });
     const phone = mediaQuality(true);
     expect(phone.video).toEqual({ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } });
     expect(phone.audio.channelCount).toBe(1);
     expect(phone).toMatchObject({ videoBitrate: 2_500_000, videoFramerate: 30, opusBitrate: 24_000 });
     // Экран — до 1440p/30: мелкий текст должен читаться.
     expect(HD_SCREEN.video).toMatchObject({ width: { ideal: 2560 }, height: { ideal: 1440 }, frameRate: { ideal: 30, max: 30 } });
-    // Ни 60 кадров, ни 1080p с камеры: кодер и сеть (TURN) это не вытягивают.
+    // 30 кадров — стабильнее для кодера и сети (TURN).
     expect(HD_VIDEO).toEqual(pc.video);
   });
 
@@ -73,7 +73,7 @@ describe("качество звонков", () => {
       const pc = make([{ active: true }, { active: true, rid: "h" }]);
       expect(await tuneVideoSender(pc.sender, { quality: mediaQuality(false) })).toBe(true);
       expect(pc.applied).toHaveLength(1);
-      expect(pc.applied[0]!.encodings).toEqual([{ active: true, maxBitrate: 5_000_000, maxFramerate: 30 }, { active: true, rid: "h" }]);
+      expect(pc.applied[0]!.encodings).toEqual([{ active: true, maxBitrate: 8_000_000, maxFramerate: 30 }, { active: true, rid: "h" }]);
       expect(pc.applied[0]).toMatchObject({ transactionId: "t", degradationPreference: "balanced" });
       // Разрешение кодер снижает сам — scaleResolutionDownBy не задаём.
       expect(pc.applied[0]!.encodings[0]).not.toHaveProperty("scaleResolutionDownBy");
@@ -100,7 +100,7 @@ describe("качество звонков", () => {
       const old = make([{ active: true }], { rejectPreference: true });
       expect(await tuneVideoSender(old.sender, { quality: mediaQuality(false) })).toBe(true);
       expect(old.applied).toHaveLength(1);
-      expect(old.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 5_000_000 });
+      expect(old.applied[0]!.encodings[0]).toMatchObject({ maxBitrate: 8_000_000 });
       expect(old.applied[0]).not.toHaveProperty("degradationPreference");
     });
 

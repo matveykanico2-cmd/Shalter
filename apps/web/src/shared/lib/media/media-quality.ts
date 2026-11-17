@@ -3,8 +3,8 @@
 // 1080p/60 тяжело (браузер при перегрузке процессора сам режет разрешение до квадратов),
 // через TURN и слабый Wi-Fi столько не пролезает (оценка полосы стартует с сотен кбит/с —
 // кадр рассыпается и замирает), а стерео с эхоподавлением и DTX портит голос. Поэтому, как
-// в Meet/Telegram: камера 720p/30 (на телефоне тоже — аппаратный кодер тянет), потолок
-// видео 3,5 Мбит/с на ПК и 1,8 Мбит/с на телефоне, degradationPreference «balanced»;
+// в Meet/Telegram: камера 720p/30 на телефоне и до 1440p/30 на ПК, потолок
+// видео 8 Мбит/с на ПК и 2,5 Мбит/с на телефоне, degradationPreference «balanced»;
 // голос — моно Opus с FEC, без DTX, который может обрезать тихую речь.
 
 export const isMobileUa = (ua: string) => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
@@ -13,14 +13,14 @@ const IS_MOBILE = typeof navigator !== "undefined" && isMobileUa(navigator.userA
 /** Параметры качества для телефона или ПК. */
 export function mediaQuality(mobile: boolean) {
   return {
-    video: { width: { ideal: mobile ? 1280 : 1920 }, height: { ideal: mobile ? 720 : 1080 }, frameRate: { ideal: 30, max: 30 } } satisfies MediaTrackConstraints,
+    video: { width: { ideal: mobile ? 1280 : 2560 }, height: { ideal: mobile ? 720 : 1440 }, frameRate: { ideal: 30, max: 30 } } satisfies MediaTrackConstraints,
     // Голос: моно с шумо- и эхоподавлением (стерео-захват на ПК ломал эхоподавление).
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } } satisfies MediaTrackConstraints,
     // Голос: Opus 24–48 кбит/с, моно, 48 кГц. FEC помогает при потерях пакетов.
     opusBitrate: mobile ? 24_000 : 48_000,
     // Видео: потолок выше, чтобы на хорошем канале не мылилось; balanced degradation
     // плавно снижает качество при слабой сети вместо замираний.
-    videoBitrate: mobile ? 2_500_000 : 5_000_000,
+    videoBitrate: mobile ? 2_500_000 : 8_000_000,
     videoFramerate: 30,
   };
 }

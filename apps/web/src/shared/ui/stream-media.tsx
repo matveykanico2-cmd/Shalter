@@ -8,7 +8,12 @@ type Props = { stream: MediaStream | null; className?: string };
 export function StreamVideo({ stream, className, ref }: Props & { ref?: (el: HTMLVideoElement | null) => void }) {
   const el = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
-    if (el.current && el.current.srcObject !== stream) el.current.srcObject = stream;
+    const node = el.current;
+    if (!node) return;
+    if (node.srcObject !== stream) {
+      node.srcObject = stream;
+    }
+    if (stream) void Promise.resolve(node.play?.()).catch(() => {});
   }, [stream]);
   return (
     <video

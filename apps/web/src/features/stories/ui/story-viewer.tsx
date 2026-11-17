@@ -369,19 +369,21 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             </p>
             <p className={styles.time}>{timeAgo(story.createdAt)}</p>
           </div>
-          {isVideo ? (
-            <button type="button" className={styles.headerButton} title={muted ? "Включить звук" : "Выключить звук"} aria-label={muted ? "Включить звук" : "Выключить звук"} onClick={() => setMuted((m) => !m)}>
-              <Icon name={muted ? "BellOff" : "Bell"} size={18} />
+          <div className={styles.headerActions}>
+            {isVideo ? (
+              <button type="button" className={styles.headerButton} title={muted ? "Включить звук" : "Выключить звук"} aria-label={muted ? "Включить звук" : "Выключить звук"} onClick={() => setMuted((m) => !m)}>
+                <Icon name={muted ? "BellOff" : "Bell"} size={18} />
+              </button>
+            ) : null}
+            {mine || moderator ? (
+              <button type="button" className={styles.headerButton} title={mine ? "Удалить" : "Удалить (модерация)"} aria-label={mine ? "Удалить" : "Удалить (модерация)"} onClick={() => void deleteStory()}>
+                <Icon name="Trash" size={18} />
+              </button>
+            ) : null}
+            <button type="button" className={styles.headerButton} title="Закрыть" aria-label="Закрыть" onClick={closeStoryViewer}>
+              <Icon name="X" size={20} />
             </button>
-          ) : null}
-          {mine || moderator ? (
-            <button type="button" className={styles.headerButton} title={mine ? "Удалить" : "Удалить (модерация)"} aria-label={mine ? "Удалить" : "Удалить (модерация)"} onClick={() => void deleteStory()}>
-              <Icon name="Trash" size={18} />
-            </button>
-          ) : null}
-          <button type="button" className={styles.headerButton} title="Закрыть" aria-label="Закрыть" onClick={closeStoryViewer}>
-            <Icon name="X" size={20} />
-          </button>
+          </div>
         </div>
 
         {isVideo ? (
