@@ -73,7 +73,7 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
           className={styles.poster}
           src={withBust(item.thumbUrl, bust)}
           alt=""
-          loading="lazy"
+          loading={inAlbum ? "lazy" : "eager"}
           decoding="async"
           onLoad={(e) => learnShape(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
           // Обложка не загрузилась — берём первый кадр самого ролика.

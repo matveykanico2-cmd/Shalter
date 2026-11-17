@@ -55,7 +55,9 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
             className={loaded ? styles.image : `${styles.image} ${styles.loading}`}
             src={url}
             alt={a.name || "photo"}
-            loading="lazy"
+            // Первое фото в открытом чате должно начать загружаться сразу;
+            // ленивый режим на входе показывал серую плитку даже для видимого медиа.
+            loading={inAlbum ? "lazy" : "eager"}
             decoding="async"
             style={box ?? undefined}
             onLoad={(e) => {
