@@ -149,30 +149,6 @@
   white-space: nowrap;
 }
 
-.callStatus {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-success);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-}
-
-.callStatus:hover {
-  text-decoration: underline;
-}
-
-.callStatusHint {
-  color: var(--color-muted);
-}
-
 .online,
 .typing {
   color: var(--color-accent);
@@ -196,6 +172,13 @@
   align-items: center;
   gap: 10px;
   cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Как .info-toggle: на узком экране панель открывают из меню или по названию. */
@@ -273,6 +256,8 @@
     width: 38px;
     height: 38px;
   }
+
+  .actions { gap: 2px; }
 }
 
 /* На узких desktop-окнах шапка может содержать три действия звонка плюс меню,

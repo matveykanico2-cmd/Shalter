@@ -8,6 +8,7 @@ import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { AiSettingsDialog } from "@/features/ai-settings";
 import { MiniApp, type MiniAppTarget } from "@/features/bot-app";
+import { CallBar } from "@/features/call";
 import { SubscribeBar } from "@/features/channel-subscription";
 import { useChatActions } from "@/features/chat-actions";
 import { ChatSearch } from "@/features/chat-search";
@@ -154,6 +155,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <div className={styles.main}>
         <ChatHeader chat={chat} members={members} me={me} typing={typing} hideMembers={inCommunity} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        <CallBar chatId={chat.id} />
         {searching !== null ? (
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
         ) : null}

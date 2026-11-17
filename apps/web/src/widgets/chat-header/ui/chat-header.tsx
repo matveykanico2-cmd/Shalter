@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { AiSettingsDialog } from "@/features/ai-settings";
 import { BotAppButton, botAppQueries } from "@/features/bot-app";
-import { CallButtons, useCall, useVoiceRoomItem } from "@/features/call";
+import { CallButtons, useVoiceRoomItem } from "@/features/call";
 import { ChatMenu } from "@/features/chat-actions";
 import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { useStartLiveItem } from "@/features/live";
@@ -41,8 +41,6 @@ type Props = {
 
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
 export function ChatHeader({ chat, members, me, typing, hideMembers = false, onSearch, infoOpen, onInfo }: Props) {
-  const navigate = useNavigate();
-  const activeCall = useCall();
   const meId = me.id;
   const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | "ai" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
@@ -63,7 +61,6 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const bot = chat.type === "dm" && other?.isBot ? other : null;
   const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
   const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
-  const chatCall = activeCall?.call.chatId === chat.id ? activeCall : null;
   const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
   const openAvatar = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
@@ -147,25 +144,20 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
               {subtitle.text}
             </p>
           ) : null}
-          {chatCall ? (
-            <button type="button" className={styles.callStatus} onClick={() => void navigate(`/call/${chatCall.call.id}`)}>
-              <Icon name="Phone" size={12} />
-              <span>{chatCall.phase === "ringing" ? "Вызов…" : "Идёт разговор"}</span>
-              <span className={styles.callStatusHint}>Открыть</span>
-            </button>
-          ) : null}
         </div>
       </div>
       {bot ? <BotAppButton bot={bot} chatId={chat.id} /> : null}
-      <CallButtons chat={chat} me={me} />
-      <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
-      {/* «i» — после «Ещё», как .info-toggle в chatView.js. */}
-      <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
-        <Icon name="Info" size={18} />
-      </button>
-      <Link to="/" className={styles.desktopClose} title="Закрыть чат" aria-label="Закрыть чат">
-        <Icon name="X" size={19} />
-      </Link>
+      <div className={styles.actions}>
+        <CallButtons chat={chat} me={me} />
+        <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
+        {/* «i» — после «Ещё», как .info-toggle в chatView.js. */}
+        <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
+          <Icon name="Info" size={18} />
+        </button>
+        <Link to="/" className={styles.desktopClose} title="Закрыть чат" aria-label="Закрыть чат">
+          <Icon name="X" size={19} />
+        </Link>
+      </div>
       {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
       {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
       {dialog === "ai" ? <AiSettingsDialog onClose={() => setDialog(null)} /> : null}
