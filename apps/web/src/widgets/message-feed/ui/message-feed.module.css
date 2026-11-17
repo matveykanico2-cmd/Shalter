@@ -74,6 +74,15 @@
   }
 }
 
+/* На сенсорных Android слабые WebView теряли кадры из-за bounce-анимации каждого
+   входящего сообщения. Появление без transform заметно стабильнее и не меняет
+   положение виртуализированной ленты во время пересчёта высоты. */
+@media (pointer: coarse) {
+  .entering {
+    animation: none;
+  }
+}
+
 :global(:root[data-reduce-motion]) .entering {
   animation: none;
 }
