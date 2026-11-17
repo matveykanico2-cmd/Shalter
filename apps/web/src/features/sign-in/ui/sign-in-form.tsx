@@ -59,7 +59,13 @@ export function SignInForm({ onSignedIn, notice, embedded, onModeChange }: Props
   const finish = useCallback(
     async (user: SignedInUser) => {
       // Приветствие играет, пока перечитывается сессия; внутри чужого экрана (QR, OAuth) — без него.
-      await Promise.all([queryClient.invalidateQueries({ queryKey: sessionQueries.baseKey }), embedded ? null : playWelcome()]);
+      // QR/code/login могут добавить аккаунт к уже существующему списку cookie.
+      // Одной invalidation недостаточно: при переходе с /login query мог быть
+      // неактивным и dropdown успевал отрисоваться со старым accounts[].
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: sessionQueries.baseKey, type: "all" }),
+        embedded ? null : playWelcome(),
+      ]);
       onSignedIn(user);
     },
     [queryClient, onSignedIn, embedded]

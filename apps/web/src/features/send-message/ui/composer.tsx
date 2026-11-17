@@ -938,6 +938,7 @@ export function Composer(props: Props) {
           <SendButton
             editing={!!editing}
             disabled={mediaSending || (!text.trim() && !mediaChoice)}
+            ariaLabel={mediaChoice ? "Отправить" : undefined}
             allowEffects={!!props.allowEffects}
             textLength={text.trim().length}
             onSend={submit}

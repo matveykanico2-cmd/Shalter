@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { pollQrLogin,startQrLogin } from "@/features/sign-in";
@@ -24,6 +24,8 @@ export function QrScanView() {
   const [ownUrl, setOwnUrl] = useState<string | null>(null);
   const [entered, setEntered] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const start = useMutation({
     mutationFn: startQrLogin,
@@ -65,19 +67,62 @@ export function QrScanView() {
   };
 
   const handleEntered = async () => {
-    const token = entered.trim() || (file ? await readQr(file) : "");
-    if (!token) return setFile(null);
+    setScanError(null);
+    let token = entered.trim();
+    if (!token && file) {
+      try {
+        token = await readQr(file);
+      } catch {
+        token = "";
+      }
+    }
+    if (!token) {
+      setScanError("Не удалось распознать QR-код. Выберите более чёткую картинку или вставьте ссылку/токен вручную.");
+      return;
+    }
     setFile(null);
     setEntered("");
     void confirm.mutate(token);
   };
 
   const readQr = async (f: File): Promise<string> => {
-    // Нативное чтение QR из картинки без посторонней библиотеки недоступно —
-    // предлагаем ввести токен вручную или отсканировать камерой в приложении.
-    const text = await f.text().catch(() => "");
-    const m = text.match(/[0-9a-f]{40}/);
-    return m ? m[0] : "";
+    const Detector = (window as Window & {
+      BarcodeDetector?: new (options?: { formats: string[] }) => {
+        detect: (source: ImageBitmap | HTMLImageElement) => Promise<Array<{ rawValue?: string }>>;
+      };
+    }).BarcodeDetector;
+    if (!Detector) return "";
+
+    const detector = new Detector({ formats: ["qr_code"] });
+    if (typeof createImageBitmap === "function") {
+      const bitmap = await createImageBitmap(f);
+      try {
+        const found = await detector.detect(bitmap);
+        return found.map((item) => tokenFromQr(item.rawValue ?? "")).find(Boolean) ?? "";
+      } finally {
+        bitmap.close();
+      }
+    }
+
+    const url = URL.createObjectURL(f);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const found = await detector.detect(image);
+      return found.map((item) => tokenFromQr(item.rawValue ?? "")).find(Boolean) ?? "";
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const tokenFromQr = (value: string) => {
+    try {
+      const url = new URL(value, window.location.origin);
+      return url.searchParams.get("token") || (url.pathname === "/qr-login" ? "" : value.trim());
+    } catch {
+      return value.trim();
+    }
   };
 
   const showQr = () => (ownToken ? <QrDialog url={ownUrl ?? ""} user={me ?? undefined} onClose={() => setOwnToken(null)} /> : null);
@@ -129,15 +174,16 @@ export function QrScanView() {
               accept="image/*"
               className={styles.fileInput}
               hidden
+              ref={fileInput}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 setFile(f);
-                if (f) void handleEntered();
+                setScanError(null);
                 e.target.value = "";
               }}
               type="file"
             />
-            <Button onClick={() => document.querySelector<HTMLInputElement>('[type="file"]')?.click()}>
+            <Button onClick={() => fileInput.current?.click()}>
               <Icon name="Image" size={16} />
               Картинка с кодом
             </Button>
@@ -146,6 +192,7 @@ export function QrScanView() {
             </Button>
           </div>
           {file && <p className={styles.hint}>Файл выбран — нажмите «Подтвердить вход».</p>}
+          {scanError && <p className={styles.error} role="alert">{scanError}</p>}
         </section>
       </div>
     </section>

@@ -91,6 +91,13 @@
   color: var(--color-muted);
 }
 
+.error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-danger, #c0392b);
+}
+
 .qrCode {
   margin: 12px auto;
   width: 260px;

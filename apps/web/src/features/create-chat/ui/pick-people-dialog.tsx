@@ -33,7 +33,16 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
   // В создании чата ищем не только среди сохранённых контактов: Telegram-подобный
   // сценарий должен находить пользователя по имени и @username через глобальный поиск.
   const people = q.length >= 2
-    ? [...contactsPeople, ...(remote.data?.users ?? []).filter((u) => !exclude.includes(u.id) && !contactsPeople.some((contact) => contact.id === u.id))]
+    ? [
+        ...contactsPeople,
+        ...(remote.data?.users ?? []).filter(
+          (u) =>
+            !exclude.includes(u.id) &&
+            !contactsPeople.some(
+              (contact) => contact.id === u.id || contact.name.trim().toLowerCase() === u.name.trim().toLowerCase()
+            )
+        ),
+      ]
     : contactsPeople;
   const shown = q ? people.filter((u) => `${u.name} ${u.username ?? ""}`.toLowerCase().includes(q)) : people;
 

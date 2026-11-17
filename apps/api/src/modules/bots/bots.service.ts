@@ -115,7 +115,7 @@ export class BotsService {
         const recipientId = chat?.memberIds.find((m) => m !== bot.userId);
         const recipient = recipientId ? this.users.findById(recipientId) : null;
         if (!recipient || recipient.isBot || recipient.blockedUserIds?.includes(bot.userId)) continue;
-        await botMessaging().sendBotMessage(bot.userId, chatId, text);
+        const sentMessage = await botMessaging().sendBotMessage(bot.userId, chatId, text);
         sent += 1;
         const settings = this.settings.get(recipient.id);
         if (isQuietNow(settings, chatId)) continue;
@@ -123,7 +123,16 @@ export class BotsService {
         notify
           .sendPushToUser(
             recipient.id,
-            { title: botUser?.name || "Бот", body, ...notify.pushAvatar(botUser), url: `/chat/${chatId}`, kind: "message", tag: `chat-${chatId}` },
+            {
+              title: botUser?.name || "Бот",
+              body,
+              ...notify.pushAvatar(botUser),
+              url: `/chat/${chatId}`,
+              kind: "message",
+              tag: `chat-${chatId}`,
+              chatId,
+              messageId: typeof sentMessage?.id === "string" ? sentMessage.id : undefined,
+            },
             notify.MESSAGE_PUSH
           )
           .catch(() => {});
