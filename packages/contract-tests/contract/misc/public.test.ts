@@ -87,12 +87,19 @@ describe("статические страницы", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/^application\/json/);
     expect(res.headers.get("cache-control")).toBe("public, max-age=3600");
-    expect(res.body).toEqual([
-      expect.objectContaining({
-        relation: ["delegate_permission/common.handle_all_urls"],
-        target: expect.objectContaining({ namespace: "android_app", package_name: "ru.shalter.twa" }),
-      }),
-    ]);
+    expect(res.body).toHaveLength(2);
+    expect(res.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relation: ["delegate_permission/common.handle_all_urls"],
+          target: expect.objectContaining({ namespace: "android_app", package_name: "ru.shalter.messenger" }),
+        }),
+        expect.objectContaining({
+          relation: ["delegate_permission/common.handle_all_urls"],
+          target: expect.objectContaining({ namespace: "android_app", package_name: "ru.shalter.twa" }),
+        }),
+      ])
+    );
   });
 });
 
