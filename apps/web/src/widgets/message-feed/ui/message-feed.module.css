@@ -29,6 +29,12 @@
   margin: 0 0 auto;
 }
 
+/* Индикатор «три точки» идёт сразу после последнего сообщения, а не внизу
+   свободного экрана в коротком чате. */
+.rowsWithThinking {
+  margin-bottom: 0;
+}
+
 .slot {
   position: absolute;
   top: 0;

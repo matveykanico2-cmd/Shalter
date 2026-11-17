@@ -186,6 +186,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const knownName = useCallback((userId: string) => senders({ senderId: userId })?.name ?? null, [senders]);
   // Кто поставил реакцию на пост канала, видят только его админы и модераторы.
   const canViewReactionDetails = chat.type !== "channel" || isChatAdmin(chat, meId) || isChatModerator(chat, meId);
+  const showsBotThinking = !!typing && (!!members.find((u) => u.id === typing.userId)?.isBot || typing.userId === "bot_shalter_ai" || typing.userId === "bot_support");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
@@ -487,7 +488,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
             </div>
           </div>
         ) : (
-          <div className={styles.rows} style={{ height: totalSize }}>
+          <div className={showsBotThinking ? `${styles.rows} ${styles.rowsWithThinking}` : styles.rows} style={{ height: totalSize }}>
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]!;
               return (
