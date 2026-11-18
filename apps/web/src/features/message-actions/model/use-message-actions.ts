@@ -217,7 +217,10 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
       // своё сразу, ответ сервера поверх, при ошибке — сверка с сервером.
       async vote(m: Message, optionIndex: number, questionIndex = 0) {
         historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => {
-          if (!meta.questions?.length || questionIndex === 0) return applyVote(meta, optionIndex, me.id);
+          if (!meta.questions?.length) return applyVote(meta, optionIndex, me.id);
+          // Вопрос 1 тоже лежит в questions[0]. Раньше он ошибочно обновлял
+          // только корневые options, поэтому нажатие принималось сервером, но
+          // в интерфейсе сразу исчезало при переходе между вопросами.
           const questions = meta.questions.map((q) => ({ ...q }));
           const current = questions[questionIndex];
           if (!current) return meta;

@@ -533,10 +533,17 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     clearTimeout(noAnswerTimer);
   }
 
+  // Таймер берём от общего времени создания звонка, а не от момента запуска
+  // этого конкретного клиента. Иначе участники, ответившие с разницей в секунду,
+  // видят разные значения и в группе расхождение постоянно растёт.
+  const callStartedAt = Date.parse(call.startedAt);
   const ticker = setInterval(() => {
     if (state?.phase === "connected") {
-      state.elapsed++;
-      notify();
+      const sharedElapsed = Number.isFinite(callStartedAt) ? Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000)) : state.elapsed + 1;
+      if (state.elapsed !== sharedElapsed) {
+        state.elapsed = sharedElapsed;
+        notify();
+      }
     }
   }, 1000);
   let after = 0;

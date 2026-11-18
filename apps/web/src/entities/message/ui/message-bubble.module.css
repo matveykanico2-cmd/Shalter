@@ -432,12 +432,13 @@
 /* Время с галочками: в конце последней строки текста, если там есть место. */
 .meta {
   position: relative;
-  top: 4px;
+  top: 0;
   display: inline-flex;
   float: right;
   align-items: center;
   gap: 8px;
   margin-left: 10px;
+  vertical-align: baseline;
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1;
