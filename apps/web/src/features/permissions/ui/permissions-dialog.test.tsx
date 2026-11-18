@@ -14,6 +14,19 @@ afterEach(() => {
 });
 
 describe("PermissionsDialog", () => {
+  it("закрывается кнопкой «Готово» внутри своего окна", () => {
+    const onClose = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PermissionsDialog onClose={onClose} />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole("dialog").querySelector('button[aria-label="Закрыть окно разрешений"]')!);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("сверяет выбранные номера и сразу добавляет найденных", async () => {
     Object.defineProperty(window, "ContactsManager", { configurable: true, value: class {} });
     Object.defineProperty(navigator, "contacts", {

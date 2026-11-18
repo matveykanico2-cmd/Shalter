@@ -211,7 +211,7 @@ export function PermissionsDialog({ onClose }: { onClose: () => void }) {
       </div>
       {/* Кнопка всегда видна: на телефоне список длиннее экрана, и «Готово» уезжало за прокрутку. */}
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={close}>
+        <Button variant="secondary" aria-label="Закрыть окно разрешений" onClick={close}>
           Готово
         </Button>
       </div>
