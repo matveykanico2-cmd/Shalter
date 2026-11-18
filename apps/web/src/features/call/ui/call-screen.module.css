@@ -186,6 +186,28 @@
   background: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
+.reconnecting,
+.connecting {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgb(0 0 0 / 48%);
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd166;
+  box-shadow: 0 0 0 3px rgb(255 209 102 / 18%);
+  animation: connection-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes connection-pulse {
+  50% { opacity: 0.45; }
+}
+
 /* Плитки — между шапкой и кнопками; один собеседник (.solo) — на всё окно под ними. */
 .grid {
   position: absolute;
@@ -463,7 +485,7 @@
   padding: 3px;
   border: 1px solid rgb(255 255 255 / 32%);
   border-radius: 999px;
-  overflow: hidden;
+  overflow: visible;
   background: rgb(9 12 18 / 70%);
   box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
   cursor: grab;
@@ -480,6 +502,8 @@
   position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
 }
 
 .localVideo {
@@ -521,8 +545,9 @@
 
 .flip {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -3px;
+  bottom: -3px;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -533,6 +558,7 @@
   background: rgb(0 0 0 / 50%);
   color: #fff;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
 }
 
 .cameraError {

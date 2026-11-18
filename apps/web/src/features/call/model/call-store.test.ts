@@ -115,6 +115,33 @@ describe("звонок", () => {
     }
   });
 
+  it("после обрыва уже установленного звонка снова запускает ICE и возвращает статус подключения", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute, "PATCH /api/calls/cl_1": { body: { call: CALL } } });
+      await placeCall("c_1", "audio", ME);
+      const peer = FakePeer.instances[0]!;
+      const restartIce = vi.spyOn(peer, "restartIce");
+      FakeSocket.last().receive({ type: "call:signal", signal: signal("answer", { type: "answer", sdp: "v=0" }, 1) });
+      await vi.waitFor(() => expect(peer.currentRemoteDescription).toMatchObject({ type: "answer" }));
+      peer.connect();
+      expect(getCall()).toMatchObject({ connectionStatus: "connected" });
+
+      peer.connectionState = "disconnected";
+      peer.iceConnectionState = "disconnected";
+      peer.onconnectionstatechange?.();
+      expect(getCall()).toMatchObject({ connectionStatus: "reconnecting", connectionError: null });
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(restartIce).toHaveBeenCalledTimes(1);
+      expect(getCall()).toMatchObject({ connectionStatus: "reconnecting" });
+
+      peer.connect();
+      expect(getCall()).toMatchObject({ connectionStatus: "connected", connectionError: null });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("не дождались ответа — сброс отмечает звонок «без ответа»", async () => {
     const { calls } = fakeApi({
       "POST /api/calls": { body: { call: CALL } },

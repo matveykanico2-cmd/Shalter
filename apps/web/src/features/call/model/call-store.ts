@@ -11,6 +11,7 @@ import { type Call, callApi, type CallKind, type CallPeer, type Signal } from ".
 
 export type CallPhase = "ringing" | "connected" | "ended";
 export type PeerMedia = { camera: boolean; sharing: boolean; handRaised?: boolean };
+export type CallConnectionStatus = "connecting" | "connected" | "reconnecting" | "failed";
 
 /** Снимок звонка для экранов (useCall). */
 export type CallState = {
@@ -43,6 +44,7 @@ export type CallState = {
   localStream: MediaStream | null;
   mediaError: string | null;
   connectionError: string | null;
+  connectionStatus: CallConnectionStatus;
 };
 
 type State = CallState & {
@@ -161,28 +163,56 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
 
   let restarted = false;
   let iceRestartPending = false;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const clearWatchdog = () => {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = undefined;
+  };
+  const setStatus = (status: CallConnectionStatus) => {
+    if (!state || state.peers.get(otherUserId) !== pc) return;
+    state.connectionStatus = status;
+    if (status !== "failed") state.connectionError = null;
+  };
+  const armWatchdog = (delay = CONNECT_TIMEOUT_MS) => {
+    clearWatchdog();
+    watchdog = setTimeout(handleStuck, delay);
+  };
   function handleStuck() {
     if (!state || pc.connectionState === "connected" || pc.connectionState === "closed") return;
     if (!pc.currentRemoteDescription) {
-      setTimeout(handleStuck, CONNECT_TIMEOUT_MS);
+      setStatus("connecting");
+      armWatchdog(CONNECT_TIMEOUT_MS);
+      notify();
       return;
     }
     if (!restarted) {
       restarted = true;
+      setStatus("reconnecting");
       try {
         pc.restartIce();
-        iceRestartPending = true; // нужен новый offer — иначе рестарт не дойдёт до пира
+        // Не полагаемся только на onnegotiationneeded: Safari и некоторые WebViews
+        // после restartIce() не вызывают его, поэтому явно отправляем offer с ICE restart.
+        if (pc.signalingState === "stable") {
+          // Явный offer — единственный источник переговоров в этом проходе.
+          // Иначе onnegotiationneeded мог бы отправить второй offer параллельно.
+          iceRestartPending = false;
+          void renegotiate(otherUserId, true);
+        } else {
+          iceRestartPending = true;
+        }
       } catch {
         // Старый браузер без restartIce.
       }
-      setTimeout(handleStuck, RESTART_GRACE_MS);
+      armWatchdog(RESTART_GRACE_MS);
+      notify();
       return;
     }
+    setStatus("failed");
     state.connectionError = ICE_FAILURE_MESSAGE;
     stopRingtone();
     notify();
   }
-  const watchdog = setTimeout(handleStuck, CONNECT_TIMEOUT_MS);
+  armWatchdog();
 
   pc.onicecandidate = (e) => {
     if (e.candidate) sendSignal(otherUserId, "ice", e.candidate.toJSON());
@@ -192,7 +222,7 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     if (!iceRestartPending || pc.signalingState !== "stable") return;
     if (state?.peers.get(otherUserId) !== pc) return;
     iceRestartPending = false;
-    void renegotiate(otherUserId);
+    void renegotiate(otherUserId, true);
   };
   pc.ontrack = (e) => {
     if (!state) return;
@@ -210,17 +240,19 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     if (!state) return;
     state.connectedPeers = { ...state.connectedPeers, [otherUserId]: looksConnected() };
     if (looksConnected()) {
-      clearTimeout(watchdog);
+      clearWatchdog();
       // Следующий обрыв (сменилась сеть) снова получит перезапуск ICE, а не сразу ошибку.
       restarted = false;
+      iceRestartPending = false;
+      setStatus("connected");
       tunePeer(pc);
-      state.connectionError = null;
       if (state.phase === "ringing") {
         state.phase = "connected";
         stopRingtone();
       }
-    } else if (pc.connectionState === "failed" || pc.iceConnectionState === "failed") {
-      handleStuck();
+    } else {
+      setStatus("reconnecting");
+      armWatchdog(pc.connectionState === "failed" || pc.iceConnectionState === "failed" ? 0 : CONNECT_TIMEOUT_MS);
     }
     notify();
   };
@@ -238,16 +270,18 @@ function shouldOffer(userId: string) {
   return s.me.id > userId;
 }
 
-async function renegotiate(userId: string) {
+async function renegotiate(userId: string, iceRestart = false): Promise<boolean> {
   const pc = state?.peers.get(userId);
-  if (!pc || pc.signalingState !== "stable") return;
+  if (!pc || pc.signalingState !== "stable") return false;
   try {
-    const offer = tuneOpusSdp(await pc.createOffer());
+    const offer = tuneOpusSdp(await pc.createOffer(iceRestart ? { iceRestart: true } : undefined));
     await pc.setLocalDescription(offer);
     sendSignal(userId, "offer", offer);
     tunePeer(pc);
+    return true;
   } catch {
     // Пир уже закрыт.
+    return false;
   }
 }
 
@@ -403,6 +437,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     localStream: null,
     mediaError: null,
     connectionError: null,
+    connectionStatus: "connecting",
     peers: new Map(),
     offered: new Set(),
     mediaReady,

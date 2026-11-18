@@ -123,6 +123,18 @@ describe("экран звонка на весь экран", () => {
     expect(screen.getByTitle("Завершить")).toBeTruthy();
   });
 
+  it("кнопка смены камеры не обрезается круглым превью", () => {
+    expect(block(".localPip")).toMatch(/overflow: visible;/);
+    expect(block(".localStack")).toMatch(/overflow: hidden;/);
+    expect(block(".flip")).toMatch(/z-index: 2;/);
+    expect(block(".flip")).toMatch(/right: -3px;/);
+  });
+
+  it("показывает понятное состояние переподключения", () => {
+    render(<CallScreen s={callState({ connectionStatus: "reconnecting" })} me={ME} onMinimize={() => {}} onHangup={() => {}} />);
+    expect(screen.getByRole("status").textContent).toContain("Переподключение");
+  });
+
   it("«Кадр целиком» переключает обрезку видео собеседника", () => {
     const { container } = render(<CallScreen s={callState()} me={ME} onMinimize={() => {}} onHangup={() => {}} />);
     const root = container.firstElementChild!;

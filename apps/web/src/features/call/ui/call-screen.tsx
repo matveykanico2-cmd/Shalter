@@ -295,7 +295,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           </div>
         </div>
         {s.mediaError ? <p className={styles.error}>{s.mediaError}</p> : null}
-        {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : null}
+        {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : s.connectionStatus === "reconnecting" ? <p className={`${styles.error} ${styles.reconnecting}`} role="status"><span className={styles.statusDot} />Переподключение…</p> : s.connectionStatus === "connecting" && s.phase === "ringing" ? <p className={`${styles.error} ${styles.connecting}`} role="status"><span className={styles.statusDot} />Подключение…</p> : null}
         {linkStatus ? <p className={`${styles.error} ${styles.linkStatus}`}>{linkStatus}</p> : null}
       </div>
       <div
