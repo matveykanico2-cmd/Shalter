@@ -89,7 +89,7 @@ describe("звонок", () => {
     expect(offer.sdp).not.toContain("usedtx=1");
   });
 
-  it("медленная сеть: перезапуск ICE не раньше 20 с, ошибка — ещё через 10 с; соединились — ошибки нет", async () => {
+  it("медленная сеть: делает до трёх перезапусков ICE и не роняет звонок преждевременно", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       fakeApi({ "POST /api/calls": { body: { call: CALL } }, "GET /api/chats/c_1": chatRoute,
@@ -99,13 +99,21 @@ describe("звонок", () => {
       const restartIce = vi.spyOn(peer, "restartIce");
       FakeSocket.last().receive({ type: "call:signal", signal: signal("answer", { type: "answer", sdp: "v=0" }, 1) });
       await vi.waitFor(() => expect(peer.currentRemoteDescription).toMatchObject({ type: "answer" }));
+      peer.connect();
+      peer.connectionState = "disconnected";
+      peer.iceConnectionState = "disconnected";
+      peer.onconnectionstatechange?.();
       await vi.advanceTimersByTimeAsync(15_000);
       expect(restartIce).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(5_000);
       expect(restartIce).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(8_000);
       expect(getCall()?.connectionError).toBeNull();
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(restartIce).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(restartIce).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(getCall()?.connectionError).toMatch(/Не удалось установить соединение/);
       // ICE всё-таки сошёлся — ошибка уходит, разговор идёт.
       peer.connect();

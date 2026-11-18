@@ -65,6 +65,7 @@ const ICE_FAILURE_MESSAGE = "Не удалось установить соеди
 // перезапуск ICE обрывает почти готовое соединение (8 с/4 с из main2 рвали такие звонки).
 const CONNECT_TIMEOUT_MS = 20_000;
 const RESTART_GRACE_MS = 10_000;
+const MAX_ICE_RESTARTS = 3;
 const NO_ANSWER_MS = 45_000;
 const POLL_MS = 1000;
 
@@ -161,7 +162,7 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
   }
   sendMedia(otherUserId);
 
-  let restarted = false;
+  let restartAttempts = 0;
   let iceRestartPending = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   const clearWatchdog = () => {
@@ -185,25 +186,22 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
       notify();
       return;
     }
-    if (!restarted) {
-      restarted = true;
+    if (restartAttempts < MAX_ICE_RESTARTS) {
+      restartAttempts += 1;
       setStatus("reconnecting");
       try {
         pc.restartIce();
         // Не полагаемся только на onnegotiationneeded: Safari и некоторые WebViews
         // после restartIce() не вызывают его, поэтому явно отправляем offer с ICE restart.
-        if (pc.signalingState === "stable") {
-          // Явный offer — единственный источник переговоров в этом проходе.
-          // Иначе onnegotiationneeded мог бы отправить второй offer параллельно.
-          iceRestartPending = false;
-          void renegotiate(otherUserId, true);
-        } else {
-          iceRestartPending = true;
-        }
+        // После оборванного offer signaling state может остаться
+        // have-local-offer. Сначала откатываем незавершённые переговоры, затем
+        // отправляем ровно один новый offer с ICE restart.
+        iceRestartPending = false;
+        void restartOffer(otherUserId);
       } catch {
         // Старый браузер без restartIce.
       }
-      armWatchdog(RESTART_GRACE_MS);
+      armWatchdog(RESTART_GRACE_MS * restartAttempts);
       notify();
       return;
     }
@@ -241,8 +239,8 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     state.connectedPeers = { ...state.connectedPeers, [otherUserId]: looksConnected() };
     if (looksConnected()) {
       clearWatchdog();
-      // Следующий обрыв (сменилась сеть) снова получит перезапуск ICE, а не сразу ошибку.
-      restarted = false;
+      // После восстановления новый сетевой обрыв получает полный запас попыток.
+      restartAttempts = 0;
       iceRestartPending = false;
       setStatus("connected");
       tunePeer(pc);
@@ -283,6 +281,17 @@ async function renegotiate(userId: string, iceRestart = false): Promise<boolean>
     // Пир уже закрыт.
     return false;
   }
+}
+
+async function restartOffer(userId: string): Promise<boolean> {
+  const pc = state?.peers.get(userId);
+  if (!pc) return false;
+  try {
+    if (pc.signalingState !== "stable") await pc.setLocalDescription({ type: "rollback" });
+  } catch {
+    return false;
+  }
+  return renegotiate(userId, true);
 }
 
 async function offerTo(userId: string) {
