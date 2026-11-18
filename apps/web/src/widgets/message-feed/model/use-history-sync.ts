@@ -1,6 +1,7 @@
 // Лента открытого чата живёт событиями сокета, как public/js/views/chatView.js: чужое
 // сообщение встаёт в ленту сразу, а сверка с сервером — одна на пачку событий. Опрос —
-// подстраховка: раз в минуту при живом сокете, раз в 15 с без него, и не в фоне.
+// подстраховка — только после reconnect/online/возврата во вкладку. Постоянный polling
+// на мобильной сети отбирает канал у сообщений и будит приложение без необходимости.
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -10,9 +11,6 @@ import { ws } from "@/shared/api";
 
 const LIVE_RECONCILE_MS = 1000;
 const DEFAULT_REFRESH_MS = 200;
-const POLL_CHECK_MS = 5000;
-const POLL_WS_OPEN_MS = 60_000;
-const POLL_WS_DOWN_MS = 15_000;
 
 export function useHistorySync(chatId: string, meId: string) {
   const client = useQueryClient();
@@ -20,9 +18,7 @@ export function useHistorySync(chatId: string, meId: string) {
   useEffect(() => {
     const queryKey = messageQueries.chatHistories(chatId);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let lastPoll = Date.now();
     const refresh = () => {
-      lastPoll = Date.now();
       // При входе в чат событие может прийти до первого успешного запроса истории.
       // В этом случае одной invalidate недостаточно: активный query ещё находится в
       // loading и иногда не запускает второй запрос, поэтому сообщение появлялось
@@ -42,11 +38,6 @@ export function useHistorySync(chatId: string, meId: string) {
       scheduleRefresh(LIVE_RECONCILE_MS);
     };
 
-    const poll = setInterval(() => {
-      if (document.hidden) return;
-      if (Date.now() - lastPoll < (ws.isOpen() ? POLL_WS_OPEN_MS : POLL_WS_DOWN_MS)) return;
-      refresh();
-    }, POLL_CHECK_MS);
     const catchUp = () => {
       if (document.hidden) return;
       scheduleRefresh(0);
@@ -90,7 +81,6 @@ export function useHistorySync(chatId: string, meId: string) {
     return () => {
       offs.forEach((off) => off());
       clearTimeout(timer);
-      clearInterval(poll);
       document.removeEventListener("visibilitychange", catchUp);
       window.removeEventListener("online", catchUp);
     };

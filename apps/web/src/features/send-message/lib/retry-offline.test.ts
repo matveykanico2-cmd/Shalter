@@ -23,6 +23,23 @@ describe("retryOffline", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it.each([408, 425, 429, 500, 502, 503])("повторяет временный HTTP-ответ %s", async (status) => {
+    vi.useFakeTimers();
+    const transient = Object.assign(new Error(`HTTP ${status}`), { status });
+    const send = vi.fn().mockRejectedValueOnce(transient).mockResolvedValue("ok");
+    const result = retryOffline(send);
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(result).resolves.toBe("ok");
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("не превращает окончательную ошибку доступа в бесконечный retry", async () => {
+    const forbidden = Object.assign(new Error("Нет доступа"), { status: 403 });
+    const send = vi.fn().mockRejectedValue(forbidden);
+    await expect(retryOffline(send)).rejects.toBe(forbidden);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it("через 2 минуты сдаётся", async () => {
     let t = 0;
     const send = vi.fn(() => {

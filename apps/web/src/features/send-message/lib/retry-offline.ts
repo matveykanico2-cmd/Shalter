@@ -3,8 +3,17 @@
 // Повтор безопасен: clientId тот же, и дошедший запрос сервер второй раз не создаёт.
 const GIVE_UP_MS = 120_000;
 
-/** Обрыв сети: fetch не дошёл до сервера (ответ с ошибкой — не обрыв). */
-export const isOffline = (err: unknown) => err instanceof TypeError;
+/**
+ * Временная ошибка транспорта. На плохой мобильной сети браузер даёт TypeError,
+ * но прокси/шлюз часто успевает вернуть 408, 429 или 5xx. Все эти ответы можно
+ * безопасно повторить: сообщение несёт тот же clientId и сервер не создаст дубль.
+ */
+export const isOffline = (err: unknown) => {
+  if (err instanceof TypeError) return true;
+  if (!err || typeof err !== "object") return false;
+  const status = (err as { status?: unknown }).status;
+  return typeof status === "number" && (status === 408 || status === 425 || status === 429 || status >= 500);
+};
 
 /** Ждём delay или появления сети — что раньше. */
 function waitForNetwork(delay: number) {
