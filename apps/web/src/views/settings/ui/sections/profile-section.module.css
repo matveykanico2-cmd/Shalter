@@ -275,6 +275,30 @@
   font-size: 16px;
 }
 
+.statusRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+  padding: 12px 16px;
+}
+
+.statusInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.statusInfo .hint {
+  margin-top: 4px;
+  line-height: 18px;
+}
+
+.statusButton {
+  flex: 0 0 auto;
+  min-width: 112px;
+  white-space: nowrap;
+}
+
 .actionButton {
   width: auto;
   padding-inline: 16px;
@@ -289,6 +313,16 @@
 }
 
 @media (max-width: 560px) {
+  .statusRow {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .statusButton {
+    width: 100%;
+  }
+
   .emojiActions {
     width: 100%;
     justify-content: stretch;

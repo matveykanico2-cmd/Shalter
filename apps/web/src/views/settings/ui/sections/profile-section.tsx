@@ -220,12 +220,12 @@ function Profile({ me }: { me: SelfUser }) {
       </SettingsSection>
 
       <SettingsSection title="Статус">
-        <div className={styles.inline}>
-          <div className={styles.grow}>
+        <div className={profileStyles.statusRow}>
+          <div className={profileStyles.statusInfo}>
             <p className={profileStyles.rowTitle}>Значок рядом с именем</p>
             <p className={styles.hint}>{me.isPremium ? "До 5 своих статусов — свой или из готовых." : "1 слот — с Premium будет 5."}</p>
           </div>
-          <Button variant="secondary" className={profileStyles.actionButton} onClick={() => setStatusOpen(true)}>
+          <Button variant="secondary" className={profileStyles.statusButton} onClick={() => setStatusOpen(true)}>
             {me.statusIcon ? "Изменить" : "Выбрать"}
           </Button>
         </div>

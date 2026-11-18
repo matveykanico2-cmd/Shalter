@@ -18,6 +18,7 @@
 
 .wide {
   max-width: calc(100vw - 16px);
+  overflow: visible;
 }
 
 .sheet {
