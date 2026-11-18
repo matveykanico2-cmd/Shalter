@@ -130,6 +130,10 @@ describe("экран звонка на весь экран", () => {
     expect(block(".flip")).toMatch(/right: -3px;/);
   });
 
+  it("крестик участника в полноэкранном видео не налезает на меню звонка", () => {
+    expect(css).toMatch(/\.solo \.remove \{[\s\S]*top: calc\(76px \+ env\(safe-area-inset-top\)\);[\s\S]*right: max\(16px, env\(safe-area-inset-right\)\);/);
+  });
+
   it("показывает понятное состояние переподключения", () => {
     render(<CallScreen s={callState({ connectionStatus: "reconnecting" })} me={ME} onMinimize={() => {}} onHangup={() => {}} />);
     expect(screen.getByRole("status").textContent).toContain("Переподключение");
