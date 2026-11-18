@@ -35,7 +35,9 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
 
   const traits = giftTraits(gift);
   // Выбранный при отправке фон — он и показываем; у коллекционных без выбора — фон серии.
-  const backdrop = giftBackdrop(gift.background ?? traits.backdrop)!;
+  // Старые подарки могли быть сохранены с белым/чёрным пресетом. Для них
+  // используем безопасный фон серии, чтобы удалённый фон не возвращался в UI.
+  const backdrop = giftBackdrop(gift.background) ?? giftBackdrop(traits.backdrop)!;
   const symbol = backdrop.symbol ?? traits.symbol;
   const act = (fn: () => void) => () => {
     onClose();

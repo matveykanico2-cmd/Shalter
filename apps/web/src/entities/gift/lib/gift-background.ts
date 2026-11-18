@@ -29,8 +29,13 @@ const slug = (name: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+// Слишком белые и чёрные пресеты плохо читаются в карточках и на тёмной теме.
+// Не показываем их в выборе и не создаём новые подарки с ними.
+const isRemovedBackdrop = (name: string) => /black|white|platinum/i.test(name);
+const REMOVED_COLOR_PAIRS = new Set(TG_BACKDROPS.filter((b) => isRemovedBackdrop(b.name)).map((b) => `${b.colors[0].toLowerCase()}|${b.colors[1].toLowerCase()}`));
+
 // Каждому фону — свой узор, чтобы он не менялся от подарка к подарку.
-const BACKDROPS: Backdrop[] = TG_BACKDROPS.map((b) => ({
+const BACKDROPS: Backdrop[] = TG_BACKDROPS.filter((b) => !isRemovedBackdrop(b.name)).map((b) => ({
   id: slug(b.name),
   name: b.name,
   center: b.colors[0],
@@ -71,6 +76,7 @@ export function giftBackdrop(src: BackdropSource | null | undefined): Backdrop |
   const center = hex(src.center) ?? hex(src.from);
   const edge = hex(src.edge) ?? hex(src.to);
   if (!center || !edge) return null;
+  if (isRemovedBackdrop(String(src.id ?? "")) || REMOVED_COLOR_PAIRS.has(`${center}|${edge}`)) return null;
   // Пресет ищем по id, а если его нет (фон серии, собранный из каталога) — по паре цветов.
   const preset = BY_ID.get(String(src.id ?? "")) ?? BY_COLORS.get(`${center}|${edge}`);
   const symbolId = typeof src.symbol === "string" ? src.symbol : (src.symbol?.id ?? preset?.symbol?.id);
