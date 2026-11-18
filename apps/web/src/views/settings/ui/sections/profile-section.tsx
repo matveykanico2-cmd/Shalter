@@ -53,6 +53,10 @@ function Profile({ me }: { me: SelfUser }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [constructorOpen, setConstructorOpen] = useState(false);
+  const firstGalleryAvatar = me.avatarImages[0] as { poster?: unknown; url?: unknown } | undefined;
+  // В старых профилях avatarImage мог быть пустым, хотя галерея уже сохранена.
+  // Показываем первую запись галереи вместо буквенного fallback.
+  const profileAvatarImage = me.avatarImage ?? (typeof firstGalleryAvatar?.poster === "string" ? firstGalleryAvatar.poster : typeof firstGalleryAvatar?.url === "string" ? firstGalleryAvatar.url : null);
 
   useEffect(() => {
     if (!saved) return;
@@ -109,7 +113,7 @@ function Profile({ me }: { me: SelfUser }) {
     <SettingsPage>
       <div className={profileStyles.header}>
         <button type="button" className={profileStyles.avatarButton} aria-label="Фото профиля" onClick={() => setAvatarOpen(true)}>
-          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={me.avatarImage} emoji={me.avatarEmoji} size={120} />
+          <Avatar name={[firstName, lastName].filter(Boolean).join(" ") || "?"} color={me.avatarColor} image={profileAvatarImage} emoji={me.avatarEmoji} size={120} />
           <span className={profileStyles.avatarEdit}>
             <Icon name="Edit" size={12} />
           </span>
@@ -133,8 +137,7 @@ function Profile({ me }: { me: SelfUser }) {
 
       <ProfileEmojiAvatar me={me} />
 
-      {!me.avatarImage || me.avatarEmoji ? (
-        <SettingsSection title="Цвет аватара">
+      <SettingsSection title="Цвет аватара">
           <p className={`${styles.hint} ${profileStyles.pad}`}>Фон букв, смайла или стикера меняется отдельно и не сбрасывает содержимое аватара.</p>
           <div className={profileStyles.colorGrid}>
             {AVATAR_COLORS.map((c) => (
@@ -150,8 +153,7 @@ function Profile({ me }: { me: SelfUser }) {
               />
             ))}
           </div>
-        </SettingsSection>
-      ) : null}
+      </SettingsSection>
 
       <BannerPicker me={me} onSave={(banner) => void saveField({ profileBanner: banner ?? undefined }, "Не удалось сохранить баннер")} />
 

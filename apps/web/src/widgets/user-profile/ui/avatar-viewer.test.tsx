@@ -108,4 +108,22 @@ describe("AvatarViewer", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Следующее" }));
     expect(within(dialog).getAllByRole("button", { name: "Удалить" })).toHaveLength(1);
   });
+
+  it("сопоставляет главную фотографию с сохранённым poster", () => {
+    render(
+      <AvatarViewer
+        {...callbacks}
+        canEdit
+        user={{
+          name: "Борис",
+          avatarImage: "data:image/jpeg;base64,poster",
+          avatarImages: [{ kind: "image", url: "/uploads/main.jpg", poster: "data:image/jpeg;base64,poster" }],
+        }}
+      />
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Фото профиля" });
+    expect(within(dialog).getByRole("button", { name: "Удалить" })).toBeTruthy();
+    expect(within(dialog).getByRole("img", { name: "Борис" }).getAttribute("src")).toBe("/uploads/main.jpg");
+  });
 });

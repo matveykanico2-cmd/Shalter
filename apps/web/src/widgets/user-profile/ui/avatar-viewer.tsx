@@ -56,7 +56,10 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   // avatarImages — канонический список сервера, где первая запись является главной.
   // Не добавляем avatarImage раньше списка: иначе дедупликация съедала индекс 0,
   // и после удаления любой фотографии следующая оставалась без кнопки «Удалить».
-  const hasCurrentInGallery = !!user.avatarImage && raw.some((value) => isEntry(value) && value.url === user.avatarImage);
+  // Для основной фотографии сервер хранит в avatarImage именно poster, а не URL
+  // исходного файла. Учитываем оба варианта, иначе главная фотография дублируется
+  // без sourceIndex и у неё пропадает действие удаления.
+  const hasCurrentInGallery = !!user.avatarImage && raw.some((value) => isEntry(value) && (value.url === user.avatarImage || value.poster === user.avatarImage));
   if (user.avatarImage && !hasCurrentInGallery) {
     addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
   }
