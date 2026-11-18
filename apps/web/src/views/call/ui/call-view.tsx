@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { callApi, CallScreen, decline, getCall, joinCallById, minimize, unminimize, useCall } from "@/features/call";
 
@@ -79,6 +79,10 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
   }, [endedChatId, navigate]);
 
   if (action === "decline") return null;
+  // Декларативный переход происходит в этом же рендере. Иначе CallScreen уже
+  // успевал исчезнуть, а navigate из effect выполнялся кадром позже — появлялся
+  // белый экран после сброса звонка.
+  if (endedChatId) return <Navigate to={`/chat/${endedChatId}`} replace />;
   if (!current) return missing ? <p className={styles.missing}>Звонок не найден или уже завершён.</p> : null;
   return (
     <CallScreen

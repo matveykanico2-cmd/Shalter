@@ -495,7 +495,7 @@ function votePoll(id, optionIndex, userId, questionIndex = 0) {
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "poll") return a;
       if (a.meta?.closed) return a;
-      if (Array.isArray(a.meta?.questions) && questionIndex > 0) {
+      if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && questionIndex >= 0) {
         const questions = a.meta.questions.map((q) => ({ ...q, voterIds: (q.voterIds ?? q.options.map(() => [])).map((ids) => [...ids]), votes: [...(q.votes ?? [])] }));
         const q = questions[questionIndex];
         if (!q || optionIndex < 0 || optionIndex >= q.options.length) return a;

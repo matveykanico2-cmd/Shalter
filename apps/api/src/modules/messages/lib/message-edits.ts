@@ -77,7 +77,7 @@ export function votePoll(m: Message, optionIndex: unknown, userId: string, quest
   const attachments = m.attachments?.map((a) => {
     if (a.kind !== "poll") return a;
     if (a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now())) return a;
-    if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && (questionIndex as number) > 0) {
+    if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && (questionIndex as number) >= 0) {
       const questions = (a.meta.questions as Array<{ question: string; options: string[]; voterIds?: string[][]; votes?: number[]; correctIndex?: number | null }>).map((q) => ({ ...q, voterIds: (q.voterIds ?? q.options.map(() => [] as string[])).map((ids: string[]) => [...ids]), votes: [...(q.votes ?? [])] }));
       const q = questions[questionIndex as number];
       const index = Number(optionIndex);
