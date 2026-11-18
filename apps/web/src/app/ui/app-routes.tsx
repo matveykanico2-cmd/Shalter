@@ -16,10 +16,10 @@ import type { SelfUser } from "@/entities/session";
 import { lazyView as lazyLoadedView } from "@/shared/lib/lazy-view";
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
-import { ScreenLoader } from "@/shared/ui";
 
 import { Splash } from "../ui/splash";
 
+import styles from "./app-routes.module.css";
 import { AtUsername } from "./at-username";
 
 // Экраны — отдельными чанками (как import() в public/js/app.js): оболочка и список чатов
@@ -42,7 +42,12 @@ const QrScanView = lazyLoadedView(() => import("@/views/qr-scan").then((m) => m.
 
 // Пока чанк экрана грузится, занимаем всю отведённую ему область. Пустой fallback на
 // /settings оставлял под ним список и домашний экран с «Выберите чат».
-const lazyView = (node: ReactNode) => <Suspense fallback={<ScreenLoader />}>{node}</Suspense>;
+const RouteLoader = () => (
+  <div className={styles.routeLoader} role="status" aria-label="Загрузка">
+    <span />
+  </div>
+);
+const lazyView = (node: ReactNode) => <Suspense fallback={<RouteLoader />}>{node}</Suspense>;
 
 /** Боковые разделы: на компьютере — в колонке списка чатов, на телефоне — во весь экран. */
 const sideRoutes = () => [

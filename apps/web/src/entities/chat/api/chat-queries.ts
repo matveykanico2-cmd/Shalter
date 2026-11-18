@@ -26,7 +26,9 @@ export const chatQueries = {
     queryOptions({
       queryKey: [...baseKey, "card", chatId],
       queryFn: ({ signal }) => http.get<ChatCard>(`/api/chats/${encodeURIComponent(chatId)}`, signal),
-      refetchOnMount: "always",
-      refetchOnWindowFocus: "always",
+      // Шапка и участники уже обновляются по WS. Не дёргаем API при каждом
+      // возврате в чат: это убирает видимые скачки имени/медиа на медленной сети.
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
     }),
 };
