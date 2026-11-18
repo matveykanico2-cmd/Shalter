@@ -4,7 +4,7 @@
 // (камера или экран) и второй — камера, пока показывают экран.
 import { ws } from "@/shared/api";
 import { cameraCount, getFlippedTrack } from "@/shared/lib/media/camera-switch";
-import { CALL_AUDIO, cameraConstraints, getUserMediaSafe, HD_SCREEN, HD_VIDEO, hintScreenTrack, hintVideoTrack, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
+import { CALL_AUDIO, cameraConstraints, getUserMediaSafe, HD_SCREEN, HD_VIDEO, hintScreenTrack, hintVideoTrack, isMobileUa, mediaQuality, tuneOpusSdp, tuneVideoSender } from "@/shared/lib/media/media-quality";
 import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
@@ -68,6 +68,9 @@ const RESTART_GRACE_MS = 10_000;
 const MAX_ICE_RESTARTS = 3;
 const NO_ANSWER_MS = 45_000;
 const POLL_MS = 1000;
+const QUALITY_POLL_MS = 3000;
+const POOR_NETWORK_LOSS = 0.08;
+const POOR_NETWORK_RTT = 0.4;
 
 let iceServers = STUN_FALLBACK;
 let state: State | null = null;
@@ -165,6 +168,7 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
   let restartAttempts = 0;
   let iceRestartPending = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
+  let previousPackets = { received: 0, lost: 0 };
   const clearWatchdog = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = undefined;
@@ -254,6 +258,40 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
     }
     notify();
   };
+  const sampleQuality = async () => {
+    if (!state || state.peers.get(otherUserId) !== pc || typeof pc.getStats !== "function") return;
+    try {
+      const stats = await pc.getStats();
+      let received = 0;
+      let lost = 0;
+      let rtt = 0;
+      for (const report of stats.values()) {
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+          received += Number(report.packetsReceived) || 0;
+          lost += Number(report.packetsLost) || 0;
+        }
+        if (report.type === "candidate-pair" && report.state === "succeeded") rtt = Math.max(rtt, Number(report.currentRoundTripTime) || 0);
+      }
+      const packetDelta = received + lost - previousPackets.received - previousPackets.lost;
+      const loss = packetDelta > 0 ? Math.max(0, lost - previousPackets.lost) / packetDelta : 0;
+      previousPackets = { received, lost };
+      const degraded = loss >= POOR_NETWORK_LOSS || rtt >= POOR_NETWORK_RTT;
+      const base = mediaQuality(isMobileUa(navigator.userAgent)).videoBitrate;
+      const target = state.sharing ? (degraded ? 1_500_000 : 8_000_000) : degraded ? Math.min(base, 700_000) : base;
+      for (const sender of pc.getSenders()) {
+        if (sender.track?.kind !== "video" || typeof sender.getParameters !== "function") continue;
+        const params = sender.getParameters();
+        const encoding = params.encodings?.[0];
+        if (!encoding || encoding.maxBitrate === target) continue;
+        encoding.maxBitrate = target;
+        await sender.setParameters(params).catch(() => {});
+      }
+    } catch {
+      // Некоторые WebViews не дают статистику — соединение продолжает работать без адаптации.
+    }
+  };
+  const qualityTimer = setInterval(() => void sampleQuality(), QUALITY_POLL_MS);
+  cleanups.push(() => clearInterval(qualityTimer));
   pc.onconnectionstatechange = onStateChange;
   pc.oniceconnectionstatechange = onStateChange;
   s.peers.set(otherUserId, pc);
@@ -519,11 +557,33 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     if (event.persisted) return;
     onPageExit();
   };
+  const onOffline = () => {
+    if (state !== mine || mine.phase === "ended") return;
+    mine.connectionStatus = "reconnecting";
+    mine.connectionError = null;
+    notify();
+  };
+  const onOnline = () => {
+    if (state !== mine || mine.phase === "ended") return;
+    mine.connectionStatus = "reconnecting";
+    mine.connectionError = null;
+    notify();
+    for (const [userId, pc] of mine.peers) {
+      if (pc.connectionState === "connected" || pc.connectionState === "closed") continue;
+      try { pc.restartIce(); } catch { /* Старые WebView не умеют restartIce. */ }
+      void restartOffer(userId);
+    }
+    void syncCallAfterReconnect(mine);
+  };
   window.addEventListener("pagehide", onPageHide);
   window.addEventListener("beforeunload", onPageExit);
+  window.addEventListener("offline", onOffline);
+  window.addEventListener("online", onOnline);
   cleanups = [
     () => window.removeEventListener("pagehide", onPageHide),
     () => window.removeEventListener("beforeunload", onPageExit),
+    () => window.removeEventListener("offline", onOffline),
+    () => window.removeEventListener("online", onOnline),
     () => clearInterval(ticker),
     () => clearInterval(poll),
     ws.on("call:signal", (msg) => void handleSignal(msg.signal)),
