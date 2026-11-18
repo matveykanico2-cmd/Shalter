@@ -15,10 +15,17 @@
 }
 
 .missing {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-direction: column;
   height: 100%;
   color: var(--color-muted);
+}
+
+.missing p {
+  margin: 0;
 }
 
 .body {

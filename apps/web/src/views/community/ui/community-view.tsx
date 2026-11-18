@@ -17,6 +17,7 @@ import { openUserProfile } from "@/entities/user";
 import { useWsEvent } from "@/shared/api";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
+import { navigateBack } from "@/shared/lib/navigate-back";
 import { publicUrl } from "@/shared/lib/public-link";
 import { Avatar, Button, Icon, MediaViewer, Menu, type MenuItem, toast, type ViewerItem } from "@/shared/ui";
 
@@ -43,7 +44,7 @@ export function CommunityView() {
         {detail.isError ? (
           <>
             <p className={styles.hint}>{errorText(detail.error, "Сообщество не найдено")}</p>
-            <Button onClick={() => void navigate("/")}>К чатам</Button>
+            <Button onClick={() => navigateBack(navigate)}>К чатам</Button>
           </>
         ) : null}
       </div>
@@ -123,7 +124,7 @@ function CommunityPage({ community }: { community: Community }) {
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={() => void navigate(-1)}>
+        <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={() => navigateBack(navigate)}>
           <Icon name="ChevronLeft" size={21} />
         </button>
         <span>Профиль сообщества</span>

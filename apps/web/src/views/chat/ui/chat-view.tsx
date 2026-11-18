@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { ChatInfoPanel } from "@/widgets/chat-info";
@@ -26,6 +26,7 @@ import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
 import { useWsEvent } from "@/shared/api";
+import { navigateBack } from "@/shared/lib/navigate-back";
 import { Button, ScreenLoader, wallpaperProps } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
@@ -35,6 +36,7 @@ const NO_MEMBERS: ChatMember[] = [];
 /** Открытый чат: шапка, лента, поле ввода. */
 export function ChatView() {
   const { chatId = "" } = useParams();
+  const navigate = useNavigate();
   const me = useSession().data?.user;
   const listed = useChatFromList(chatId);
   const card = useChatCard(chatId);
@@ -49,7 +51,12 @@ export function ChatView() {
   if (!me) return null;
   if (!chat) {
     if (listed.isPending || card.isPending) return <ScreenLoader />;
-    return <div className={styles.missing}>Чат не найден</div>;
+    return (
+      <div className={styles.missing} role="alert">
+        <p>Чат не найден</p>
+        <Button variant="secondary" onClick={() => navigateBack(navigate)}>Назад</Button>
+      </div>
+    );
   }
   // key: новый чат — новое состояние ленты и поля ввода (ответ, плашка непрочитанных).
   return <OpenChat key={chat.id} chat={chat} members={card.data?.members ?? NO_MEMBERS} card={card.data ?? null} me={me} />;

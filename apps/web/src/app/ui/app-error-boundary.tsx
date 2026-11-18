@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { browserNavigateBack } from "@/shared/lib/navigate-back";
+
 import styles from "./app-error-boundary.module.css";
 
 type Props = { children?: ReactNode };
@@ -30,6 +32,9 @@ export function AppErrorScreen() {
       <p>Перезапустите приложение. Ваши сообщения и данные аккаунта не потеряны.</p>
       <button type="button" onClick={() => window.location.reload()}>
         Перезапустить
+      </button>
+      <button type="button" onClick={() => browserNavigateBack()}>
+        Назад
       </button>
     </main>
   );

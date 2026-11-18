@@ -6,6 +6,7 @@ import { getCall, joinCallByLink } from "@/features/call";
 import { useSession } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
+import { navigateBack } from "@/shared/lib/navigate-back";
 import { Button } from "@/shared/ui";
 
 import styles from "./call-view.module.css";
@@ -35,7 +36,7 @@ export function CallJoinView() {
     <div className={styles.join}>
       <p className={styles.joinTitle}>Ссылка недействительна</p>
       <p className={styles.missing}>{error}</p>
-      <Button variant="secondary" onClick={() => void navigate(-1)}>Назад</Button>
+      <Button variant="secondary" onClick={() => navigateBack(navigate)}>Назад</Button>
     </div>
   );
 }
