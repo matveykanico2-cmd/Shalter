@@ -57,6 +57,8 @@ type State = CallState & {
   handled: Set<string>;
   pendingIce: Map<string, RTCIceCandidateInit[]>;
   pageExitHandled: boolean;
+  /** Поправка часов устройства к серверному времени звонка. */
+  serverClockOffsetMs: number;
 };
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -277,7 +279,8 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
       previousPackets = { received, lost };
       const degraded = loss >= POOR_NETWORK_LOSS || rtt >= POOR_NETWORK_RTT;
       const base = mediaQuality(isMobileUa(navigator.userAgent)).videoBitrate;
-      const target = state.sharing ? (degraded ? 1_500_000 : 8_000_000) : degraded ? Math.min(base, 700_000) : base;
+      // Короткий скачок RTT не должен превращать видео в мыло.
+      const target = state.sharing ? (degraded ? 1_500_000 : 8_000_000) : degraded ? Math.min(base, 1_200_000) : base;
       for (const sender of pc.getSenders()) {
         if (sender.track?.kind !== "video" || typeof sender.getParameters !== "function") continue;
         const params = sender.getParameters();
@@ -512,6 +515,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     handled: new Set(),
     pendingIce: new Map(),
     pageExitHandled: false,
+    serverClockOffsetMs: Number.isFinite(Date.parse(call.startedAt)) ? Date.parse(call.startedAt) - Date.now() : 0,
   };
   const mine = state;
   notify();
@@ -539,7 +543,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   const callStartedAt = Date.parse(call.startedAt);
   const ticker = setInterval(() => {
     if (state?.phase === "connected") {
-      const sharedElapsed = Number.isFinite(callStartedAt) ? Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000)) : state.elapsed + 1;
+      const sharedElapsed = Number.isFinite(callStartedAt) ? Math.max(0, Math.floor((Date.now() + state.serverClockOffsetMs - callStartedAt) / 1000)) : state.elapsed + 1;
       if (state.elapsed !== sharedElapsed) {
         state.elapsed = sharedElapsed;
         notify();

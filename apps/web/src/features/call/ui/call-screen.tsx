@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ContactPicker } from "@/entities/user";
 
@@ -157,11 +157,12 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
     const showVideo = hasVideo(stream);
     const small = role === "strip";
     return (
-      <div
+      <DraggableTile
         key={`${role}:${p.id}`}
         className={[styles.tile, role === "stage" ? styles.stageTile : "", small ? styles.stripTile : ""].filter(Boolean).join(" ")}
         title={stageMode ? p.name : swapped ? "Вернуть как было" : "Показать себя крупно"}
-        style={stageMode ? undefined : { cursor: "pointer" }}
+        dragKey={`shalter.callTile.${p.id}`}
+        movable={role === "grid"}
         onClick={(e) => {
           if (!stageMode && !(e.target as HTMLElement).closest("button")) toggleSwap();
         }}
@@ -186,7 +187,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
             <Icon name="X" size={15} />
           </button>
         ) : null}
-      </div>
+      </DraggableTile>
     );
   };
 
@@ -318,7 +319,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         )}
         {s.cameraOn && s.cameraCount > 1 ? (
           <button type="button" className={styles.flip} title="Другая камера" onClick={() => void flipCamera()}>
-            <Icon name="FlipCamera" size={14} />
+            <Icon name="FlipCamera" size={20} />
           </button>
         ) : null}
         {s.cameraError ? <p className={styles.cameraError}>{s.cameraError}</p> : null}
@@ -394,6 +395,43 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         />
       ) : null}
       {inviteUrl ? <InviteDialog url={inviteUrl} callChatId={s.call.chatId} onClose={() => setInviteUrl(null)} /> : null}
+    </div>
+  );
+}
+
+function DraggableTile({
+  dragKey,
+  movable,
+  className,
+  title,
+  onClick,
+  onDoubleClick,
+  children,
+}: {
+  dragKey: string;
+  movable: boolean;
+  className: string;
+  title: string;
+  onClick: (event: MouseEvent<HTMLDivElement>) => void;
+  onDoubleClick: (event: MouseEvent<HTMLDivElement>) => void;
+  children: ReactNode;
+}) {
+  const drag = useDraggable(dragKey);
+  return (
+    <div
+      ref={movable ? drag.attach : undefined}
+      data-draggable={movable ? "" : undefined}
+      className={className}
+      title={title}
+      style={movable ? { ...drag.style, cursor: "grab" } : undefined}
+      onPointerDown={movable ? drag.onPointerDown : undefined}
+      onClick={(event) => {
+        if (movable && drag.justDragged()) return;
+        onClick(event);
+      }}
+      onDoubleClick={onDoubleClick}
+    >
+      {children}
     </div>
   );
 }

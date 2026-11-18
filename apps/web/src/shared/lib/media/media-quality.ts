@@ -17,10 +17,10 @@ export function mediaQuality(mobile: boolean) {
     // Голос: моно с шумо- и эхоподавлением (стерео-захват на ПК ломал эхоподавление).
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48_000 } } satisfies MediaTrackConstraints,
     // Голос: Opus 24–48 кбит/с, моно, 48 кГц. FEC помогает при потерях пакетов.
-    opusBitrate: mobile ? 24_000 : 48_000,
+    opusBitrate: mobile ? 32_000 : 64_000,
     // Видео: потолок выше, чтобы на хорошем канале не мылилось; balanced degradation
     // плавно снижает качество при слабой сети вместо замираний.
-    videoBitrate: mobile ? 2_500_000 : 8_000_000,
+    videoBitrate: mobile ? 3_500_000 : 8_000_000,
     videoFramerate: 30,
   };
 }
