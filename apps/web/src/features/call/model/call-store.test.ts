@@ -68,6 +68,19 @@ describe("звонок", () => {
     expect(getCall()).toBeNull();
   });
 
+  it("подтверждение ответа до ICE не даёт пометить принятый звонок пропущенным", async () => {
+    const { calls } = fakeApi({
+      "POST /api/calls": { body: { call: CALL } },
+      "GET /api/chats/c_1": chatRoute,
+      "PATCH /api/calls/cl_1": { body: { call: { ...CALL, status: "completed" } } },
+    });
+    await placeCall("c_1", "audio", ME);
+    FakeSocket.last().receive({ type: "call:signal", signal: signal("accepted", null, 1) });
+    expect(getCall()).toMatchObject({ phase: "connected", connectionStatus: "connecting" });
+    await hangup();
+    expect(calls.find((c) => c.key === "PATCH /api/calls/cl_1")?.body).toMatchObject({ status: "completed" });
+  });
+
   it("видеозвонок: камера с подсказкой motion, после согласования — потолок 5 Мбит/с, 30 кадров, balanced", async () => {
     fakeApi({ "POST /api/calls": { body: { call: { ...CALL, kind: "video" } } }, "GET /api/chats/c_1": chatRoute,
       "POST /api/calls/cl_1/answer": { body: { ok: true } }, "PATCH /api/calls/cl_1": { body: { call: CALL } } });

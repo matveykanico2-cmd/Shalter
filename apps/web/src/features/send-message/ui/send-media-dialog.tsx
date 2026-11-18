@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { videoPosterDataUrl } from "@/shared/lib/image";
 import { plural } from "@/shared/lib/presence";
@@ -39,7 +39,9 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
-  useEffect(() => {
+  // Передаём выбор родителю до отрисовки кнопки отправки. Иначе при быстрой
+  // смене цены и нажатии «Отправить» родитель мог ещё держать старое paidStars=0.
+  useLayoutEffect(() => {
     onChangeRef.current({
       picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })),
       spoiler: !asFiles && spoiler,

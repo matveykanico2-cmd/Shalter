@@ -393,6 +393,16 @@ async function handleSignal(sig: Signal) {
         await flushIce(owner, sig.fromUserId, pc);
         tunePeer(pc);
       }
+      // Ответ SDP означает, что собеседник уже принял звонок. Медиа может ещё
+      // договариваться через TURN, но выход после этого должен быть completed,
+      // а не missed.
+      if (state.phase === "ringing") {
+        state.phase = "connected";
+        state.connectionStatus = "connecting";
+        clearTimeout(noAnswerTimer);
+        stopRingtone();
+        notify();
+      }
     } else if (sig.kind === "ice") {
       const pc = state.peers.get(sig.fromUserId);
       if (!pc?.remoteDescription) {
@@ -406,6 +416,17 @@ async function handleSignal(sig: Signal) {
       const media = sig.data as Partial<PeerMedia> | null;
       state.remoteMedia = { ...state.remoteMedia, [sig.fromUserId]: { camera: !!media?.camera, sharing: !!media?.sharing, handRaised: !!media?.handRaised } };
       notify();
+    } else if (sig.kind === "accepted") {
+      // Ответивший клиент подтверждает принятие сразу, не дожидаясь ICE/медиа.
+      // Это не заменяет WebRTC negotiation, а не даёт pagehide ошибочно пометить
+      // уже принятый звонок как missed при медленном TURN.
+      if (state.phase === "ringing") {
+        state.phase = "connected";
+        state.connectionStatus = "connecting";
+        clearTimeout(noAnswerTimer);
+        stopRingtone();
+        notify();
+      }
     }
   } catch {
     // Устаревший или битый сигнал — пропускаем.
@@ -445,9 +466,9 @@ function removePeer(userId: string) {
   }
 }
 
-type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean; joinedByLink?: boolean; canStart?: () => boolean };
+type JoinInput = { call: Call; chatTitle: string | null; chatType: string; participants: CallPeer[]; me: CallPeer; isRoom?: boolean; joinedByLink?: boolean; accepted?: boolean; canStart?: () => boolean };
 
-async function join({ call, chatTitle, chatType, participants, me, isRoom = false, joinedByLink = false, canStart }: JoinInput) {
+async function join({ call, chatTitle, chatType, participants, me, isRoom = false, joinedByLink = false, accepted = false, canStart }: JoinInput) {
   if (canStart && !canStart()) return;
   const others = participants.filter((p) => p.id !== me.id);
   // Новый звонок поверх старого (ответили на другой) — старый отпускает микрофон и пиров.
@@ -601,6 +622,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     }),
     ws.on("call:participants-updated", (msg) => void onParticipants(msg.call)),
   ];
+  if (accepted) others.forEach((p) => sendSignal(p.id, "accepted", null));
 
   try {
     const stream = await getUserMediaSafe({
@@ -721,7 +743,7 @@ export function joinCallById(callId: string, me: CallPeer, { answer = false, can
       participants = users.filter((u): u is CallPeer => !!u);
     }
     if (!canStart()) return;
-    await join({ call, chatTitle, chatType, participants, me: peerOf(me), canStart });
+    await join({ call, chatTitle, chatType, participants, me: peerOf(me), accepted: answer, canStart });
   })().finally(() => {
     if (joining?.done === done) joining = null;
   });
