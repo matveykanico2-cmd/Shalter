@@ -61,3 +61,15 @@ it("открытие текущего звонка глушит рингтон �
   rerender({ active: "cl_1" });
   expect(stopRingtone).toHaveBeenCalledTimes(1);
 });
+
+it("не скрывает карточку на устройстве, которое само отвечает, до входа в звонок", async () => {
+  fakeApi({ "GET /api/calls": { body: { calls: [] } } });
+  const { result } = renderHook(() => useIncomingCall("u_me"));
+  await act(async () => {});
+  act(() => FakeSocket.last().receive({ type: "call:incoming", call: call() }));
+  act(() => result.current.beginAnswer("cl_1"));
+  act(() => FakeSocket.last().receive({ type: "call:answered", callId: "cl_1" }));
+  expect(result.current.ringing?.id).toBe("cl_1");
+  act(() => result.current.finishAnswer("cl_1"));
+  expect(result.current.ringing?.id).toBe("cl_1");
+});

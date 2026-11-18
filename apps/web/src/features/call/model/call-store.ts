@@ -723,6 +723,22 @@ export async function placeCall(chatId: string, kind: CallKind, me: CallPeer, { 
 /** Войти в идущий звонок. Ответ на входящий выполняется только явно. */
 type JoinCallOptions = { answer?: boolean; canStart?: () => boolean };
 
+/** Ответ должен пережить короткий обрыв сети в момент нажатия кнопки. */
+async function answerWithRetry(callId: string): Promise<boolean> {
+  const delays = [0, 250, 750, 1500];
+  for (const delay of delays) {
+    if (delay) await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    try {
+      await callApi.answer(callId);
+      return true;
+    } catch {
+      // Повторяем только короткую сетевую ошибку; окончательный статус звонка
+      // всё равно сверяется через /api/calls и WebSocket.
+    }
+  }
+  return false;
+}
+
 export function joinCallById(callId: string, me: CallPeer, { answer = false, canStart = () => true }: JoinCallOptions = {}): Promise<void> {
   if (!canStart()) return Promise.resolve();
   if (state?.call.id === callId) return Promise.resolve();
@@ -738,17 +754,21 @@ export function joinCallById(callId: string, me: CallPeer, { answer = false, can
     const found = calls.find((c) => c.id === callId);
     if (!found || found.status !== "ongoing") return;
     if (!canStart()) return;
-    const answerRequest = answer && found.callerId !== me.id && found.kind !== "voice-room" ? callApi.answer(callId) : Promise.resolve();
+    const shouldAnswer = answer && found.callerId !== me.id && found.kind !== "voice-room";
+    // Не ждём разрешения камеры перед подтверждением: входящий баннер не должен
+    // исчезать из-за медленного mediaDevices/TURN. Повторы покрывают плохой Wi‑Fi.
+    const answerRequest = shouldAnswer ? answerWithRetry(callId) : Promise.resolve(true);
     // Строка истории: направление и собеседник — не часть звонка.
     const call = omit(found, ["direction", "otherUser", "group", "answered"]);
     let chatTitle: string | null = "Звонок";
     let chatType = "dm";
     let participants: CallPeer[];
     try {
-      const [{ chat, members }] = await Promise.all([callApi.chat(call.chatId), answerRequest]);
+      const [{ chat, members }, answered] = await Promise.all([callApi.chat(call.chatId), answerRequest]);
       chatTitle = chat.title;
       chatType = chat.type;
       participants = await resolveParticipants(call, members);
+      if (shouldAnswer && !answered) void answerWithRetry(callId);
     } catch {
       const users = await Promise.all(call.participantIds.map((id) => callApi.user(id).then((r) => r.user, () => null)));
       participants = users.filter((u): u is CallPeer => !!u);

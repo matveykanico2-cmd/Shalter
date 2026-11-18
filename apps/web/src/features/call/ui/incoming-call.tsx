@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 
@@ -16,10 +16,16 @@ import styles from "./incoming-call.module.css";
 /** Экран входящего звонка поверх приложения — «Отклонить» и «Ответить». */
 export function IncomingCall({ me }: { me: CallPeer }) {
   const current = useCall();
-  const { ringing, dismiss } = useIncomingCall(me.id, current?.call.id);
+  const { ringing, dismiss, beginAnswer, finishAnswer } = useIncomingCall(me.id, current?.call.id);
   const [answering, setAnswering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  // joinCallById creates the live call state before media permissions/ICE finish.
+  // Move to the call screen at that point; waiting for the whole join made the
+  // incoming card vanish while the user was still looking at the chat.
+  useEffect(() => {
+    if (answering && ringing && current?.call.id === ringing.id) void navigate(`/call/${ringing.id}`, { replace: true });
+  }, [answering, current?.call.id, navigate, ringing]);
   // Ответили из уведомления (/call/:id?answer=1) — звонок уже идёт.
   if (!ringing || current?.call.id === ringing.id) return null;
   const other = ringing.otherUser;
@@ -30,6 +36,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
     if (answering) return;
     setAnswering(true);
     setError(null);
+    beginAnswer(ringing.id);
     stopRingtone();
     try {
       await joinCallById(ringing.id, me, { answer: true });
@@ -38,6 +45,7 @@ export function IncomingCall({ me }: { me: CallPeer }) {
     } catch (err) {
       setError(errorText(err, "Не удалось ответить. Попробуйте ещё раз"));
     } finally {
+      finishAnswer(ringing.id);
       setAnswering(false);
     }
   };

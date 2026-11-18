@@ -19,6 +19,11 @@ const RINGING_WINDOW_MS = 60_000;
  */
 export function useIncomingCall(meId: string, activeCallId?: string) {
   const seen = useRef(new Set<string>());
+  // POST /answer broadcasts call:answered to all sessions of the account,
+  // including the device that is currently joining. Keep its card mounted until
+  // joinCallById finishes, otherwise a slow chat/media request makes the call
+  // visually disappear before the call screen opens.
+  const answeringId = useRef<string | null>(null);
   const primed = useRef(false);
   const [ringing, setRinging] = useState<RingingCall | null>(null);
   const dismiss = () => setRinging(null);
@@ -43,6 +48,7 @@ export function useIncomingCall(meId: string, activeCallId?: string) {
   // Ответили на другом устройстве.
   useWsEvent("call:answered", (e) => {
     seen.current.add(e.callId);
+    if (answeringId.current === e.callId) return;
     setRinging((cur) => cur?.id === e.callId ? null : cur);
   });
 
@@ -89,5 +95,12 @@ export function useIncomingCall(meId: string, activeCallId?: string) {
     };
   }, [ringing, activeCallId]);
 
-  return { ringing, dismiss };
+  const beginAnswer = (id: string) => {
+    answeringId.current = id;
+  };
+  const finishAnswer = (id: string) => {
+    if (answeringId.current === id) answeringId.current = null;
+  };
+
+  return { ringing, dismiss, beginAnswer, finishAnswer };
 }
