@@ -15,10 +15,9 @@ import androidx.core.content.ContextCompat;
 import androidx.core.app.NotificationCompat;
 import android.content.pm.PackageManager;
 
-// Входящий звонок, как в Telegram: на заблокированном или погасшем экране — сразу
-// экран звонка (full-screen intent), иначе — уведомление-звонок поверх всего, с
-// рингтоном по кругу и кнопками «Ответить» / «Отклонить». Работает и когда приложение
-// закрыто: показывает его ShalterMessagingService по push от сервера.
+// Входящий звонок: уведомление-звонок поверх всего, с рингтоном по кругу и кнопками
+// «Ответить» / «Отклонить». Экран приложения не открывается поверх системной блокировки:
+// сначала пользователь разблокирует телефон, затем уже открывает мессенджер.
 // Файл копирует scripts/apply-native-resources.js — android/ генерируется заново.
 final class CallNotifier {
     static final String CHANNEL = "incoming_calls";
@@ -52,7 +51,6 @@ final class CallNotifier {
     private static PendingIntent open(Context ctx, String path, int requestCode) {
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.putExtra(EXTRA_URL, path);
-        intent.putExtra("fromCall", true);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
         return PendingIntent.getActivity(ctx, requestCode, intent, flags);
@@ -79,7 +77,6 @@ final class CallNotifier {
             .setTimeoutAfter(RING_TIMEOUT_MS)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
             .setContentIntent(open(ctx, base, id))
-            .setFullScreenIntent(open(ctx, base, id + 1), true)
             .addAction(0, "Отклонить", open(ctx, base + "?decline=1", id + 2))
             .addAction(0, "Ответить", open(ctx, base + "?answer=1", id + 3));
             Notification n = b.build();

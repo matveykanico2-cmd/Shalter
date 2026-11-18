@@ -2,7 +2,6 @@ package ru.shalter.app;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -67,7 +66,6 @@ public class MainActivity extends BridgeActivity {
         // Прокси из «Настройки → Прокси» — до первой загрузки страницы.
         AppProxyPlugin.apply(this);
         super.onCreate(savedInstanceState);
-        showOverLockScreenIfCall(getIntent());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -109,19 +107,7 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        showOverLockScreenIfCall(intent);
         openPathFrom(intent, true);
-    }
-
-    // Экран звонка — поверх экрана блокировки и с включением экрана, как у «Телефона».
-    private void showOverLockScreenIfCall(Intent intent) {
-        if (intent == null || !intent.getBooleanExtra("fromCall", false)) return;
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
-        } else {
-            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-        }
     }
 
     // Куда перейти: экран звонка из уведомления (CallNotifier) или ссылка shalter://chat/… /
