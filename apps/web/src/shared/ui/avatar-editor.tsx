@@ -64,7 +64,7 @@ export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize =
               setEmojiOpen(false);
             }}
           >
-            <Icon name="X" size={16} /> {emoji ? "Убрать смайл" : "Убрать фото"}
+            <Icon name="X" size={16} /> {emoji ? (emoji.startsWith("sticker:") ? "Убрать стикер" : "Убрать смайл") : "Убрать фото"}
           </button>
         ) : null}
       </div>
@@ -72,9 +72,9 @@ export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize =
       {emojiOpen ? (
         <EmojiAvatarPicker
           withStickers
-          multi
           onPick={(e) => {
             onChange({ image: null, emoji: e });
+            setEmojiOpen(false);
           }}
         />
       ) : null}

@@ -5,8 +5,9 @@ import { sessionQueries } from "@/entities/session";
 import { starsQueries } from "@/entities/stars";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, askText, Button, EmojiText, SettingsPage, TextField } from "@/shared/ui";
+import { askConfirm, askText, Avatar, Button, Dialog, EmojiText, SettingsPage, TextField } from "@/shared/ui";
 
+import type { ContactRecipient } from "../api/usernames";
 import {
   activateUsername,
   type Auction,
@@ -62,6 +63,7 @@ export function UsernamesSection() {
   const [hours, setHours] = useState("24");
   const [grantPhone, setGrantPhone] = useState("");
   const [grantName, setGrantName] = useState("");
+  const [transfer, setTransfer] = useState<{ id: string; username: string } | null>(null);
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     if (busy) return;
@@ -190,13 +192,7 @@ export function UsernamesSection() {
                 <Button
                   variant="link"
                   disabled={busy}
-                  onClick={() =>
-                    void askText("Кому передать юзернейм?", { placeholder: "@username или +7…", okLabel: "Продолжить" }).then(async (target) => {
-                      if (!target) return;
-                      if (!(await askConfirm(`Передать @${item.username} пользователю ${target}?`, { okLabel: "Передать" }))) return;
-                      await act(() => transferUsername(item.id, target), "Юзернейм передан");
-                    })
-                  }
+                  onClick={() => setTransfer({ id: item.id, username: item.username })}
                 >
                   Передать
                 </Button>
@@ -252,8 +248,68 @@ export function UsernamesSection() {
           </div>
         </>
       ) : null}
+      {transfer ? (
+        <TransferRecipientDialog
+          username={transfer.username}
+          onClose={() => setTransfer(null)}
+          onChoose={(target) => {
+            setTransfer(null);
+            void askConfirm(`Передать @${transfer.username} пользователю ${target}?`, { okLabel: "Передать" }).then((ok) => {
+              if (ok) void act(() => transferUsername(transfer.id, target), "Юзернейм передан");
+            });
+          }}
+        />
+      ) : null}
     </SettingsPage>
   );
+}
+
+function TransferRecipientDialog({ username, onClose, onChoose }: { username: string; onClose: () => void; onChoose: (target: string) => void }) {
+  const contacts = useQuery(usernamesQueries.recipients()).data ?? [];
+  const [query, setQuery] = useState("");
+  const q = query.trim();
+  const search = useQuery({ ...usernamesQueries.recipientSearch(q), enabled: q.length >= 2 });
+  const users = search.data?.users ?? [];
+  const contactMatches = contacts.filter((contact) => matchesRecipient(contact, q));
+  const seen = new Set<string>();
+  const rows = [
+    ...contactMatches.map((contact) => ({
+      key: contact.user.id,
+      user: contact.user,
+      label: contact.localName || contact.user.name,
+      target: contact.user.username || contact.user.phone,
+    })),
+    ...users.map((user) => ({ key: user.id, user, label: user.name, target: user.username || user.phone })),
+  ].filter((row) => row.target && !seen.has(row.key) && (seen.add(row.key), true));
+
+  return (
+    <Dialog title={`Передать @${username}`} onClose={onClose}>
+      <p className={styles.hint}>Выберите контакт или найдите пользователя по имени, @юзу или номеру.</p>
+      <TextField type="search" placeholder="Имя, @username или номер" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+      <div className={styles.recipientList}>
+        {rows.map((row) => (
+          <button key={row.key} type="button" className={styles.recipient} onClick={() => row.target && onChoose(row.target)}>
+            <Avatar size={34} name={row.user.name} color={row.user.avatarColor} image={row.user.avatarImage} emoji={row.user.avatarEmoji} />
+            <span className={styles.recipientText}>
+              <strong>{row.label}</strong>
+              <small>{row.user.username ? `@${row.user.username}` : row.user.phone || "Пользователь"}</small>
+            </span>
+          </button>
+        ))}
+        {!rows.length && q.length >= 2 && !search.isPending ? <p className={styles.empty}>Ничего не найдено</p> : null}
+      </div>
+      <Button variant="secondary" disabled={!q} onClick={() => onChoose(q)}>
+        Передать на введённый @юз или номер
+      </Button>
+      <Button variant="link" onClick={onClose}>Отмена</Button>
+    </Dialog>
+  );
+}
+
+function matchesRecipient(contact: ContactRecipient, query: string) {
+  if (!query) return true;
+  const q = query.toLowerCase().replace(/^@/, "");
+  return [contact.localName, contact.user.name, contact.user.username, contact.user.phone].some((value) => String(value ?? "").toLowerCase().includes(q));
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {

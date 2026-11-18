@@ -139,3 +139,66 @@
   align-self: flex-start;
   color: var(--color-danger);
 }
+
+.recipientList {
+  display: flex;
+  max-height: 280px;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+
+.recipient {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recipient:hover,
+.recipient:focus-visible {
+  background: var(--color-surface-alt);
+}
+
+.recipientText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recipientText strong,
+.recipientText small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipientText small {
+  color: var(--color-muted);
+}
+
+.addUsername {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.addUsername > input {
+  min-width: 0;
+  flex: 1;
+}
+
+@media (max-width: 520px) {
+  .addUsername {
+    flex-direction: column;
+  }
+}

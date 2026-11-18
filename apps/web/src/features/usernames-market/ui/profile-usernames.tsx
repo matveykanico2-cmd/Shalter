@@ -5,9 +5,9 @@ import { useNavigate } from "react-router";
 import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, SettingsSection } from "@/shared/ui";
+import { Button, SettingsSection, TextField } from "@/shared/ui";
 
-import { pinUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
+import { addUsername, pinUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
 
 import styles from "./usernames.module.css";
 
@@ -18,7 +18,10 @@ export function ProfileUsernames() {
   const mine = useQuery(usernamesQueries.mine());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newUsername, setNewUsername] = useState("");
   const usernames = mine.data?.usernames ?? [];
+  const market = useQuery(usernamesQueries.market());
+  const paidByName = new Map((market.data?.owned ?? []).map((item) => [item.username.toLowerCase(), item.priceStars]));
 
   const change = async (request: () => Promise<unknown>) => {
     if (busy) return;
@@ -26,6 +29,7 @@ export function ProfileUsernames() {
     setError(null);
     try {
       await request();
+      setNewUsername("");
       await client.refetchQueries({ queryKey: usernamesQueries.mine().queryKey });
       await client.invalidateQueries({ queryKey: sessionQueries.current().queryKey });
     } catch (err) {
@@ -45,6 +49,7 @@ export function ProfileUsernames() {
             <span className={styles.badges}>
               {item.primary ? <span className={styles.activeBadge}>Основной</span> : null}
               {item.pinned ? <span className={styles.badge}>Закреплён</span> : null}
+              {paidByName.has(item.username.toLowerCase()) ? <span className={styles.priceBadge}>Куплен за {paidByName.get(item.username.toLowerCase())} ⭐</span> : null}
             </span>
           </div>
           <div className={styles.row}>
@@ -53,7 +58,12 @@ export function ProfileUsernames() {
           </div>
         </div>
       )) : <p className={styles.empty}>Дополнительных юзернеймов пока нет</p>}
-      <Button variant="secondary" disabled={busy} onClick={() => void navigate("/settings/usernames")}>Добавить или купить юзернейм</Button>
+      <div className={styles.addUsername}>
+        <TextField className={styles.mono} placeholder="новый юзернейм" value={newUsername} onChange={(e) => setNewUsername(e.target.value.replace(/^@/, ""))} />
+        <Button variant="secondary" disabled={busy || !newUsername.trim()} onClick={() => void change(() => addUsername(newUsername.trim()))}>Добавить свободный</Button>
+      </div>
+      <p className={styles.hint}>Свободное имя добавляется здесь. Купленные имена и их стоимость — в разделе рынка.</p>
+      <Button variant="secondary" disabled={busy} onClick={() => void navigate("/settings/usernames")}>Открыть рынок юзернеймов</Button>
     </SettingsSection>
   );
 }

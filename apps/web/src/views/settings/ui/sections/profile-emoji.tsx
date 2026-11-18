@@ -47,7 +47,7 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
           </Button>
           {me.avatarEmoji ? (
             <Button variant="secondary" className={profileStyles.actionButton} disabled={busy} onClick={() => void save({ avatarEmoji: null }, true)}>
-              Убрать смайл
+              {me.avatarEmoji.startsWith("sticker:") ? "Убрать стикер" : "Убрать смайл"}
             </Button>
           ) : null}
         </div>
