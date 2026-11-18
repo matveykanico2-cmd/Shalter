@@ -62,6 +62,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppIconPlugin.class);
         registerPlugin(IncomingCallPlugin.class);
         registerPlugin(AppProxyPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         registerPlugin(RecentPhotosPlugin.class);
         // Прокси из «Настройки → Прокси» — до первой загрузки страницы.
         AppProxyPlugin.apply(this);

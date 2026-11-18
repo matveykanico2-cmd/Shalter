@@ -41,6 +41,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
     wireIncomingCallActivity();
+    wirePackageInstallerPermission();
     wireAndroidDeepLinks();
     wireAndroidWebkit();
     wireAndroidAppIcons();
@@ -69,6 +70,16 @@ function wireIncomingCallActivity() {
   manifest = manifest.slice(0, at) + declaration + manifest.slice(at);
   fs.writeFileSync(manifestPath, manifest);
   console.log("android: нативный экран входящего звонка поверх блокировки");
+}
+
+function wirePackageInstallerPermission() {
+  const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
+  let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (manifest.includes("android.permission.REQUEST_INSTALL_PACKAGES")) return;
+  const application = manifest.indexOf("    <application");
+  if (application < 0) return;
+  manifest = manifest.slice(0, application) + "    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\" />\n" + manifest.slice(application);
+  fs.writeFileSync(manifestPath, manifest);
 }
 
 // Версия оболочки — в User-Agent («ShalterNative/1.0.2»): по ней lib/nativeUpdate.js

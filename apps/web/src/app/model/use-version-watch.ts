@@ -41,7 +41,7 @@ const NATIVE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
 type ShellWindow = Window & {
   shalterDesktop?: { platform?: string; packaging?: string; version?: string; installUpdate?: (url: string) => Promise<string> };
-  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string };
+  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string; Plugins?: { AppUpdate?: { install: (o: { url: string }) => Promise<{ status?: string }> } } };
 };
 
 /** Какая оболочка установлена и её версия: Android/iOS — из User-Agent, десктоп — из моста. */
@@ -126,6 +126,20 @@ export function useNativeUpdateCheck() {
         );
         const bridge = (window as ShellWindow).shalterDesktop;
         if (!ok && !mandatory) snooze(latest.version);
+        else if (app.platform === "android" && latest.url) {
+          const updater = (window as ShellWindow).Capacitor?.Plugins?.AppUpdate;
+          if (!updater?.install) {
+            openExternally(url);
+          } else {
+            const sizeMb = latest.size ? ` (${Math.round(latest.size / 1048576)} МБ)` : "";
+            toast(`Скачиваем обновление${sizeMb}… После скачивания Android попросит подтвердить установку`, { durationMs: 9000 });
+            try {
+              await updater.install({ url });
+            } catch (err) {
+              toast(`Не удалось скачать обновление: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+        }
         else if (app.automatic !== false && bridge?.installUpdate && latest.url) {
           // Приложение для компьютера обновляется само: скачивает сборку и ставит её поверх.
           const sizeMb = latest.size ? ` (${Math.round(latest.size / 1048576)} МБ)` : "";
