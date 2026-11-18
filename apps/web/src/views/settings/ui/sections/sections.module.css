@@ -109,12 +109,35 @@
 .qrScanner {
   display: block;
   width: 100%;
-  max-height: 320px;
+  height: min(320px, 70vw);
   aspect-ratio: 1;
-  margin: 4px auto 12px;
-  border-radius: 16px;
-  background: #111;
+  margin: 0;
+  border-radius: 14px;
+  background: #20242b;
   object-fit: cover;
+}
+
+.qrScannerFrame {
+  position: relative;
+  width: min(360px, 100%);
+  margin: 4px auto 12px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #20242b;
+}
+
+.qrScannerMark {
+  position: absolute;
+  inset: 18%;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.08);
+}
+
+.dialogError {
+  color: var(--color-danger);
+  line-height: 1.45;
 }
 
 .qrTokenInput {
@@ -247,7 +270,11 @@
 
 .iconButton {
   display: flex;
-  padding: 6px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: none;
   border-radius: 999px;
   background: none;

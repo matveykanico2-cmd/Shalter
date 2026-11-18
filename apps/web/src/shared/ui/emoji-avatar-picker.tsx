@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { http } from "../api";
 import { renderSticker } from "../lib/anim";
@@ -19,6 +20,8 @@ type Props = {
   emojiOnly?: boolean;
   /** Показать и стикеры из своих паков: выбор приходит как «sticker:/uploads/…». */
   withStickers?: boolean;
+  /** Разрешить собрать композицию из нескольких смайлов (до 4). */
+  multi?: boolean;
 };
 
 type PackLite = { id: string; name: string; isAdded: boolean; stickers: { id: string; url: string; emoji: string }[] };
@@ -30,16 +33,21 @@ const myPacksQuery = {
 };
 
 /** Выбор смайла или стикера. Фон аватара меняется отдельно. */
-export function EmojiAvatarPicker({ onPick, label = "Смайл на аватарке", emojiOnly = true, withStickers = false }: Props) {
+export function EmojiAvatarPicker({ onPick, label = "Смайл на аватарке", emojiOnly = true, withStickers = false, multi = false }: Props) {
+  const [selected, setSelected] = useState<string[]>([]);
   const pick = (value: string) => {
     const text = value.trim();
+    if (text.startsWith("sticker:")) return onPick(text);
     if (graphemes(text).length !== 1) return toast("Один смайл", { error: true });
     if (emojiOnly && !isSingleEmoji(text)) return toast("Некорректный эмодзи", { error: true });
-    onPick(text);
+    if (!multi) return onPick(text);
+    const next = [...selected, text].slice(-4);
+    setSelected(next);
+    onPick(next.join(""));
   };
   return (
     <div className={styles.picker} role="group" aria-label={label}>
-      <p className={styles.label}>{label}</p>
+      <p className={styles.label}>{multi ? `${label} · до 4` : label}</p>
       <div className={styles.row}>
         {EMOJIS.map((e) => (
           <button key={e} type="button" className={styles.emoji} title={e} aria-label={e} onClick={() => pick(e)}>

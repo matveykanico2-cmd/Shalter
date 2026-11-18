@@ -978,6 +978,20 @@
   position: relative;
 }
 
+.contactAvatarPick {
+  display: block;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.contactAvatarSelected .contactAvatarPick {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
 .contactAvatarVideo {
   display: block;
   width: 48px;

@@ -29,7 +29,7 @@ type Props = {
 
 /**
  * Выбор аватара как в профиле: нажатие на круг — фото с устройства, «Смайл или стикер» —
- * анимированный смайл или стикер из своих паков («sticker:/uploads/…») вместо фото.
+ * анимированные смайлы или стикер из своих паков («sticker:/uploads/…») вместо фото.
  */
 export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize = 512, onChange, onColor }: Props) {
   const input = useRef<HTMLInputElement>(null);
@@ -72,9 +72,9 @@ export function AvatarEditor({ name, image, emoji, color, size = 96, photoSize =
       {emojiOpen ? (
         <EmojiAvatarPicker
           withStickers
+          multi
           onPick={(e) => {
             onChange({ image: null, emoji: e });
-            setEmojiOpen(false);
           }}
         />
       ) : null}

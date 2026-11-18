@@ -1,18 +1,20 @@
 import { type ReactNode, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 
+import { Icon } from "./icon";
 import styles from "./dialog.module.css";
 
 type Props = {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  onBack?: () => void;
   className?: string;
   overlayClassName?: string;
 };
 
 /** Модальное окно по центру — как .modal-overlay/.modal-dialog в public/styles. */
-export function Dialog({ title, children, onClose, className, overlayClassName }: Props) {
+export function Dialog({ title, children, onClose, onBack, className, overlayClassName }: Props) {
   const titleId = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -30,9 +32,16 @@ export function Dialog({ title, children, onClose, className, overlayClassName }
       }}
     >
       <div className={className ? `${styles.dialog} ${className}` : styles.dialog} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <h2 id={titleId} className={styles.title}>
-          {title}
-        </h2>
+        <div className={styles.header}>
+          {onBack ? (
+            <button type="button" className={styles.back} onClick={onBack} aria-label="Назад" title="Назад">
+              <Icon name="ChevronLeft" size={22} />
+            </button>
+          ) : null}
+          <h2 id={titleId} className={styles.title}>
+            {title}
+          </h2>
+        </div>
         {children}
       </div>
     </div>,

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { BrowserQRCodeReader } from "@zxing/browser";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { pollQrLogin, startQrLogin } from "@/features/sign-in";
 
@@ -117,9 +118,6 @@ export function DevicesSection() {
   );
 }
 
-type Detector = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
-type DetectorWindow = Window & { BarcodeDetector?: new (options?: { formats: string[] }) => Detector };
-
 function tokenFromQr(value: string) {
   try {
     const url = new URL(value, window.location.origin);
@@ -136,6 +134,8 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
   const [manual, setManual] = useState("");
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
+  const scanner = useRef<BrowserQRCodeReader | null>(null);
+  const controls = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     if (mode !== "show") return;
@@ -162,51 +162,64 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
     return () => window.clearInterval(timer);
   }, [login, mode, onClose]);
 
-  useEffect(() => {
-    if (mode !== "scan") return;
-    let cancelled = false;
-    const startCamera = async () => {
-      const DetectorClass = (window as DetectorWindow).BarcodeDetector;
-      if (!DetectorClass || !navigator.mediaDevices?.getUserMedia) {
-        setError("Сканер QR не поддерживается этим браузером. Введите токен вручную.");
+  const stopCamera = useCallback(() => {
+    controls.current?.stop();
+    controls.current = null;
+    stream.current?.getTracks().forEach((track) => track.stop());
+    stream.current = null;
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Камера недоступна. Откройте Shalter по HTTPS и разрешите доступ к камере в настройках браузера.");
+      return;
+    }
+    stopCamera();
+    try {
+      const currentStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      stream.current = currentStream;
+      const element = video.current;
+      if (!element) {
+        currentStream.getTracks().forEach((track) => track.stop());
         return;
       }
-      try {
-        const currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (cancelled) return currentStream.getTracks().forEach((track) => track.stop());
-        stream.current = currentStream;
-        if (!video.current) return;
-        video.current.srcObject = currentStream;
-        await video.current.play();
-        const detector = new DetectorClass({ formats: ["qr_code"] });
-        const scan = async () => {
-          if (cancelled || !video.current) return;
-          try {
-            const found = await detector.detect(video.current);
-            const token = found.map((item) => tokenFromQr(item.rawValue || "")).find(Boolean);
-            if (token) {
-              setManual(token);
-              setError("QR-код найден. Нажмите «Подтвердить вход», если это ваше устройство.");
-              stream.current?.getTracks().forEach((track) => track.stop());
-              return;
-            }
-          } catch {
-            // Камера может временно не успеть декодировать кадр.
-          }
-          window.setTimeout(() => void scan(), 250);
-        };
-        void scan();
-      } catch {
-        setError("Не удалось открыть камеру. Проверьте разрешение камеры.");
+      element.srcObject = currentStream;
+      element.setAttribute("playsinline", "true");
+      await new Promise<void>((resolve) => {
+        if (element.readyState >= HTMLMediaElement.HAVE_METADATA) resolve();
+        else element.addEventListener("loadedmetadata", () => resolve(), { once: true });
+      });
+      await element.play();
+      scanner.current ??= new BrowserQRCodeReader();
+      controls.current = await scanner.current.decodeFromVideoElement(element, (result) => {
+        const token = result ? tokenFromQr(result.getText()) : null;
+        if (!token) return;
+        setManual(token);
+        setError("QR-код найден. Нажмите «Подтвердить вход», если это ваше устройство.");
+        stopCamera();
+      });
+    } catch (err) {
+      const name = (err as DOMException)?.name;
+      if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+        setError("Камера запрещена. Нажмите «Разрешить камеру». На iPhone: Настройки → Safari → Камера → Разрешить для этого сайта, затем обновите страницу.");
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setError("Камера не найдена. Проверьте, что она не занята другим приложением.");
+      } else {
+        setError("Не удалось включить камеру. Разрешите доступ и нажмите «Повторить».");
       }
-    };
+      stopCamera();
+    }
+  }, [stopCamera]);
+
+  useEffect(() => {
+    if (mode !== "scan") return;
     void startCamera();
-    return () => {
-      cancelled = true;
-      stream.current?.getTracks().forEach((track) => track.stop());
-      stream.current = null;
-    };
-  }, [mode, onClose]);
+    return stopCamera;
+  }, [mode, startCamera, stopCamera]);
 
   const confirmManual = async () => {
     const token = tokenFromQr(manual);
@@ -223,7 +236,7 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
   };
 
   return (
-    <Dialog title={mode === "show" ? "Вход на новом устройстве" : "Сканировать QR-код"} onClose={onClose}>
+    <Dialog title={mode === "show" ? "Вход на новом устройстве" : "Сканировать QR-код"} onClose={onClose} onBack={onClose}>
       {mode === "show" ? (
         login ? (
           <>
@@ -234,8 +247,12 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
         ) : <p className={styles.dialogText}>{error || "Создаём безопасный QR-код…"}</p>
       ) : (
         <>
-          <video ref={video} className={styles.qrScanner} muted playsInline aria-label="Камера для сканирования QR-кода" />
-          <p className={styles.dialogText}>{error || "Наведите камеру на QR-код входа."}</p>
+          <div className={styles.qrScannerFrame}>
+            <video ref={video} className={styles.qrScanner} muted playsInline aria-label="Камера для сканирования QR-кода" />
+            {!error ? <span className={styles.qrScannerMark} aria-hidden="true" /> : null}
+          </div>
+          <p className={error ? `${styles.dialogText} ${styles.dialogError}` : styles.dialogText}>{error || "Наведите камеру на QR-код входа."}</p>
+          {error && !manual ? <Button variant="secondary" onClick={() => void startCamera()}>Разрешить камеру / Повторить</Button> : null}
           <input className={styles.qrTokenInput} value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Или вставьте ссылку/токен" aria-label="Токен QR-кода" />
           <Button disabled={busy || !manual.trim()} onClick={() => void confirmManual()}>Подтвердить вход</Button>
         </>

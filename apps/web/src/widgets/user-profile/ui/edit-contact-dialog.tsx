@@ -150,6 +150,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
       {emojiOpen && !busy ? (
         <EmojiAvatarPicker
           withStickers
+          multi
           onPick={(e) => {
             const value = EMOJI_PREFIX + e;
             setLocalAvatars((all) => [...all, value]);
@@ -163,11 +164,17 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
           {localAvatars.map((value, index) => {
             const emoji = value.startsWith(EMOJI_PREFIX) ? value.slice(EMOJI_PREFIX.length) : null;
             return (
-              <div className={styles.contactAvatarItem} key={`${value}-${index}`}>
-                {isVideo(value) ? <video key={value} className={styles.contactAvatarVideo} src={mediaUrl(value)} muted loop autoPlay playsInline /> : <Avatar key={value} size={48} name={firstName} color={localColor} image={emoji ? null : value} emoji={emoji} />}
+              <div
+                className={localPhoto === value ? `${styles.contactAvatarItem} ${styles.contactAvatarSelected}` : styles.contactAvatarItem}
+                key={`${value}-${index}`}
+              >
+                <button type="button" className={styles.contactAvatarPick} aria-label={`Выбрать аватар ${index + 1}`} aria-pressed={localPhoto === value} onClick={() => setLocalPhoto(value)}>
+                  {isVideo(value) ? <video key={value} className={styles.contactAvatarVideo} src={mediaUrl(value)} muted loop autoPlay playsInline /> : <Avatar key={value} size={48} name={firstName} color={localColor} image={emoji ? null : value} emoji={emoji} />}
+                </button>
                 <button type="button" className={styles.contactAvatarRemove} aria-label={`Убрать аватар ${index + 1}`} onClick={() => {
-                  setLocalAvatars((all) => all.filter((_, i) => i !== index));
-                  setLocalPhoto(index === localAvatars.length - 1 ? (localAvatars[index - 1] ?? null) : (localAvatars[index + 1] ?? null));
+                  const next = localAvatars.filter((_, i) => i !== index);
+                  setLocalAvatars(next);
+                  if (localPhoto === value) setLocalPhoto(next[0] ?? null);
                 }}><Icon name="X" size={12} /></button>
               </div>
             );

@@ -43,11 +43,9 @@ type DisplayEntry =
 
 function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   const entries: DisplayEntry[] = [];
-  const seen = new Set<string>();
   const addImage = (entry: AvatarEntry, sourceIndex?: number) => {
-    const key = `${entry.kind}:${entry.url}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    // Не удаляем одинаковые URL: два файла могут быть одним фото в разном
+    // разрешении и каждый должен оставаться удаляемым по своему индексу.
     entries.push({ ...entry, id: `${sourceIndex === undefined ? "current" : "gallery"}:${sourceIndex ?? entry.url}:${entry.url}`, sourceIndex });
   };
   // Контактная аватарка и профильная аватарка — независимые источники. Раньше
@@ -59,7 +57,11 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   // Для основной фотографии сервер хранит в avatarImage именно poster, а не URL
   // исходного файла. Учитываем оба варианта, иначе главная фотография дублируется
   // без sourceIndex и у неё пропадает действие удаления.
-  const hasCurrentInGallery = !!user.avatarImage && raw.some((value) => isEntry(value) && (value.url === user.avatarImage || value.poster === user.avatarImage));
+  const hasCurrentInGallery = !!user.avatarImage && raw.some((value) => {
+    if (isEntry(value)) return value.url === user.avatarImage || value.poster === user.avatarImage;
+    if (typeof value !== "string") return false;
+    return value === user.avatarImage || value === `video:${user.avatarImage}`;
+  });
   if (user.avatarImage && !hasCurrentInGallery) {
     addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
   }
@@ -126,7 +128,11 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   });
 
   const apply = (res: { avatars: AvatarEntry[]; user: Record<string, unknown> }, nextIndex?: number) => {
-    const next = displayEntries({ ...user, ...res.user }, res.avatars);
+    // Ответ операции уже содержит канонический список. Не смешиваем его со
+    // старым user из замыкания — именно из-за этого ранее стикер мог оставаться
+    // первым после добавления/удаления фото.
+    const nextUser = { ...user, ...res.user, avatarEmoji: null, avatarImages: res.avatars, avatarImage: res.avatars[0]?.poster ?? null };
+    const next = displayEntries(nextUser, res.avatars);
     setAvatars(next);
     setIndex((i) => (nextIndex !== undefined ? nextIndex : Math.min(i, Math.max(0, next.length - 1))));
     onChange(res.user);
