@@ -13,14 +13,14 @@ import { NATIVE_NOTIFY_ALLOWED } from "@/shared/lib/push";
 // живым фоновой службой и показывает локальные уведомления сам; приложение для компьютера (Tauri)
 // показывает системные через мост shalterDesktop.notify, пока окно свёрнуто или не в фокусе.
 
-type Notification = { id: number; title: string; body: string; channelId?: string; smallIcon?: string; group?: string; actionTypeId?: string; extra?: Record<string, string> };
+type NativeNotification = { id: number; title: string; body: string; channelId?: string; smallIcon?: string; group?: string; actionTypeId?: string; extra?: Record<string, string> };
 type LocalNotifications = {
   checkPermissions: () => Promise<{ display: string }>;
   requestPermissions: () => Promise<{ display: string }>;
   createChannel?: (o: object) => Promise<void>;
   registerActionTypes?: (o: object) => Promise<void>;
   addListener: (event: string, fn: (e: { actionId: string; inputValue?: string; notification?: { extra?: Record<string, string> } }) => void) => unknown;
-  schedule: (o: { notifications: Notification[] }) => Promise<void>;
+  schedule: (o: { notifications: NativeNotification[] }) => Promise<void>;
   cancel: (o: { notifications: { id: number }[] }) => Promise<void>;
 };
 type ForegroundService = {
@@ -101,12 +101,25 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
             { id: "delete", title: "Удалить", destructive: true },
           ],
         },
+        {
+          id: "call",
+          actions: [
+            { id: "answer", title: "Ответить" },
+            { id: "decline", title: "Отклонить", destructive: true },
+          ],
+        },
       ],
     })
     .catch(() => {});
 
   local.addListener("localNotificationActionPerformed", ({ actionId, inputValue, notification }) => {
-    const { url, chatId, messageId } = notification?.extra ?? {};
+    const { url, chatId, messageId, callId } = notification?.extra ?? {};
+    if (actionId === "decline" && callId) {
+      return void http.patch(`/api/calls/${encodeURIComponent(callId)}`, { status: "ended" }).catch(() => {});
+    }
+    if (actionId === "answer" && callId) {
+      return open(`/call/${encodeURIComponent(callId)}?answer=1`);
+    }
     if (actionId === "read" && chatId) return void http.post(`/api/chats/${chatId}/read`).catch(() => {});
     if (actionId === "delete" && chatId && messageId) return void http.delete(`/api/chats/${chatId}/messages/${messageId}`, { forEveryone: false }).catch(() => {});
     if (actionId === "reply" && chatId) {
@@ -166,7 +179,8 @@ async function startAndroid(p: NonNullable<ReturnType<typeof androidPlugins>>, m
               body: call.kind === "video" ? "📹 Видеозвонок" : "📞 Звонок",
               channelId: "calls",
               smallIcon: SMALL_ICON,
-              extra: { url: `/call/${call.id}` },
+              actionTypeId: "call",
+              extra: { url: `/call/${call.id}`, callId: call.id },
             },
           ],
         })
@@ -202,10 +216,58 @@ function startDesktop(bridge: NonNullable<NativeWindow["shalterDesktop"]>, meId:
     ws.on("call:incoming", ({ call }) => {
       if (!away()) return;
       notify(call.otherUser?.name ?? "Входящий звонок", call.kind === "video" ? "📹 Видеозвонок" : "📞 Звонок", `${location.origin}/call/${call.id}`);
-      bridge.focus?.();
     }),
   ];
   return () => offs.forEach((off) => off());
+}
+
+function startBrowserCallNotifications(open: (path: string) => void) {
+  const browser = globalThis.Notification;
+  if (!browser || browser.permission !== "granted") return () => {};
+  const shown = new Map<string, globalThis.Notification>();
+  let stopped = false;
+  const hasPushSubscription = async () => {
+    try {
+      return !!(await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription();
+    } catch {
+      return false;
+    }
+  };
+  const close = (callId: string) => {
+    shown.get(callId)?.close();
+    shown.delete(callId);
+  };
+  const incoming = ws.on("call:incoming", ({ call }) => {
+    if (document.visibilityState === "visible" || stopped) return;
+    void hasPushSubscription().then((subscribed) => {
+      if (subscribed || stopped || document.visibilityState === "visible") return;
+      close(call.id);
+      const notification = new browser(call.otherUser?.name ?? "Входящий звонок", {
+        body: call.kind === "video" ? "📹 Видеозвонок" : "📞 Звонок",
+        tag: `call-${call.id}`,
+        icon: "/icons/icon-192.png",
+        requireInteraction: true,
+        data: { callId: call.id },
+      });
+      shown.set(call.id, notification);
+      notification.onclick = () => {
+        notification.close();
+        shown.delete(call.id);
+        window.focus();
+        open(`/call/${encodeURIComponent(call.id)}?answer=1`);
+      };
+    });
+  });
+  const answered = ws.on("call:answered", ({ callId }) => close(callId));
+  const updated = ws.on("call:updated", ({ call }) => close(call.id));
+  return () => {
+    stopped = true;
+    incoming();
+    answered();
+    updated();
+    for (const notification of shown.values()) notification.close();
+    shown.clear();
+  };
 }
 
 export function useNativeNotify(meId: string) {
@@ -217,6 +279,8 @@ export function useNativeNotify(meId: string) {
     let stopped = false;
     const bridge = (window as NativeWindow).shalterDesktop;
     if (bridge?.notify) cleanups.push(startDesktop(bridge, meId, client));
+    const cap = (window as NativeWindow).Capacitor;
+    if (!bridge?.notify && !cap?.isNativePlatform?.()) cleanups.push(startBrowserCallNotifications((path) => void navigate(path)));
     // Android: при запуске, а если уведомления тогда были запрещены — когда их разрешат
     // (экран «Уведомления», окно разрешений), как requestLocal в public/js/lib/push.js.
     let android: "idle" | "starting" | "started" = "idle";
