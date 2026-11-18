@@ -26,6 +26,8 @@ node_modules/
 # Studio/Xcode; regenerable from capacitor.config.json, not source.
 /android
 /ios
+# Firebase Android client configuration is local build input, never commit it.
+/resources/android/google-services.json
 
 # Tauri build output (src-tauri/target) is ignored by src-tauri/.gitignore
 
