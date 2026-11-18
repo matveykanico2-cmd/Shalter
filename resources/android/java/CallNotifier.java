@@ -16,8 +16,8 @@ import androidx.core.app.NotificationCompat;
 import android.content.pm.PackageManager;
 
 // Входящий звонок: уведомление-звонок поверх всего, с рингтоном по кругу и кнопками
-// «Ответить» / «Отклонить». Экран приложения не открывается поверх системной блокировки:
-// сначала пользователь разблокирует телефон, затем уже открывает мессенджер.
+// «Ответить» / «Отклонить». Поверх системной блокировки показывается только этот
+// нативный экран; WebView открывается лишь после успешной разблокировки телефона.
 // Файл копирует scripts/apply-native-resources.js — android/ генерируется заново.
 final class CallNotifier {
     static final String CHANNEL = "incoming_calls";
@@ -56,6 +56,16 @@ final class CallNotifier {
         return PendingIntent.getActivity(ctx, requestCode, intent, flags);
     }
 
+    private static PendingIntent lockedScreen(Context ctx, String path, String callerName, boolean video, boolean autoOpen, int requestCode) {
+        Intent intent = new Intent(ctx, IncomingCallActivity.class)
+            .putExtra(IncomingCallActivity.EXTRA_URL, path)
+            .putExtra(IncomingCallActivity.EXTRA_CALLER, callerName)
+            .putExtra(IncomingCallActivity.EXTRA_VIDEO, video)
+            .putExtra(IncomingCallActivity.EXTRA_AUTO_OPEN, autoOpen);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+        return PendingIntent.getActivity(ctx, requestCode, intent, flags);
+    }
+
     static void show(Context ctx, String callId, String callerName, boolean video) {
         if (callId == null || callId.isEmpty()) return;
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
@@ -76,9 +86,10 @@ final class CallNotifier {
             .setAutoCancel(true)
             .setTimeoutAfter(RING_TIMEOUT_MS)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
-            .setContentIntent(open(ctx, base, id))
-            .addAction(0, "Отклонить", open(ctx, base + "?decline=1", id + 2))
-            .addAction(0, "Ответить", open(ctx, base + "?answer=1", id + 3));
+            .setContentIntent(lockedScreen(ctx, base, callerName, video, false, id))
+            .setFullScreenIntent(lockedScreen(ctx, base + "?answer=1", callerName, video, false, id + 1), true)
+            .addAction(0, "Отклонить", lockedScreen(ctx, base + "?decline=1", callerName, video, true, id + 2))
+            .addAction(0, "Ответить", lockedScreen(ctx, base + "?answer=1", callerName, video, true, id + 3));
             Notification n = b.build();
             // Рингтон по кругу, пока звонок не приняли/отклонили (или не истёк таймаут).
             n.flags |= Notification.FLAG_INSISTENT;

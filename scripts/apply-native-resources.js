@@ -30,7 +30,8 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     wireIosAppIcons();
   }
   if (name === "android") {
-    // Свой нативный код (MainActivity: «Назад», ссылки, звонки; плагины SystemBars, AppIcon,
+    // Свой нативный код (MainActivity: «Назад», ссылки, звонки; экран звонка на lock screen;
+    // плагины SystemBars, AppIcon,
     // IncomingCall; OfflineShell) поверх сгенерированного.
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
@@ -39,10 +40,35 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
+    wireIncomingCallActivity();
     wireAndroidDeepLinks();
     wireAndroidWebkit();
     wireAndroidAppIcons();
   }
+}
+
+// Экран звонка показывается поверх lock screen без WebView. Ответ запускает MainActivity
+// только после системной разблокировки телефона.
+function wireIncomingCallActivity() {
+  const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
+  let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (manifest.includes(".IncomingCallActivity")) return;
+  const marker = /\s*<activity\b(?=[^>]*android:name="\.MainActivity")[^>]*>/;
+  const match = marker.exec(manifest);
+  const at = match ? match.index : -1;
+  if (at < 0) return;
+  const declaration = `        <activity
+            android:name=".IncomingCallActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+`;
+  manifest = manifest.slice(0, at) + declaration + manifest.slice(at);
+  fs.writeFileSync(manifestPath, manifest);
+  console.log("android: нативный экран входящего звонка поверх блокировки");
 }
 
 // Версия оболочки — в User-Agent («ShalterNative/1.0.2»): по ней lib/nativeUpdate.js
