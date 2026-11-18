@@ -40,13 +40,16 @@ describe("retryOffline", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("через 2 минуты сдаётся", async () => {
+  it("не сдаётся через две минуты плохой мобильной сети", async () => {
+    vi.useFakeTimers();
     let t = 0;
-    const send = vi.fn(() => {
+    const send = vi.fn().mockImplementationOnce(() => {
       t += 121_000;
       return Promise.reject(new TypeError("Failed to fetch"));
-    });
-    await expect(retryOffline(send, () => t)).rejects.toBeInstanceOf(TypeError);
-    expect(send).toHaveBeenCalledTimes(1);
+    }).mockResolvedValue("ok");
+    const result = retryOffline(send, () => t);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(send).toHaveBeenCalledTimes(2);
+    await expect(result).resolves.toBe("ok");
   });
 });

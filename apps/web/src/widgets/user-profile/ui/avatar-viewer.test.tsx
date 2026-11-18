@@ -85,4 +85,27 @@ describe("AvatarViewer", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Предыдущее" }));
     expect(dialog.textContent).toContain("🔥");
   });
+
+  it("сохраняет индекс главной фотографии и показывает удаление у каждой фотографии", () => {
+    render(
+      <AvatarViewer
+        {...callbacks}
+        canEdit
+        photosFirst
+        user={{
+          name: "Борис",
+          avatarImage: "/uploads/main.jpg",
+          avatarImages: [
+            { kind: "image", url: "/uploads/main.jpg" },
+            { kind: "image", url: "/uploads/second.jpg" },
+          ],
+        }}
+      />
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Фото профиля" });
+    expect(within(dialog).getAllByRole("button", { name: "Удалить" })).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Следующее" }));
+    expect(within(dialog).getAllByRole("button", { name: "Удалить" })).toHaveLength(1);
+  });
 });

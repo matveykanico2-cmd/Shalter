@@ -53,7 +53,13 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   // Контактная аватарка и профильная аватарка — независимые источники. Раньше
   // ранний return для emoji скрывал и личное фото, и всю историю profile avatarImages.
   if (user.avatarEmoji) entries.push({ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor });
-  if (user.avatarImage) addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
+  // avatarImages — канонический список сервера, где первая запись является главной.
+  // Не добавляем avatarImage раньше списка: иначе дедупликация съедала индекс 0,
+  // и после удаления любой фотографии следующая оставалась без кнопки «Удалить».
+  const hasCurrentInGallery = !!user.avatarImage && raw.some((value) => isEntry(value) && value.url === user.avatarImage);
+  if (user.avatarImage && !hasCurrentInGallery) {
+    addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
+  }
   raw.forEach((value, sourceIndex) => {
     if (isEntry(value)) addImage(value, sourceIndex);
     else if (typeof value === "string" && value) {

@@ -2,6 +2,7 @@ import { type ReactNode, Suspense, useEffect, useState } from "react";
 import { Route, Routes, useLocation } from "react-router";
 
 import { HomeView } from "@/views/home";
+import { QrScanView } from "@/views/qr-scan";
 
 import { AppShell } from "@/widgets/app-shell";
 import { ChatList } from "@/widgets/chat-list";
@@ -38,7 +39,6 @@ const NearbyView = lazyLoadedView(() => import("@/views/nearby").then((m) => m.N
 const DiscoverChannelsView = lazyLoadedView(() => import("@/views/discover-channels").then((m) => m.DiscoverChannelsView));
 const CommunityView = lazyLoadedView(() => import("@/views/community").then((m) => m.CommunityView));
 const FolderInviteView = lazyLoadedView(() => import("@/views/folder-invite").then((m) => m.FolderInviteView));
-const QrScanView = lazyLoadedView(() => import("@/views/qr-scan").then((m) => m.QrScanView));
 
 // Пока чанк экрана грузится, занимаем всю отведённую ему область. Пустой fallback на
 // /settings оставлял под ним список и домашний экран с «Выберите чат».
@@ -70,7 +70,8 @@ const mainRoutes = () => [
   <Route key="discover-channels" path="discover-channels" element={lazyView(<DiscoverChannelsView />)} />,
   <Route key="community" path="community/:id" element={lazyView(<CommunityView />)} />,
   <Route key="folder" path="folder/:code" element={lazyView(<FolderInviteView />)} />,
-  <Route key="qr-scan" path="qr-scan" element={lazyView(<QrScanView />)} />,
+  // QR-сканер открывается сразу, без общего серого экрана ожидания чанка.
+  <Route key="qr-scan" path="qr-scan" element={<QrScanView />} />,
   // Системное «Поделиться»: окно поверх и сразу к чатам.
   <Route key="share" path="share/:token" element={<ShareRoute />} />,
   ...sideRoutes(),
