@@ -479,7 +479,8 @@ fn open_download(app: AppHandle, path: String) -> Result<(), String> {
 //   Windows — запускает установщик поверх (тихо, с прогрессом) и закрывает приложение;
 //   Linux AppImage — подменяет файл и перезапускается;
 //   macOS — подменяет Shalter.app и перезапускается;
-//   Linux .deb — без sudo не поставить: открываем пакет в «Центре приложений».
+//   Linux .deb — скачиваем пакет и открываем его в «Центре приложений», где человек
+//   подтверждает установку и вводит пароль sudo при необходимости.
 // Возвращает "restarting" (приложение сейчас закроется) или "external".
 fn download_to(url: &str, dest: &std::path::Path) -> Result<(), String> {
     let resp = ureq::get(url).timeout(std::time::Duration::from_secs(1800)).call().map_err(|e| format!("не удалось скачать: {e}"))?;
@@ -513,7 +514,6 @@ async fn install_update(app: AppHandle, url: String) -> Result<String, String> {
         }
         #[cfg(target_os = "linux")]
         {
-            let _ = &tmp;
             if let Some(appimage) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from) {
                 let fresh = appimage.with_extension("AppImage.new");
                 download_to(&url, &fresh)?;
@@ -524,7 +524,9 @@ async fn install_update(app: AppHandle, url: String) -> Result<String, String> {
                 handle.exit(0);
                 return Ok("restarting".into());
             }
-            let _ = handle.opener().open_url(url.as_str(), None::<&str>);
+            let deb = tmp.join("Shalter-Update.deb");
+            download_to(&url, &deb)?;
+            handle.opener().open_path(deb.to_string_lossy().into_owned(), None::<&str>).map_err(|e| format!("не удалось открыть пакет: {e}"))?;
             return Ok("external".into());
         }
         #[cfg(target_os = "macos")]
