@@ -9,7 +9,7 @@
   overflow: hidden;
   border: none;
   border-radius: 16px;
-  background: none;
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
   cursor: pointer;
 }
 
@@ -24,21 +24,29 @@
   max-height: 320px;
   width: auto;
   height: auto;
-  background: var(--color-surface-alt);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
   border-radius: 16px;
   object-fit: contain;
 }
 
 .loading {
-  /* Не показываем маленькую размытую картинку: резервируем нормальную плитку
-     до ответа сервера и раскрываем изображение только после полной загрузки. */
+  /* Миниатюра уже полезна: показываем её размытой, а не заменяем серым блоком. */
   width: min(280px, 100%);
   height: 210px;
-  background: linear-gradient(110deg, color-mix(in srgb, var(--color-accent) 9%, var(--color-surface)) 25%, color-mix(in srgb, var(--color-accent) 22%, var(--color-surface)) 45%, color-mix(in srgb, var(--color-accent) 9%, var(--color-surface)) 65%);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)) 25%, color-mix(in srgb, var(--color-accent) 24%, var(--color-surface)) 45%, color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)) 65%);
   background-size: 220% 100%;
   animation: media-placeholder 1.2s ease-in-out infinite;
   object-fit: cover;
-  opacity: 0;
+  opacity: 0.72;
+  filter: blur(6px);
+  transform: scale(1.04);
+  transition: opacity 0.18s ease, filter 0.18s ease, transform 0.18s ease;
+}
+
+.image:not(.loading) {
+  opacity: 1;
+  filter: none;
+  transform: none;
 }
 
 .mediaLoading {
@@ -69,13 +77,27 @@
   justify-content: center;
   gap: 4px;
   border-radius: 16px;
-  background: var(--color-surface-alt);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
   color: var(--color-muted);
   font-size: 13px;
 }
 
 .failedHint {
   font-size: 11.5px;
+}
+
+.processing {
+  display: flex;
+  width: min(280px, 100%);
+  min-height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 /* Видео не загрузилось: плашка на всю плитку, пузырь сохраняет форму ролика. */
@@ -92,7 +114,7 @@
   max-width: 100%;
   max-height: 420px;
   aspect-ratio: 16 / 10;
-  background: #000;
+  background: color-mix(in srgb, var(--color-accent) 12%, #111);
 }
 
 .poster {
@@ -100,7 +122,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #000;
+  background: color-mix(in srgb, var(--color-accent) 12%, #111);
 }
 
 .play {

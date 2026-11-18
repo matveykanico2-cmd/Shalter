@@ -16,11 +16,14 @@ type Props = { attachment: Attachment; inAlbum?: boolean; onOpen?: () => void; o
  * оригинал; не отдался ни один — плашка «Повторить», а с возвращением сети — само.
  */
 export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }: Props) {
-  const sources = [...new Set([a.thumbUrl, a.url].filter((u): u is string => !!u))];
+  // Пока worker делает превью (в том числе для HEIC с iPhone), исходник может быть
+  // недоступен для браузера. Не показываем битую иконку — дождёмся thumbUrl из WS.
+  const processing = a.previewPending === true && !a.thumbUrl;
+  const sources = processing ? [] : [...new Set([a.thumbUrl, a.url].filter((u): u is string => !!u))];
   const [attempt, setAttempt] = useState({ index: 0, bust: "" });
   const [loaded, setLoaded] = useState(false);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
-  const failed = attempt.index >= sources.length;
+  const failed = !processing && attempt.index >= sources.length;
 
   const retry = (e?: MouseEvent) => {
     e?.stopPropagation();
@@ -42,7 +45,12 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
 
   return (
     <MediaTile className={inAlbum ? styles.albumTile : styles.imageTile} spoiler={!!a.spoiler} label={a.name || "Фото"} onOpen={onOpen} onDoubleTap={onDoubleTap}>
-      {failed ? (
+      {processing ? (
+        <span className={styles.processing} style={box ?? undefined} role="status">
+          <span className={styles.downloadSpinner} />
+          <span>Обрабатываем фото…</span>
+        </span>
+      ) : failed ? (
         <span className={styles.failed} role="button" tabIndex={0} onClick={retry}>
           <Icon name="RotateCw" size={22} />
           <span>{navigator.onLine === false ? "Нет сети" : "Не загрузилось"}</span>

@@ -7,6 +7,11 @@ import type { Message } from "../model/domain.js";
 
 export const editText = (m: Message, text: string): Message => ({ ...m, text, editedAt: new Date().toISOString() });
 
+export const removeAttachments = (indexes: readonly number[]) => (m: Message): Message => {
+  const remove = new Set(indexes);
+  return { ...m, attachments: m.attachments?.filter((_, index) => !remove.has(index)), editedAt: new Date().toISOString() };
+};
+
 export const setPinned = (m: Message, pinned: unknown): Message => ({ ...m, pinned: pinned as boolean });
 
 export const setLinkPreview = (m: Message, linkPreview: unknown): Message => ({ ...m, linkPreview });

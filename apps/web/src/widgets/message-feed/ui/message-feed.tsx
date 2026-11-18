@@ -517,7 +517,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]!;
               return (
-                <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className={styles.slot} style={{ transform: `translateY(${item.start}px)` }}>
+                <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className={styles.slot} style={{ top: item.start }}>
                   {row.kind === "day" ? (
                     <div className={styles.day}>
                       {/* Плашка даты открывает «Перейти к дате», как в chatView.js. */}

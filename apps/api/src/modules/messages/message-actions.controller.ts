@@ -15,6 +15,8 @@ import {
   type ChecklistDto,
   type DeleteMessageDto,
   type EditMessageDto,
+  removeAttachmentsSchema,
+  type RemoveAttachmentsDto,
   type PinDto,
   type ReactDto,
   type RetractVoteDto,
@@ -36,6 +38,17 @@ export class MessageActionsController {
   @Delete()
   public remove(@Req() req: Request, @Param("id") chatId: string, @Param("messageId") messageId: string, @Body(new ZodValidationPipe(deleteMessageSchema)) dto: DeleteMessageDto) {
     return this.actions.remove(req.uid!, chatId, messageId, dto);
+  }
+
+  @Post("attachments/remove")
+  @HttpCode(200)
+  public removeAttachments(
+    @Req() req: Request,
+    @Param("id") chatId: string,
+    @Param("messageId") messageId: string,
+    @Body(new ZodValidationPipe(removeAttachmentsSchema)) dto: RemoveAttachmentsDto
+  ) {
+    return this.actions.removeAttachments(req.uid!, chatId, messageId, dto);
   }
 
   @Post("pin")

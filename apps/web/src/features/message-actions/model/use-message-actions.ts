@@ -38,6 +38,7 @@ import {
   paidDeleteMessage,
   pinMessage,
   reactToMessage,
+  removeMessageAttachments,
   retractVote,
   saveDraft,
   starsInfo,
@@ -114,6 +115,22 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
           return;
         }
         reconcile();
+      },
+
+      async removeAttachments(m: Message, indexes: readonly number[]) {
+        const before = historyCache.find(client, chatId, m.id);
+        historyCache.patch(client, chatId, m.id, (current) => ({ ...current, attachments: current.attachments?.filter((_, index) => !indexes.includes(index)) }));
+        try {
+          const { message } = await removeMessageAttachments(chatId, m.id, indexes);
+          historyCache.replace(client, chatId, message);
+          chatCache.patchLastMessage(client, chatId, m.id, message);
+        } catch (err) {
+          if (before) historyCache.restore(client, chatId, before);
+          fail(err, "Не удалось удалить выбранные файлы");
+          return false;
+        }
+        reconcile();
+        return true;
       },
 
       /** Чужое сообщение в личке — у обоих, за звёзды (POST /api/stars/delete/:id). */

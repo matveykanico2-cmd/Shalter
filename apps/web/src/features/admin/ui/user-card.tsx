@@ -39,7 +39,6 @@ const ADMIN_SECTIONS = [
   { id: "giftshop", label: "Каталог подарков" },
   { id: "emojicatalog", label: "Эмодзи" },
   { id: "pricing", label: "Цены" },
-  { id: "exchange", label: "Биржа монет" },
   { id: "donations", label: "DonationAlerts" },
   { id: "legal", label: "Запросы органов" },
 ];

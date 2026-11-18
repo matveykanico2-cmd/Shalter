@@ -17,6 +17,9 @@ export const editMessage = (chatId: string, id: string, text: string) => http.pa
 export const deleteMessage = (chatId: string, id: string, forEveryone: boolean) =>
   http.delete<z.infer<typeof deleteResult>>(messagePath(chatId, id), { forEveryone });
 
+export const removeMessageAttachments = (chatId: string, id: string, indexes: readonly number[]) =>
+  http.post<Envelope>(`${messagePath(chatId, id)}/attachments/remove`, { indexes });
+
 /** Поставить или снять реакцию (повтор той же снимает). */
 export const reactToMessage = (chatId: string, id: string, emoji: string, requestId?: string) => http.post<Envelope>(`${messagePath(chatId, id)}/react`, {
   emoji,

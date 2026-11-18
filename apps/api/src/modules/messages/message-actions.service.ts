@@ -11,7 +11,7 @@ import { hasArticleTitle, textLimit } from "./lib/message-content.js";
 import { MessageAccessService } from "./message-access.service.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
-import type { ChecklistDto, DeleteMessageDto, EditMessageDto, LocationDto, PinDto, ReactDto, VoteDto } from "./model/schemas/message.schema.js";
+import type { ChecklistDto, DeleteMessageDto, EditMessageDto, LocationDto, PinDto, ReactDto, RemoveAttachmentsDto, VoteDto } from "./model/schemas/message.schema.js";
 
 /** Закреплять: в личке — любой, в группе — по праву pinMessages, иначе владельцы, админы и модераторы. */
 function canPin(chat: Chat, userId: string): boolean {
@@ -125,6 +125,20 @@ export class MessageActionsService {
         )
     ).catch((err: unknown) => console.error("deleted message push failed:", err));
     return { ok: true, id: messageId, forEveryone: true };
+  }
+
+  /** Удалить выбранные фото/видео из собственного сообщения, не удаляя весь альбом. */
+  public removeAttachments(uid: string, chatId: string, messageId: string, dto: RemoveAttachmentsDto) {
+    const found = this.access.messageInChat(chatId, messageId, uid);
+    const existing = found.message;
+    if (existing.senderId !== uid) throw new ApiError(403, "Удалять отдельные вложения может только автор");
+    const indexes = [...new Set(dto.indexes)].filter((index) => index < (existing.attachments?.length ?? 0));
+    if (!indexes.length) throw new ApiError(400, "Вложения не найдены");
+    const message = this.messages.mutate(messageId, edits.removeAttachments(indexes));
+    if (!message) throw new ApiError(404, "Сообщение не найдено");
+    const chat = found.chat;
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId, message });
+    return { message };
   }
 
   /** Удаление у всех: файлы, на которые больше не ссылается ни одно сообщение чата, перестают быть доступны его участникам. */

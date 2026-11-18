@@ -13,7 +13,6 @@ import { SubscribeBar } from "@/features/channel-subscription";
 import { useChatActions } from "@/features/chat-actions";
 import { ChatSearch } from "@/features/chat-search";
 import { ContactBar } from "@/features/contact-bar";
-import { CoinTransferDialog } from "@/features/exchange";
 import { LiveBar } from "@/features/live";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile } from "@/features/open-profile";
@@ -65,7 +64,6 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
-  const [coinsOpen, setCoinsOpen] = useState(false);
   const actions = useMessageActions(chat, me);
   const chatActions = useChatActions(chat, me.id);
   const community = useQuery(communityQueries.byChat(chat.id));
@@ -181,7 +179,6 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                 channel={chat.type === "channel"}
                 topicId={openTopic?.id ?? null}
                 people={people}
-                onCoins={() => setCoinsOpen(true)}
                 excludeContacts={notContacts}
                 mentions={mentionable}
                 botCommands={botCommands}
@@ -214,7 +211,6 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
       </div>
       {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} hideMembers={inCommunity} community={community.data ?? null} onClose={() => setInfoOpen(false)} /> : null}
       {miniApp ? <MiniApp target={miniApp} onClose={() => setMiniApp(null)} /> : null}
-      {coinsOpen ? <CoinTransferDialog chatId={chat.id} people={people} onClose={() => setCoinsOpen(false)} /> : null}
       {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}
     </section>
   );

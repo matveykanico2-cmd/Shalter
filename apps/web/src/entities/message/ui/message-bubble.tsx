@@ -245,9 +245,9 @@ export function MessageBubble(props: Props) {
           <Icon name="Eye" size={13} /> {m.views}
         </span>
       ) : null}
-      <span>{timeLabel(m.createdAt)}</span>
+      <span className={styles.time}>{timeLabel(m.createdAt)}</span>
       {mine && !gift && !props.hideDeliveryStatus ? (
-        <span className={m.pending ? styles.pending : styles.tick} role="img" aria-label={m.pending ? "Отправляется" : isReadByOthers(m) ? "Прочитано" : "Доставлено"}>
+        <span className={`${m.pending ? styles.pending : styles.tick} ${styles.delivery}`} role="img" aria-label={m.pending ? "Отправляется" : isReadByOthers(m) ? "Прочитано" : "Доставлено"}>
           <Icon name={m.pending ? "Clock" : isReadByOthers(m) ? "CheckCheck" : "Check"} size={14} />
         </span>
       ) : null}

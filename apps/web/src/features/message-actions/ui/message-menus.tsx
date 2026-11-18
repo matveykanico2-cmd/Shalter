@@ -1,5 +1,7 @@
+import { useState } from "react";
+
 import { type ChatSummary } from "@/entities/chat";
-import { type Message, type MessageSender, reactionLabel, reactionsOf } from "@/entities/message";
+import { type Attachment, attachmentsOf, isVisualMedia, type Message, type MessageSender, reactionLabel, reactionsOf } from "@/entities/message";
 import { ReportDialog } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
 import { openUserProfile } from "@/entities/user";
@@ -7,7 +9,7 @@ import { openUserProfile } from "@/entities/user";
 import { copyText } from "@/shared/lib/clipboard";
 import { errorText } from "@/shared/lib/error-text";
 import { publicUrl } from "@/shared/lib/public-link";
-import { Avatar, Menu, type MenuItem, toast } from "@/shared/ui";
+import { askConfirm, Avatar, Button, Dialog, Menu, type MenuItem, toast } from "@/shared/ui";
 
 import { canDelete, canEdit, canPin, canReact, canSummarize, canTranslate, deleteOptions, isProtectedChat } from "../lib/permissions";
 import { readAtLabel } from "../lib/read-at";
@@ -136,6 +138,25 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
   }
 
   if (state.kind === "delete") {
+    const media = attachmentsOf(m).flatMap((attachment, index) => (isVisualMedia(attachment) ? [{ attachment, index }] : []));
+    if (media.length > 1 && m.senderId === me.id) {
+      return (
+        <MediaDeleteDialog
+          media={media}
+          onClose={close}
+          onDelete={(indexes) => {
+            close();
+            if (indexes.length === media.length) {
+              void askConfirm("Удалить всё сообщение с фотографиями?", { okLabel: "Удалить", danger: true }).then((ok) => {
+                if (ok) void actions.remove(m, true);
+              });
+            } else {
+              void actions.removeAttachments(m, indexes);
+            }
+          }}
+        />
+      );
+    }
     return <DeleteMessageDialog {...deleteOptions(chat, m, me)} onDelete={(forEveryone) => void actions.remove(m, forEveryone)} onClose={close} />;
   }
 
@@ -195,6 +216,33 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
   if (canDelete(m)) items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => control.open({ kind: "delete", message: m }) });
 
   return <Menu at={state.at} label="Действия с сообщением" items={items} onClose={close} />;
+}
+
+function MediaDeleteDialog({ media, onDelete, onClose }: { media: readonly { attachment: Attachment; index: number }[]; onDelete: (indexes: number[]) => void; onClose: () => void }) {
+  const [selected, setSelected] = useState(() => new Set(media.map((item) => item.index)));
+  const toggle = (index: number) => setSelected((current) => {
+    const next = new Set(current);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    return next;
+  });
+  return (
+    <Dialog title="Удалить фотографии" onClose={onClose}>
+      <p className={styles.deleteHint}>Выберите фотографии, которые нужно убрать из сообщения.</p>
+      <div className={styles.mediaDeleteGrid}>
+        {media.map(({ attachment, index }) => (
+          <button key={index} type="button" className={selected.has(index) ? `${styles.mediaDeleteItem} ${styles.mediaDeleteSelected}` : styles.mediaDeleteItem} onClick={() => toggle(index)} aria-pressed={selected.has(index)}>
+            <img src={attachment.thumbUrl || attachment.url} alt={attachment.name || "Фото"} />
+            <span>{selected.has(index) ? "✓" : ""}</span>
+          </button>
+        ))}
+      </div>
+      <Button variant="danger" disabled={!selected.size} onClick={() => onDelete([...selected])}>
+        Удалить выбранные ({selected.size})
+      </Button>
+      <Button variant="secondary" onClick={onClose}>Отмена</Button>
+    </Dialog>
+  );
 }
 
 /** Кто прочитал своё сообщение в группе (кроме себя). */

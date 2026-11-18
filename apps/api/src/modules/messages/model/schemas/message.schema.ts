@@ -96,6 +96,11 @@ export type EditMessageDto = z.infer<typeof editMessageSchema>;
 export const deleteMessageSchema = requestBody({ forEveryone: z.unknown().optional().transform((v) => !!v) });
 export type DeleteMessageDto = z.infer<typeof deleteMessageSchema>;
 
+export const removeAttachmentsSchema = requestBody({
+  indexes: z.array(z.number().int().nonnegative()).min(1).max(10),
+});
+export type RemoveAttachmentsDto = z.infer<typeof removeAttachmentsSchema>;
+
 // pinned, emoji и optionIndex разбирает message-edits как пришли.
 export const pinSchema = requestBody({ pinned: raw() });
 export type PinDto = z.infer<typeof pinSchema>;
