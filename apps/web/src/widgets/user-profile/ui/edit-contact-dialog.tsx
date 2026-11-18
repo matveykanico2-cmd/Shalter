@@ -121,7 +121,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
   return (
     <Dialog title="Изменить контакт" onClose={onClose} className={styles.editContact}>
       <div className={styles.editContactHead}>
-        {shownVideo ? <video className={styles.contactPreviewVideo} src={shownVideo} muted loop autoPlay playsInline /> : <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />}
+        {shownVideo ? <video key={shownVideo} className={styles.contactPreviewVideo} src={shownVideo} muted loop autoPlay playsInline /> : <Avatar key={`${shownImage ?? ""}:${shownEmoji ?? ""}`} size={72} name={firstName} color={localColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />}
       </div>
       <AvatarBackgroundPicker color={localColor} onPick={setLocalColor} />
       <label className={styles.editContactField}>
@@ -164,7 +164,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
             const emoji = value.startsWith(EMOJI_PREFIX) ? value.slice(EMOJI_PREFIX.length) : null;
             return (
               <div className={styles.contactAvatarItem} key={`${value}-${index}`}>
-                {isVideo(value) ? <video className={styles.contactAvatarVideo} src={mediaUrl(value)} muted loop autoPlay playsInline /> : <Avatar size={48} name={firstName} color={user.avatarColor} image={emoji ? null : value} emoji={emoji} />}
+                {isVideo(value) ? <video key={value} className={styles.contactAvatarVideo} src={mediaUrl(value)} muted loop autoPlay playsInline /> : <Avatar key={value} size={48} name={firstName} color={localColor} image={emoji ? null : value} emoji={emoji} />}
                 <button type="button" className={styles.contactAvatarRemove} aria-label={`Убрать аватар ${index + 1}`} onClick={() => {
                   setLocalAvatars((all) => all.filter((_, i) => i !== index));
                   setLocalPhoto(index === localAvatars.length - 1 ? (localAvatars[index - 1] ?? null) : (localAvatars[index + 1] ?? null));

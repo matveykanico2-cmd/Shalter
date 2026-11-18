@@ -36,7 +36,25 @@ const routes = {
   "POST /api/contacts/photo": { body: { localAvatar: "emoji:🔥" } },
 };
 
+vi.mock("@/shared/api", async () => {
+  const actual = await vi.importActual<typeof import("@/shared/api")>("@/shared/api");
+  return { ...actual, uploadFile: vi.fn(async () => ({ kind: "avatar", url: "/uploads/local-contact.jpg" })) };
+});
+
 describe("EditContactDialog: свой смайл контакта", () => {
+  it("показывает загруженное фото вместо буквенного fallback и применяет выбранный фон", async () => {
+    const { calls } = fakeApi(routes);
+    renderDialog(null);
+    fireEvent.click(screen.getByRole("button", { name: "Установить фото, видео или GIF для Борис" }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["image"], "avatar.jpg", { type: "image/jpeg" })] } });
+    await waitFor(() => expect(document.querySelector('img[src="/uploads/local-contact.jpg"]')).toBeTruthy());
+    fireEvent.click(screen.getByRole("radio", { name: "Фон 2" }));
+    expect(screen.getByRole("radio", { name: "Фон 2" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Готово" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/contacts/photo")?.body).toMatchObject({ url: "/uploads/local-contact.jpg" }));
+  });
+
   it("смайл из сетки уходит в /api/contacts/photo как emoji", async () => {
     const { calls } = fakeApi(routes);
     const { onSaved } = renderDialog(null);
