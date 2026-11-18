@@ -19,9 +19,9 @@ const ROW_COLORS = {
 export type SettingsRowColor = keyof typeof ROW_COLORS | "premium";
 
 /** Страница раздела настроек (pageWrap): подзаголовок и секции; title — для разделов вне шапки настроек. */
-export function SettingsPage({ title, subtitle, children }: { title?: string; subtitle?: ReactNode; children: ReactNode }) {
+export function SettingsPage({ title, subtitle, className, children }: { title?: string; subtitle?: ReactNode; className?: string; children: ReactNode }) {
   return (
-    <div className={styles.page}>
+    <div className={className ? `${styles.page} ${className}` : styles.page}>
       {title ? <h2 className={styles.pageTitle}>{title}</h2> : null}
       {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
       {children}

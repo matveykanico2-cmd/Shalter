@@ -17,5 +17,6 @@ export function useConnectionTitle(): string | null {
   const ws = useWsStatus();
   if (!online) return "Ожидание сети…";
   if (ws.down) return ws.everOpened ? "Переподключение…" : "Соединение…";
+  if (!ws.open && !ws.everOpened) return "Подключение…";
   return null;
 }

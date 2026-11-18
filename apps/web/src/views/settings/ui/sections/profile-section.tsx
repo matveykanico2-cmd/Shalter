@@ -3,6 +3,8 @@ import { useNavigate } from "react-router";
 
 import { AvatarViewer, TABS } from "@/widgets/user-profile";
 
+import { ProfileUsernames } from "@/features/usernames-market";
+
 import { type SelfUser, useSession, useUpdateSelf } from "@/entities/session";
 import { bannerBackground, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
 
@@ -136,6 +138,8 @@ function Profile({ me }: { me: SelfUser }) {
       </div>
 
       <ProfileEmojiAvatar me={me} />
+
+      <ProfileUsernames />
 
       <SettingsSection title="Цвет аватара">
           <p className={`${styles.hint} ${profileStyles.pad}`}>Фон букв, смайла или стикера меняется отдельно и не сбрасывает содержимое аватара.</p>

@@ -68,36 +68,38 @@ export function DevicesSection() {
   };
 
   return (
-    <SettingsPage>
-      <div className={styles.mediaHeader}>
-        <span className={styles.mediaSticker}>
-          <Icon name="Monitor" size={56} />
-        </span>
-        <p className={styles.mediaSubtitle}>Здесь все устройства, на которых выполнен вход в ваш аккаунт Shalter.</p>
+    <SettingsPage className={styles.devicesPage}>
+      <div className={styles.devicesContent}>
+        <div className={styles.mediaHeader}>
+          <span className={styles.mediaSticker}>
+            <Icon name="Monitor" size={56} />
+          </span>
+          <p className={styles.mediaSubtitle}>Здесь все устройства, на которых выполнен вход в ваш аккаунт Shalter.</p>
+        </div>
+        {current ? (
+          <SettingsSection title="Это устройство" caption={others.length ? "Выйти на всех устройствах, кроме этого." : null}>
+            {row(current)}
+            {others.length ? (
+              <SettingsButton icon="X" danger onClick={terminateOthers}>
+                Завершить все другие сеансы
+              </SettingsButton>
+            ) : null}
+          </SettingsSection>
+        ) : null}
+        <SettingsSection title="Вход по QR-коду" caption="Подключите новое устройство через уже вошедшее устройство.">
+          <SettingsButton icon="Qrcode" onClick={() => setQrMode("show")}>
+            Показать QR для нового устройства
+          </SettingsButton>
+          <SettingsButton icon="Camera" onClick={() => setQrMode("scan")}>
+            Сканировать QR-код входа
+          </SettingsButton>
+        </SettingsSection>
+        {others.length ? (
+          <SettingsSection title="Активные сеансы" caption="Нажмите на сеанс, чтобы посмотреть подробности или завершить его.">
+            {others.map(row)}
+          </SettingsSection>
+        ) : null}
       </div>
-      {current ? (
-        <SettingsSection title="Это устройство" caption={others.length ? "Выйти на всех устройствах, кроме этого." : null}>
-          {row(current)}
-          {others.length ? (
-            <SettingsButton icon="X" danger onClick={terminateOthers}>
-              Завершить все другие сеансы
-            </SettingsButton>
-          ) : null}
-        </SettingsSection>
-      ) : null}
-      <SettingsSection title="Вход по QR-коду" caption="Подключите новое устройство через уже вошедшее устройство.">
-        <SettingsButton icon="Qrcode" onClick={() => setQrMode("show")}>
-          Показать QR для нового устройства
-        </SettingsButton>
-        <SettingsButton icon="Camera" onClick={() => setQrMode("scan")}>
-          Сканировать QR-код входа
-        </SettingsButton>
-      </SettingsSection>
-      {others.length ? (
-        <SettingsSection title="Активные сеансы" caption="Нажмите на сеанс, чтобы посмотреть подробности или завершить его.">
-          {others.map(row)}
-        </SettingsSection>
-      ) : null}
       {opened ? (
         <SessionPopup
           session={opened}

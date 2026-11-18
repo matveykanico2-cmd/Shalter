@@ -5,6 +5,8 @@ import { callApi, CallScreen, decline, getCall, joinCallById, minimize, unminimi
 
 import { type SelfUser, useSession } from "@/entities/session";
 
+import { Button } from "@/shared/ui";
+
 import styles from "./call-view.module.css";
 
 /** /call/:callId — экран звонка; ушли с него — звонок свернулся в пузырь. */
@@ -83,7 +85,7 @@ function OpenCall({ callId, me }: { callId: string; me: SelfUser }) {
   // успевал исчезнуть, а navigate из effect выполнялся кадром позже — появлялся
   // белый экран после сброса звонка.
   if (endedChatId) return <Navigate to={`/chat/${endedChatId}`} replace />;
-  if (!current) return missing ? <p className={styles.missing}>Звонок не найден или уже завершён.</p> : null;
+  if (!current) return missing ? <div className={styles.missingPage}><p className={styles.missing}>Звонок не найден или уже завершён.</p><Button variant="secondary" onClick={() => void navigate(-1)}>Назад</Button></div> : null;
   return (
     <CallScreen
       s={current}

@@ -35,11 +35,14 @@ const runsWith = (a: FeedMessage | undefined, b: FeedMessage | undefined) =>
   sameDay(a.createdAt, b.createdAt) &&
   Math.abs(Date.parse(b.createdAt) - Date.parse(a.createdAt)) < GROUP_WINDOW_MS;
 
-export function feedRows(messages: readonly FeedMessage[], firstUnreadId: string | null, now = new Date()): FeedRow[] {
+export function feedRows(messages: readonly FeedMessage[], firstUnreadId: string | null, now = new Date(), viewerId?: string): FeedRow[] {
   const rows: FeedRow[] = [];
-  messages.forEach((m, i) => {
-    const prev = messages[i - 1];
-    const next = messages[i + 1];
+  const visible = viewerId
+    ? messages.filter((m) => !(m.type === "call" && m.senderId === viewerId && !/· \d+:\d{2}/.test(m.text ?? "")))
+    : messages;
+  visible.forEach((m, i) => {
+    const prev = visible[i - 1];
+    const next = visible[i + 1];
     if (!prev || !sameDay(prev.createdAt, m.createdAt)) rows.push({ kind: "day", key: `day:${m.id}`, label: dayLabel(m.createdAt, now), at: m.createdAt });
     if (m.id === firstUnreadId) rows.push({ kind: "unread", key: `unread:${m.id}` });
     rows.push({ kind: "message", key: m.id, message: m, groupStart: !runsWith(prev, m), groupEnd: !runsWith(m, next) });

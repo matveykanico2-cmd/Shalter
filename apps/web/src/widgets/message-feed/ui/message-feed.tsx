@@ -169,7 +169,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
       document.removeEventListener("visibilitychange", update);
     };
   }, []);
-  const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null, new Date(calendarDay)), [data?.messages, unreadId, calendarDay]);
+  const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null, new Date(calendarDay), meId), [data?.messages, unreadId, calendarDay, meId]);
   const entrance = useEntrance(chat.id, data?.messages, meId);
   const senders = useSenders(chat, members);
   const attachmentActions = useMemo<AttachmentActions>(
@@ -196,7 +196,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositionKey = `${chat.id}:${topic ?? "all"}`;
   const restoredPosition = useRef(false);
-  const activeScrollKey = useRef(scrollPositionKey);
+  const activeScrollKey = useRef<string | null>(null);
   const stuck = useRef(true);
   const fromBottom = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
@@ -257,26 +257,22 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     // the per-chat state before applying the new history; otherwise the old chat's
     // `restoredPosition` and `stuck` flags can leave the new chat somewhere in the
     // middle instead of at its latest message.
-    if (activeScrollKey.current !== scrollPositionKey) {
+    const enteredChat = activeScrollKey.current !== scrollPositionKey;
+    if (enteredChat) {
       activeScrollKey.current = scrollPositionKey;
       restoredPosition.current = false;
-      unreadShown.current = false;
       stuck.current = true;
       fromBottom.current = 0;
       setAtBottom(true);
       el.scrollTop = 0;
     }
     if (!restoredPosition.current) {
-      const saved = scrollPositions.get(scrollPositionKey);
-      if (saved !== undefined && data) {
+      if (data) {
         restoredPosition.current = true;
-        el.scrollTop = Math.min(saved, Math.max(0, el.scrollHeight - el.clientHeight));
-        virtualizer.scrollToOffset(el.scrollTop);
-        stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_PX;
-        setAtBottom(stuck.current);
-        return;
+        // При входе в чат всегда показываем последние сообщения. Старую позицию
+        // сохраняем только для текущей открытой ленты, пока пользователь листает её.
+        if (enteredChat) stuck.current = true;
       }
-      if (data) restoredPosition.current = true;
     }
     if (stuck.current) {
       const target = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -343,18 +339,6 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
       if (el) scrollPositions.set(scrollPositionKey, el.scrollTop);
     };
   }, [scrollPositionKey]);
-
-  // Открыли чат с непрочитанными — как в Telegram, к плашке «Непрочитанные сообщения», а не в
-  // самый низ (раньше плашка оставалась за экраном, а всё уже считалось прочитанным).
-  const unreadShown = useRef(false);
-  useEffect(() => {
-    if (unreadShown.current || !unreadId) return;
-    const i = rows.findIndex((r) => r.kind === "unread");
-    if (i < 0) return;
-    unreadShown.current = true;
-    stuck.current = false;
-    virtualizer.scrollToIndex(i, { align: "start" });
-  }, [unreadId, rows, virtualizer]);
 
   // Мало сообщений на экран — прокрутки нет, историю догружаем сами.
   useEffect(() => {

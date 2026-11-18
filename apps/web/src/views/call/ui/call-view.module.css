@@ -5,6 +5,15 @@
   text-align: center;
 }
 
+.missingPage {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
 .join {
   display: flex;
   flex-direction: column;
