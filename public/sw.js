@@ -1,6 +1,6 @@
 // Service Worker for Shalter - offline caching
 // v5 — API больше не кэшируется: старые ответы сессий, профилей и токенов удаляются.
-const CACHE_NAME = 'shalter-v5';
+const CACHE_NAME = 'shalter-v6';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',

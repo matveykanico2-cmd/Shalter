@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   background: linear-gradient(180deg, #171b26 0%, #0c0e14 100%);
-  animation: fade-in 0.18s ease-out;
+  animation: fade-in 0.12s ease-out;
 }
 
 @keyframes fade-in {
@@ -50,7 +50,7 @@
   inset: -14px;
   border-radius: 50%;
   background: rgb(135 116 225 / 28%);
-  animation: pulse 1.8s ease-out infinite;
+  animation: pulse 2.4s ease-out infinite;
 }
 
 @keyframes pulse {
@@ -117,8 +117,8 @@
 
 .accept {
   background: var(--color-success);
-  animation: breathe 1.6s ease-in-out infinite;
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 35%, transparent);
+  animation: breathe 2.2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 25%, transparent);
 }
 
 @keyframes breathe {

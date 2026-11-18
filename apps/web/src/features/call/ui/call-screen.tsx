@@ -78,13 +78,9 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   const [gesturesOn, toggleGestures] = useGesturesEnabled();
   const gestures = useCallGestures(s.phase !== "ended" && s.cameraOn ? s.localStream : null, gesturesOn);
 
-  if (s.phase === "ended") {
-    return (
-      <div className={`${styles.screen} ${styles.ended}`}>
-        <p>Звонок завершён</p>
-      </div>
-    );
-  }
+  // Завершение обрабатывает CallView: он сразу возвращает пользователя в чат.
+  // Не показываем промежуточный экран «Звонок завершён» даже на один кадр.
+  if (s.phase === "ended") return null;
 
   const mediaOf = (p: CallPeer): PeerMedia => s.remoteMedia[p.id] ?? { camera: s.call.kind === "video", sharing: false, handRaised: false };
   const remoteSharerId = s.sharing ? null : (s.others.find((p) => mediaOf(p).sharing)?.id ?? null);
