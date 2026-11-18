@@ -70,7 +70,12 @@ async function sendFcm(token, payload, { ttlSeconds = 24 * 60 * 60, callUi = fal
     data[k] = typeof v === "string" ? v : JSON.stringify(v);
   }
   const isCall = payload?.kind === "call";
-  const dataOnly = payload?.kind === "message" || payload?.kind === "message-deleted" || (callUi && (isCall || payload?.kind === "call-cancelled"));
+  // Звонок должен попасть именно в ShalterMessagingService: только data-сообщение
+  // будит закрытый процесс и даёт ему показать full-screen экран звонка. Если
+  // добавить notification-блок, Android в фоне покажет обычную карточку и не
+  // вызовет onMessageReceived — звонок будет выглядеть как «просто сообщение».
+  // callUi оставляем в сигнатуре для совместимости со старыми подписками.
+  const dataOnly = payload?.kind === "message" || payload?.kind === "message-deleted" || isCall || payload?.kind === "call-cancelled" || (callUi && payload?.kind === "call-missed");
   const message = {
     token,
     data,

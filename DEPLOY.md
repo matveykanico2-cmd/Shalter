@@ -112,6 +112,19 @@ the certbot steps further down. HTTPS itself is still non-negotiable, though
 (see "Why HTTPS isn't optional" below): without it, camera/mic access is
 blocked by the browser and calls/voice-messages/video-notes won't work.
 
+### Push при закрытом приложении
+
+Веб-версия использует VAPID и Service Worker: после разрешения уведомлений сообщения
+и входящие звонки приходят без открытой вкладки. На iPhone/iPad сайт нужно добавить
+на экран «Домой» (iOS 16.4+).
+
+Для Android APK нужен Firebase Cloud Messaging. Перед сборкой APK положите
+`google-services.json` в `resources/android/google-services.json`, а на сервере задайте
+`FIREBASE_SERVICE_ACCOUNT` или `FIREBASE_SERVICE_ACCOUNT_JSON`. Без сервисного аккаунта
+сервер не может доставить push на закрытый Android-процесс; пока приложение открыто,
+события всё ещё идут через WebSocket. После изменения Firebase-конфигурации выполните
+`npm run cap:sync` и соберите APK заново.
+
 I wrote this Dockerfile carefully for this specific app (right Node version,
 the actual entry point and port, the esbuild/Alpine issue above) but couldn't
 build-test it myself — Docker isn't available in the environment I worked in.
