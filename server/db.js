@@ -1368,6 +1368,7 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   // localAvatar: фото, которое владелец поставил этому контакту «для себя» (как в Telegram).
   if (!contactCols.has("localAvatar")) db.exec("ALTER TABLE contacts ADD COLUMN localAvatar TEXT");
   if (!contactCols.has("localAvatars")) db.exec("ALTER TABLE contacts ADD COLUMN localAvatars TEXT NOT NULL DEFAULT '[]'");
+  if (!contactCols.has("localAvatarColor")) db.exec("ALTER TABLE contacts ADD COLUMN localAvatarColor TEXT");
 }
 
 // Сообщества (Communities): несколько групп и каналов под одной вывеской.

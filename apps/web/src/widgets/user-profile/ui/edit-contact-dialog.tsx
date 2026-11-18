@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { Avatar, AVATAR_VIDEO_PREFIX, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
+import { Avatar, AVATAR_VIDEO_PREFIX, AvatarBackgroundPicker, Button, Dialog, EmojiAvatarPicker, Icon, TextField, toast } from "@/shared/ui";
 
 import { profileApi } from "../api/profile-api";
 
@@ -52,6 +52,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
   const [text, setText] = useState(note ?? "");
   const [localPhoto, setLocalPhoto] = useState(photo);
   const [localAvatars, setLocalAvatars] = useState<string[]>(() => avatars?.length ? avatars : photo ? [photo] : []);
+  const [localColor, setLocalColor] = useState(user.avatarColor ?? "#2E56D9");
   const [busy, setBusy] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const setInput = useRef<HTMLInputElement>(null);
@@ -72,9 +73,11 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
       const name = [first.trim(), last.trim()].filter(Boolean).join(" ");
       await profileApi.renameContact(user.id, name);
       const res = await profileApi.setNote(user.id, text);
-      if (localPhoto !== photo || localAvatars.length !== (avatars?.length ?? (photo ? 1 : 0))) {
-        const gallery = localAvatars.length > 1 || (avatars?.length ?? 0) > 1 ? { avatars: localAvatars } : {};
-        await profileApi.setContactPhoto(user.id, localEmoji ? { emoji: localEmoji, ...gallery } : { url: localPhoto ?? "", ...gallery });
+      if (localPhoto !== photo || localAvatars.length !== (avatars?.length ?? (photo ? 1 : 0)) || localColor !== (user.avatarColor ?? "#2E56D9")) {
+        const ordered = localPhoto ? [localPhoto, ...localAvatars.filter((value) => value !== localPhoto)] : [];
+        const gallery = ordered.length > 1 ? { avatars: ordered } : {};
+        const color = localColor !== (user.avatarColor ?? "#2E56D9") ? { avatarColor: localColor } : {};
+        await profileApi.setContactPhoto(user.id, localEmoji ? { emoji: localEmoji, ...color, ...gallery } : { url: localPhoto ?? "", ...color, ...gallery });
       }
       onSaved({ contactName: name || null, note: res.note ?? null, photo: localPhoto });
       onClose();
@@ -120,6 +123,7 @@ export function EditContactDialog({ user, contactName, note, photo, avatars, ope
       <div className={styles.editContactHead}>
         {shownVideo ? <video className={styles.contactPreviewVideo} src={shownVideo} muted loop autoPlay playsInline /> : <Avatar size={72} name={firstName} color={user.avatarColor} image={shownImage} emoji={shownImage ? null : shownEmoji} />}
       </div>
+      <AvatarBackgroundPicker color={localColor} onPick={setLocalColor} />
       <label className={styles.editContactField}>
         <span>Имя</span>
         <TextField value={first} maxLength={80} onChange={(e) => setFirst(e.target.value)} placeholder={user.profileName ?? user.name} />

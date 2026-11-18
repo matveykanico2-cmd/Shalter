@@ -97,7 +97,7 @@ export class ContactsService {
    * Своё фото или смайл контакта — видите только вы (как «Установить фото» в Telegram).
    * Смайл сменяет фото и наоборот; пусто — убрать.
    */
-  public async setPhoto(uid: string, { userId, url, emoji: rawEmoji, avatars: requested }: ContactPhotoDto) {
+  public async setPhoto(uid: string, { userId, url, emoji: rawEmoji, avatars: requested, avatarColor }: ContactPhotoDto) {
     const emoji = rawEmoji === undefined ? null : cleanAvatarEmoji(rawEmoji);
     if (emoji === undefined) throw new ApiError(400, AVATAR_EMOJI_ERROR);
     // Стикер — ссылка на файл: чужой закрытый файл на аватарку не поставить (как у чатов).
@@ -113,8 +113,9 @@ export class ContactsService {
       } else if (!(await isOwnUploadUrl(uid, uploadUrl(avatar)))) throw new ApiError(400, "Некорректное изображение");
     }
     const primary = avatars[0] ?? null;
-    if (!this.contacts.setPhoto(uid, userId, primary, avatars)) throw new ApiError(404, "Сначала добавьте человека в контакты");
-    return { localAvatar: primary, ...(avatars.length > 1 ? { localAvatars: avatars } : {}) };
+    if (avatarColor !== undefined && avatarColor !== "transparent" && !/^#[0-9a-f]{6}$/i.test(avatarColor)) throw new ApiError(400, "Некорректный цвет");
+    if (!this.contacts.setPhoto(uid, userId, primary, avatars, avatarColor ?? null)) throw new ApiError(404, "Сначала добавьте человека в контакты");
+    return { localAvatar: primary, ...(avatars.length > 1 ? { localAvatars: avatars } : {}), ...(avatarColor !== undefined ? { localAvatarColor: avatarColor } : {}) };
   }
 
   public remove(uid: string, { userId }: RemoveContactDto) {

@@ -551,6 +551,7 @@ export function UserProfilePanel({ userId, me }: Props) {
       {overlay === "avatars" ? (
         <AvatarViewer
           user={u}
+          avatars={data.contactAvatars}
           canEdit={isSelf}
           onChange={(updated) => {
             patchProfile((p) => ({ user: { ...p.user, ...updated } as UserProfile["user"] }));

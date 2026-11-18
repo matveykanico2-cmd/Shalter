@@ -44,7 +44,7 @@ export const profileApi = {
   setNote: (userId: string, note: string) => http.post<{ note?: string | null }>("/api/contacts/note", { userId, note }),
   renameContact: (userId: string, localName: string) => http.post<unknown>("/api/contacts/rename", { userId, localName }),
   /** Своё фото или смайл контакта — видите только вы; пустая ссылка без смайла — убрать. */
-  setContactPhoto: (userId: string, avatar: { url?: string; emoji?: string; avatars?: string[] }) =>
+  setContactPhoto: (userId: string, avatar: { url?: string; emoji?: string; avatars?: string[]; avatarColor?: string }) =>
     http.post<{ localAvatar: string | null; localAvatars?: string[] }>("/api/contacts/photo", { userId, ...avatar }),
   /** «Предложить фото» — фото уходит в личный чат с пометкой photoSuggestion, получатель ставит его в одно касание. */
   suggestPhoto: (chatId: string, image: Uploaded) =>

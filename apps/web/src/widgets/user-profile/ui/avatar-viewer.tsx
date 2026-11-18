@@ -13,6 +13,7 @@ import { videoDuration, videoPosterDataUrl } from "../lib/video-poster";
 import styles from "./avatar-viewer.module.css";
 
 const MAX_VIDEO_SECONDS = 180;
+const EMPTY_AVATARS: readonly unknown[] = [];
 
 type Owner = {
   name: string;
@@ -29,6 +30,8 @@ type Props = {
   onClose: () => void;
   /** В редакторе открываем историю фото; в профиле — активный смайл. */
   photosFirst?: boolean;
+  /** Локальная история аватаров контакта (она не входит в публичный профиль). */
+  avatars?: readonly unknown[];
 };
 
 const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" && typeof (a as AvatarEntry).url === "string";
@@ -39,25 +42,40 @@ type DisplayEntry =
   | { id: string; kind: "initials"; background?: string | null };
 
 function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
-  const gallery = raw.filter(isEntry).map((entry, sourceIndex) => ({ ...entry, id: `gallery:${sourceIndex}:${entry.url}`, sourceIndex }));
-  // Активный смайл всегда открывается первым. Фото остаются дальше в истории.
-  if (user.avatarEmoji) return [{ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor }, ...gallery];
-  // Своя фотография контакта приходит как avatarImage только владельцу контакта и не входит
-  // в публичный avatarImages. Добавляем её в просмотр локально, перед профилем человека.
-  if (user.avatarImage && !gallery.some((entry) => entry.url === user.avatarImage || entry.poster === user.avatarImage)) {
-    return [{ id: `current:${user.avatarImage}`, kind: "image", url: user.avatarImage, poster: user.avatarImage }, ...gallery];
-  }
-  if (gallery.length) return gallery;
-  return [{ id: "initials", kind: "initials", background: user.avatarColor }];
+  const entries: DisplayEntry[] = [];
+  const seen = new Set<string>();
+  const addImage = (entry: AvatarEntry, sourceIndex?: number) => {
+    const key = `${entry.kind}:${entry.url}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    entries.push({ ...entry, id: `${sourceIndex === undefined ? "current" : "gallery"}:${sourceIndex ?? entry.url}:${entry.url}`, sourceIndex });
+  };
+  // Контактная аватарка и профильная аватарка — независимые источники. Раньше
+  // ранний return для emoji скрывал и личное фото, и всю историю profile avatarImages.
+  if (user.avatarEmoji) entries.push({ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor });
+  if (user.avatarImage) addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
+  raw.forEach((value, sourceIndex) => {
+    if (isEntry(value)) addImage(value, sourceIndex);
+    else if (typeof value === "string" && value) {
+      if (value.startsWith("emoji:")) entries.push({ id: `emoji:${value.slice(6)}:${sourceIndex}`, kind: "emoji", emoji: value.slice(6), background: user.avatarColor });
+      else {
+        const video = value.startsWith("video:");
+        const url = video ? value.slice(6) : value;
+        addImage({ url, kind: video ? "video" : "image", poster: video ? url : url }, sourceIndex);
+      }
+    }
+  });
+  return entries.length ? entries : [{ id: "initials", kind: "initials", background: user.avatarColor }];
 }
 
 /**
  * Аватары с листанием — как public/js/components/avatarViewer.js: стрелки, свайп, точки,
  * нажатие на половину фото; себе — добавить фото или видео, сделать основной, удалить.
  */
-export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = false }: Props) {
-  const [avatars, setAvatars] = useState<DisplayEntry[]>(() => displayEntries(user, user.avatarImages ?? []));
-  const [index, setIndex] = useState(() => photosFirst && user.avatarEmoji && user.avatarImages?.some(isEntry) ? 1 : 0);
+export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = false, avatars: contactAvatars = EMPTY_AVATARS }: Props) {
+  const [avatars, setAvatars] = useState<DisplayEntry[]>(() => displayEntries(user, [...(user.avatarImages ?? []), ...contactAvatars]));
+  const initialEntries = displayEntries(user, [...(user.avatarImages ?? []), ...contactAvatars]);
+  const [index, setIndex] = useState(() => photosFirst ? Math.max(0, initialEntries.findIndex((entry) => "url" in entry)) : 0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mediaFailure, setMediaFailure] = useState<{ id: string; attempt: number; failed: boolean } | null>(null);

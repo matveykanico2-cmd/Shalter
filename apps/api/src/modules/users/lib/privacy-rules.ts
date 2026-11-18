@@ -117,6 +117,7 @@ export function applyContactName<
     profileAvatarImage?: unknown;
     avatarEmoji?: unknown;
     profileAvatarEmoji?: unknown;
+    avatarColor?: unknown;
   },
 >(
   visible: T,
@@ -132,7 +133,10 @@ export function applyContactName<
   }
   // Своё фото или смайл контакта — их видит только владелец, вместо аватарки из профиля.
   const localAvatar = myContact?.localAvatar;
-  if (localAvatar) visible.profileAvatarEmoji = visible.avatarEmoji ?? null;
+  if (localAvatar) {
+    visible.profileAvatarEmoji = visible.avatarEmoji ?? null;
+    if (myContact?.localAvatarColor) visible.avatarColor = myContact.localAvatarColor;
+  }
   if (localAvatar?.startsWith(CONTACT_EMOJI_PREFIX)) {
     // Смайл рисуется поверх фото, фото из профиля остаётся как есть.
     visible.avatarEmoji = localAvatar.slice(CONTACT_EMOJI_PREFIX.length);

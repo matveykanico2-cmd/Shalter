@@ -48,6 +48,7 @@ export const contactPhotoSchema = requestBody({
   /** Свой смайл или стикер вместо фото («sticker:/uploads/…»); проверяет сервис, как у профиля. */
   emoji: z.unknown().optional(),
   avatars: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+  avatarColor: z.string().trim().max(32).optional(),
 });
 export type ContactPhotoDto = z.infer<typeof contactPhotoSchema>;
 

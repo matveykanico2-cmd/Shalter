@@ -185,6 +185,7 @@ export const contacts = sqliteTable("contacts", {
   note: text(),
   localAvatar: text(),
   localAvatars: text().default("[]").notNull(),
+  localAvatarColor: text(),
 });
 
 export const folders = sqliteTable("folders", {

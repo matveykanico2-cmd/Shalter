@@ -196,6 +196,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositionKey = `${chat.id}:${topic ?? "all"}`;
   const restoredPosition = useRef(false);
+  const activeScrollKey = useRef(scrollPositionKey);
   const stuck = useRef(true);
   const fromBottom = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
@@ -252,6 +253,19 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // The feed component stays mounted while the route changes between chats. Reset
+    // the per-chat state before applying the new history; otherwise the old chat's
+    // `restoredPosition` and `stuck` flags can leave the new chat somewhere in the
+    // middle instead of at its latest message.
+    if (activeScrollKey.current !== scrollPositionKey) {
+      activeScrollKey.current = scrollPositionKey;
+      restoredPosition.current = false;
+      unreadShown.current = false;
+      stuck.current = true;
+      fromBottom.current = 0;
+      setAtBottom(true);
+      el.scrollTop = 0;
+    }
     if (!restoredPosition.current) {
       const saved = scrollPositions.get(scrollPositionKey);
       if (saved !== undefined && data) {
