@@ -12,7 +12,7 @@ import styles from "./interactive.module.css";
 
 export type PollActions = {
   onVote?: (m: Message, optionIndex: number, questionIndex?: number) => void;
-  onRetract?: (m: Message) => void;
+  onRetract?: (m: Message, questionIndex?: number) => void;
   onClose?: (m: Message) => void;
   /** Остановить чужой опрос — админы и модераторы группы. */
   canCloseOthers?: boolean;
@@ -90,7 +90,7 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
         <span className={styles.total}>{v.totalVoters ? `${v.totalVoters} ${plural(v.totalVoters, "проголосовал", "проголосовали", "проголосовали")}` : "Пока нет голосов"}</span>
         {deadline ? <span className={styles.deadline}>До завершения: {deadline}</span> : null}
         {v.answered && !v.isQuiz && !v.closed && onRetract ? (
-          <button type="button" className={styles.action} onClick={() => onRetract(m)}>
+          <button type="button" className={styles.action} onClick={() => onRetract(m, questionIndex)}>
             Отменить голос
           </button>
         ) : null}

@@ -197,7 +197,8 @@ describe("POST /api/usernames/:id/bid", () => {
     expect(res).toMatchObject({ balance: 0, auction: { topBid: 0, topBidderId: user.id } });
     expect(await close(auction.id)).toMatchObject({ status: "sold", winnerId: user.id, soldForStars: 0 });
     expect(await starsBalance(user)).toBe(0);
-    expect((await sessionUser(user)).username).toBe(name);
+    expect((await sessionUser(user)).username).not.toBe(name);
+    expect((await user.api.get("/api/usernames/mine")).body.usernames.some((item: { username: string }) => item.username === name)).toBe(true);
   });
 
   test("перебитый лидер получает сообщение от системного бота, другие — нет", async () => {
@@ -264,10 +265,11 @@ describe("POST /api/usernames/:id/close — подведение итогов", 
 
     expect(await starsBalance(winner)).toBe(130);
     expect(await starsBalance(loser)).toBe(200);
-    expect(await sessionUser(winner)).toMatchObject({ username: name, usernameAuctionId: auction.id, isCollectibleUsername: true });
+    expect((await sessionUser(winner)).username).not.toBe(name);
+    expect((await winner.api.get("/api/usernames/mine")).body.usernames.some((item: { username: string }) => item.username === name)).toBe(true);
     expect((await winner.api.get(`/api/users/by-username/${name}`)).body.user.id).toBe(winner.id);
-    // Старый юзернейм победителя освободился.
-    await renameTo(outsider, winner.username);
+    // Основной юзернейм победителя не меняется и остаётся занят.
+    expectError(await outsider.api.patch(`/api/users/${outsider.id}`, { username: winner.username }), 409, "Этот юзернейм уже занят");
 
     expect(await close(auction.id)).toEqual(closed);
     expect(await starsBalance(winner)).toBe(130);
@@ -307,7 +309,8 @@ describe("POST /api/usernames/:id/close — подведение итогов", 
     await runnerWs.waitFor("message:new", newMessageFrom(SYSTEM_BOT_ID, `🏆 Вы выиграли аукцион: теперь ваш юзернейм @${name}. Списано 40 ⭐.`), WAIT);
     expect(await starsBalance(leader)).toBe(50);
     expect(await starsBalance(runnerUp)).toBe(60);
-    expect((await sessionUser(runnerUp)).username).toBe(name);
+    expect((await sessionUser(runnerUp)).username).not.toBe(name);
+    expect((await runnerUp.api.get("/api/usernames/mine")).body.usernames.some((item: { username: string }) => item.username === name)).toBe(true);
   });
 
   test("никто не смог оплатить — unsold, звёзды не тронуты", async () => {
@@ -405,7 +408,8 @@ describe("DELETE /api/usernames/:id", () => {
     await bid(winner, auction.id, 10);
     await close(auction.id);
     expectOk(await adm.api.delete(`/api/usernames/${auction.id}`), okBody);
-    expect((await sessionUser(winner)).username).toBe(name);
+    expect((await sessionUser(winner)).username).not.toBe(name);
+    expect((await winner.api.get("/api/usernames/mine")).body.usernames.some((item: { username: string }) => item.username === name)).toBe(true);
     expect(await starsBalance(winner)).toBe(0);
   });
 });
@@ -438,7 +442,7 @@ describe("POST /api/usernames/grant", () => {
     await targetWs.waitFor("message:new", newMessageFrom(SYSTEM_BOT_ID, `Администрация Shalter выдала вам юзернейм @${name}.`), WAIT);
     await outsiderWs.expectNone("message:new", newMessageFrom(SYSTEM_BOT_ID));
     expect((await sessionUser(target)).username).toBe(name);
-    await renameTo(outsider, target.username);
+    expectError(await outsider.api.patch(`/api/users/${outsider.id}`, { username: target.username }), 409, "Этот юзернейм уже занят");
   });
 
   test("по id; свой текущий юзернейм выдать можно; звёзды не списываются", async () => {

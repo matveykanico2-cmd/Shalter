@@ -47,3 +47,6 @@ export const listingView = listing.extend({ seller: publicUser, mine: z.boolean(
 export const marketBody = z.strictObject({ listings: z.array(listingView), owned: z.array(listing), balance: z.number() });
 export const listingBody = z.strictObject({ listing });
 export const marketBuyBody = z.strictObject({ ok: z.literal(true), username: z.string(), user: publicUser, balance: z.number() });
+
+export const ownedUsername = z.strictObject({ username: z.string(), primary: z.boolean(), pinned: z.boolean(), createdAt: isoDate.optional() });
+export const ownedUsernamesBody = z.strictObject({ usernames: z.array(ownedUsername) });

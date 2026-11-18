@@ -189,16 +189,23 @@ async function findUserByPhone(phone) {
 async function findUserByUsername(username) {
   const normalized = (username ?? "").trim().toLowerCase();
   if (!normalized) return undefined;
-  return rowToUser(db.prepare("SELECT * FROM users WHERE lower(username) = ? AND username <> ''").get(normalized));
+  const row = db.prepare("SELECT * FROM users WHERE lower(username) = ? AND username <> ''").get(normalized);
+  if (row) return rowToUser(row);
+  const alias = db.prepare("SELECT userId FROM username_aliases WHERE lower(username) = ?").get(normalized);
+  return alias ? rowToUser(db.prepare("SELECT * FROM users WHERE id = ?").get(alias.userId)) : undefined;
 }
 
 function findUserIdsByUsernames(usernames) {
   const list = [...new Set((usernames ?? []).map((u) => String(u ?? "").trim().toLowerCase()).filter(Boolean))];
   if (!list.length) return [];
   const holes = list.map(() => "?").join(",");
-  return db
+  const primary = db
     .prepare(`SELECT id, username FROM users WHERE lower(username) IN (${holes}) AND username <> ''`)
     .all(...list);
+  const aliases = db
+    .prepare(`SELECT userId AS id, username FROM username_aliases WHERE lower(username) IN (${holes})`)
+    .all(...list);
+  return [...primary, ...aliases];
 }
 
 async function findUserByReferralCode(code) {

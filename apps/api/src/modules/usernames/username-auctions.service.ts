@@ -100,7 +100,14 @@ export class UsernameAuctionsService {
     const problem = await checkUsername(username, { forUserId: target.id, ignoreAuctions: true });
     if (problem) throw new ApiError(problem.status, problem.error);
 
-    const updated = this.users.setUsername(target.id, username)!;
+    const targetUser = this.users.findById(target.id);
+    let updated: ReturnType<UsersRepository["findById"]>;
+    if (!targetUser?.username) updated = this.users.setUsername(target.id, username)!;
+    else if (targetUser.username.toLowerCase() === username.toLowerCase()) updated = targetUser;
+    else {
+      if (!this.users.listUsernames(target.id, targetUser.username).some((item) => item.username.toLowerCase() === username.toLowerCase())) this.users.addUsername(target.id, username, true);
+      updated = this.users.setPrimaryUsername(target.id, username)!;
+    }
     await tell(target.id, `Администрация Shalter выдала вам юзернейм @${username}.`);
     // Выдача важнее аукциона: открытый аукцион на этот юзернейм отменяется сразу,
     // а не висит до конца, принимая ставки на уже занятое имя.
@@ -162,7 +169,9 @@ export class UsernameAuctionsService {
         );
         continue;
       }
-      this.users.setUsername(bidder.id, auction.username, auction.id);
+      const bidderUser = this.users.findById(bidder.id);
+      if (bidderUser?.username) this.users.addUsername(bidder.id, auction.username, true);
+      else this.users.setUsername(bidder.id, auction.username, auction.id);
       await tell(bid.userId, `🏆 Вы выиграли аукцион: теперь ваш юзернейм @${auction.username}. Списано ${bid.stars} ⭐.`);
       return this.auctions.settle(auction.id, { status: "sold", winnerId: bidder.id, soldForStars: bid.stars });
     }

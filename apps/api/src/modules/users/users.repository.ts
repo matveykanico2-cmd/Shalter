@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { and, desc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
-import { users } from "../db/schema.js";
+import { usernameAliases, users } from "../db/schema.js";
 import { banActive, FOREVER, toUser, type GiftEntry } from "./lib/user.mapper.js";
 import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, ProfileTrack, StatusEntry, StatusState, User, UserPatch } from "./model/domain.js";
 
@@ -55,7 +55,7 @@ export class UsersRepository {
     if (!q) return [];
     const like = `%${q.replace(/[%_]/g, (m) => "\\" + m)}%`;
     const now = new Date().toISOString();
-    return this.db
+    const primaryRows = this.db
       .select()
       .from(users)
       .where(
@@ -63,19 +63,34 @@ export class UsersRepository {
           AND NOT (COALESCE(${users.isBanned}, 0) = 1 AND (${users.bannedUntil} IS NULL OR ${users.bannedUntil} > ${now}))`
       )
       .limit(limit * 3)
+      .all();
+    const aliasIds = this.db
+      .select({ userId: usernameAliases.userId })
+      .from(usernameAliases)
+      .where(sql`LOWER(${usernameAliases.username}) LIKE ${like} ESCAPE '\\'`)
+      .limit(limit * 3)
       .all()
-      .map(toUser);
+      .map((row) => row.userId);
+    const usersById = new Map(primaryRows.map((row) => [row.id, toUser(row)]));
+    for (const user of this.findByIds(aliasIds)) usersById.set(user.id, user);
+    return [...usersById.values()].slice(0, limit * 3);
   }
 
   /** id и ник тех, чей ник (без учёта регистра) есть в списке — для упоминаний @ник. */
   public findIdsByUsernames(usernames: string[]): { id: string; username: string | null }[] {
     const list = [...new Set(usernames.map((u) => String(u ?? "").trim().toLowerCase()).filter(Boolean))];
     if (!list.length) return [];
-    return this.db
+    const primary = this.db
       .select({ id: users.id, username: users.username })
       .from(users)
       .where(and(inArray(sql`lower(${users.username})`, list), ne(users.username, "")))
       .all();
+    const aliases = this.db
+      .select({ id: usernameAliases.userId, username: usernameAliases.username })
+      .from(usernameAliases)
+      .where(inArray(sql`lower(${usernameAliases.username})`, list))
+      .all();
+    return [...primary, ...aliases];
   }
 
   /** По нику без учёта регистра; пустой ник — никого. */
@@ -87,7 +102,47 @@ export class UsersRepository {
       .from(users)
       .where(and(sql`lower(${users.username}) = ${normalized}`, ne(users.username, "")))
       .get();
-    return row && toUser(row);
+    if (row) return toUser(row);
+    const alias = this.db.select({ userId: usernameAliases.userId }).from(usernameAliases).where(sql`lower(${usernameAliases.username}) = ${normalized}`).get();
+    return alias ? this.findById(alias.userId) : undefined;
+  }
+
+  public listUsernames(userId: string, primary: string | null | undefined): { username: string; primary: boolean; pinned: boolean; createdAt?: string }[] {
+    const aliases = this.db
+      .select()
+      .from(usernameAliases)
+      .where(eq(usernameAliases.userId, userId))
+      .orderBy(sql`${usernameAliases.pinned} DESC`, sql`${usernameAliases.createdAt} ASC`)
+      .all();
+    const result = primary ? [{ username: primary, primary: true, pinned: true }] : [];
+    return result.concat(aliases.filter((a) => a.username.toLowerCase() !== (primary ?? "").toLowerCase()).map((a) => ({ username: a.username, primary: false, pinned: !!a.pinned, createdAt: a.createdAt })));
+  }
+
+  public addUsername(userId: string, username: string, pinned = false): void {
+    this.db.insert(usernameAliases).values({ username, userId, pinned: pinned ? 1 : 0, createdAt: new Date().toISOString() }).run();
+  }
+
+  public removeUsername(username: string): void {
+    this.db.delete(usernameAliases).where(eq(usernameAliases.username, username)).run();
+  }
+
+  public setUsernamePinned(userId: string, username: string, pinned: boolean): void {
+    this.db.update(usernameAliases).set({ pinned: pinned ? 1 : 0 }).where(and(eq(usernameAliases.userId, userId), eq(usernameAliases.username, username))).run();
+  }
+
+  public setPrimaryUsername(id: string, username: string): User | undefined {
+    const current = this.findById(id);
+    if (!current) return undefined;
+    const alias = this.db.select().from(usernameAliases).where(and(eq(usernameAliases.userId, id), sql`lower(${usernameAliases.username}) = ${username.toLowerCase()}`)).get();
+    if (!alias && current.username.toLowerCase() !== username.toLowerCase()) return undefined;
+    this.db.transaction(() => {
+      if (current.username && current.username.toLowerCase() !== username.toLowerCase()) {
+        this.db.insert(usernameAliases).values({ username: current.username, userId: id, pinned: 1, createdAt: new Date().toISOString() }).onConflictDoNothing().run();
+      }
+      this.db.delete(usernameAliases).where(and(eq(usernameAliases.userId, id), sql`lower(${usernameAliases.username}) = ${username.toLowerCase()}`)).run();
+      this.db.update(users).set({ username, usernameAuctionId: null }).where(eq(users.id, id)).run();
+    });
+    return this.findById(id);
   }
 
   public findByEmail(email: string): User | undefined {

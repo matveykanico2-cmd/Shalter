@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { votePoll } from "./message-edits.js";
+import { retractPollVote, votePoll } from "./message-edits.js";
 
 describe("многошаговые опросы", () => {
   it("сохраняет ответ на первый вопрос внутри questions после ответа сервера", () => {
@@ -36,5 +36,26 @@ describe("многошаговые опросы", () => {
     expect(poll.questions[0]?.voterIds).toEqual([[], ["u_me"]]);
     expect(poll.questions[0]?.votes).toEqual([0, 1]);
     expect(poll.questions[1]?.votes).toEqual([0, 0]);
+  });
+
+  it("отменяет голос только в указанном вопросе", () => {
+    const message = {
+      attachments: [{
+        kind: "poll",
+        meta: {
+          questions: [
+            { question: "Первый", options: ["Да", "Нет"], voterIds: [["u_me"], []], votes: [1, 0] },
+            { question: "Второй", options: ["А", "Б"], voterIds: [[], ["u_me"]], votes: [0, 1] },
+          ],
+        },
+      }],
+    } as never;
+
+    const next = retractPollVote(message, "u_me", 1);
+    const questions = (next.attachments?.[0] as { meta: { questions: Array<{ voterIds?: string[][]; votes?: number[] }> } }).meta.questions;
+    expect(questions[0]?.voterIds).toEqual([["u_me"], []]);
+    expect(questions[0]?.votes).toEqual([1, 0]);
+    expect(questions[1]?.voterIds).toEqual([[], []]);
+    expect(questions[1]?.votes).toEqual([0, 0]);
   });
 });

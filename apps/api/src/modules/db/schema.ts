@@ -75,6 +75,13 @@ export const users = sqliteTable("users", {
   profileDefaultTab: text(),
 });
 
+export const usernameAliases = sqliteTable("username_aliases", {
+  username: text().primaryKey(),
+  userId: text().notNull(),
+  pinned: integer().default(0).notNull(),
+  createdAt: text().notNull(),
+});
+
 export const chats = sqliteTable("chats", {
   id: text().primaryKey(),
   type: text().notNull(),

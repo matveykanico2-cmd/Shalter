@@ -114,9 +114,24 @@ export function votePoll(m: Message, optionIndex: unknown, userId: string, quest
 }
 
 /** Отзыв голоса; в закрытом опросе и викторине — без изменений. */
-export function retractPollVote(m: Message, userId: string): Message {
+export function retractPollVote(m: Message, userId: string, questionIndex: unknown = 0): Message {
   const attachments = m.attachments?.map((a) => {
-    if (a.kind !== "poll" || a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now()) || Number.isInteger(a.meta?.correctIndex)) return a;
+    if (a.kind !== "poll" || a.meta?.closed || (a.meta?.closesAt && Date.parse(String(a.meta.closesAt)) <= Date.now())) return a;
+    if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && (questionIndex as number) >= 0) {
+      const questions = (a.meta.questions as Array<{ question: string; options: string[]; voterIds?: string[][]; votes?: number[]; correctIndex?: number | null }>).map((q) => ({
+        ...q,
+        voterIds: (q.voterIds ?? q.options.map(() => [] as string[])).map((ids) => [...ids]),
+        votes: [...(q.votes ?? [])],
+      }));
+      const index = questionIndex as number;
+      const q = questions[index];
+      if (!q || Number.isInteger(q.correctIndex)) return a;
+      q.voterIds = q.voterIds.map((ids) => ids.filter((v) => v !== userId));
+      q.votes = q.voterIds.map((ids) => ids.length);
+      questions[index] = q;
+      return { ...a, meta: { ...a.meta, questions } };
+    }
+    if (Number.isInteger(a.meta?.correctIndex)) return a;
     const voterIds = ((a.meta?.voterIds ?? []) as (string[] | null)[]).map((ids) => (ids ?? []).filter((v) => v !== userId));
     return { ...a, meta: { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) } };
   });

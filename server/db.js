@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 
+-- Дополнительные юзернеймы аккаунта. Основной по-прежнему хранится в users.username
+-- для совместимости со старым API, здесь лежат только дополнительные.
+CREATE TABLE IF NOT EXISTS username_aliases (
+  username TEXT PRIMARY KEY COLLATE NOCASE,
+  userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_username_aliases_user ON username_aliases(userId);
+
 CREATE TABLE IF NOT EXISTS chats (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -602,6 +612,7 @@ db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(refe
 try {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE) WHERE username <> ''");
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_username_lower ON users(lower(username))");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_username_aliases_lower ON username_aliases(lower(username))");
 } catch (err) {
   console.error("Could not create unique username index (likely pre-existing duplicate usernames):", err.message);
 }

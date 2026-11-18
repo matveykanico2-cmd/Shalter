@@ -86,6 +86,26 @@ describe("опросы", () => {
     expect(meta.votes).toEqual([1, 0, 1]);
   });
 
+  test("много вопросов: отмена действует только на выбранный вопрос", async () => {
+    const { baseUrl } = server();
+    const [a, b] = await registerUsers(baseUrl, 2);
+    const group = await createGroup(a, [b]);
+    const m = await poll(a, group.id, {
+      options: ["первый да", "первый нет"],
+      questions: [
+        { question: "Первый", options: ["первый да", "первый нет"] },
+        { question: "Второй", options: ["второй да", "второй нет"] },
+      ],
+    });
+
+    await b.api.post(msgs(group.id, `/${m.id}/vote`), { optionIndex: 0, questionIndex: 0 });
+    await b.api.post(msgs(group.id, `/${m.id}/vote`), { optionIndex: 1, questionIndex: 1 });
+    const retracted = expectOk(await b.api.delete(msgs(group.id, `/${m.id}/vote`), { questionIndex: 1 }), messageEnvelope).message;
+    const meta = pollOf(retracted);
+    expect(meta.questions?.[0]).toMatchObject({ voterIds: [[b.id], []], votes: [1, 0] });
+    expect(meta.questions?.[1]).toMatchObject({ voterIds: [[], []], votes: [0, 0] });
+  });
+
   test("викторина: голос один раз, отозвать нельзя", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);

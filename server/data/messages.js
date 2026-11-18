@@ -566,10 +566,24 @@ function addChecklistItems(id, texts, max) {
   }));
 }
 
-function retractPollVote(id, userId) {
+function retractPollVote(id, userId, questionIndex = 0) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
-      if (a.kind !== "poll" || a.meta?.closed || Number.isInteger(a.meta?.correctIndex)) return a;
+      if (a.kind !== "poll" || a.meta?.closed) return a;
+      if (Array.isArray(a.meta?.questions) && Number.isInteger(questionIndex) && questionIndex >= 0) {
+        const questions = a.meta.questions.map((q) => ({
+          ...q,
+          voterIds: (q.voterIds ?? q.options.map(() => [])).map((ids) => [...ids]),
+          votes: [...(q.votes ?? [])],
+        }));
+        const q = questions[questionIndex];
+        if (!q || Number.isInteger(q.correctIndex)) return a;
+        q.voterIds = q.voterIds.map((ids) => ids.filter((v) => v !== userId));
+        q.votes = q.voterIds.map((ids) => ids.length);
+        questions[questionIndex] = q;
+        return { ...a, meta: { ...a.meta, questions } };
+      }
+      if (Number.isInteger(a.meta?.correctIndex)) return a;
       const voterIds = (a.meta?.voterIds ?? []).map((ids) => (ids ?? []).filter((v) => v !== userId));
       return { ...a, meta: { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) } };
     });

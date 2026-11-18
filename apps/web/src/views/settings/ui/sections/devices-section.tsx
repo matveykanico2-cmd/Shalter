@@ -217,8 +217,11 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
 
   useEffect(() => {
     if (mode !== "scan") return;
-    void startCamera();
-    return stopCamera;
+    const timer = window.setTimeout(() => void startCamera(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      stopCamera();
+    };
   }, [mode, startCamera, stopCamera]);
 
   const confirmManual = async () => {

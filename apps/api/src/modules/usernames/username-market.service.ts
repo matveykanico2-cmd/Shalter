@@ -36,7 +36,7 @@ export class UsernameMarketService {
     const alive = [];
     for (const l of this.listings.listOpen()) {
       const seller = this.users.findById(l.sellerId);
-      if (!seller || (seller.username ?? "").toLowerCase() !== l.username.toLowerCase()) {
+      if (!seller || !this.users.listUsernames(seller.id, seller.username).some((item) => item.username.toLowerCase() === l.username.toLowerCase())) {
         this.listings.close(l.id, "withdrawn");
         continue;
       }
@@ -45,10 +45,12 @@ export class UsernameMarketService {
     return { listings: alive, owned: this.listings.listOwned(userId), balance: this.stars.balanceOf(userId) };
   }
 
-  public create(userId: string, { priceStars }: ListingDto) {
-    const username = normalizeUsername(this.users.findById(userId)?.username);
+  public create(userId: string, { priceStars, username: requestedUsername }: ListingDto) {
+    const owner = this.users.findById(userId);
+    const owned = owner ? this.users.listUsernames(userId, owner.username) : [];
+    const username = normalizeUsername(requestedUsername || owner?.username);
     if (!username) throw new ApiError(400, "Сначала займите юзернейм — продавать нечего");
-
+    if (!owned.some((item) => item.username.toLowerCase() === username.toLowerCase())) throw new ApiError(403, "Этот юзернейм вам не принадлежит");
     if (!Number.isFinite(priceStars) || priceStars < MIN_LISTING_STARS) throw new ApiError(400, `Цена — от ${MIN_LISTING_STARS} ⭐`);
     if (this.listings.findOpenByUsername(username)) throw new ApiError(409, "Этот юзернейм уже выставлен");
     if (this.auctions.findOpenByUsername(username)) throw new ApiError(409, "Этот юзернейм сейчас на аукционе");
@@ -69,13 +71,18 @@ export class UsernameMarketService {
     if (listing.sellerId === userId) throw new ApiError(400, "Это ваше объявление");
 
     const seller = this.users.findById(listing.sellerId);
-    if (!seller || (seller.username ?? "").toLowerCase() !== listing.username.toLowerCase()) {
+    if (!seller || !this.users.listUsernames(seller.id, seller.username).some((item) => item.username.toLowerCase() === listing.username.toLowerCase())) {
       this.listings.close(listing.id, "withdrawn");
       throw new ApiError(410, "Продавец больше не владеет этим юзернеймом");
     }
     // Подбираем замену до списания звёзд: после оплаты продавец не должен остаться
     // без адреса даже при редкой коллизии генератора.
-    const replacement = await temporaryUsername();
+    const sellerOwned = this.users.listUsernames(listing.sellerId, seller?.username);
+    if (seller?.username?.toLowerCase() === listing.username.toLowerCase()) {
+      const replacement = sellerOwned.find((item) => item.username.toLowerCase() !== listing.username.toLowerCase());
+      if (replacement) this.users.setPrimaryUsername(seller.id, replacement.username);
+      else this.users.setUsername(seller.id, await temporaryUsername());
+    }
     // Списание и закрытие объявления — без await между ними: иначе два одновременных
     // запроса получали юзернейм оба или бесплатно.
     if (!this.stars.spend(userId, listing.priceStars)) throw new ApiError(402, `Не хватает звёзд: нужно ${listing.priceStars} ⭐`);
@@ -86,14 +93,17 @@ export class UsernameMarketService {
     this.listings.close(listing.id, "sold", userId);
     this.stars.add(seller.id, listing.priceStars);
 
-    this.users.setUsername(seller.id, replacement);
-    // id продажи отмечает имя как коллекционное; сама запись продажи навсегда
-    // закрепляет его за текущим покупателем и закрывает обход через профиль.
-    const buyer = this.users.setUsername(userId, listing.username, listing.id)!;
+    this.users.removeUsername(listing.username);
+    // id продажи отмечает имя как коллекционное; оно добавляется к аккаунту покупателя,
+    // не затирая его текущий основной юзернейм.
+    if (!this.users.listUsernames(userId, this.users.findById(userId)?.username).some((item) => item.username.toLowerCase() === listing.username.toLowerCase())) {
+      this.users.addUsername(userId, listing.username, true);
+    }
+    const buyer = this.users.findById(userId)!;
 
     await tell(
       seller.id,
-      `💰 Ваш юзернейм @${listing.username} продан за ${listing.priceStars} ⭐.\n\nВам выдан временный @${replacement}. Измените его в Настройки → Профиль. Проданный юзернейм автоматически не возвращается.`,
+      `💰 Ваш юзернейм @${listing.username} продан за ${listing.priceStars} ⭐.`,
       "username sale notice"
     );
     await tell(userId, `🎉 Юзернейм @${listing.username} теперь ваш — списано ${listing.priceStars} ⭐.`, "username sale notice");
@@ -112,11 +122,18 @@ export class UsernameMarketService {
     if (recipient.isBot) throw new ApiError(400, "Передать юзернейм боту нельзя");
 
     const owner = this.users.findById(userId);
+    const ownerNames = this.users.listUsernames(userId, owner?.username);
     if (owner?.username?.toLowerCase() === listing.username.toLowerCase()) {
-      this.users.setUsername(userId, await temporaryUsername());
+      const replacement = ownerNames.find((item) => item.username.toLowerCase() !== listing.username.toLowerCase());
+      if (replacement) this.users.setPrimaryUsername(userId, replacement.username);
+      else this.users.setUsername(userId, await temporaryUsername());
     }
+    this.users.removeUsername(listing.username);
     const previous = recipient.username || "";
-    const updated = this.users.setUsername(recipient.id, listing.username, listing.id)!;
+    if (!this.users.listUsernames(recipient.id, recipient.username).some((item) => item.username.toLowerCase() === listing.username.toLowerCase())) {
+      this.users.addUsername(recipient.id, listing.username, true);
+    }
+    const updated = this.users.findById(recipient.id)!;
     this.listings.transferBuyer(listing.id, recipient.id);
     await tell(recipient.id, `🎁 Вам передали коллекционный юзернейм @${listing.username}. Прежний @${previous || "—"} освобождён.`, "username transfer notice");
     await tell(userId, `✅ Вы передали @${listing.username} пользователю ${recipient.name}. Вернуть его можно только новой передачей владельца.`, "username transfer notice");

@@ -1,8 +1,8 @@
 import { type ReactNode, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 
-import { Icon } from "./icon";
 import styles from "./dialog.module.css";
+import { Icon } from "./icon";
 
 type Props = {
   title: string;

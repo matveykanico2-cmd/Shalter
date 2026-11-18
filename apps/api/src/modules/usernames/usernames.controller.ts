@@ -13,9 +13,12 @@ import {
   type ListingDto,
   transferListingSchema,
   type TransferListingDto,
+  usernameActionSchema,
+  type UsernameActionDto,
 } from "./model/schemas/usernames.schema.js";
 import { UsernameAuctionsService } from "./username-auctions.service.js";
 import { UsernameMarketService } from "./username-market.service.js";
+import { UsernameAccountService } from "./username-account.service.js";
 
 // Рынок ников — раньше аукционов: market и grant — статические пути рядом с /:id.
 @Controller("api/usernames/market")
@@ -94,4 +97,25 @@ export class UsernameAuctionsController {
   public remove(@Req() req: Request, @Param("id") id: string) {
     return this.auctions.remove(req.uid!, id);
   }
+}
+
+@Controller("api/usernames/mine")
+@UseGuards(AuthGuard)
+export class UsernameAccountController {
+  public constructor(private readonly account: UsernameAccountService) {}
+
+  @Get()
+  public mine(@Req() req: Request) { return this.account.mine(req.uid!); }
+
+  @Post("add")
+  @HttpCode(200)
+  public add(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.add(req.uid!, dto); }
+
+  @Post("primary")
+  @HttpCode(200)
+  public primary(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.primary(req.uid!, dto); }
+
+  @Post("pin")
+  @HttpCode(200)
+  public pin(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.pin(req.uid!, dto); }
 }

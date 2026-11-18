@@ -231,9 +231,17 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         await applyServer(votePoll(chatId, m.id, optionIndex, questionIndex), "Не удалось проголосовать");
       },
 
-      async retractVote(m: Message) {
-        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => applyVote(meta, null, me.id)));
-        await applyServer(retractVote(chatId, m.id), "Не удалось отменить голос");
+      async retractVote(m: Message, questionIndex = 0) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => {
+          if (!meta.questions?.length) return applyVote(meta, null, me.id);
+          const questions = meta.questions.map((q) => ({ ...q }));
+          const current = questions[questionIndex];
+          if (!current) return meta;
+          const next = applyVote({ ...meta, ...current, questions: undefined }, null, me.id);
+          questions[questionIndex] = { ...current, voterIds: next.voterIds, votes: next.votes };
+          return { ...meta, questions };
+        }));
+        await applyServer(retractVote(chatId, m.id, questionIndex), "Не удалось отменить голос");
       },
 
       async closePoll(m: Message) {

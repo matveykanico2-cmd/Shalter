@@ -106,6 +106,9 @@ export type ReactDto = z.infer<typeof reactSchema>;
 export const voteSchema = requestBody({ optionIndex: raw(), questionIndex: raw() });
 export type VoteDto = z.infer<typeof voteSchema>;
 
+export const retractVoteSchema = requestBody({ questionIndex: raw() });
+export type RetractVoteDto = z.infer<typeof retractVoteSchema>;
+
 /** add — новые пункты (непустые, до 200 символов; не список — отметка пункта itemId). */
 export const checklistSchema = requestBody({
   add: z

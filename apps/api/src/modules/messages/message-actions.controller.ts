@@ -10,12 +10,14 @@ import {
   editMessageSchema,
   pinSchema,
   reactSchema,
+  retractVoteSchema,
   voteSchema,
   type ChecklistDto,
   type DeleteMessageDto,
   type EditMessageDto,
   type PinDto,
   type ReactDto,
+  type RetractVoteDto,
   type VoteDto,
 } from "./model/schemas/message.schema.js";
 
@@ -55,8 +57,8 @@ export class MessageActionsController {
   }
 
   @Delete("vote")
-  public retractVote(@Req() req: Request, @Param("id") chatId: string, @Param("messageId") messageId: string) {
-    return this.actions.retractVote(req.uid!, chatId, messageId);
+  public retractVote(@Req() req: Request, @Param("id") chatId: string, @Param("messageId") messageId: string, @Body(new ZodValidationPipe(retractVoteSchema)) dto: RetractVoteDto) {
+    return this.actions.retractVote(req.uid!, chatId, messageId, dto);
   }
 
   @Post("checklist")

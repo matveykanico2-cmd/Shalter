@@ -46,15 +46,15 @@ async function checkUsername(raw, { forUserId, forChatId, ignoreAuctions = false
   }
 
   const [existingUser, existingChat] = await Promise.all([findUserByUsername(username), findChatByUsername(username)]);
+  const purchasedOwner = purchasedUsernameOwner(username);
+  if (purchasedOwner && purchasedOwner !== forUserId) {
+    return { status: 409, error: "Купленный юзернейм закреплён за владельцем и может перейти только через продажу" };
+  }
   if (existingUser && existingUser.id !== forUserId) {
     return { status: 409, error: "Этот юзернейм уже занят" };
   }
   if (existingChat && existingChat.id !== forChatId) {
     return { status: 409, error: "Этот юзернейм уже занят каналом" };
-  }
-  const purchasedOwner = purchasedUsernameOwner(username);
-  if (purchasedOwner && purchasedOwner !== forUserId) {
-    return { status: 409, error: "Купленный юзернейм закреплён за владельцем и может перейти только через продажу" };
   }
   // Свой текущий юзернейм (или юзернейм своего канала) оставить можно.
   const ownsIt = (existingUser && existingUser.id === forUserId) || (existingChat && existingChat.id === forChatId);

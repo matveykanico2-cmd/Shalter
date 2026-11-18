@@ -191,8 +191,8 @@ export class MessageActionsService {
     return this.update(uid, chatId, messageId, (m) => edits.votePoll(m, dto.optionIndex, uid, dto.questionIndex));
   }
 
-  public retractVote(uid: string, chatId: string, messageId: string) {
-    return this.update(uid, chatId, messageId, (m) => edits.retractPollVote(m, uid));
+  public retractVote(uid: string, chatId: string, messageId: string, dto: { questionIndex?: unknown } = {}) {
+    return this.update(uid, chatId, messageId, (m) => edits.retractPollVote(m, uid, dto.questionIndex));
   }
 
   /** Остановить опрос может его автор или администратор. */

@@ -34,12 +34,16 @@ export const grantSchema = requestBody({ phone: raw(), userId: raw(), username: 
 export type GrantDto = z.infer<typeof grantSchema>;
 
 export const listingSchema = requestBody({
+  username: z.string().trim().min(3).max(32).optional(),
   priceStars: z
     .unknown()
     .optional()
     .transform((v) => Math.round(Number(v))),
 });
 export type ListingDto = z.infer<typeof listingSchema>;
+
+export const usernameActionSchema = requestBody({ username: z.string().trim().min(3).max(32), pinned: z.boolean().optional() });
+export type UsernameActionDto = z.infer<typeof usernameActionSchema>;
 
 export const transferListingSchema = requestBody({ target: z.string().trim().min(1).max(100) });
 export type TransferListingDto = z.infer<typeof transferListingSchema>;

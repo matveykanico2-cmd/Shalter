@@ -17,7 +17,9 @@ import {
   createAuction,
   deleteAuction,
   grantUsername,
+  pinUsername,
   sellUsername,
+  setPrimaryUsername,
   transferUsername,
   usernamesQueries,
   withdrawListing,
@@ -49,6 +51,7 @@ export function UsernamesSection() {
   const client = useQueryClient();
   const auctions = useQuery(usernamesQueries.auctions());
   const market = useQuery(usernamesQueries.market());
+  const mine = useQuery(usernamesQueries.mine());
   const session = useQuery(sessionQueries.current());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -72,6 +75,7 @@ export function UsernamesSection() {
       await Promise.all([
         client.refetchQueries({ queryKey: usernamesQueries.auctions().queryKey }),
         client.refetchQueries({ queryKey: usernamesQueries.market().queryKey }),
+        client.refetchQueries({ queryKey: usernamesQueries.mine().queryKey }),
       ]);
       void client.invalidateQueries({ queryKey: sessionQueries.current().queryKey });
       void client.invalidateQueries({ queryKey: starsQueries.info().queryKey });
@@ -92,6 +96,7 @@ export function UsernamesSection() {
   const listings = market.data?.listings ?? [];
   const owned = market.data?.owned ?? [];
   const balance = market.data?.balance ?? 0;
+  const myUsernames = mine.data?.usernames ?? [];
   const open = data.auctions.filter((a) => a.status === "open");
   const done = data.auctions.filter((a) => a.status !== "open");
 
@@ -104,6 +109,20 @@ export function UsernamesSection() {
       ) : null}
       {error ? <p className={styles.error}>{error}</p> : null}
       <Hint inset text={`На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`} />
+
+      <Block title="Мои юзернеймы">
+        <p className={styles.hint}>Основной юзернейм показывается в профиле. Остальные можно закрепить и переключать в любой момент.</p>
+        {myUsernames.length ? myUsernames.map((item) => (
+          <div key={item.username} className={styles.card}>
+            <div className={styles.head}><span className={styles.name}>@{item.username}</span><span className={styles.badges}>{item.primary ? <span className={styles.activeBadge}>Основной</span> : null}{item.pinned ? <span className={styles.badge}>Закреплён</span> : null}</span></div>
+            <div className={styles.row}>
+              {!item.primary ? <Button variant="secondary" disabled={busy} onClick={() => void act(() => setPrimaryUsername(item.username), `@${item.username} теперь основной`)}>Сделать основным</Button> : null}
+              {!item.primary ? <Button variant="link" disabled={busy} onClick={() => void act(() => pinUsername(item.username, !item.pinned), item.pinned ? `@${item.username} откреплён` : `@${item.username} закреплён`)}>{item.pinned ? "Открепить" : "Закрепить"}</Button> : null}
+              <Button variant="link" disabled={busy} onClick={() => void askText("Цена продажи в звёздах", { placeholder: "Минимум 10" }).then((value) => { const price = Number(value); if (Number.isFinite(price) && price >= 10) void act(() => sellUsername(price, item.username), "Юзернейм выставлен на продажу"); })}>Продать</Button>
+            </div>
+          </div>
+        )) : <p className={styles.empty}>Юзернеймов пока нет</p>}
+      </Block>
 
       <Block title="Рынок юзернеймов">
         <p className={styles.hint}>Хендлы, которые продают их владельцы. Покупка мгновенная: звёзды уходят продавцу, юзернейм — вам.</p>
@@ -132,7 +151,7 @@ export function UsernamesSection() {
           <p className={styles.empty}>Пока никто ничего не продаёт</p>
         )}
         <p className={styles.blockTitle}>Продать свой</p>
-        <p className={styles.hint}>Продаётся тот юзернейм, который на вас сейчас. После покупки он перейдёт покупателю, а вы сможете занять новый.</p>
+        <p className={styles.hint}>Можно продавать любой дополнительный юзернейм. Основной сначала переключите на другой.</p>
         <div className={styles.row}>
           <TextField className={styles.mono} type="number" min="10" placeholder="Цена, ⭐" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} />
           <Button disabled={busy} onClick={() => void act(() => sellUsername(Number(sellPrice)), "Объявление размещено")}>
