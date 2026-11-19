@@ -17,7 +17,7 @@
   bottom: 0;
   box-sizing: border-box;
   display: flex;
-  width: min(400px, 100vw);
+  width: min(440px, 100vw);
   height: 100vh;
   height: 100dvh;
   min-width: 0;
@@ -27,6 +27,12 @@
   z-index: 1;
   background: var(--color-surface);
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);
+}
+
+/* Комментарии канала — отдельный экран-чатйк, а не маленькая карточка сбоку. */
+.channelCommentsPanel {
+  width: 100vw;
+  box-shadow: none;
 }
 
 /* Выезд только при открытии: после него анимации нет — пересчёт стилей её не повторит. */
@@ -53,10 +59,12 @@
 
 .header h2 {
   margin: 0;
+  flex: 1;
   font-size: 17px;
   font-weight: 600;
 }
 
+.back,
 .close {
   display: flex;
   padding: 7px;
@@ -67,6 +75,7 @@
   cursor: pointer;
 }
 
+.back:hover,
 .close:hover {
   background: var(--color-surface-alt);
 }
@@ -87,7 +96,8 @@
 /* В комментариях канала сообщения должны доходить до краёв панели. Отступы
    обычной ветки оставляем: там они отделяют ответы от фона чата. */
 .commentsBody {
-  padding: 0;
+  padding: 8px;
+  gap: 8px;
 }
 
 /* Длинные ссылки/файлы не должны расширять панель комментариев вправо. */
@@ -156,7 +166,7 @@
 
 /* Поле ответа — общий Composer; по краю панели, как composer-slot в ветке старого клиента. */
 .composer {
-  padding: 10px 0 0;
+  padding: 10px 8px 0;
   border-top: 1px solid var(--color-border);
 }
 
@@ -170,6 +180,6 @@
   }
 
   .composer {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding: 10px 8px env(safe-area-inset-bottom, 0px);
   }
 }

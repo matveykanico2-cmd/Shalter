@@ -113,7 +113,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
       }}
     >
       <aside
-        className={entering ? `${styles.panel} ${styles.entering}` : styles.panel}
+        className={entering ? `${styles.panel} ${isComments ? styles.channelCommentsPanel : ""} ${styles.entering}` : `${styles.panel} ${isComments ? styles.channelCommentsPanel : ""}`}
         // Боковая панель (complementary), как thread-panel в старом клиенте.
         aria-label={title}
         data-thread=""
@@ -122,14 +122,24 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
         }}
       >
         <header className={styles.header}>
-          <h2>{title}</h2>
+          <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={onClose}>
+            <Icon name="ChevronLeft" size={20} />
+          </button>
+          <h2>{isComments ? `${chat.title ?? "Канал"} — комментарии` : title}</h2>
           <button type="button" className={styles.close} title="Закрыть" onClick={onClose}>
             <Icon name="X" size={18} />
           </button>
         </header>
         <div ref={body} className={isComments ? `${styles.body} ${styles.commentsBody}` : styles.body}>
           <div className={styles.root}>
-            <MessageBubble message={displayRoot} mine={displayRoot.senderId === me.id && !fromChannel(root)} sender={sender(root)} showSender meId={me.id} />
+            <MessageBubble
+              message={displayRoot}
+              mine={displayRoot.senderId === me.id && !fromChannel(root)}
+              sender={sender(root)}
+              showSender
+              showAvatar={isComments}
+              meId={me.id}
+            />
           </div>
           <p className={styles.label}>
             {isComments ? "Комментарии" : "Ответы"} ({replies.length})
