@@ -42,7 +42,7 @@ export const listingSchema = requestBody({
 });
 export type ListingDto = z.infer<typeof listingSchema>;
 
-export const usernameActionSchema = requestBody({ username: z.string().trim().min(3).max(32), pinned: z.boolean().optional() });
+export const usernameActionSchema = requestBody({ username: z.string().trim().min(3, "Юзернейм должен содержать минимум 3 символа").max(32, "Юзернейм должен содержать максимум 32 символа"), pinned: z.boolean().optional() });
 export type UsernameActionDto = z.infer<typeof usernameActionSchema>;
 
 export const transferListingSchema = requestBody({ target: z.string().trim().min(1).max(100) });

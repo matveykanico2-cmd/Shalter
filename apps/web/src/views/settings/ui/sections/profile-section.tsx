@@ -1,12 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { type CSSProperties, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AvatarViewer, TABS } from "@/widgets/user-profile";
 
-import { ProfileUsernames } from "@/features/usernames-market";
+import { ProfileUsernames, usernamesQueries } from "@/features/usernames-market";
 
 import { type SelfUser, useSession, useUpdateSelf } from "@/entities/session";
-import { bannerBackground, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
+import { bannerBackground, openUserProfile, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
 
 import { ApiError, uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
@@ -55,6 +56,12 @@ function Profile({ me }: { me: SelfUser }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [constructorOpen, setConstructorOpen] = useState(false);
+  const usernames = useQuery(usernamesQueries.mine()).data?.usernames ?? [];
+  const usernameLabel = usernames.length
+    ? usernames.slice().sort((a, b) => Number(b.primary) - Number(a.primary)).map((item) => `@${item.username}`).join(", ")
+    : me.username
+      ? `@${me.username}`
+      : "";
   const firstGalleryAvatar = me.avatarImages[0] as { poster?: unknown; url?: unknown } | undefined;
   // В старых профилях avatarImage мог быть пустым, хотя галерея уже сохранена.
   // Показываем первую запись галереи вместо буквенного fallback.
@@ -140,6 +147,19 @@ function Profile({ me }: { me: SelfUser }) {
       <ProfileEmojiAvatar me={me} />
 
       <ProfileUsernames />
+
+      <SettingsSection title="Предпросмотр профиля" caption="Так ваш профиль видят люди, которым разрешён просмотр.">
+        <div className={profileStyles.profilePreview}>
+          <Avatar name={me.name || "?"} color={me.avatarColor} image={profileAvatarImage} emoji={me.avatarEmoji} size={76} />
+          <p className={profileStyles.profilePreviewName}>{me.name || "Без имени"}</p>
+          <p className={profileStyles.profilePreviewStatus}>{me.isGuest ? "в сети · Гость" : "в сети"}</p>
+          {me.username ? (
+            <p className={`${profileStyles.profilePreviewUsernames} ${styles.mono}`}>{usernameLabel}</p>
+          ) : null}
+          {me.bio ? <p className={profileStyles.profilePreviewBio}>{me.bio}</p> : null}
+          <Button variant="secondary" onClick={() => openUserProfile(me.id)}>Открыть полный профиль</Button>
+        </div>
+      </SettingsSection>
 
       <SettingsSection title="Цвет аватара">
           <p className={`${styles.hint} ${profileStyles.pad}`}>Фон букв, смайла или стикера меняется отдельно и не сбрасывает содержимое аватара.</p>

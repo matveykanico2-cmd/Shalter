@@ -22,6 +22,8 @@ export function ProfileUsernames() {
   const usernames = mine.data?.usernames ?? [];
   const market = useQuery(usernamesQueries.market());
   const paidByName = new Map((market.data?.owned ?? []).map((item) => [item.username.toLowerCase(), item.priceStars]));
+  const normalizedNewUsername = newUsername.trim().replace(/^@/, "");
+  const newUsernameValid = /^[A-Za-z0-9_]{3,32}$/.test(normalizedNewUsername);
 
   const change = async (request: () => Promise<unknown>) => {
     if (busy) return;
@@ -59,8 +61,20 @@ export function ProfileUsernames() {
         </div>
       )) : <p className={styles.empty}>Дополнительных юзернеймов пока нет</p>}
       <div className={styles.addUsername}>
-        <TextField className={styles.mono} placeholder="новый юзернейм" value={newUsername} onChange={(e) => setNewUsername(e.target.value.replace(/^@/, ""))} />
-        <Button variant="secondary" disabled={busy || !newUsername.trim()} onClick={() => void change(() => addUsername(newUsername.trim()))}>Добавить свободный</Button>
+        <TextField className={styles.mono} placeholder="новый юзернейм" value={newUsername} onChange={(e) => { setError(null); setNewUsername(e.target.value.replace(/^@/, "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 32)); }} />
+        <Button
+          variant="secondary"
+          disabled={busy || !newUsernameValid}
+          onClick={() => {
+            if (!newUsernameValid) {
+              setError("Юзернейм должен содержать от 3 до 32 латинских символов, цифр или _");
+              return;
+            }
+            void change(() => addUsername(normalizedNewUsername));
+          }}
+        >
+          Добавить свободный
+        </Button>
       </div>
       <p className={styles.hint}>Свободное имя добавляется здесь. Купленные имена и их стоимость — в разделе рынка.</p>
       <Button variant="secondary" disabled={busy} onClick={() => void navigate("/settings/usernames")}>Открыть рынок юзернеймов</Button>

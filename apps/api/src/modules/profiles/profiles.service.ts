@@ -74,7 +74,12 @@ export class ProfilesService {
     const user = this.users.findByUsername(username);
     if (!user) throw new ApiError(404, "not found");
     const visible = this.privacy.publicUserFor(user, uid);
-    return { user: user.id === uid ? { ...visible, isSelf: true } : visible };
+    const usernamePrices = this.users.usernamePrices(user.id);
+    const usernames = this.users.listUsernames(user.id, user.username).map((item) => ({
+      ...item,
+      ...(usernamePrices.has(item.username.toLowerCase()) ? { priceStars: usernamePrices.get(item.username.toLowerCase()) } : {}),
+    }));
+    return { user: user.id === uid ? { ...visible, usernames, isSelf: true } : { ...visible, usernames } };
   }
 
   public async profile(uid: string, id: string) {

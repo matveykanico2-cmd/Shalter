@@ -27,6 +27,7 @@ import {
   sectionsSchema,
   statusItemSchema,
   verifySchema,
+  usernameSchema,
   type BanDto,
   type BulkDeleteDto,
   type DeleteUserDto,
@@ -45,6 +46,7 @@ import {
   type SectionsDto,
   type StatusItemDto,
   type VerifyDto,
+  type UsernameDto,
 } from "./model/schemas/admin.schema.js";
 
 @Controller("api/admin")
@@ -123,6 +125,12 @@ export class AdminController {
   @HttpCode(200)
   public developer(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(developerSchema)) dto: DeveloperDto) {
     return this.moderation.setDeveloper(req.uid!, id, dto);
+  }
+
+  @Post("users/:id/username")
+  @HttpCode(200)
+  public username(@Req() req: Request, @Param("id") id: string, @Body(new ZodValidationPipe(usernameSchema)) dto: UsernameDto) {
+    return this.moderation.setUsername(req.uid!, id, dto);
   }
 
   @Delete("bots/:userId")

@@ -24,6 +24,7 @@ import {
   setAdminSections,
   setBanned,
   setSafetyLabel,
+  setUsername,
   setVerified,
 } from "../api/admin";
 import { dateTime, downloadJson } from "../lib/format";
@@ -96,6 +97,7 @@ function UserCardBody({ initial, me, onClose, onChanged }: { initial: AdminUser;
   const [pending, setPending] = useState<Set<string>>(() => new Set(initial.adminSections ?? []));
   const [picking, setPicking] = useState(false);
   const [starsInput, setStarsInput] = useState("");
+  const [usernameInput, setUsernameInput] = useState(initial.username ?? "");
   const canGrantSections = !!me.isPrimaryAdmin;
   // Выдача покупок, звёзд и подарков — только полным админам (сервер проверяет телефон),
   // выгрузка данных — разделу «Запросы органов».
@@ -254,6 +256,29 @@ function UserCardBody({ initial, me, onClose, onChanged }: { initial: AdminUser;
             ))}
           </p>
         ) : null}
+
+        <p className={styles.cardSection}>Юзернейм</p>
+        <p className={styles.hint}>Изменение основного имени не удаляет дополнительные юзернеймы пользователя.</p>
+        <div className={styles.inline}>
+          <TextField
+            className={styles.mono}
+            value={usernameInput}
+            placeholder="новый юзернейм"
+            maxLength={32}
+            onChange={(e) => setUsernameInput(e.target.value.replace(/^@/, "").replace(/[^a-zA-Z0-9_]/g, ""))}
+          />
+          <button
+            type="button"
+            className={styles.pill}
+            disabled={busy || usernameInput.length < 3 || usernameInput === state.username}
+            onClick={() => void run(async () => {
+              const result = await setUsername(state.id, usernameInput);
+              return { patch: { username: result.user.username as string }, notice: "Основной юзернейм изменён — пользователь уведомлён." };
+            })}
+          >
+            Сохранить
+          </button>
+        </div>
 
         {canGrantPurchases ? (
           <>

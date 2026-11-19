@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { SYSTEM_BOT_ID } from "../../common/config/accounts.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -39,6 +40,7 @@ export class StoryAudienceService {
       .findByIds(people)
       .filter((u) => !(u.blockedUserIds ?? []).includes(uid))
       .map((u) => u.id);
-    return [...new Set([uid, ...authors, ...channelIds])];
+    // Официальные истории Shalter доступны всем вошедшим пользователям.
+    return [...new Set([uid, SYSTEM_BOT_ID, ...authors, ...channelIds])];
   }
 }

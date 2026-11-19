@@ -57,6 +57,7 @@ export type NewStoryItem = { kind: "image" | "video"; url: string; audioUrl?: st
 
 export const storyApi = {
   post: (items: NewStoryItem[]) => http.post<z.infer<typeof storyRowBody>>("/api/stories", { items }),
+  postOfficial: (items: NewStoryItem[]) => http.post<z.infer<typeof storyRowBody>>("/api/stories/official", { items }),
   postToChannel: (chatId: string, items: NewStoryItem[]) => http.post<z.infer<typeof storyRowBody>>(`/api/stories/channel/${id(chatId)}`, { items }),
   view: (storyId: string) => http.post<z.infer<typeof viewBody>>(`/api/stories/${id(storyId)}/view`),
   remove: (storyId: string) => http.delete<unknown>(`/api/stories/${id(storyId)}`),

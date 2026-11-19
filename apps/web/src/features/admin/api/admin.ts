@@ -139,6 +139,8 @@ export const setVerified = (userId: string, verified: boolean) =>
   http.post<z.infer<typeof verifyUserBody>>(`/api/admin/users/${q(userId)}/verify`, { verified });
 export const setSafetyLabel = (userId: string, label: string) =>
   http.post<z.infer<typeof labelUserBody>>(`/api/admin/users/${q(userId)}/label`, { label });
+export const setUsername = (userId: string, username: string) =>
+  http.post<{ user: Partial<AdminUser> & Record<string, unknown> }>(`/api/admin/users/${q(userId)}/username`, { username });
 export const setAdminSections = (userId: string, sections: string[]) =>
   http.post<z.infer<typeof adminSectionsBody>>(`/api/admin/users/${q(userId)}/admin-sections`, { sections });
 export const deleteUser = (userId: string, confirm: string, reason: string) =>

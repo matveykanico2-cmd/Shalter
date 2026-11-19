@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { hashPassword } from "../../common/lib/password.js";
-import { deleteAccount, moderateDeleteBot, moderateDeleteChat } from "../../legacy/legacy.js";
+import { checkUsername, deleteAccount, moderateDeleteBot, moderateDeleteChat } from "../../legacy/legacy.js";
 import { BotsRepository } from "../bots/bots.repository.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
@@ -27,6 +27,7 @@ import type {
   DisableTwoFactorDto,
   ResetPasswordDto,
   VerifyDto,
+  UsernameDto,
 } from "./model/schemas/admin.schema.js";
 import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 
@@ -166,6 +167,24 @@ export class AdminModerationService {
     this.access.require(uid, "server");
     const target = this.access.target(id);
     return { user: userLabel(this.users.setDeveloper(target.id, dto.developer)) };
+  }
+
+  /** Смена основного юзернейма из карточки модерации. Дополнительные имена сохраняются. */
+  public async setUsername(uid: string, id: string, dto: UsernameDto) {
+    const admin = this.access.require(uid, "moderation");
+    const target = this.access.target(id);
+    if (target.id !== admin.id) this.access.assertOutranks(admin, target);
+    const username = dto.username.replace(/^@/, "").trim();
+    const problem = await checkUsername(username, { forUserId: target.id, ignoreAuctions: true });
+    if (problem) throw new ApiError(problem.status, problem.error);
+    const current = this.users.findById(target.id);
+    if (!current) throw new ApiError(404, "Пользователь не найден");
+    const owned = this.users.listUsernames(target.id, current.username).some((item) => item.username.toLowerCase() === username.toLowerCase());
+    if (!owned) this.users.addUsername(target.id, username, false);
+    const updated = this.users.setPrimaryUsername(target.id, username);
+    if (!updated) throw new ApiError(404, "Пользователь не найден");
+    await this.access.notify(target.id, `Администрация Shalter изменила ваш основной юзернейм на @${username}.`, "username changed");
+    return { user: userLabel(updated), usernames: this.users.listUsernames(target.id, updated.username) };
   }
 
   /** Удаление бота за нарушение: бот и его аккаунт, владельцу — уведомление с причиной. */

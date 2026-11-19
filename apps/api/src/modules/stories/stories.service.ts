@@ -129,6 +129,18 @@ export class StoriesService {
     return { story };
   }
 
+  /** Официальная история Shalter: публиковать может только модератор, автором виден системный аккаунт. */
+  public createOfficial(uid: string, { items }: CreateStoryDto) {
+    if (!hasAdminSection(this.users.findById(uid), "moderation")) throw new ApiError(403, "Недостаточно прав");
+    if (!this.users.findById(SYSTEM_BOT_ID)) throw new ApiError(503, "Служебный аккаунт Shalter ещё не зарегистрирован");
+    const story = this.addStory(uid, SYSTEM_BOT_ID, items, true);
+    const audience = this.users.findAll().filter((user) => !user.isBanned).map((user) => user.id);
+    this.realtime.broadcastToUsers(audience, { type: "story:new", storyId: story.id, userId: SYSTEM_BOT_ID });
+    this.queueMedia(story);
+    this.pushNewStory(SYSTEM_BOT_ID).catch((err) => console.error("official story push failed:", err));
+    return { story };
+  }
+
   public createForChannel(uid: string, chatId: string, { items }: CreateChannelStoryDto) {
     const chat = this.chats.findById(chatId);
     if (!chat || chat.type !== "channel") throw new ApiError(400, "Истории есть только у каналов");
@@ -323,9 +335,9 @@ export class StoriesService {
   }
 
   /** Кадры уже очищены схемой; пустые бывают только у истории канала. */
-  private addStory(uid: string, authorId: string, items: StoryItem[]): Story {
+  private addStory(uid: string, authorId: string, items: StoryItem[], allowAdminUploads = false): Story {
     if (!items.length) throw new ApiError(400, "invalid story");
-    if (usesForeignUpload(uid, items)) throw new ApiError(400, "Некорректная ссылка на файл");
+    if (!allowAdminUploads && usesForeignUpload(uid, items)) throw new ApiError(400, "Некорректная ссылка на файл");
     const now = Date.now();
     return this.stories.create({
       id: newStoryId(now),

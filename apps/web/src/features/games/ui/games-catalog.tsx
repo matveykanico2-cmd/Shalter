@@ -47,22 +47,30 @@ export function GamesCatalog({ chatId, onPick }: Props) {
   else
     body = games.map((g) => (
       <div key={g.id} className={styles.tile}>
-        <span className={styles.tileEmoji}>{g.emoji || "🎮"}</span>
-        <span className={styles.tileTitle}>{g.title}</span>
-        <span className={styles.tileDesc}>{g.description || ("builtin" in g ? "Встроенная игра" : g.isPublic ? "Игра сообщества" : "Только по ссылке")}</span>
-        <div className={styles.tileActions}>
-          <Button onClick={() => openGame(g, { chatId })}>Играть</Button>
-          {onPick ? (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                closeGamesCatalog();
-                onPick(g);
-              }}
-            >
-              В чат
-            </Button>
-          ) : null}
+        <div className={styles.tileTop}>
+          <span className={styles.tileEmoji} aria-hidden="true">{g.emoji || "🎮"}</span>
+          <span className={styles.tileKind}>{"builtin" in g ? "Shalter" : g.isPublic ? "Сообщество" : "Личная"}</span>
+        </div>
+        <div className={styles.tileContent}>
+          <span className={styles.tileTitle}>{g.title}</span>
+          <span className={styles.tileDesc}>{g.description || ("builtin" in g ? "Встроенная игра" : g.isPublic ? "Игра сообщества" : "Только по ссылке")}</span>
+        </div>
+        <div className={styles.tileFooter}>
+          {"builtin" in g ? <span className={styles.tileMeta}>Быстрый старт</span> : <span className={styles.tileMeta}>{g.plays} запусков</span>}
+          <div className={styles.tileActions}>
+            <Button onClick={() => openGame(g, { chatId })}>Играть</Button>
+            {onPick ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  closeGamesCatalog();
+                  onPick(g);
+                }}
+              >
+                В чат
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     ));
@@ -76,7 +84,10 @@ export function GamesCatalog({ chatId, onPick }: Props) {
     >
       <div className={`${styles.modal} ${styles.catalog}`} role="dialog" aria-modal="true" aria-label="Игры">
         <div className={styles.modalHead}>
-          <h2 className={styles.modalTitle}>🎮 Игры</h2>
+          <div>
+            <h2 className={styles.modalTitle}>Игры</h2>
+            <p className={styles.modalSubtitle}>Сыграйте вместе или отправьте игру в чат</p>
+          </div>
           <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть" onClick={closeGamesCatalog}>
             <Icon name="X" size={20} />
           </button>

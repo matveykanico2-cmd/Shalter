@@ -3,6 +3,8 @@ import { useState } from "react";
 
 import { AvatarViewer } from "@/widgets/user-profile";
 
+import { usernamesQueries } from "@/features/usernames-market";
+
 import type { SelfUser } from "@/entities/session";
 import { useSession } from "@/entities/session";
 import { starsQueries } from "@/entities/stars";
@@ -20,6 +22,8 @@ import styles from "./settings-menu.module.css";
 export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () => void }) {
   const accounts = useSession().data?.accounts ?? [];
   const sessions = useQuery(settingsViewQueries.sessions()).data;
+  const usernames = useQuery(usernamesQueries.mine()).data?.usernames ?? [];
+  const usernameLabel = usernames.length ? usernames.slice().sort((a, b) => Number(b.primary) - Number(a.primary)).map((item) => `@${item.username}`).join(", ") : me.username ? `@${me.username}` : "";
   // Баланс — при каждом открытии меню (покупки и переводы обновляют тот же ключ).
   const balance = useQuery({ ...starsQueries.info(), refetchOnMount: "always" }).data?.balance ?? 0;
   const [viewAvatar, setViewAvatar] = useState(false);
@@ -60,7 +64,12 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
       <SettingsSection>
         {me.phone ? <SettingsRow icon="Phone" title={me.phone} subtitle="Телефон" onClick={() => void copyText(me.phone, "Номер скопирован")} /> : null}
         {me.username ? (
-          <SettingsRow icon="At" title={`@${me.username}`} subtitle="Имя пользователя" onClick={() => void copyText(`@${me.username}`, "Имя пользователя скопировано")} />
+          <SettingsRow
+            icon="At"
+            title={usernameLabel}
+            subtitle="Имена пользователя"
+            onClick={() => void copyText(usernameLabel, "Юзернеймы скопированы")}
+          />
         ) : (
           <SettingsRow icon="At" title="Добавить имя пользователя" subtitle="Имя пользователя" href="/settings/profile" />
         )}

@@ -113,7 +113,7 @@ export function BotsSection() {
       <div className={styles.list}>
         {bots?.map((b) => (
           <div key={b.id} className={styles.row}>
-            <Avatar name={b.user.name} color={b.user.avatarColor} image={b.user.avatarImage} emoji={b.user.avatarEmoji} size={32} />
+            <Avatar name={b.user.name} color={b.user.avatarColor} image={b.user.avatarImage} emoji={b.user.avatarEmoji} size={42} />
             <div className={styles.rowBody}>
               <p className={styles.rowName}>{b.user.name}</p>
               <p className={`${styles.hint} ${styles.mono}`}>@{b.user.username}</p>
@@ -122,12 +122,14 @@ export function BotsSection() {
                 {b.commands.length ? <span className={styles.badge}>{b.commands.length} команд</span> : null}
               </div>
             </div>
-            <BotAction icon="Send" title="Открыть чат с ботом" onClick={() => void openChat(b)} />
-            <BotAction icon="Edit" title="Редактировать бота" onClick={() => show({ kind: "edit", bot: b })} />
-            <BotAction icon="Key" title="Показать токен" onClick={() => void showToken(b)} />
-            <BotAction icon="BarChart" title="Команды бота" onClick={() => void editCommands(b)} />
-            <BotAction icon="Lock" title="Обновить токен" onClick={() => void regenerate(b)} />
-            <BotAction icon="Trash" title="Удалить бота" onClick={() => void remove(b)} />
+            <div className={styles.actions}>
+              <BotAction icon="Send" title="Открыть чат с ботом" onClick={() => void openChat(b)} />
+              <BotAction icon="Edit" title="Редактировать бота" onClick={() => show({ kind: "edit", bot: b })} />
+              <BotAction icon="Key" title="Показать токен" onClick={() => void showToken(b)} />
+              <BotAction icon="BarChart" title="Команды бота" onClick={() => void editCommands(b)} />
+              <BotAction icon="Lock" title="Обновить токен" onClick={() => void regenerate(b)} />
+              <BotAction icon="Trash" title="Удалить бота" onClick={() => void remove(b)} />
+            </div>
           </div>
         ))}
       </div>

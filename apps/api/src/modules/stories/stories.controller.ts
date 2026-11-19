@@ -43,6 +43,12 @@ export class StoriesController {
     return this.stories.create(req.uid!, dto);
   }
 
+  @Post("official")
+  @HttpCode(200)
+  public createOfficial(@Req() req: Request, @Body(new ZodValidationPipe(createStorySchema)) dto: CreateStoryDto) {
+    return this.stories.createOfficial(req.uid!, dto);
+  }
+
   @Post("channel/:chatId")
   @HttpCode(200)
   public createForChannel(@Req() req: Request, @Param("chatId") chatId: string, @Body(new ZodValidationPipe(createChannelStorySchema)) dto: CreateChannelStoryDto) {

@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { SafetyBadge } from "@/entities/safety-label";
+import { type NewStoryItem,storyApi, storyQueries } from "@/entities/story";
 
+import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { Icon, SettingsPage, SettingsSection, TextField } from "@/shared/ui";
+import { Icon, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
 
 import { adminQueries, type AdminUser, lookupUser,type Moderation } from "../api/admin";
 import { dateTime } from "../lib/format";
@@ -79,6 +81,7 @@ export function ModerationSection() {
         <div className={styles.moderationStat}><span className={styles.moderationStatValue}>{data.labeled.length}</span><span>с метками</span></div>
       </div>
       <UserLookup onFound={setCard} />
+      <OfficialStoryPublisher onPublished={() => void client.invalidateQueries({ queryKey: storyQueries.baseKey })} />
       <ChatLookup />
       <Directory onOpenUser={setCard} />
       <MailCheck />
@@ -130,6 +133,37 @@ export function ModerationSection() {
       </SettingsSection>
       {card ? <UserCard key={card.id} user={card} onChanged={syncUser} onClose={() => setCard(null)} /> : null}
     </SettingsPage>
+  );
+}
+
+function OfficialStoryPublisher({ onPublished }: { onPublished: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const publish = async () => {
+    if (!file || busy) return;
+    setBusy(true);
+    try {
+      const kind = file.type.startsWith("video/") ? "video" : "image";
+      const uploaded = await uploadFile(file, kind);
+      await storyApi.postOfficial([{ kind, url: uploaded.url } as NewStoryItem]);
+      setFile(null);
+      onPublished();
+      toast("История опубликована от имени Shalter");
+    } catch (err) {
+      toast(errorText(err, "Не удалось опубликовать историю"), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SettingsSection title="Официальные обновления Shalter" caption="История будет опубликована от имени официального аккаунта Shalter и станет видна всем пользователям.">
+      <div className={styles.body}>
+        <input ref={inputRef} type="file" accept="image/*,video/*" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <button type="button" className={styles.outline} disabled={busy} onClick={() => inputRef.current?.click()}>{file ? file.name : "Выбрать фото или видео"}</button>
+        <button type="button" className={styles.accent} disabled={busy || !file} onClick={() => void publish()}>{busy ? "Публикуем…" : "Опубликовать от Shalter"}</button>
+      </div>
+    </SettingsSection>
   );
 }
 

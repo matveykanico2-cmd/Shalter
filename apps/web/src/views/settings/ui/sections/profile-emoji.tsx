@@ -36,7 +36,7 @@ export function ProfileEmojiAvatar({ me }: { me: SelfUser }) {
 
   return (
     <SettingsSection title="Смайл на аватарке" caption="Анимированный смайл или стикер из ваших паков вместо фото профиля — его видят все, кому видно ваше фото.">
-      <div className={styles.inline}>
+      <div className={profileStyles.emojiProfile}>
         <Avatar name={me.name || "?"} color={me.avatarColor} emoji={me.avatarEmoji} size={48} />
         <div className={styles.grow}>
           <p className={profileStyles.rowTitle}>{me.avatarEmoji ? (me.avatarEmoji.startsWith("sticker:") ? "Стикер выбран" : "Смайл выбран") : "Без смайла"}</p>

@@ -81,11 +81,11 @@ export class SearchService {
 
     const score = (u: User): number => {
       const name = (u.name ?? "").toLowerCase();
-      const uname = (u.username ?? "").toLowerCase();
-      if (uname === handle || name === q) return 0;
-      if (uname.startsWith(handle)) return 1;
+      const usernames = this.users.listUsernames(u.id, u.username).map((item) => item.username.toLowerCase());
+      if (usernames.some((item) => item === handle) || name === q) return 0;
+      if (usernames.some((item) => item.startsWith(handle))) return 1;
       if (name.startsWith(q)) return 2;
-      if (uname.includes(handle)) return 3;
+      if (usernames.some((item) => item.includes(handle))) return 3;
       return 4;
     };
     const matchedAccounts = users
@@ -94,7 +94,7 @@ export class SearchService {
           u.id !== uid &&
           !u.isBanned &&
           !peersInResults.has(u.id) &&
-          (u.name.toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(handle))
+          (u.name.toLowerCase().includes(q) || this.users.listUsernames(u.id, u.username).some((item) => item.username.toLowerCase().includes(handle)))
       )
       .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
 

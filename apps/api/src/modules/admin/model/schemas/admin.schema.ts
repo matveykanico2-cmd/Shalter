@@ -69,6 +69,9 @@ export type VerifyDto = z.infer<typeof verifySchema>;
 export const developerSchema = requestBody({ developer: raw().transform((v) => !!v) });
 export type DeveloperDto = z.infer<typeof developerSchema>;
 
+export const usernameSchema = requestBody({ username: z.string().trim().min(3).max(32) });
+export type UsernameDto = z.infer<typeof usernameSchema>;
+
 export const reasonSchema = requestBody({ reason: reason() });
 export type ReasonDto = z.infer<typeof reasonSchema>;
 
