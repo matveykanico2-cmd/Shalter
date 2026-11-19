@@ -246,18 +246,38 @@
   border-radius: 16px;
 }
 
+/* Альбомы повторяют раскладку Telegram: первое медиа крупнее, остальные —
+   компактной колонкой справа. Это лучше использует место и не превращает
+   четыре фотографии в четыре одинаковых маленьких квадрата. */
+.album3,
+.album4,
+.albumMany {
+  aspect-ratio: 4 / 3;
+  grid-template-columns: 1.35fr 1fr;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.album3 .albumCell:first-child {
+  grid-row: 1 / -1;
+  aspect-ratio: auto;
+}
+
+.album4 .albumCell:first-child {
+  grid-row: 1 / span 3;
+  aspect-ratio: auto;
+}
+
+.albumMany .albumCell:first-child {
+  grid-row: 1 / span 2;
+  aspect-ratio: auto;
+}
+
 .albumCell {
   position: relative;
   min-width: 0;
   aspect-ratio: 1;
   overflow: hidden;
   contain: layout paint;
-}
-
-.album3 .albumCell:first-child,
-.albumMany .albumCell:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-  aspect-ratio: 16 / 9;
 }
 
 .albumTile {

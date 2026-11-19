@@ -61,6 +61,14 @@
   flex: 0 0 46px;
 }
 
+/* В узкой панели комментариев рядом с полем остаются кнопки видео и голоса.
+   Компактные кнопки дают textarea достаточно места для полного placeholder. */
+.thread .field > .attach {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+}
+
 .attachGap {
   width: 16px;
   flex: none;
@@ -89,6 +97,15 @@
   appearance: none;
   border-radius: 0;
   touch-action: manipulation;
+}
+
+.thread .input {
+  min-width: 100px;
+  overflow: hidden;
+}
+
+.thread .input::placeholder {
+  white-space: nowrap;
 }
 
 .send {

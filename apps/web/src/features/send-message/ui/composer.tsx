@@ -762,7 +762,7 @@ export function Composer(props: Props) {
   };
 
   return (
-    <div className={styles.composer}>
+    <div className={thread ? `${styles.composer} ${styles.thread}` : styles.composer}>
       {/* Отказ сервера — как тост старого клиента (role="status"): текст остаётся в поле. */}
       {error ? (
         <p className={styles.error} role="status">

@@ -263,6 +263,28 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
             </div>
           ) : null}
         </div>
+        {items.length > 1 ? (
+          <div className={styles.thumbs} aria-label="Миниатюры медиа">
+            {items.map((thumb, i) => (
+              <button
+                key={`${thumb.url}-${i}`}
+                type="button"
+                className={i === at ? `${styles.thumbButton} ${styles.thumbActive}` : styles.thumbButton}
+                aria-label={`Открыть медиа ${i + 1}`}
+                aria-current={i === at ? "true" : undefined}
+                onClick={() => {
+                  setAt(i);
+                  setLoad("loading");
+                  setAttempt(0);
+                  setView({ scale: 1, tx: 0, ty: 0 });
+                }}
+              >
+                {thumb.kind === "video" ? <video src={thumb.url} poster={thumb.thumbUrl} muted preload="metadata" /> : <img src={thumb.thumbUrl ?? thumb.url} alt="" loading="lazy" />}
+                {thumb.kind === "video" ? <span className={styles.thumbPlay}><Icon name="PlayFill" size={10} /></span> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {item.caption ? <p className={styles.caption}>{item.caption}</p> : null}
       </div>
       {items.length > 1 ? (
