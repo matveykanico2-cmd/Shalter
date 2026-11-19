@@ -45,7 +45,8 @@
 
 .message {
   border-radius: 12px;
-  transition: background-color 0.4s;
+  contain: layout paint style;
+  transition: background-color 0.18s;
 }
 
 /* Серии сообщений одного автора (.message-row.group-start/.group-end). */

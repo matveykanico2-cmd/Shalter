@@ -167,14 +167,13 @@
   position: relative;
   min-width: 0;
   max-width: min(520px, 82%);
+  contain: layout paint;
   overflow-wrap: anywhere;
   padding: 6px 10px 7px;
   border-radius: var(--bubble-radius);
   border: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent);
   box-shadow: var(--bubble-shadow);
   color: var(--color-text);
-  -webkit-backdrop-filter: blur(14px) saturate(125%);
-  backdrop-filter: blur(14px) saturate(125%);
 }
 
 /* Медиа с подписью касается краёв пузыря, а подпись остаётся внутри. */
