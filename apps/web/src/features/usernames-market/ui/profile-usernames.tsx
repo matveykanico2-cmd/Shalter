@@ -11,6 +11,11 @@ import { addUsername, pinUsername, removeUsername, renameUsername, setPrimaryUse
 
 import styles from "./usernames.module.css";
 
+function usernameKind(priceStars?: number) {
+  if (!priceStars) return "Бесплатный";
+  return priceStars >= 1000 ? "Редкий" : "Платный";
+}
+
 /** Управление несколькими именами прямо в профиле. */
 export function ProfileUsernames() {
   const navigate = useNavigate();
@@ -80,7 +85,7 @@ export function ProfileUsernames() {
             <span className={styles.badges}>
               {item.primary ? <span className={styles.activeBadge}>Основной</span> : null}
               {item.pinned ? <span className={styles.badge}>Закреплён</span> : null}
-              {(item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())) != null ? <span className={styles.priceBadge}>Куплен за {item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())} ⭐</span> : null}
+              {(item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())) != null ? <span className={styles.priceBadge}>{usernameKind(item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase()))} · куплен за {item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())} ⭐</span> : <span className={styles.badge}>{usernameKind()}</span>}
             </span>
           </div>
           <div className={styles.row}>
@@ -104,10 +109,10 @@ export function ProfileUsernames() {
             void change(() => addUsername(normalizedNewUsername));
           }}
         >
-          Добавить свободный
+          Добавить бесплатный
         </Button>
       </div>
-      <p className={styles.hint}>Свободное имя добавляется здесь. Купленные имена и их стоимость — в разделе рынка.</p>
+      <p className={styles.hint}>Бесплатное имя добавляется здесь. Платные и редкие имена, а также их стоимость — в разделе рынка.</p>
       <Button variant="secondary" disabled={busy} onClick={() => void navigate("/settings/usernames")}>Открыть рынок юзернеймов</Button>
       {selected ? (
         <Dialog title={`@${selected.username}`} onClose={() => setSelected(null)}>
@@ -115,7 +120,7 @@ export function ProfileUsernames() {
             <div className={styles.detailsBadges}>
               {selected.primary ? <span className={styles.activeBadge}>Основной</span> : <span className={styles.badge}>Дополнительный</span>}
               {selected.pinned ? <span className={styles.badge}>Закреплён</span> : <span className={styles.badge}>Не закреплён</span>}
-              {selected.purchasePriceStars != null ? <span className={styles.priceBadge}>Куплен за {selected.purchasePriceStars} ⭐</span> : <span className={styles.badge}>Свободный</span>}
+              {selected.purchasePriceStars != null ? <span className={styles.priceBadge}>{usernameKind(selected.purchasePriceStars)} · куплен за {selected.purchasePriceStars} ⭐</span> : <span className={styles.badge}>{usernameKind()}</span>}
             </div>
             <p className={styles.hint}>{selected.purchasePriceStars != null ? "Коллекционный юзернейм принадлежит вашему аккаунту." : "Юзернейм добавлен без покупки."}</p>
             <div className={styles.row}>

@@ -100,7 +100,8 @@
   max-width: calc(100vw - 48px);
   aspect-ratio: 1;
   place-items: center;
-  border-radius: 28px;
+  overflow: hidden;
+  border-radius: 50%;
   background:
     radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.16), transparent 42%),
     rgba(255, 255, 255, 0.06);
@@ -129,11 +130,11 @@
 }
 
 .prev {
-  left: 6px;
+  left: max(6px, calc(50% - min(35vh, 210px) - 52px));
 }
 
 .next {
-  right: 6px;
+  right: max(6px, calc(50% - min(35vh, 210px) - 52px));
 }
 
 .dots {

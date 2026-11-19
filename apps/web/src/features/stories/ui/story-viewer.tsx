@@ -465,6 +465,16 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
           <div className={styles.tapZone} {...tapZone(() => dispatch({ type: "next" }))} />
         </div>
 
+        <div className={styles.sideActions} aria-label="Действия с историей">
+          {likeButton}
+          {commentsButton}
+          {s.commentsOpen ? (
+            <button type="button" className={styles.sideButton} title="Закрыть комментарии" aria-label="Закрыть комментарии" onClick={() => dispatch({ type: "toggleComments" })}>
+              <Icon name="X" size={20} />
+            </button>
+          ) : null}
+        </div>
+
         <div className={styles.footer}>
           {mine ? (
             <button type="button" className={styles.pill} onClick={toggleViewers}>
@@ -488,8 +498,6 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
               </button>
             </>
           )}
-          {likeButton}
-          {commentsButton}
         </div>
 
         {mine && s.viewersOpen ? (
@@ -506,6 +514,12 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
 
         {s.commentsOpen ? (
           <div className={`${styles.panel} ${styles.commentsPanel}`}>
+            <div className={styles.commentsHeader}>
+              <strong>Комментарии</strong>
+              <button type="button" className={styles.commentClose} title="Закрыть комментарии" aria-label="Закрыть комментарии" onClick={() => dispatch({ type: "toggleComments" })}>
+                <Icon name="X" size={17} />
+              </button>
+            </div>
             <div className={styles.commentsList}>
               {s.comments === null ? <p className={styles.panelTitle}>Загружаем…</p> : !s.comments.length ? <p className={styles.panelTitle}>Пока нет комментариев</p> : null}
               {threaded(s.comments ?? []).map(({ comment: c, isReply }) => (

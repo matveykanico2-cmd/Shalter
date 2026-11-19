@@ -697,6 +697,11 @@ function ProfileButtons({ links, onOpen }: { links: { title: string; target: str
 
 type ProfileUsername = NonNullable<ProfileUser["usernames"]>[number];
 
+function usernameKind(item: ProfileUsername) {
+  if (!item.priceStars) return "Бесплатный";
+  return item.priceStars >= 1000 ? "Редкий" : "Платный";
+}
+
 /** Все имена находятся в одном информационном поле; клик открывает детали, не новый профиль. */
 function ProfileUsernameInfo({ user }: { user: ProfileUser }) {
   const names: ProfileUsername[] = user.usernames?.length
@@ -728,9 +733,9 @@ function ProfileUsernameInfo({ user }: { user: ProfileUser }) {
               {selected.pinned ? <span className={styles.usernameInfoBadge}>Закреплён</span> : <span className={styles.usernameInfoBadge}>Не закреплён</span>}
             </div>
             {selected.priceStars != null ? (
-              <p className={styles.usernameDetailsLine}>Куплен за <strong>{selected.priceStars} ⭐</strong></p>
+              <p className={styles.usernameDetailsLine}>{usernameKind(selected)} · куплен за <strong>{selected.priceStars} ⭐</strong></p>
             ) : (
-              <p className={styles.usernameDetailsLine}>Свободный юзернейм</p>
+              <p className={styles.usernameDetailsLine}>{usernameKind(selected)} юзернейм</p>
             )}
             {selected.createdAt ? <p className={styles.usernameDetailsHint}>Добавлен {new Date(selected.createdAt).toLocaleDateString("ru-RU")}</p> : null}
           </div>

@@ -1241,6 +1241,10 @@
 }
 
 .avatarButton {
+  align-self: center;
+  width: 128px;
+  height: 128px;
+  flex: 0 0 128px;
   box-shadow: 0 0 0 4px #f4f4f5, 0 8px 28px rgb(0 0 0 / 40%);
 }
 
@@ -1350,10 +1354,12 @@
 }
 
 .sectionHead {
+  gap: 24px;
   padding: 0 4px 6px;
 }
 
 .sectionTitle {
+  margin: 0;
   color: #a278fa;
   font-size: 16px;
 }

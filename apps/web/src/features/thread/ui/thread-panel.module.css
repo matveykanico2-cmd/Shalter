@@ -4,7 +4,9 @@
   inset: 0;
   /* Основной экран приложения — отдельный stacking context с z-index: 100.
      Комментарии должны быть поверх него, иначе лента канала наезжает на панель. */
-  z-index: 300;
+  /* Ниже профиля (120), но выше основного чата (100): открытый профиль
+     должен перекрывать комментарии, а комментарии — сам чат канала. */
+  z-index: 110;
   background: rgba(0, 0, 0, 0.25);
 }
 
@@ -106,14 +108,22 @@
    справа, чужие — минимально слева. */
 .mineReply {
   box-sizing: border-box;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
   justify-content: flex-start;
-  margin-right: 8px;
+  margin: 0;
+  padding-right: 5px;
 }
 
 .otherReply {
   box-sizing: border-box;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
   justify-content: flex-start;
-  margin-left: 4px;
+  margin: 0;
+  padding-left: 5px;
 }
 
 .label,

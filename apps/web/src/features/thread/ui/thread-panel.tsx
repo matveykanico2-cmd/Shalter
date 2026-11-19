@@ -71,7 +71,9 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
 
   const sender = (m: Message) => {
     if (isComments && (m.anonymous || (m.id === root.id && !chat.signMessages))) return channelSender;
-    return m.senderId === me.id ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage } : author(m.senderId);
+    return m.senderId === me.id
+      ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage, avatarEmoji: me.avatarEmoji }
+      : author(m.senderId);
   };
   const fromChannel = (m: Message) => isComments && (m.anonymous || (m.id === root.id && !chat.signMessages));
 
@@ -145,7 +147,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
                 mine={mine}
                 sender={sender(m)}
                 showSender={!mine}
-                showAvatar={!mine}
+                showAvatar
                 meId={me.id}
                 metaApart
                 className={mine ? styles.mineReply : styles.otherReply}
