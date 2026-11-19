@@ -8,6 +8,7 @@ import { GamesHost } from "@/features/games";
 import { GiftShopHost } from "@/features/gifts";
 import { LiveHost } from "@/features/live";
 import { PurchaseHost } from "@/features/purchase";
+import { openPwaInstallDialog, PwaInstallDialog } from "@/features/pwa-install";
 import { StoryViewerHost } from "@/features/stories";
 
 import { openGamesCatalog } from "@/entities/game";
@@ -184,8 +185,10 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
       <MainMenuHost me={user} extra={[
           { icon: "Smile", label: "Игры", onClick: () => openGamesCatalog() },
           { icon: "Download", label: "Загрузки", onClick: () => setDownloadsOpen(true) },
+          { icon: "Download", label: "Установить Shalter", onClick: openPwaInstallDialog },
         ]} />
       {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+      <PwaInstallDialog />
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
       <IncomingCall me={user} />

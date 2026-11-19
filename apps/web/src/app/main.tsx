@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 
 import { installEmojiCopy } from "@/shared/lib/emoji-images";
 import { ensurePushSubscribed } from "@/shared/lib/push";
+import { capturePwaInstallPrompt } from "@/shared/lib/pwa-install";
 
 import { App } from "./app";
 
@@ -12,6 +13,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("Нет корневого узла #root");
 
 installEmojiCopy();
+capturePwaInstallPrompt();
 
 // Фоновая доставка должна быть готова до полной загрузки оболочки. Разрешение
 // здесь не запрашиваем: подписываемся только если пользователь уже разрешил

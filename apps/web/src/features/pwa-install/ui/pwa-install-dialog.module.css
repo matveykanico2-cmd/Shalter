@@ -1,0 +1,11 @@
+.backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 18px; background: rgba(0, 0, 0, .56); }
+.dialog { position: relative; width: min(390px, 100%); padding: 26px 22px 20px; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); box-shadow: 0 20px 60px rgba(0, 0, 0, .35); color: var(--color-text); text-align: center; }
+.close { position: absolute; top: 10px; right: 10px; display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-muted); cursor: pointer; }
+.icon { display: grid; width: 58px; height: 58px; margin: 0 auto 12px; place-items: center; border-radius: 18px; background: var(--color-accent); color: #fff; }
+.dialog h2 { margin: 0 0 8px; font-size: 21px; }
+.dialog p { margin: 0 auto 18px; color: var(--color-muted); line-height: 1.45; }
+.steps { display: grid; grid-template-columns: 28px 1fr; gap: 9px 8px; margin: 0 auto 18px; align-items: center; max-width: 270px; text-align: left; }
+.steps span { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; background: var(--color-accent); color: #fff; font-size: 13px; }
+.install, .cancel { width: 100%; min-height: 42px; border-radius: 12px; font: inherit; cursor: pointer; }
+.install { border: 0; background: var(--color-accent); color: #fff; font-weight: 600; }
+.cancel { margin-top: 8px; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); }
