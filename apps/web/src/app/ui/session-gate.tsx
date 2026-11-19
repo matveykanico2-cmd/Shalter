@@ -6,6 +6,7 @@ import { SignInView } from "@/views/sign-in";
 
 import { rememberPendingShare } from "@/features/share-inbox";
 
+import { chatQueries } from "@/entities/chat";
 import { type SelfUser, useSession } from "@/entities/session";
 
 import { hideBootSplash } from "../model/boot-splash";
@@ -49,11 +50,11 @@ export function RequireSession() {
   useHideSplash(!isPending);
   const { pathname, search, hash } = useLocation();
   if (isPending) return <Splash />;
-  if (isError) {
+  if (isError && (typeof navigator === "undefined" || navigator.onLine !== false || !data?.user)) {
     // Сервер недоступен: не выкидываем на вход, а предлагаем повторить.
     return <OfflineState retry={() => void refetch()} />;
   }
-  if (!data.user) {
+  if (!data?.user) {
     // Отправка из системного меню «Поделиться»: содержимое дожидается входа.
     if (pathname.startsWith("/share/")) rememberPendingShare(pathname.slice("/share/".length));
     const next = `${pathname}${search}${hash}`;
@@ -96,10 +97,13 @@ function SignedIn({ user }: { user: SelfUser }) {
   });
   useEffect(() => persistChats(client, user.id), [client, user.id]);
   const boot = useQuery(bootstrapQuery(client, user.id));
+  // Повторный запуск не должен заменять готовый кэш заставкой: сначала показываем
+  // сохранённую оболочку, а bootstrap тихо обновляет её в фоне.
+  const hasCachedShell = client.getQueryData(chatQueries.list().queryKey) !== undefined;
   useAppearance(!boot.isPending);
   return (
     <AppServices user={user} ready={!boot.isPending}>
-      {boot.isPending ? <Splash /> : <AppRoutes user={user} />}
+      {boot.isPending && !hasCachedShell ? <Splash /> : <AppRoutes user={user} />}
     </AppServices>
   );
 }
