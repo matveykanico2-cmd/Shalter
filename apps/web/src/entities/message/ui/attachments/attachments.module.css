@@ -11,6 +11,7 @@
   border-radius: 16px;
   background: #121a24;
   cursor: pointer;
+  contain: layout paint;
 }
 
 .imageTile {
@@ -255,6 +256,13 @@
   grid-auto-rows: minmax(0, 1fr);
 }
 
+/* Два вложения — ровная двухколоночная сетка. Без этого браузер оставлял
+   высоту строк на авто и второе видео могло выглядеть как пустая половина. */
+.album2 {
+  aspect-ratio: 4 / 3;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
 .album3 .albumCell:first-child {
   grid-row: 1 / -1;
   aspect-ratio: auto;
@@ -293,6 +301,18 @@
   max-height: none;
   border-radius: 0;
   object-fit: contain;
+}
+
+.albumMore {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 42%);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  pointer-events: none;
 }
 
 .file {

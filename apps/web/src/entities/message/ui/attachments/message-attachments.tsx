@@ -122,9 +122,10 @@ function Album({ media, tile }: { media: Attachment[]; tile: (a: Attachment, i: 
   const n = Math.min(media.length, 4);
   return (
     <div className={[styles.album, styles[`album${n}`], media.length > 4 ? styles.albumMany : ""].filter(Boolean).join(" ")}>
-      {media.map((m, j) => (
+      {media.slice(0, 4).map((m, j) => (
         <div key={j} className={styles.albumCell}>
           {tile(m, j, true)}
+          {media.length > 4 && j === 3 ? <span className={styles.albumMore}>+{media.length - 4}</span> : null}
         </div>
       ))}
     </div>
