@@ -99,14 +99,14 @@ describe("звонки в оболочке", () => {
     expect(await screen.findByTitle("Завершить")).toBeTruthy();
     // Название звонка — имя собеседника (у лички нет своего).
     expect(screen.getAllByText("Борис").length).toBe(2);
-    expect(screen.getByText("Вызов…")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Вызов · 00:00");
 
     // Соединились — пошёл таймер.
     await waitFor(() => expect(FakePeer.instances).toHaveLength(0));
     act(() => FakeSocket.last().receive({ type: "call:signal", signal: { id: "sig_1_1", seq: 1, callId: "cl_1", fromUserId: BORIS.id, toUserId: ME.id, kind: "offer", data: { type: "offer", sdp: "v=0" }, createdAt: CALL.startedAt } }));
     await waitFor(() => expect(FakePeer.instances).toHaveLength(1));
     act(() => FakePeer.instances[0]!.connect());
-    expect(await screen.findByText("00:00")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toMatch(/Соединение · 00:0\d/);
 
     // «Микрофон» выключает звук.
     fireEvent.click(screen.getByTitle("Микрофон"));

@@ -23,7 +23,13 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
   const accounts = useSession().data?.accounts ?? [];
   const sessions = useQuery(settingsViewQueries.sessions()).data;
   const usernames = useQuery(usernamesQueries.mine()).data?.usernames ?? [];
-  const usernameLabel = me.username ? `@${me.username}` : "";
+  const orderedUsernames = usernames.slice().sort((a, b) => Number(b.primary) - Number(a.primary));
+  const usernameLabel = orderedUsernames.length
+    ? orderedUsernames.map((item) => `@${item.username}`).join(", ")
+    : me.username
+      ? `@${me.username}`
+      : "";
+  const usernameCount = orderedUsernames.length || (me.username ? 1 : 0);
   // Баланс — при каждом открытии меню (покупки и переводы обновляют тот же ключ).
   const balance = useQuery({ ...starsQueries.info(), refetchOnMount: "always" }).data?.balance ?? 0;
   const [viewAvatar, setViewAvatar] = useState(false);
@@ -67,7 +73,7 @@ export function SettingsMenu({ me, onSupport }: { me: SelfUser; onSupport: () =>
           <SettingsRow
             icon="At"
             title={usernameLabel}
-            subtitle={usernames.length > 1 ? `Имена пользователя · ещё ${usernames.length - 1}` : "Имя пользователя"}
+            subtitle={usernameCount > 1 ? `Имена пользователя · всего ${usernameCount}` : "Имя пользователя"}
             onClick={() => void copyText(usernameLabel, "Юзернеймы скопированы")}
           />
         ) : (

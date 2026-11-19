@@ -106,7 +106,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
           <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={onClose}>
             <Icon name="ChevronLeft" size={20} />
           </button>
-          <h2>{isComments ? `${chat.title ?? "Канал"} — комментарии` : title}</h2>
+          <h2>{title}</h2>
           <button type="button" className={styles.close} title="Закрыть" onClick={onClose}>
             <Icon name="X" size={18} />
           </button>

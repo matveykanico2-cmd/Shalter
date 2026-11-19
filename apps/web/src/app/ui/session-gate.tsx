@@ -99,7 +99,7 @@ function SignedIn({ user }: { user: SelfUser }) {
   useAppearance(!boot.isPending);
   return (
     <AppServices user={user} ready={!boot.isPending}>
-      <AppRoutes user={user} />
+      {boot.isPending ? <Splash /> : <AppRoutes user={user} />}
     </AppServices>
   );
 }

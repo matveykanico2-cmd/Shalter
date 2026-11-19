@@ -93,9 +93,10 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
         onMenu({ x: e.clientX, y: e.clientY });
       }}
       onPointerEnter={(e) => {
-        // По списку можно быстро провести мышью через десятки чатов. На hover
-        // подгружаем только карточку, а историю — уже при нажатии.
-        if (e.pointerType === "mouse") prefetchChat(client, chat, { history: false });
+        // История готовится заранее для уже прочитанных чатов, чтобы переход
+        // открывался без пустого экрана. Для непрочитанных prefetchChat
+        // намеренно загружает только карточку и не меняет счётчик прочтения.
+        if (e.pointerType === "mouse") prefetchChat(client, chat);
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

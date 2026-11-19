@@ -114,6 +114,7 @@ export function UsernamesSection() {
 
       <Block title="Мои юзернеймы">
         <p className={styles.hint}>Основной юзернейм показывается в профиле. Остальные можно закрепить и переключать в любой момент.</p>
+        {!data.isAdmin ? <p className={styles.hint}>Выставлять юзернеймы на продажу может только администратор.</p> : null}
         {myUsernames.length ? myUsernames.map((item) => (
           <div key={item.username} className={styles.card}>
             <div className={styles.head}><span className={styles.name}>@{item.username}</span><span className={styles.badges}>{item.primary ? <span className={styles.activeBadge}>Основной</span> : null}{item.pinned ? <span className={styles.badge}>Закреплён</span> : null}</span></div>

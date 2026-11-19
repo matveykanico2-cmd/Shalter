@@ -45,6 +45,19 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
   const gestureAt = useRef(0);
   const item = items[at]!;
 
+  // Подготавливаем только соседние элементы. Так следующий кадр открывается
+  // сразу, но просмотрщик не создаёт десятки декодеров на больших альбомах.
+  useEffect(() => {
+    const near = [items[at - 1], items[at + 1]].filter((value): value is ViewerItem => Boolean(value));
+    const images = near.filter((value) => value.kind === "image").map((value) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = value.url;
+      return image;
+    });
+    return () => images.forEach((image) => { image.src = ""; });
+  }, [at, items]);
+
   const go = useCallback(
     (delta: number) => {
       const next = at + delta;
@@ -190,7 +203,7 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
               </a>
             )
           ) : null}
-          <button type="button" className={styles.iconButton} title="Закрыть" onClick={onClose}>
+          <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть просмотрщик" onClick={onClose}>
             <Icon name="X" size={20} />
           </button>
         </div>
