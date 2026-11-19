@@ -56,6 +56,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
   const [commentText, setCommentText] = useState("");
   const [videoFailed, setVideoFailed] = useState<string | null>(null);
   const [imageFailed, setImageFailed] = useState<string | null>(null);
+  const [mediaReady, setMediaReady] = useState(false);
   const [burst, setBurst] = useState(0);
 
   const group = s.groups[s.gi];
@@ -98,6 +99,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
   if (shownKey !== frameKey) {
     setShownKey(frameKey);
     setHeld(false);
+    setMediaReady(false);
     setReplyNote(null);
     setCommentText("");
   }
@@ -406,6 +408,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
               preload="metadata"
               playsInline
               muted={muted}
+              onLoadedData={() => setMediaReady(true)}
               onEnded={() => dispatch({ type: "next" })}
               onTimeUpdate={(e) => {
                 const v = e.currentTarget;
@@ -433,11 +436,19 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
               alt=""
               decoding="async"
               loading="eager"
-              onLoad={() => setImageFailed((failed) => (failed === frameKey ? null : failed))}
+              onLoad={() => {
+                setMediaReady(true);
+                setImageFailed((failed) => (failed === frameKey ? null : failed));
+              }}
               onError={() => setImageFailed(frameKey)}
             />
           )
         )}
+        {!isAttachment && !videoFailed && !imageFailed && !mediaReady ? (
+          <div className={styles.mediaLoading} role="status" aria-label="Медиа загружается">
+            <span className={styles.spinner} />
+          </div>
+        ) : null}
         {frame.item.audioUrl ? (
           <audio
             className={styles.storyAudio}
