@@ -12,6 +12,7 @@ export type PowerSavingSettings = {
 type BatteryLike = EventTarget & { level: number; charging: boolean };
 type Snapshot = { settings: PowerSavingSettings; batteryLevel: number | null; charging: boolean | null };
 type BatteryNavigator = Navigator & { getBattery?: () => Promise<BatteryLike> };
+type ConnectionLike = { saveData?: boolean };
 
 const KEY = "shalter.powerSaving";
 const DEFAULTS: PowerSavingSettings = { mode: "auto", threshold: 20, animations: true, autoplay: true, effects: true };
@@ -63,7 +64,19 @@ export function usePowerSavingState() {
 
 export function powerSavingActive(value = snapshot): boolean {
   if (value.settings.mode === "always") return true;
-  return value.settings.mode === "auto" && value.batteryLevel != null && value.charging === false && value.batteryLevel <= value.settings.threshold;
+  if (value.settings.mode !== "auto") return false;
+  if (value.batteryLevel != null && value.charging === false && value.batteryLevel <= value.settings.threshold) return true;
+
+  // На слабых телефонах низкий FPS появляется задолго до разряда батареи.
+  // Не сохраняем это в настройках: на другом устройстве режим пересчитается сам,
+  // а пользователь по-прежнему может полностью отключить авто-режим.
+  if (typeof navigator !== "undefined") {
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    const cores = navigator.hardwareConcurrency;
+    const saveData = (navigator as Navigator & { connection?: ConnectionLike }).connection?.saveData === true;
+    if (saveData || (deviceMemory != null && deviceMemory <= 4) || (cores != null && cores <= 4)) return true;
+  }
+  return false;
 }
 
 export function powerSavingBlocks(kind: "animations" | "autoplay" | "effects") {
