@@ -21,7 +21,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { lazyView } from "@/shared/lib/lazy-view";
 import { plural, statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
-import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openExternally, openInAppBrowser, toast } from "@/shared/ui";
+import { askConfirm, askText, Avatar, Dialog, EmojiText, Icon, type IconName, InfoRow, openExternally, openInAppBrowser, toast } from "@/shared/ui";
 
 import { type ChannelCard, profileApi, profileQueries, type SharedMedia } from "../api/profile-api";
 import { isTabId, type TabId,TABS } from "../lib/tabs";
@@ -322,7 +322,6 @@ export function UserProfilePanel({ userId, me }: Props) {
         {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>
       <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{status ?? "был(а) недавно"}</p>
-      <ProfileUsernames user={u} />
       {/* Имя уже показано так, как вы записали человека; его собственное — подсказкой. */}
       {u.profileName ? <p className={styles.contactName}>Имя в профиле: {u.profileName}</p> : null}
       {u.mutualContact ? <p className={styles.contactName}>⇄ Взаимный контакт</p> : null}
@@ -366,19 +365,7 @@ export function UserProfilePanel({ userId, me }: Props) {
 
       <div className={styles.infoCard}>
         {u.phone ? <InfoRow icon="Phone" value={u.phone} label="Телефон" copy={u.phone} /> : null}
-        {u.username ? (
-          <InfoRow
-            icon="At"
-            value={
-              <>
-                @{u.username}
-                {u.isCollectibleUsername ? <span title="Коллекционный юзернейм — выигран на аукционе">💎</span> : null}
-              </>
-            }
-            label="Имя пользователя"
-            copy={`@${u.username}`}
-          />
-        ) : null}
+        <ProfileUsernameInfo user={u} />
         {u.bio ? <InfoRow icon="Info" value={<ProfileLinks text={u.bio} onOpen={close} />} label={u.isBot ? "Описание" : "О себе"} multiline /> : null}
         {inContacts && !isSelf ? (
           <InfoRow icon="Edit" value={data.contactNote || "Добавить заметку"} label="Заметка · видите только вы" accent={!data.contactNote} multiline={!!data.contactNote} onClick={() => void editNote()} />
@@ -708,27 +695,48 @@ function ProfileButtons({ links, onOpen }: { links: { title: string; target: str
   );
 }
 
-function ProfileUsernames({ user }: { user: ProfileUser }) {
-  const navigate = useNavigate();
-  const names = user.usernames ?? (user.username ? [{ username: user.username, primary: true, pinned: true }] : []);
-  const extra = names.filter((item) => !item.primary);
-  if (!extra.length) return null;
-  const openUsername = (username: string) => {
-    void navigate(`/u/${encodeURIComponent(username)}`);
-  };
+type ProfileUsername = NonNullable<ProfileUser["usernames"]>[number];
+
+/** Все имена находятся в одном информационном поле; клик открывает детали, не новый профиль. */
+function ProfileUsernameInfo({ user }: { user: ProfileUser }) {
+  const names: ProfileUsername[] = user.usernames?.length
+    ? user.usernames
+    : user.username
+      ? [{ username: user.username, primary: true, pinned: true }]
+      : [];
+  const [selected, setSelected] = useState<ProfileUsername | null>(null);
+  if (!names.length) return null;
   return (
-    <>
-      <div className={styles.usernamesSummary} aria-label="Юзернеймы профиля">
-        {names.map((item, index) => (
-          <span key={item.username} className={styles.usernameInline}>
-            {index ? ", " : null}
-            <button type="button" className={styles.usernameLink} onClick={() => openUsername(item.username)} title={`Открыть профиль по @${item.username}`}>
+    <div className={styles.usernameInfo} aria-label="Юзернеймы">
+      <div className={styles.usernameInfoIcon}><Icon name="At" size={20} /></div>
+      <div className={styles.usernameInfoBody}>
+        <p className={styles.infoLabel}>Юзернеймы</p>
+        <div className={styles.usernameInfoList}>
+          {names.map((item) => (
+            <button key={item.username} type="button" className={styles.usernameInfoButton} onClick={() => setSelected(item)}>
               @{item.username}
+              {item.primary ? <span className={styles.usernameInfoBadge}>Основной</span> : null}
             </button>
-          </span>
-        ))}
+          ))}
+        </div>
       </div>
-    </>
+      {selected ? (
+        <Dialog title={`@${selected.username}`} onClose={() => setSelected(null)}>
+          <div className={styles.usernameDetails}>
+            <div className={styles.usernameDetailsBadges}>
+              {selected.primary ? <span className={styles.usernameInfoBadge}>Основной</span> : <span className={styles.usernameInfoBadge}>Дополнительный</span>}
+              {selected.pinned ? <span className={styles.usernameInfoBadge}>Закреплён</span> : <span className={styles.usernameInfoBadge}>Не закреплён</span>}
+            </div>
+            {selected.priceStars != null ? (
+              <p className={styles.usernameDetailsLine}>Куплен за <strong>{selected.priceStars} ⭐</strong></p>
+            ) : (
+              <p className={styles.usernameDetailsLine}>Свободный юзернейм</p>
+            )}
+            {selected.createdAt ? <p className={styles.usernameDetailsHint}>Добавлен {new Date(selected.createdAt).toLocaleDateString("ru-RU")}</p> : null}
+          </div>
+        </Dialog>
+      ) : null}
+    </div>
   );
 }
 

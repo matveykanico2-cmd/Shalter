@@ -99,7 +99,7 @@ function MediaGrid({ items }: { items: SharedMedia["media"] }) {
       <div className={styles.mediaGrid}>
         {viewer.slice(0, shown).map((v, i) => (
           <button key={`${items[i]?.messageId}-${i}`} type="button" className={styles.mediaCell} aria-label={v.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(i)}>
-            {v.kind === "video" && !v.thumbUrl ? <video className={styles.cellMedia} src={v.url} muted preload="metadata" /> : <img className={styles.cellMedia} src={v.thumbUrl ?? v.url} alt="" loading="lazy" />}
+            {v.kind === "video" && !v.thumbUrl ? <video className={styles.cellMedia} src={`${v.url}#t=0.1`} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} /> : <img className={styles.cellMedia} src={v.thumbUrl ?? v.url} alt="" loading="lazy" />}
             {v.kind === "video" ? (
               <span className={styles.cellPlay}>
                 <Icon name="Play" size={14} />
@@ -141,7 +141,7 @@ function StoriesArchive({ user, isSelf }: { user: Owner; isSelf: boolean }) {
             })
           }
         >
-          {item.kind === "video" ? <video className={styles.cellMedia} src={item.url} muted preload="metadata" /> : <img className={styles.cellMedia} src={item.url} alt="" />}
+          {item.kind === "video" ? <video className={styles.cellMedia} src={`${item.url}#t=0.1`} poster={item.posterUrl} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} /> : <img className={styles.cellMedia} src={item.url} alt="" />}
           {item.kind === "video" ? (
             <span className={styles.cellPlay}>
               <Icon name="Play" size={14} />

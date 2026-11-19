@@ -89,10 +89,16 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
           key={bust}
           className={styles.poster}
           src={frameSrc.includes("#") ? frameSrc : `${frameSrc.startsWith("blob:") ? frameSrc : withBust(frameSrc, bust)}#t=0.1`}
+          poster={item.thumbUrl}
           preload="metadata"
           muted
           playsInline
-          onLoadedMetadata={(e) => learnShape(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+          onLoadedMetadata={(e) => {
+            learnShape(e.currentTarget.videoWidth, e.currentTarget.videoHeight);
+            // Safari/мобильные WebView иногда оставляют video пустым после metadata.
+            // Явно просим декодировать первый кадр, не начиная воспроизведение.
+            try { e.currentTarget.currentTime = 0.1; } catch { /* кадр появится после загрузки */ }
+          }}
           onError={() => {
             setFrameFailed(true);
             notifyMediaError(a.name, "видео");

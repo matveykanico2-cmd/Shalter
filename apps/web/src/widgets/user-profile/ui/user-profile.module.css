@@ -204,48 +204,95 @@
   font-size: 13px;
 }
 
-.usernamesSummary {
+.usernameInfo {
   display: flex;
-  max-width: 100%;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 8px;
-  margin: 2px 0 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-accent);
-  font: inherit;
-  font-size: 13px;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
 }
 
-.usernamesPrimary {
-  font-weight: 600;
-}
-
-.usernamesSummary > span:last-child {
+.usernameInfoIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
   color: var(--color-muted);
 }
 
-.usernameInline {
-  display: inline-flex;
-  align-items: center;
+.usernameInfoBody {
+  min-width: 0;
+  flex: 1;
 }
 
-.usernameLink {
-  padding: 2px 3px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
+.infoLabel {
+  margin: 0 0 5px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.usernameInfoList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.usernameInfoButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
   font: inherit;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.usernameLink:hover,
-.usernameLink:focus-visible {
+.usernameInfoButton:hover,
+.usernameInfoButton:focus-visible {
+  border-color: var(--color-accent);
   background: var(--color-accent-soft);
-  text-decoration: underline;
+}
+
+.usernameInfoBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.usernameDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.usernameDetailsBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.usernameDetailsLine,
+.usernameDetailsHint {
+  margin: 0;
+}
+
+.usernameDetailsHint {
+  color: var(--color-muted);
+  font-size: 13px;
 }
 
 .usernamesDialog {
