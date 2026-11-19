@@ -35,14 +35,26 @@ export function useServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     // Без сети приложение открывается из кэша: просим SW докачать сборку при запуске и когда сеть
     // вернулась — но не сразу, а в простое: на медленной сети это отбирало бы канал у чатов.
-    const precache = () =>
-      void navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: "precache" })).catch(() => {});
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const slowNetwork = connection?.saveData || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? "");
+    const precache = () => {
+      if (slowNetwork) return;
+      void navigator.serviceWorker.ready.then((reg) => {
+        void reg.update().catch(() => {});
+        reg.active?.postMessage({ type: "precache" });
+      }).catch(() => {});
+    };
     let timer: ReturnType<typeof setTimeout> | undefined;
     const precacheLater = () => {
       clearTimeout(timer);
       timer = setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(precache, { timeout: 10000 }) : precache()), 15000);
     };
-    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(precacheLater, () => {});
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
+      // Проверяем свежесть worker сразу: новый клиент не должен ждать суток,
+      // пока браузер сам решит обновить регистрацию.
+      void reg.update().catch(() => {});
+      precacheLater();
+    }, () => {});
     // Поднять очередь прошлого запуска сразу. При pagehide SW продолжит её без открытого чата.
     void syncOutgoingMessages();
     const sync = () => void syncOutgoingMessages();

@@ -30,15 +30,12 @@
 }
 
 .loading {
-  /* Миниатюра уже полезна: показываем её размытой, а не заменяем серым блоком. */
+  /* Показываем реальную миниатюру, а не серую заглушку. */
   width: min(280px, 100%);
   height: 210px;
-  background: linear-gradient(110deg, #121a24 20%, #243447 42%, #172331 58%, #121a24 80%);
-  background-size: 220% 100%;
-  animation: media-placeholder 1.2s ease-in-out infinite;
-  object-fit: cover;
-  opacity: 0.72;
-  filter: blur(6px);
+  background: #0a0f16;
+  opacity: 0.86;
+  filter: blur(4px);
   transform: scale(1.04);
   transition: opacity 0.18s ease, filter 0.18s ease, transform 0.18s ease;
 }
@@ -95,8 +92,7 @@
   justify-content: center;
   gap: 10px;
   border-radius: 16px;
-  background: linear-gradient(110deg, #121a24 20%, #243447 42%, #172331 58%, #121a24 80%);
-  background-size: 220% 100%;
+  background: #0a0f16;
   color: var(--color-muted);
   font-size: 12px;
   animation: media-placeholder 1.2s ease-in-out infinite;
@@ -136,10 +132,9 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(110deg, #0e151e 20%, #1d2c3d 42%, #142333 58%, #0e151e 80%);
-  background-size: 220% 100%;
+  background: #0a0f16;
   content: "";
-  animation: media-placeholder 1.2s ease-in-out infinite;
+  animation: none;
   pointer-events: none;
 }
 

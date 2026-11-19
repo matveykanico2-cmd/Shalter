@@ -25,6 +25,9 @@ export function StreamVideo({ stream, className, ref }: Props & { ref?: (el: HTM
       autoPlay
       playsInline
       muted
+      // У MediaStream нет скачивания: этот атрибут только убирает попытку
+      // WebView показать пустой загрузочный кадр перед первым фреймом.
+      preload="none"
     />
   );
 }
