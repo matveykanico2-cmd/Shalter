@@ -365,9 +365,10 @@ async function updateUser(id, patch) {
 async function setAvatars(userId, list) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!existing) return undefined;
-  db.prepare("UPDATE users SET avatarImages = ?, avatarImage = ? WHERE id = ?").run(
+  db.prepare("UPDATE users SET avatarImages = ?, avatarImage = ?, avatarEmoji = ? WHERE id = ?").run(
     JSON.stringify(list),
     mainImage(list),
+    list[0]?.kind === "emoji" ? (list[0].emoji ?? null) : null,
     userId
   );
   return getUser(userId);

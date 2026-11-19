@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { isAdminPhone } from "../../common/config/accounts.js";
 import { normalizePhone } from "../../common/lib/validators.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { checkUsername } from "../../legacy/legacy.js";
@@ -47,6 +48,7 @@ export class UsernameMarketService {
 
   public create(userId: string, { priceStars, username: requestedUsername }: ListingDto) {
     const owner = this.users.findById(userId);
+    if (!owner || !isAdminPhone(owner.phone)) throw new ApiError(403, "Выставлять юзернеймы на продажу может только администратор");
     const owned = owner ? this.users.listUsernames(userId, owner.username) : [];
     const username = normalizeUsername(requestedUsername || owner?.username);
     if (!username) throw new ApiError(400, "Сначала займите юзернейм — продавать нечего");

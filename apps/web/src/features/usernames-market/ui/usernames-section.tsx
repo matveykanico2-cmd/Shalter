@@ -120,7 +120,7 @@ export function UsernamesSection() {
             <div className={styles.row}>
               {!item.primary ? <Button variant="secondary" disabled={busy} onClick={() => void act(() => setPrimaryUsername(item.username), `@${item.username} теперь основной`)}>Сделать основным</Button> : null}
               {!item.primary ? <Button variant="link" disabled={busy} onClick={() => void act(() => pinUsername(item.username, !item.pinned), item.pinned ? `@${item.username} откреплён` : `@${item.username} закреплён`)}>{item.pinned ? "Открепить" : "Закрепить"}</Button> : null}
-              <Button variant="link" disabled={busy} onClick={() => void askText("Цена продажи в звёздах", { placeholder: "Минимум 10" }).then((value) => { const price = Number(value); if (Number.isFinite(price) && price >= 10) void act(() => sellUsername(price, item.username), "Юзернейм выставлен на продажу"); })}>Продать</Button>
+              {data.isAdmin ? <Button variant="link" disabled={busy} onClick={() => void askText("Цена продажи в звёздах", { placeholder: "Минимум 10" }).then((value) => { const price = Number(value); if (Number.isFinite(price) && price >= 10) void act(() => sellUsername(price, item.username), "Юзернейм выставлен на продажу"); })}>Продать</Button> : null}
             </div>
           </div>
         )) : <p className={styles.empty}>Юзернеймов пока нет</p>}
@@ -152,14 +152,18 @@ export function UsernamesSection() {
         ) : (
           <p className={styles.empty}>Пока никто ничего не продаёт</p>
         )}
-        <p className={styles.blockTitle}>Продать свой</p>
-        <p className={styles.hint}>Можно продавать любой дополнительный юзернейм. Основной сначала переключите на другой.</p>
-        <div className={styles.row}>
-          <TextField className={styles.mono} type="number" min="10" placeholder="Цена, ⭐" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} />
-          <Button disabled={busy} onClick={() => void act(() => sellUsername(Number(sellPrice)), "Объявление размещено")}>
-            Выставить
-          </Button>
-        </div>
+        {data.isAdmin ? (
+          <>
+            <p className={styles.blockTitle}>Продать свой</p>
+            <p className={styles.hint}>Администратор может выставить любой дополнительный юзернейм. Основной сначала переключите на другой.</p>
+            <div className={styles.row}>
+              <TextField className={styles.mono} type="number" min="10" placeholder="Цена, ⭐" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} />
+              <Button disabled={busy} onClick={() => void act(() => sellUsername(Number(sellPrice)), "Объявление размещено")}>
+                Выставить
+              </Button>
+            </div>
+          </>
+        ) : null}
       </Block>
 
       {owned.length ? (

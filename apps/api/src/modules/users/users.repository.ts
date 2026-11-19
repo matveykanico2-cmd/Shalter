@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { and, desc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
-import { usernameAliases, users } from "../db/schema.js";
+import { usernameAliases, usernameAuctions, usernameListings, users } from "../db/schema.js";
 import { banActive, FOREVER, toUser, type GiftEntry } from "./lib/user.mapper.js";
 import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, ProfileTrack, StatusEntry, StatusState, User, UserPatch } from "./model/domain.js";
 
@@ -116,6 +116,26 @@ export class UsersRepository {
       .all();
     const result = primary ? [{ username: primary, primary: true, pinned: true }] : [];
     return result.concat(aliases.filter((a) => a.username.toLowerCase() !== (primary ?? "").toLowerCase()).map((a) => ({ username: a.username, primary: false, pinned: !!a.pinned, createdAt: a.createdAt })));
+  }
+
+  /** Стоимость покупки юзернеймов, которые сейчас принадлежат пользователю. */
+  public usernamePrices(userId: string): Map<string, number> {
+    const prices = new Map<string, number>();
+    for (const row of this.db
+      .select({ username: usernameListings.username, priceStars: usernameListings.priceStars })
+      .from(usernameListings)
+      .where(and(eq(usernameListings.status, "sold"), eq(usernameListings.buyerId, userId)))
+      .all()) {
+      prices.set(row.username.toLowerCase(), row.priceStars);
+    }
+    for (const row of this.db
+      .select({ username: usernameAuctions.username, soldForStars: usernameAuctions.soldForStars })
+      .from(usernameAuctions)
+      .where(and(eq(usernameAuctions.status, "sold"), eq(usernameAuctions.winnerId, userId)))
+      .all()) {
+      if (row.soldForStars != null) prices.set(row.username.toLowerCase(), row.soldForStars);
+    }
+    return prices;
   }
 
   public addUsername(userId: string, username: string, pinned = false): void {
@@ -256,7 +276,7 @@ export class UsersRepository {
     if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
     this.db
       .update(users)
-      .set({ avatarImages: JSON.stringify(list), avatarImage: list[0]?.poster ?? null })
+      .set({ avatarImages: JSON.stringify(list), avatarImage: list[0]?.kind === "emoji" ? null : list[0]?.poster ?? null, avatarEmoji: list[0]?.kind === "emoji" ? String(list[0]?.emoji ?? "") : null })
       .where(eq(users.id, id))
       .run();
     return this.findById(id);

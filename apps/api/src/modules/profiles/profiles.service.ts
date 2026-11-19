@@ -83,6 +83,11 @@ export class ProfilesService {
 
     const isSelf = id === uid;
     const visible: Record<string, unknown> = isSelf ? selfUser(user) : publicUser(user);
+    const usernamePrices = this.users.usernamePrices(id);
+    visible.usernames = this.users.listUsernames(id, user.username).map((item) => ({
+      ...item,
+      ...(usernamePrices.has(item.username.toLowerCase()) ? { priceStars: usernamePrices.get(item.username.toLowerCase()) } : {}),
+    }));
     const targetsContacts = isSelf ? [] : this.contacts.findForOwner(id);
     const isContact = !isSelf && targetsContacts.some((c) => c.userId === uid);
     const myContact = isSelf ? null : this.contacts.findForOwner(uid).find((c) => c.userId === id);

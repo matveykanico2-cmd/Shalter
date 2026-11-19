@@ -20,7 +20,7 @@ function safeParse<T>(val: string | null | undefined, fallback: T): T {
 function parseAvatarList(json: string | null): { url: string; [key: string]: unknown }[] {
   try {
     const list: unknown = JSON.parse(json || "[]");
-    return Array.isArray(list) ? list.filter((e) => e && typeof e.url === "string") : [];
+    return Array.isArray(list) ? list.filter((e) => e && typeof e === "object" && (typeof (e as { url?: unknown }).url === "string" || ((e as { kind?: unknown }).kind === "emoji" && typeof (e as { emoji?: unknown }).emoji === "string"))) : [];
   } catch {
     return [];
   }

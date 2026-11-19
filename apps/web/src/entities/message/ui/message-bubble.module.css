@@ -177,6 +177,16 @@
   backdrop-filter: blur(14px) saturate(125%);
 }
 
+/* Размытие каждого пузыря очень дорого на телефонах и средних планшетах: при
+   отправке/загрузке оно перерисовывало всю видимую ленту. Непрозрачная основа
+   сохраняет контраст, а прокрутка и отправка не забирают кадры у интерфейса. */
+@media (pointer: coarse), (max-width: 960px) {
+  .bubble {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 .in {
   background: color-mix(in srgb, var(--color-bubble-in) 92%, transparent);
   box-shadow: 0 5px 16px color-mix(in srgb, var(--color-text) 10%, transparent);

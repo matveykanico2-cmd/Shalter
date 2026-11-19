@@ -16,6 +16,20 @@ import { isOffline, retryOffline } from "../lib/retry-offline";
 
 let localSeq = 0;
 const sendTails = new Map<string, Promise<void>>();
+const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Не запускаем полный refetch на каждый чанк альбома или быструю серию сообщений. */
+function scheduleReconcile(client: ReturnType<typeof useQueryClient>, chatId: string) {
+  const previous = reconcileTimers.get(chatId);
+  if (previous) clearTimeout(previous);
+  reconcileTimers.set(
+    chatId,
+    setTimeout(() => {
+      reconcileTimers.delete(chatId);
+      void client.refetchQueries({ queryKey: messageQueries.chatHistories(chatId), type: "active" });
+    }, 1000)
+  );
+}
 
 /** Медленная сеть не должна переставлять свои сообщения: в один чат отправляем строго по одному. */
 function inSendOrder<T>(chatId: string, send: () => Promise<T>) {
@@ -53,7 +67,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
           return message;
         } finally {
           // Счётчик «N ответов» под сообщением в ленте.
-          void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+          scheduleReconcile(client, chatId);
         }
       }
       const pending = {
@@ -101,7 +115,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         throw err;
       } finally {
         // Сверка с сервером: заодно придут сообщения, отправленные, пока шёл запрос.
-        void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+        scheduleReconcile(client, chatId);
       }
     },
     [client, chatId, meId, channel, topicId, threadRootId, postId]

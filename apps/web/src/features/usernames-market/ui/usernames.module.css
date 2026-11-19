@@ -76,6 +76,13 @@
   background: var(--color-surface);
 }
 
+/* В профиле карточки дополнительных имён идут подряд внутри одной секции.
+   Явный зазор сохраняет разделение и на узком экране, где тени соседних
+   карточек иначе сливались в одну полосу. */
+.card + .card {
+  margin-top: 8px;
+}
+
 .closed {
   opacity: 0.75;
 }
@@ -121,7 +128,9 @@
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-top: 8px;
 }
 
 .row > input {
@@ -190,6 +199,7 @@
   display: flex;
   gap: 8px;
   align-items: stretch;
+  margin-top: 16px;
 }
 
 .addUsername > input {

@@ -2,14 +2,15 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { isOwnUploadUrl, mediaPreview, uploadAccess, uploadTransfer } from "../../legacy/legacy.js";
+import { AVATAR_EMOJI_ERROR, cleanAvatarEmoji } from "../../common/lib/avatar-emoji.js";
+import { isOwnUploadUrl, mediaPreview, uploadAccess, uploadTransfer, usesForeignUpload } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { AvatarEntry, User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { MAX_AVATARS, validateEntry } from "./lib/avatars.js";
-import type { AddAvatarDto, SuggestedAvatarDto } from "./model/schemas/profile-media.schema.js";
+import type { AddAvatarDto, EmojiAvatarDto, SuggestedAvatarDto } from "./model/schemas/profile-media.schema.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 
 // Аватарки профиля (/api/avatars) — как server/routes/avatars.js. Первая — главная.
@@ -46,6 +47,47 @@ export class AvatarsService {
     const list = [avatarEntry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
     return this.save(userId, list, true);
+  }
+
+  public addEmoji(userId: string, dto: EmojiAvatarDto) {
+    const me = this.users.findById(userId);
+    if (!me) throw new ApiError(404, "not found");
+    const emoji = normalizeAvatarEmoji(dto.emoji);
+    if (!emoji || usesForeignUpload(userId, emoji)) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+    const list = [{ url: "", kind: "emoji", emoji, background: dto.background }, ...avatarList(me)];
+    if (list.length > MAX_AVATARS) throw new ApiError(409, `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну`);
+    return this.save(userId, list);
+  }
+
+  public async replace(userId: string, index: string, dto: AddAvatarDto) {
+    const me = this.users.findById(userId);
+    if (!me) throw new ApiError(404, "not found");
+    const list = [...this.existing(userId, index)];
+    const i = Number(index);
+    const checked = validateEntry(dto);
+    if (checked.error !== undefined) throw new ApiError(400, checked.error);
+    if (!(await isOwnUploadUrl(userId, checked.entry.url))) throw new ApiError(400, "Некорректная ссылка на файл");
+    list[i] = { ...checked.entry, background: dto.background, stickerId: dto.stickerId };
+    return this.save(userId, list, list[0]?.kind !== "emoji");
+  }
+
+  public replaceEmoji(userId: string, index: string, dto: EmojiAvatarDto) {
+    const list = [...this.existing(userId, index)];
+    const i = Number(index);
+    const emoji = normalizeAvatarEmoji(dto.emoji);
+    if (!emoji || usesForeignUpload(userId, emoji)) throw new ApiError(400, AVATAR_EMOJI_ERROR);
+    list[i] = { url: "", kind: "emoji", emoji, background: dto.background };
+    return this.save(userId, list);
+  }
+
+  public removeLegacyEmoji(userId: string) {
+    const me = this.users.findById(userId);
+    if (!me) throw new ApiError(404, "not found");
+    if (me.avatarImages?.some((entry) => entry.kind === "emoji")) return this.save(userId, me.avatarImages);
+    const updated = this.users.updateProfile(userId, { avatarEmoji: null });
+    if (!updated) throw new ApiError(404, "not found");
+    this.notify.profileChanged(userId, updated);
+    return { user: publicUser(updated), avatars: updated.avatarImages };
   }
 
   /**
@@ -127,6 +169,10 @@ export class AvatarsService {
     this.notify.profileChanged(userId, updated);
     return { user: publicUser(updated), avatars: updated.avatarImages };
   }
+}
+
+function normalizeAvatarEmoji(value: string): string | null {
+  return cleanAvatarEmoji(value) ?? null;
 }
 
 /** JPEG с сегментом-комментарием (COM) сразу после SOI: картинка та же, байты — другие. */

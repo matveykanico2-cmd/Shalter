@@ -5,7 +5,7 @@ import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { isRecordingSupported, type Recording, startRecording } from "@/shared/lib/media/recorder";
-import { askConfirm, Avatar, Button, Icon } from "@/shared/ui";
+import { askConfirm, Avatar, Button, EmojiAvatarPicker, Icon } from "@/shared/ui";
 
 import { avatarApi, type AvatarEntry } from "../api/profile-api";
 import { videoDuration, videoPosterDataUrl } from "../lib/video-poster";
@@ -38,11 +38,12 @@ const isEntry = (a: unknown): a is AvatarEntry => !!a && typeof a === "object" &
 
 type DisplayEntry =
   | (AvatarEntry & { id: string; sourceIndex?: number })
-  | { id: string; kind: "emoji"; emoji: string; background?: string | null }
+  | { id: string; kind: "emoji"; emoji: string; background?: string | null; sourceIndex?: number }
   | { id: string; kind: "initials"; background?: string | null };
 
 function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   const entries: DisplayEntry[] = [];
+  const editableCount = user.avatarImages?.length ?? 0;
   const addImage = (entry: AvatarEntry, sourceIndex?: number) => {
     // Не удаляем одинаковые URL: два файла могут быть одним фото в разном
     // разрешении и каждый должен оставаться удаляемым по своему индексу.
@@ -50,7 +51,8 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
   };
   // Контактная аватарка и профильная аватарка — независимые источники. Раньше
   // ранний return для emoji скрывал и личное фото, и всю историю profile avatarImages.
-  if (user.avatarEmoji) entries.push({ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor });
+  const hasStoredEmoji = raw.some((value) => !!value && typeof value === "object" && (value as { kind?: unknown }).kind === "emoji");
+  if (user.avatarEmoji && !hasStoredEmoji) entries.push({ id: `emoji:${user.avatarEmoji}`, kind: "emoji", emoji: user.avatarEmoji, background: user.avatarColor });
   // avatarImages — канонический список сервера, где первая запись является главной.
   // Не добавляем avatarImage раньше списка: иначе дедупликация съедала индекс 0,
   // и после удаления любой фотографии следующая оставалась без кнопки «Удалить».
@@ -66,9 +68,12 @@ function displayEntries(user: Owner, raw: readonly unknown[]): DisplayEntry[] {
     addImage({ url: user.avatarImage, kind: user.avatarImage.startsWith("video:") ? "video" : "image", poster: user.avatarImage.startsWith("video:") ? user.avatarImage.slice(6) : user.avatarImage });
   }
   raw.forEach((value, sourceIndex) => {
-    if (isEntry(value)) addImage(value, sourceIndex);
+    if (isEntry(value)) {
+      if (value.kind === "emoji" && typeof value.emoji === "string") entries.push({ id: `emoji:${value.emoji}:${sourceIndex}`, kind: "emoji", emoji: value.emoji, background: value.background ?? user.avatarColor, sourceIndex: sourceIndex < editableCount ? sourceIndex : undefined });
+      else addImage(value, sourceIndex < editableCount ? sourceIndex : undefined);
+    }
     else if (typeof value === "string" && value) {
-      if (value.startsWith("emoji:")) entries.push({ id: `emoji:${value.slice(6)}:${sourceIndex}`, kind: "emoji", emoji: value.slice(6), background: user.avatarColor });
+      if (value.startsWith("emoji:")) entries.push({ id: `emoji:${value.slice(6)}:${sourceIndex}`, kind: "emoji", emoji: value.slice(6), background: user.avatarColor, sourceIndex: sourceIndex < editableCount ? sourceIndex : undefined });
       else {
         const video = value.startsWith("video:");
         const url = video ? value.slice(6) : value;
@@ -91,6 +96,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   const [error, setError] = useState<string | null>(null);
   const [mediaFailure, setMediaFailure] = useState<{ id: string; attempt: number; failed: boolean } | null>(null);
   const [mediaFallback, setMediaFallback] = useState<string | null>(null);
+  const [emojiPicker, setEmojiPicker] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   // «Записать видео» — видеоаватар с камеры, квадратом (startVideo в avatarViewer.js).
@@ -131,14 +137,15 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
     // Ответ операции уже содержит канонический список. Не смешиваем его со
     // старым user из замыкания — именно из-за этого ранее стикер мог оставаться
     // первым после добавления/удаления фото.
-    const nextUser = { ...user, ...res.user, avatarEmoji: null, avatarImages: res.avatars, avatarImage: res.avatars[0]?.poster ?? null };
+    const first = res.avatars[0];
+    const nextUser = { ...user, ...res.user, avatarEmoji: first?.kind === "emoji" ? first.emoji : null, avatarImages: res.avatars, avatarImage: first?.kind === "emoji" ? null : first?.poster ?? null };
     const next = displayEntries(nextUser, res.avatars);
     setAvatars(next);
     setIndex((i) => (nextIndex !== undefined ? nextIndex : Math.min(i, Math.max(0, next.length - 1))));
     onChange(res.user);
   };
 
-  const add = async (file: File) => {
+  const add = async (file: File, replaceIndex?: number) => {
     setError(null);
     const isVideo = file.type.startsWith("video/");
     setBusy("Загружаем…");
@@ -151,7 +158,8 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
         }
       }
       const uploaded = await uploadFile(file, isVideo ? "avatar-video" : "avatar", { onProgress: (p) => setBusy(`Загружаем… ${Math.round(p * 100)}%`) });
-      apply(await avatarApi.add({ url: uploaded.url, kind: isVideo ? "video" : "image", poster }), 0);
+      const entry = { url: uploaded.url, kind: isVideo ? "video" : "image", poster } as const;
+      apply(await (replaceIndex === undefined ? avatarApi.add(entry) : avatarApi.replace(replaceIndex, entry)), replaceIndex === undefined ? 0 : replaceIndex);
     } catch (err) {
       setError(errorText(err, "Не удалось загрузить"));
     } finally {
@@ -196,7 +204,22 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) void add(file);
+    if (file) void add(file, current && "sourceIndex" in current ? current.sourceIndex : undefined);
+  };
+
+  const pickEmoji = async (emoji: string) => {
+    const sourceIndex = current && "sourceIndex" in current ? current.sourceIndex : undefined;
+    setEmojiPicker(false);
+    setBusy("Сохраняем…");
+    setError(null);
+    try {
+      const result = await (sourceIndex === undefined ? avatarApi.addEmoji(emoji, user.avatarColor) : current.kind === "emoji" ? avatarApi.replaceEmoji(sourceIndex, emoji, current.background) : avatarApi.replaceEmoji(sourceIndex, emoji, user.avatarColor));
+      apply(result, sourceIndex ?? 0);
+    } catch (err) {
+      setError(errorText(err, "Не удалось сохранить смайл"));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const current = avatars[index] ?? avatars[0]!;
@@ -330,7 +353,10 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
             <p className={styles.muted}>{busy}</p>
           ) : canEdit ? (
             <>
-              <Button onClick={() => fileInput.current?.click()}>Добавить фото или видео</Button>
+              <Button onClick={() => fileInput.current?.click()}>{current && "sourceIndex" in current ? "Заменить фото" : "Добавить фото или видео"}</Button>
+              <button type="button" className={styles.barButton} onClick={() => setEmojiPicker((open) => !open)}>
+                {current?.kind === "emoji" ? "Заменить смайл" : "Добавить смайл"}
+              </button>
               {isRecordingSupported() ? (
                 <button type="button" className={styles.barButton} onClick={() => void startVideo()}>
                   Записать видео
@@ -341,13 +367,13 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
                   Сделать основной
                 </button>
               ) : null}
-              {sourceIndex !== undefined ? (
+              {sourceIndex !== undefined || current.kind === "emoji" ? (
                 <button
                   type="button"
                   className={`${styles.barButton} ${styles.barDanger}`}
                   onClick={() =>
                     void askConfirm("Удалить эту аватарку?").then((ok) => {
-                      if (ok) void act(() => avatarApi.remove(sourceIndex), "Удаляем…");
+                      if (ok) void act(() => sourceIndex === undefined ? avatarApi.removeLegacyEmoji() : avatarApi.remove(sourceIndex), "Удаляем…");
                     })
                   }
                 >
@@ -357,6 +383,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
             </>
           ) : null}
         </div>
+        {emojiPicker ? <EmojiAvatarPicker withStickers onPick={(emoji) => void pickEmoji(emoji)} /> : null}
         <input ref={fileInput} className={styles.hidden} type="file" accept="image/*,video/*" onChange={onFile} />
       </div>
     </div>,

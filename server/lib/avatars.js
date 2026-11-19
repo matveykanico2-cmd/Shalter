@@ -21,14 +21,14 @@ function validateEntry(raw) {
 function parseList(json) {
   try {
     const list = JSON.parse(json || "[]");
-    return Array.isArray(list) ? list.filter((e) => e && typeof e.url === "string") : [];
+    return Array.isArray(list) ? list.filter((e) => e && typeof e === "object" && (typeof e.url === "string" || (e.kind === "emoji" && typeof e.emoji === "string"))) : [];
   } catch {
     return [];
   }
 }
 
 function mainImage(list) {
-  return list[0]?.poster ?? null;
+  return list[0]?.kind === "emoji" ? null : list[0]?.poster ?? null;
 }
 
 module.exports = { MAX_AVATARS, validateEntry, parseList, mainImage };

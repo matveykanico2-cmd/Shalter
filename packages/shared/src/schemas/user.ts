@@ -8,6 +8,8 @@ const publicUserShape = {
   name: z.string(),
   lastName: z.string().optional(),
   username: z.string().nullable(),
+  /** Все публичные имена профиля: основное и дополнительные. */
+  usernames: z.array(z.strictObject({ username: z.string(), primary: z.boolean(), pinned: z.boolean(), createdAt: isoDate.optional(), priceStars: z.number().optional() })).optional(),
   avatarColor: z.string().optional(),
   avatarImage: z.string().optional(),
   avatarImages: z.array(anyJson),

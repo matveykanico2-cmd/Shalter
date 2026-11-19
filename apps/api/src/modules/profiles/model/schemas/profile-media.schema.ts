@@ -19,6 +19,12 @@ export const addAvatarSchema = requestBody({
 });
 export type AddAvatarDto = z.infer<typeof addAvatarSchema>;
 
+export const emojiAvatarSchema = requestBody({
+  emoji: text(),
+  background: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().transform((v) => (v === "" ? null : v) ?? null),
+});
+export type EmojiAvatarDto = z.infer<typeof emojiAvatarSchema>;
+
 // «Установить как фото профиля» под предложенным в личке фото: превью (data:) считает клиент.
 export const suggestedAvatarSchema = requestBody({ messageId: text(), poster: text() });
 export type SuggestedAvatarDto = z.infer<typeof suggestedAvatarSchema>;

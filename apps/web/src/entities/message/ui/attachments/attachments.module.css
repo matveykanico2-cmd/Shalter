@@ -206,7 +206,10 @@
 
 .album {
   display: grid;
-  width: min(320px, 100%);
+  /* Размер альбома зависит от ширины пузыря: на телефоне он не вылезает за
+     экран, на планшете не превращается в крошечную сетку, а на desktop не
+     раздувает сообщение сильнее одиночного медиа. */
+  width: min(100%, clamp(260px, 42vw, 420px));
   grid-template-columns: 1fr 1fr;
   gap: 3px;
   margin-bottom: 4px;
@@ -219,6 +222,7 @@
   min-width: 0;
   aspect-ratio: 1;
   overflow: hidden;
+  contain: layout paint;
 }
 
 .album3 .albumCell:first-child,

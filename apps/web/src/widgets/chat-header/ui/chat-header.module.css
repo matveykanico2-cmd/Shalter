@@ -34,7 +34,7 @@
   background: color-mix(in srgb, var(--color-surface-alt) 76%, transparent);
 }
 
-@media (max-width: 960px) {
+@media (max-width: 720px) {
   .back {
     display: flex;
   }
@@ -237,7 +237,7 @@
   background: color-mix(in srgb, var(--color-surface-alt) 70%, transparent);
 }
 
-@media (min-width: 961px) {
+@media (min-width: 721px) {
   .infoToggle,
   .desktopClose {
     display: flex;

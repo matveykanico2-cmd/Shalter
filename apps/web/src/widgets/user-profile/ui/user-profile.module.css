@@ -204,6 +204,55 @@
   font-size: 13px;
 }
 
+.usernamesSummary {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.usernamesPrimary {
+  font-weight: 600;
+}
+
+.usernamesSummary > span:last-child {
+  color: var(--color-muted);
+}
+
+.usernamesDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: min(320px, 80vw);
+}
+
+.usernameEntry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+}
+
+.usernameEntry small {
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  text-align: right;
+}
+
 .online {
   color: var(--color-accent);
 }

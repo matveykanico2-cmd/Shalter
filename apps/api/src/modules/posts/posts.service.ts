@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { sanitizers, sendOnce, uploadAccess } from "../../legacy/legacy.js";
+import { findOrCreateDm, sanitizers, sendMessageAndBroadcast, sendMessagePush, sendOnce, uploadAccess } from "../../legacy/legacy.js";
+import { SYSTEM_BOT_ID } from "../../common/config/accounts.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, DENIED, isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
@@ -202,7 +203,37 @@ export class PostsService {
     if (joining) discussion = this.chats.update(discussion.id, { memberIds: [...discussion.memberIds, uid] })!;
 
     const message = await this.sender.deliver(discussion, uid, { ...fields, threadRootId: found.anchor.id }, { paidStars: gate.charged });
+    // Комментарий уже сохранён и отправлен участникам. Уведомление владельцу
+    // выполняем отдельно, чтобы медленный push/создание DM не задерживали ответ
+    // автору комментария и не превращались в повторную ошибку отправки.
+    void this.notifyChannelOwner(found.channel, found.post, uid, message, discussion.id);
     return { message, ...(gate.charged ? { chargedStars: gate.charged } : {}) };
+  }
+
+  private async notifyChannelOwner(channel: Chat, post: Message, commenterId: string, comment: Message, discussionId: string) {
+    const recipients = [...new Set([channel.ownerId, ...(channel.ownerIds ?? [])].filter((id): id is string => !!id && id !== commenterId))];
+    if (!recipients.length) return;
+    const commenter = this.users.findById(commenterId);
+    const name = commenter?.name || commenter?.username || "Пользователь";
+    const text = comment.text?.trim().replace(/\s+/g, " ") || "вложение";
+    const channelName = channel.title || (channel.username ? `@${channel.username}` : "канале");
+    const shortText = text.length > 240 ? `${text.slice(0, 237)}…` : text;
+    await Promise.all(
+      recipients.map(async (ownerId) => {
+        try {
+          const dm = await findOrCreateDm(SYSTEM_BOT_ID, ownerId);
+          await sendMessageAndBroadcast(dm, SYSTEM_BOT_ID, `💬 Новый комментарий в «${channelName}»\n${name}: ${shortText}`);
+          void sendMessagePush(ownerId, {
+            title: `Новый комментарий · ${channelName}`,
+            body: `${name}: ${shortText}`,
+            url: `/chat/${discussionId}?msg=${encodeURIComponent(post.id)}`,
+            tag: `channel-comment-${post.id}`,
+          }).catch(() => {});
+        } catch (err) {
+          console.error(`channel comment notification failed (${channel.id}/${ownerId}):`, err);
+        }
+      })
+    );
   }
 
   private resolveComments(postId: string, uid: string): Comments {

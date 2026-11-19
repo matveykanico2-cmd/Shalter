@@ -3,7 +3,7 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 410px minmax(0, 1fr);
+  grid-template-columns: clamp(300px, 34vw, 410px) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "media media" "list main" "nav nav";
   column-gap: 8px;
@@ -207,9 +207,9 @@
 }
 
 /* Телефон: список с панелью снизу или открытый экран во весь рост. */
-/* До 960 px две колонки оставляли чату меньше 600 px, а открытая информация о чате
-   сжимала ленту ещё сильнее. На телефонах и узких планшетах показываем один экран. */
-@media (max-width: 960px) {
+/* На телефонах показываем один экран. Планшеты и средние окна используют
+   компактную двухпанельную раскладку вместо случайного переключения режима. */
+@media (max-width: 720px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "media" "list" "nav";

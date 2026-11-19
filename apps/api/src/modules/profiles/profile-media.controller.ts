@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { AuthGuard } from "../auth/guards/auth.guard.js";
@@ -8,10 +8,12 @@ import {
   addAvatarSchema,
   addStatusSchema,
   addTrackSchema,
+  emojiAvatarSchema,
   type ActiveStatusDto,
   type AddAvatarDto,
   type AddStatusDto,
   type AddTrackDto,
+  type EmojiAvatarDto,
   suggestedAvatarSchema,
   type SuggestedAvatarDto,
 } from "./model/schemas/profile-media.schema.js";
@@ -34,6 +36,29 @@ export class AvatarsController {
   @HttpCode(200)
   public add(@Req() req: Request, @Body(new ZodValidationPipe(addAvatarSchema)) dto: AddAvatarDto) {
     return this.avatars.add(req.uid!, dto);
+  }
+
+  @Post("emoji")
+  @HttpCode(200)
+  public addEmoji(@Req() req: Request, @Body(new ZodValidationPipe(emojiAvatarSchema)) dto: EmojiAvatarDto) {
+    return this.avatars.addEmoji(req.uid!, dto);
+  }
+
+  @Put(":index")
+  @HttpCode(200)
+  public replace(@Req() req: Request, @Param("index") index: string, @Body(new ZodValidationPipe(addAvatarSchema)) dto: AddAvatarDto) {
+    return this.avatars.replace(req.uid!, index, dto);
+  }
+
+  @Put(":index/emoji")
+  @HttpCode(200)
+  public replaceEmoji(@Req() req: Request, @Param("index") index: string, @Body(new ZodValidationPipe(emojiAvatarSchema)) dto: EmojiAvatarDto) {
+    return this.avatars.replaceEmoji(req.uid!, index, dto);
+  }
+
+  @Delete("emoji")
+  public removeLegacyEmoji(@Req() req: Request) {
+    return this.avatars.removeLegacyEmoji(req.uid!);
   }
 
   @Post("from-suggestion")

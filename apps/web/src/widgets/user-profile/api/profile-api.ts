@@ -55,11 +55,15 @@ export const profileApi = {
   clickAd: (adId: string) => http.post<unknown>(`/api/ads/click/${id(adId)}`, {}),
 };
 
-export type AvatarEntry = { url: string; kind: "image" | "video"; poster?: string; background?: string | null; stickerId?: string | null };
+export type AvatarEntry = { url: string; kind: "image" | "video" | "emoji"; emoji?: string; poster?: string; background?: string | null; stickerId?: string | null };
 type AvatarsResult = { avatars: AvatarEntry[]; user: Record<string, unknown> & { id: string } };
 
 export const avatarApi = {
   add: (entry: AvatarEntry) => http.post<AvatarsResult>("/api/avatars", entry),
+  addEmoji: (emoji: string, background?: string | null) => http.post<AvatarsResult>("/api/avatars/emoji", { emoji, background }),
+  replace: (index: number, entry: AvatarEntry) => http.put<AvatarsResult>(`/api/avatars/${index}`, entry),
+  replaceEmoji: (index: number, emoji: string, background?: string | null) => http.put<AvatarsResult>(`/api/avatars/${index}/emoji`, { emoji, background }),
+  removeLegacyEmoji: () => http.delete<AvatarsResult>("/api/avatars/emoji"),
   setMain: (index: number) => http.post<AvatarsResult>(`/api/avatars/${index}/main`),
   remove: (index: number) => http.delete<AvatarsResult>(`/api/avatars/${index}`),
 };

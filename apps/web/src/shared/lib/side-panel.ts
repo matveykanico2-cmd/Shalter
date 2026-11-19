@@ -7,7 +7,11 @@ import { useMediaQuery } from "./use-media-query";
 // На телефоне это обычные экраны во всю ширину.
 const SIDE_ROUTES = ["/contacts", "/calls", "/archive", "/settings"];
 
-export const DESKTOP_QUERY = "(min-width: 961px)";
+// Один breakpoint для JS и CSS: планшеты и средние окна остаются двухпанельными,
+// а телефонный режим начинается только там, где две панели действительно не
+// помещаются. Это предотвращает рассинхрон: список считает экран desktop, а CSS —
+// телефон (или наоборот).
+export const DESKTOP_QUERY = "(min-width: 721px)";
 
 export const isSidePath = (path: string) => SIDE_ROUTES.some((r) => path === r || path.startsWith(`${r}/`));
 

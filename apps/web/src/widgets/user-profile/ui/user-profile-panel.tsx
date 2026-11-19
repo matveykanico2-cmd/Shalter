@@ -21,7 +21,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { lazyView } from "@/shared/lib/lazy-view";
 import { plural, statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
-import { askConfirm, askText, Avatar, EmojiText, Icon, type IconName, InfoRow, openExternally, openInAppBrowser, toast } from "@/shared/ui";
+import { askConfirm, askText, Avatar, Dialog, EmojiText, Icon, type IconName, InfoRow, openExternally, openInAppBrowser, toast } from "@/shared/ui";
 
 import { type ChannelCard, profileApi, profileQueries, type SharedMedia } from "../api/profile-api";
 import { isTabId, type TabId,TABS } from "../lib/tabs";
@@ -322,6 +322,7 @@ export function UserProfilePanel({ userId, me }: Props) {
         {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>
       <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{status ?? "был(а) недавно"}</p>
+      <ProfileUsernames user={u} />
       {/* Имя уже показано так, как вы записали человека; его собственное — подсказкой. */}
       {u.profileName ? <p className={styles.contactName}>Имя в профиле: {u.profileName}</p> : null}
       {u.mutualContact ? <p className={styles.contactName}>⇄ Взаимный контакт</p> : null}
@@ -704,6 +705,35 @@ function ProfileButtons({ links, onOpen }: { links: { title: string; target: str
         </button>
       ))}
     </div>
+  );
+}
+
+function ProfileUsernames({ user }: { user: ProfileUser }) {
+  const [open, setOpen] = useState(false);
+  const names = user.usernames ?? (user.username ? [{ username: user.username, primary: true, pinned: true }] : []);
+  const extra = names.filter((item) => !item.primary);
+  if (!extra.length) return null;
+  const shown = extra.slice(0, 3).map((item) => `@${item.username}`).join(", ");
+  const more = extra.length > 3 ? ` и ещё ${extra.length - 3}` : "";
+  return (
+    <>
+      <button type="button" className={styles.usernamesSummary} onClick={() => setOpen(true)}>
+        <span className={styles.usernamesPrimary}>@{user.username}</span>
+        <span>а также {shown}{more}</span>
+      </button>
+      {open ? (
+        <Dialog title="Юзернеймы профиля" onClose={() => setOpen(false)}>
+          <div className={styles.usernamesDialog}>
+            {names.map((item) => (
+              <div key={item.username} className={styles.usernameEntry}>
+                <span>@{item.username}</span>
+                <small>{item.primary ? "Основной" : item.priceStars ? `Куплен за ${item.priceStars} ⭐` : item.pinned ? "Закреплён" : "Дополнительный"}</small>
+              </div>
+            ))}
+          </div>
+        </Dialog>
+      ) : null}
+    </>
   );
 }
 

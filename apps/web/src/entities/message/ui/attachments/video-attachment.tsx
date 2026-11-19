@@ -50,7 +50,10 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
     setBust(Date.now().toString(36));
   };
   const [shape, setShape] = useState(a.width && a.height ? { w: a.width, h: a.height } : null);
-  const frameSrc = a.thumbUrl?.startsWith("blob:") ? a.thumbUrl : a.url!;
+  // После обработки сервер отдаёт совместимый MP4 в previewUrl. Старый код
+  // пытался показать оригинальный HEVC/MOV из a.url, из-за чего на браузерах
+  // и iPhone появлялась плашка «Не загрузилось», хотя превью уже было готово.
+  const frameSrc = item.url;
 
   let style: CSSProperties | undefined;
   if (!inAlbum && shape) {
