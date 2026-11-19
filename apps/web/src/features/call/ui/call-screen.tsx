@@ -60,6 +60,13 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
     : s.connectionStatus === "connecting"
       ? (s.phase === "ringing" ? "Вызов" : "Подключение")
       : "Соединение";
+  const qualityLabel = s.quality?.level === "poor"
+    ? "Связь слабая"
+    : s.quality?.level === "fair"
+      ? "Связь нестабильная"
+      : s.quality?.level === "good"
+        ? "Связь хорошая"
+        : null;
   const screen = useRef<HTMLDivElement>(null);
   const [swapped, setSwapped] = useState(false);
   const [stripHidden, setStripHidden] = useState(false);
@@ -260,6 +267,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <div className={styles.headerCenter}>
             <p className={styles.title}>{s.chatTitle}</p>
             <p className={styles.subtitle} role="status">{connectionLabel} · {formatElapsed(s.elapsed)}</p>
+            {qualityLabel ? <p className={`${styles.quality} ${styles[`quality${s.quality.level}`]}`} title="Качество рассчитывается по задержке, потерям и jitter">{qualityLabel}</p> : null}
           </div>
           <div className={styles.headerActions}>
             {stageMode ? null : (

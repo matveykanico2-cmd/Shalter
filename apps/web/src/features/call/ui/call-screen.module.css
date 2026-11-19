@@ -114,6 +114,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+.quality {
+  margin: 1px 0 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qualitygood { color: #8ee6a8; }
+.qualityfair { color: #ffd166; }
+.qualitypoor { color: #ff9b9b; }
+
 .invite {
   width: auto;
   min-width: 36px;

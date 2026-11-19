@@ -12,6 +12,18 @@ import { type Call, callApi, type CallKind, type CallPeer, type Signal } from ".
 export type CallPhase = "ringing" | "connected" | "ended";
 export type PeerMedia = { camera: boolean; sharing: boolean };
 export type CallConnectionStatus = "connecting" | "connected" | "reconnecting" | "failed";
+export type CallQualityLevel = "unknown" | "good" | "fair" | "poor";
+export type CallQuality = {
+  level: CallQualityLevel;
+  /** Средний RTT до собеседника в миллисекундах. */
+  rttMs: number | null;
+  /** Потери входящих RTP-пакетов в процентах. */
+  packetLossPct: number | null;
+  /** Максимальный наблюдаемый jitter в миллисекундах. */
+  jitterMs: number | null;
+  /** Примерный исходящий видеобитрейт в кбит/с. */
+  videoBitrateKbps: number | null;
+};
 
 /** Снимок звонка для экранов (useCall). */
 export type CallState = {
@@ -44,6 +56,7 @@ export type CallState = {
   mediaError: string | null;
   connectionError: string | null;
   connectionStatus: CallConnectionStatus;
+  quality: CallQuality;
 };
 
 type State = CallState & {
@@ -58,6 +71,7 @@ type State = CallState & {
   pageExitHandled: boolean;
   /** Поправка часов устройства к серверному времени звонка. */
   serverClockOffsetMs: number;
+  qualityReports: Map<string, CallQuality>;
 };
 
 const STUN_FALLBACK: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -70,7 +84,9 @@ const MAX_ICE_RESTARTS = 3;
 const NO_ANSWER_MS = 45_000;
 const POLL_MS = 1000;
 const QUALITY_POLL_MS = 3000;
+const FAIR_NETWORK_LOSS = 0.03;
 const POOR_NETWORK_LOSS = 0.08;
+const FAIR_NETWORK_RTT = 0.25;
 const POOR_NETWORK_RTT = 0.4;
 
 let iceServers = STUN_FALLBACK;
@@ -140,6 +156,49 @@ function sendMedia(userId: string) {
 
 const broadcastMedia = () => state?.others.forEach((p) => sendMedia(p.id));
 
+const emptyQuality = (): CallQuality => ({ level: "unknown", rttMs: null, packetLossPct: null, jitterMs: null, videoBitrateKbps: null });
+
+function qualityLevel(loss: number, rtt: number, jitter: number): CallQualityLevel {
+  if (loss >= POOR_NETWORK_LOSS || rtt >= POOR_NETWORK_RTT || jitter >= 80) return "poor";
+  if (loss >= FAIR_NETWORK_LOSS || rtt >= FAIR_NETWORK_RTT || jitter >= 40) return "fair";
+  return "good";
+}
+
+function publishQuality() {
+  if (!state || !state.qualityReports.size) return;
+  const reports = [...state.qualityReports.values()];
+  const rank: Record<CallQualityLevel, number> = { unknown: 0, good: 1, fair: 2, poor: 3 };
+  const worst = reports.reduce((a, b) => (rank[b.level] > rank[a.level] ? b : a));
+  const next: CallQuality = {
+    level: worst.level,
+    rttMs: Math.max(...reports.map((r) => r.rttMs ?? 0)) || null,
+    packetLossPct: Math.max(...reports.map((r) => r.packetLossPct ?? 0)) || null,
+    jitterMs: Math.max(...reports.map((r) => r.jitterMs ?? 0)) || null,
+    videoBitrateKbps: reports.map((r) => r.videoBitrateKbps).filter((v): v is number => v !== null).reduce((a, b) => a + b, 0) || null,
+  };
+  const old = state.quality;
+  if (JSON.stringify(old) === JSON.stringify(next)) return;
+  state.quality = next;
+  notify();
+}
+
+async function tuneAdaptiveVideo(sender: RTCRtpSender, target: number, framerate: number, scale: number) {
+  if (typeof sender.getParameters !== "function") return;
+  try {
+    const params = sender.getParameters();
+    const encoding = params.encodings?.[0];
+    if (!encoding) return;
+    const nextScale = Math.max(1, scale);
+    if (encoding.maxBitrate === target && encoding.maxFramerate === framerate && encoding.scaleResolutionDownBy === nextScale) return;
+    encoding.maxBitrate = target;
+    encoding.maxFramerate = framerate;
+    encoding.scaleResolutionDownBy = nextScale;
+    await sender.setParameters(params);
+  } catch {
+    // Старые Safari/WebView могут не поддерживать отдельные поля кодировки.
+  }
+}
+
 function videoTransceivers(pc: RTCPeerConnection) {
   return pc
     .getTransceivers()
@@ -169,7 +228,7 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
   let restartAttempts = 0;
   let iceRestartPending = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
-  let previousPackets = { received: 0, lost: 0 };
+  let previousPackets = { received: 0, lost: 0, sentBytes: 0, at: 0 };
   const clearWatchdog = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = undefined;
@@ -266,34 +325,52 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
       let received = 0;
       let lost = 0;
       let rtt = 0;
+      let jitter = 0;
+      let sentBytes = 0;
       for (const report of stats.values()) {
-        if (report.type === "inbound-rtp" && report.kind === "video") {
+        if (report.type === "inbound-rtp") {
           received += Number(report.packetsReceived) || 0;
           lost += Number(report.packetsLost) || 0;
+          jitter = Math.max(jitter, (Number(report.jitter) || 0) * 1000);
         }
-        if (report.type === "candidate-pair" && report.state === "succeeded") rtt = Math.max(rtt, Number(report.currentRoundTripTime) || 0);
+        if (report.type === "outbound-rtp" && report.kind === "video") sentBytes += Number(report.bytesSent) || 0;
+        if (report.type === "candidate-pair" && report.state === "succeeded" && (report.nominated ?? true)) rtt = Math.max(rtt, Number(report.currentRoundTripTime) || 0);
       }
       const packetDelta = received + lost - previousPackets.received - previousPackets.lost;
       const loss = packetDelta > 0 ? Math.max(0, lost - previousPackets.lost) / packetDelta : 0;
-      previousPackets = { received, lost };
-      const degraded = loss >= POOR_NETWORK_LOSS || rtt >= POOR_NETWORK_RTT;
+      const now = Date.now();
+      const elapsedMs = previousPackets.at ? Math.max(1, now - previousPackets.at) : 0;
+      const bitrateKbps = elapsedMs && sentBytes >= previousPackets.sentBytes
+        ? Math.round(((sentBytes - previousPackets.sentBytes) * 8) / elapsedMs)
+        : null;
+      previousPackets = { received, lost, sentBytes, at: now };
+      const rttMs = rtt * 1000;
+      const level = qualityLevel(loss, rtt, jitter);
+      state.qualityReports.set(otherUserId, { level, rttMs: rttMs || null, packetLossPct: packetDelta > 0 ? Math.round(loss * 1000) / 10 : null, jitterMs: jitter || null, videoBitrateKbps: bitrateKbps });
+      publishQuality();
+
+      // Сначала держим голос, а видео плавно ужимаем ступенями. После двух
+      // хороших замеров параметры вернутся к базовым через tunePeer().
       const base = mediaQuality(isMobileUa(navigator.userAgent)).videoBitrate;
-      // Короткий скачок RTT не должен превращать видео в мыло.
-      const target = state.sharing ? (degraded ? 1_500_000 : 8_000_000) : degraded ? Math.min(base, 1_200_000) : base;
+      const target = state.sharing
+        ? level === "poor" ? 1_200_000 : level === "fair" ? 2_500_000 : 8_000_000
+        : level === "poor" ? Math.min(base, 450_000) : level === "fair" ? Math.min(base, 1_200_000) : base;
+      const framerate = level === "poor" ? 12 : level === "fair" ? 20 : 30;
+      const scale = state.sharing ? 1 : level === "poor" ? 2 : level === "fair" ? 1.5 : 1;
       for (const sender of pc.getSenders()) {
         if (sender.track?.kind !== "video" || typeof sender.getParameters !== "function") continue;
-        const params = sender.getParameters();
-        const encoding = params.encodings?.[0];
-        if (!encoding || encoding.maxBitrate === target) continue;
-        encoding.maxBitrate = target;
-        await sender.setParameters(params).catch(() => {});
+        await tuneAdaptiveVideo(sender, target, state.sharing ? 30 : framerate, scale);
       }
     } catch {
       // Некоторые WebViews не дают статистику — соединение продолжает работать без адаптации.
     }
   };
   const qualityTimer = setInterval(() => void sampleQuality(), QUALITY_POLL_MS);
-  cleanups.push(() => clearInterval(qualityTimer));
+  cleanups.push(() => {
+    clearInterval(qualityTimer);
+    state?.qualityReports.delete(otherUserId);
+    publishQuality();
+  });
   pc.onconnectionstatechange = onStateChange;
   pc.oniceconnectionstatechange = onStateChange;
   s.peers.set(otherUserId, pc);
@@ -507,6 +584,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     mediaError: null,
     connectionError: null,
     connectionStatus: "connecting",
+    quality: emptyQuality(),
     peers: new Map(),
     offered: new Set(),
     mediaReady,
@@ -514,6 +592,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     pendingIce: new Map(),
     pageExitHandled: false,
     serverClockOffsetMs: Number.isFinite(Date.parse(call.startedAt)) ? Date.parse(call.startedAt) - Date.now() : 0,
+    qualityReports: new Map(),
   };
   const mine = state;
   notify();

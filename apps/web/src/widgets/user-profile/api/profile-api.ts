@@ -12,6 +12,12 @@ export type ProfileAd = { id: string; title?: string | null; text: string; url?:
 const id = encodeURIComponent;
 const baseKey = ["user-profile"] as const;
 
+/** Аватарные API хранят фон без символа #, а CSS-пикер отдаёт обычный #RRGGBB. */
+const avatarBackground = (value?: string | null): string | undefined => {
+  const hex = value?.trim().replace(/^#/, "");
+  return hex && /^[0-9a-fA-F]{6}$/.test(hex) ? hex : undefined;
+};
+
 export const profileQueries = {
   baseKey,
   /** Медиа, файлы, ссылки и голосовые из лички с этим человеком (сервер собирает по всей истории). */
@@ -59,10 +65,10 @@ export type AvatarEntry = { url: string; kind: "image" | "video" | "emoji"; emoj
 type AvatarsResult = { avatars: AvatarEntry[]; user: Record<string, unknown> & { id: string } };
 
 export const avatarApi = {
-  add: (entry: AvatarEntry) => http.post<AvatarsResult>("/api/avatars", entry),
-  addEmoji: (emoji: string, background?: string | null) => http.post<AvatarsResult>("/api/avatars/emoji", { emoji, background }),
-  replace: (index: number, entry: AvatarEntry) => http.put<AvatarsResult>(`/api/avatars/${index}`, entry),
-  replaceEmoji: (index: number, emoji: string, background?: string | null) => http.put<AvatarsResult>(`/api/avatars/${index}/emoji`, { emoji, background }),
+  add: (entry: AvatarEntry) => http.post<AvatarsResult>("/api/avatars", { ...entry, background: avatarBackground(entry.background) }),
+  addEmoji: (emoji: string, background?: string | null) => http.post<AvatarsResult>("/api/avatars/emoji", { emoji, background: avatarBackground(background) }),
+  replace: (index: number, entry: AvatarEntry) => http.put<AvatarsResult>(`/api/avatars/${index}`, { ...entry, background: avatarBackground(entry.background) }),
+  replaceEmoji: (index: number, emoji: string, background?: string | null) => http.put<AvatarsResult>(`/api/avatars/${index}/emoji`, { emoji, background: avatarBackground(background) }),
   removeLegacyEmoji: () => http.delete<AvatarsResult>("/api/avatars/emoji"),
   setMain: (index: number) => http.post<AvatarsResult>(`/api/avatars/${index}/main`),
   remove: (index: number) => http.delete<AvatarsResult>(`/api/avatars/${index}`),

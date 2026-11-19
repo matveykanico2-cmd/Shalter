@@ -5,7 +5,7 @@ import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { isRecordingSupported, type Recording, startRecording } from "@/shared/lib/media/recorder";
-import { askConfirm, Avatar, Button, EmojiAvatarPicker, Icon } from "@/shared/ui";
+import { askConfirm, Avatar, AvatarBackgroundPicker, Button, EmojiAvatarPicker, Icon } from "@/shared/ui";
 
 import { avatarApi, type AvatarEntry } from "../api/profile-api";
 import { videoDuration, videoPosterDataUrl } from "../lib/video-poster";
@@ -97,6 +97,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
   const [mediaFailure, setMediaFailure] = useState<{ id: string; attempt: number; failed: boolean } | null>(null);
   const [mediaFallback, setMediaFallback] = useState<string | null>(null);
   const [emojiPicker, setEmojiPicker] = useState(false);
+  const [backgroundPicker, setBackgroundPicker] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   // «Записать видео» — видеоаватар с камеры, квадратом (startVideo в avatarViewer.js).
@@ -217,6 +218,28 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
       apply(result, sourceIndex ?? 0);
     } catch (err) {
       setError(errorText(err, "Не удалось сохранить смайл"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pickBackground = async (background: string) => {
+    const selected = current;
+    const emoji = selected.kind === "emoji" ? selected.emoji : user.avatarEmoji;
+    if (!emoji) {
+      setEmojiPicker(true);
+      setError("Сначала выберите смайл, затем его фон");
+      return;
+    }
+    const sourceIndex = selected.kind === "emoji" && "sourceIndex" in selected ? selected.sourceIndex : undefined;
+    setBusy("Сохраняем фон…");
+    setError(null);
+    try {
+      const result = sourceIndex === undefined ? await avatarApi.addEmoji(emoji, background) : await avatarApi.replaceEmoji(sourceIndex, emoji, background);
+      apply(result, sourceIndex ?? 0);
+      setBackgroundPicker(false);
+    } catch (err) {
+      setError(errorText(err, "Не удалось сохранить фон"));
     } finally {
       setBusy(null);
     }
@@ -357,6 +380,9 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
               <button type="button" className={styles.barButton} onClick={() => setEmojiPicker((open) => !open)}>
                 {current?.kind === "emoji" ? "Заменить смайл" : "Добавить смайл"}
               </button>
+              <button type="button" className={styles.barButton} onClick={() => setBackgroundPicker((open) => !open)}>
+                Фон смайла
+              </button>
               {isRecordingSupported() ? (
                 <button type="button" className={styles.barButton} onClick={() => void startVideo()}>
                   Записать видео
@@ -383,6 +409,7 @@ export function AvatarViewer({ user, canEdit, onChange, onClose, photosFirst = f
             </>
           ) : null}
         </div>
+        {backgroundPicker ? <AvatarBackgroundPicker color={current.kind === "emoji" ? current.background : user.avatarColor} onPick={(background) => void pickBackground(background)} /> : null}
         {emojiPicker ? <EmojiAvatarPicker withStickers onPick={(emoji) => void pickEmoji(emoji)} /> : null}
         <input ref={fileInput} className={styles.hidden} type="file" accept="image/*,video/*" onChange={onFile} />
       </div>
