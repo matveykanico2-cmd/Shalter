@@ -100,6 +100,21 @@
   font-weight: 600;
 }
 
+.nameButton {
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nameButton:hover,
+.nameButton:focus-visible {
+  background: var(--color-surface-alt);
+}
+
 .status {
   font-size: 13px;
   color: var(--color-muted);
@@ -125,6 +140,18 @@
 .badge { background: var(--color-accent-soft); color: var(--color-accent); }
 .priceBadge { background: color-mix(in srgb, var(--color-warning) 16%, transparent); color: var(--color-warning); }
 .activeBadge { background: color-mix(in srgb, var(--color-success) 16%, transparent); color: var(--color-success); }
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detailsBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .row {
   display: flex;

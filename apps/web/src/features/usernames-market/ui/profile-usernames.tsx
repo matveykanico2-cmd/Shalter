@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, SettingsSection, TextField } from "@/shared/ui";
+import { Button, Dialog, SettingsSection, TextField } from "@/shared/ui";
 
 import { addUsername, pinUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
 
@@ -20,6 +20,7 @@ export function ProfileUsernames() {
   const [error, setError] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState("");
   const usernames = mine.data?.usernames ?? [];
+  const [selected, setSelected] = useState<(typeof usernames)[number] | null>(null);
   const market = useQuery(usernamesQueries.market());
   const paidByName = new Map((market.data?.owned ?? []).map((item) => [item.username.toLowerCase(), item.priceStars]));
   const normalizedNewUsername = newUsername.trim().replace(/^@/, "");
@@ -47,11 +48,13 @@ export function ProfileUsernames() {
       {usernames.length ? usernames.map((item) => (
         <div key={item.username} className={styles.card}>
           <div className={styles.head}>
-            <span className={styles.name}>@{item.username}</span>
+            <button type="button" className={styles.nameButton} onClick={() => setSelected(item)} aria-label={`Подробнее о @${item.username}`}>
+              <span className={styles.name}>@{item.username}</span>
+            </button>
             <span className={styles.badges}>
               {item.primary ? <span className={styles.activeBadge}>Основной</span> : null}
               {item.pinned ? <span className={styles.badge}>Закреплён</span> : null}
-              {paidByName.has(item.username.toLowerCase()) ? <span className={styles.priceBadge}>Куплен за {paidByName.get(item.username.toLowerCase())} ⭐</span> : null}
+              {(item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())) != null ? <span className={styles.priceBadge}>Куплен за {item.purchasePriceStars ?? paidByName.get(item.username.toLowerCase())} ⭐</span> : null}
             </span>
           </div>
           <div className={styles.row}>
@@ -78,6 +81,22 @@ export function ProfileUsernames() {
       </div>
       <p className={styles.hint}>Свободное имя добавляется здесь. Купленные имена и их стоимость — в разделе рынка.</p>
       <Button variant="secondary" disabled={busy} onClick={() => void navigate("/settings/usernames")}>Открыть рынок юзернеймов</Button>
+      {selected ? (
+        <Dialog title={`@${selected.username}`} onClose={() => setSelected(null)}>
+          <div className={styles.details}>
+            <div className={styles.detailsBadges}>
+              {selected.primary ? <span className={styles.activeBadge}>Основной</span> : <span className={styles.badge}>Дополнительный</span>}
+              {selected.pinned ? <span className={styles.badge}>Закреплён</span> : <span className={styles.badge}>Не закреплён</span>}
+              {selected.purchasePriceStars != null ? <span className={styles.priceBadge}>Куплен за {selected.purchasePriceStars} ⭐</span> : <span className={styles.badge}>Свободный</span>}
+            </div>
+            <p className={styles.hint}>{selected.purchasePriceStars != null ? "Коллекционный юзернейм принадлежит вашему аккаунту." : "Юзернейм добавлен без покупки."}</p>
+            <div className={styles.row}>
+              {!selected.primary ? <Button variant="secondary" disabled={busy} onClick={() => void change(() => setPrimaryUsername(selected.username))}>Сделать основным</Button> : null}
+              {!selected.primary ? <Button variant="link" disabled={busy} onClick={() => void change(() => pinUsername(selected.username, !selected.pinned))}>{selected.pinned ? "Открепить" : "Закрепить"}</Button> : null}
+            </div>
+          </div>
+        </Dialog>
+      ) : null}
     </SettingsSection>
   );
 }

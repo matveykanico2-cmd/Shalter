@@ -48,5 +48,5 @@ export const marketBody = z.strictObject({ listings: z.array(listingView), owned
 export const listingBody = z.strictObject({ listing });
 export const marketBuyBody = z.strictObject({ ok: z.literal(true), username: z.string(), user: publicUser, balance: z.number() });
 
-export const ownedUsername = z.strictObject({ username: z.string(), primary: z.boolean(), pinned: z.boolean(), createdAt: isoDate.optional() });
+export const ownedUsername = z.strictObject({ username: z.string(), primary: z.boolean(), pinned: z.boolean(), createdAt: isoDate.optional(), purchasePriceStars: z.number().optional() });
 export const ownedUsernamesBody = z.strictObject({ usernames: z.array(ownedUsername) });

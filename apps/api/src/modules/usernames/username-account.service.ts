@@ -13,7 +13,7 @@ export class UsernameAccountService {
   public mine(userId: string) {
     const user = this.users.findById(userId);
     if (!user) throw new ApiError(404, "Пользователь не найден");
-    return { usernames: this.users.listUsernames(userId, user.username) };
+    return { usernames: this.withPurchasePrices(userId, user.username) };
   }
 
   public primary(userId: string, dto: UsernameActionDto) {
@@ -24,7 +24,7 @@ export class UsernameAccountService {
     if (!owned) throw new ApiError(404, "Этот юзернейм не принадлежит вам");
     const updated = this.users.setPrimaryUsername(userId, username);
     if (!updated) throw new ApiError(409, "Не удалось назначить основной юзернейм");
-    return { user: publicUser(updated), usernames: this.users.listUsernames(userId, updated.username) };
+    return { user: publicUser(updated), usernames: this.withPurchasePrices(userId, updated.username) };
   }
 
   public pin(userId: string, dto: UsernameActionDto) {
@@ -44,5 +44,10 @@ export class UsernameAccountService {
     if (problem) throw new ApiError(problem.status, problem.error);
     this.users.addUsername(userId, username, false);
     return this.mine(userId);
+  }
+
+  private withPurchasePrices(userId: string, primary: string | null | undefined) {
+    const prices = this.users.usernamePrices(userId);
+    return this.users.listUsernames(userId, primary).map((item) => ({ ...item, ...(prices.has(item.username.toLowerCase()) ? { purchasePriceStars: prices.get(item.username.toLowerCase()) } : {}) }));
   }
 }
