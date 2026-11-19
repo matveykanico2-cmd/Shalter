@@ -10,10 +10,24 @@ export function StreamVideo({ stream, className, ref }: Props & { ref?: (el: HTM
   useEffect(() => {
     const node = el.current;
     if (!node) return;
-    if (node.srcObject !== stream) {
-      node.srcObject = stream;
-    }
-    if (stream) void Promise.resolve(node.play?.()).catch(() => {});
+    const attachAndPlay = () => {
+      if (!stream) return;
+      // Safari/WebKit can keep a MediaStream object alive while detaching it
+      // from the video element after backgrounding or route changes.
+      if (node.srcObject !== stream) node.srcObject = stream;
+      void Promise.resolve(node.play?.()).catch(() => {});
+    };
+    attachAndPlay();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") attachAndPlay();
+    };
+    const onPageShow = () => attachAndPlay();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, [stream]);
   return (
     <video

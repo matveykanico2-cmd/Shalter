@@ -190,7 +190,13 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
         return;
       }
       element.srcObject = currentStream;
-      element.setAttribute("playsinline", "true");
+      // iOS WebKit reads these properties before the first play(). Setting
+      // only the HTML attribute after getUserMedia can open a black native
+      // player instead of rendering the inline camera preview.
+      element.autoplay = true;
+      element.muted = true;
+      element.playsInline = true;
+      element.controls = false;
       await new Promise<void>((resolve) => {
         if (element.readyState >= HTMLMediaElement.HAVE_METADATA) resolve();
         else element.addEventListener("loadedmetadata", () => resolve(), { once: true });
