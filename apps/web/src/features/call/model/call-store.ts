@@ -229,6 +229,10 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
   let iceRestartPending = false;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   let previousPackets = { received: 0, lost: 0, sentBytes: 0, at: 0 };
+  // Сеть часто даёт один удачный замер между потерями. Не возвращаем полный
+  // битрейт мгновенно: это вызывает «пилу» качества на мобильном интернете.
+  let goodQualitySamples = 0;
+  let adaptiveVideo: { target: number; framerate: number; scale: number } | null = null;
   const clearWatchdog = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = undefined;
@@ -349,18 +353,28 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
       state.qualityReports.set(otherUserId, { level, rttMs: rttMs || null, packetLossPct: packetDelta > 0 ? Math.round(loss * 1000) / 10 : null, jitterMs: jitter || null, videoBitrateKbps: bitrateKbps });
       publishQuality();
 
-      // Сначала держим голос, а видео плавно ужимаем ступенями. После двух
+      // Сначала держим голос, а видео плавно ужимаем ступенями. После трёх
       // хороших замеров параметры вернутся к базовым через tunePeer().
       const base = mediaQuality(isMobileUa(navigator.userAgent)).videoBitrate;
-      const target = state.sharing
+      if (level === "good") goodQualitySamples += 1;
+      else goodQualitySamples = 0;
+      const recovered = level === "good" && goodQualitySamples >= 3;
+      const target = !recovered && adaptiveVideo
+        ? adaptiveVideo.target
+        : state.sharing
         ? level === "poor" ? 1_200_000 : level === "fair" ? 2_500_000 : 8_000_000
         : level === "poor" ? Math.min(base, 450_000) : level === "fair" ? Math.min(base, 1_200_000) : base;
-      const framerate = level === "poor" ? 12 : level === "fair" ? 20 : 30;
-      const scale = state.sharing ? 1 : level === "poor" ? 2 : level === "fair" ? 1.5 : 1;
+      const framerate = !recovered && adaptiveVideo
+        ? adaptiveVideo.framerate
+        : level === "poor" ? 12 : level === "fair" ? 20 : 30;
+      const scale = !recovered && adaptiveVideo
+        ? adaptiveVideo.scale
+        : state.sharing ? 1 : level === "poor" ? 2 : level === "fair" ? 1.5 : 1;
       for (const sender of pc.getSenders()) {
         if (sender.track?.kind !== "video" || typeof sender.getParameters !== "function") continue;
         await tuneAdaptiveVideo(sender, target, state.sharing ? 30 : framerate, scale);
       }
+      adaptiveVideo = { target, framerate: state.sharing ? 30 : framerate, scale };
     } catch {
       // Некоторые WebViews не дают статистику — соединение продолжает работать без адаптации.
     }
