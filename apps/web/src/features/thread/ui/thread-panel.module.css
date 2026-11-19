@@ -96,8 +96,24 @@
 }
 
 .root {
+  box-sizing: border-box;
+  padding-inline: 4px;
   padding-bottom: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+
+/* Внутренние сообщения не должны липнуть к рамке панели: свои чуть отступают
+   справа, чужие — минимально слева. */
+.mineReply {
+  box-sizing: border-box;
+  justify-content: flex-start;
+  margin-right: 8px;
+}
+
+.otherReply {
+  box-sizing: border-box;
+  justify-content: flex-start;
+  margin-left: 4px;
 }
 
 .label,

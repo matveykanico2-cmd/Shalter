@@ -98,6 +98,8 @@ type Props = {
   onCallBack?: (kind: "audio" | "video") => void;
   /** Время своей строкой, а не в хвосте текста — как ответы в ветке (thread-reply-time). */
   metaApart?: boolean;
+  /** Дополнительный класс строки для специального контейнера сообщения. */
+  className?: string;
   /** «Установить как фото профиля» под предложенным собеседником фото; без него — только подпись. */
   onUseSuggestedPhoto?: (m: Message) => void;
   /** Собеседник заблокировал отправителя: квитанцию доставки/прочтения не показываем. */
@@ -514,7 +516,7 @@ export function MessageBubble(props: Props) {
   };
 
   const selectable = selecting && !!onToggleSelect;
-  const rowClass = [styles.row, out ? styles.rowOut : "", props.centered ? styles.rowCentered : "", selectable ? styles.selecting : "", selectable && props.selected ? styles.selectedRow : ""].filter(Boolean).join(" ");
+  const rowClass = [styles.row, out ? styles.rowOut : "", props.centered ? styles.rowCentered : "", props.className ?? "", selectable ? styles.selecting : "", selectable && props.selected ? styles.selectedRow : ""].filter(Boolean).join(" ");
 
   return (
     <div

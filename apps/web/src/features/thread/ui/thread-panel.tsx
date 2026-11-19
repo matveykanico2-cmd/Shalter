@@ -148,6 +148,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
                 showAvatar={!mine}
                 meId={me.id}
                 metaApart
+                className={mine ? styles.mineReply : styles.otherReply}
                 onOpenMenu={canAct ? (msg, at) => setMenu({ message: msg, at }) : undefined}
               />
             );
