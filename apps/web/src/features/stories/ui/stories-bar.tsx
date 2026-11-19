@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SelfUser } from "@/entities/session";
-import { hasUnseen, openStoryViewer, storyApi, type StoryGroup, storyQueries } from "@/entities/story";
+import { hasUnseen, type NewStoryItem, openStoryViewer, type StoryGroup,storyQueries } from "@/entities/story";
 
 import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
@@ -25,6 +25,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ file: File | null; resolve: (f: { file: File; sound?: File } | null) => void } | null>(null);
   const [creating, setCreating] = useState<"media" | null>(null);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
+  const [storyAttachments, setStoryAttachments] = useState<NewStoryItem[]>([]);
   /** Выбранные файлы для одной истории — можно добавить ещё фото/видео перед публикацией. */
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -56,6 +58,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       const posted = await postStory(selectedFiles, {
         edit: (file) => new Promise((resolve) => setEditing({ file, resolve })),
         progress: setProgress,
+        attachments: storyAttachments,
       });
       if (posted) await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
     } catch (err) {
@@ -64,6 +67,8 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       publishingRef.current = false;
       setProgress(null);
       setSelectedFiles([]);
+      setStoryAttachments([]);
+      setAttachmentsOpen(false);
     }
   };
 
@@ -81,12 +86,14 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     if (!result) return;
     try {
       setProgress("Загружаем историю…");
-      await postTextStory(result.file, result.sound);
+      await postTextStory(result.file, result.sound, storyAttachments);
       await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
+      setStoryAttachments([]);
+      setAttachmentsOpen(false);
     }
   };
 
@@ -97,14 +104,14 @@ export function StoriesBar({ me }: { me: SelfUser }) {
     if (!["poll", "checklist"].includes(kind)) {
       const details = await askText(kind === "contact" ? "Телефон или ник контакта" : kind === "location" ? "Адрес или координаты" : "Описание", { placeholder: "Можно оставить пустым", okLabel: "Опубликовать" });
       try {
-        setProgress("Публикуем историю…");
-        await storyApi.post([{ kind, meta: { title: title.trim(), text: details?.trim() ?? "" } }]);
-        await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+        setProgress("Добавляем вложение…");
+        setStoryAttachments((items) => [...items, { kind, meta: { title: title.trim(), text: details?.trim() ?? "" } }]);
+        setAttachmentsOpen(false);
       } catch (err) {
         toast(errorText(err, "Не удалось выложить историю"), { error: true });
       } finally {
         setProgress(null);
-        setCreating(null);
+        setAttachmentsOpen(false);
       }
       return;
     }
@@ -115,14 +122,13 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       return;
     }
     try {
-      setProgress("Публикуем историю…");
-      await storyApi.post([{ kind, meta: kind === "poll" ? { question: title.trim(), options: values, votes: values.map(() => 0) } : { title: title.trim(), items: values.map((text) => ({ text, done: false })) } }]);
-      await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+      setProgress("Добавляем вложение…");
+      setStoryAttachments((items) => [...items, { kind, meta: kind === "poll" ? { question: title.trim(), options: values, votes: values.map(() => 0) } : { title: title.trim(), items: values.map((text) => ({ text, done: false })) } }]);
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
-      setCreating(null);
+      setAttachmentsOpen(false);
     }
   };
 
@@ -130,6 +136,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const myGroup = groups[myIndex] ?? null;
   const addStory = () => fileRef.current?.click();
   const openCreate = () => setCreating("media");
+  const removeAttachment = (index: number) => setStoryAttachments((items) => items.filter((_, i) => i !== index));
   const ring = (g: StoryGroup | null) => (g ? (hasUnseen(g) ? `${styles.ring} ${styles.unseen}` : `${styles.ring} ${styles.seen}`) : styles.ring);
 
   /** Кружок своей истории: открывает просмотр, если она есть. */
@@ -184,24 +191,19 @@ export function StoriesBar({ me }: { me: SelfUser }) {
             <button type="button" className={styles.createAction} title="История" onClick={addStory}>
               <Icon name="Image" size={18} /> История
             </button>
-            <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}>
-              <Icon name="BarChart" size={18} /> Опрос
+            <button type="button" className={styles.createAction} title="Добавить вложение" aria-label="Добавить вложение" onClick={() => setAttachmentsOpen((open) => !open)}>
+              <Icon name="Paperclip" size={18} />
             </button>
-            <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}>
-              <Icon name="CheckCheck" size={18} /> Чек-лист
-            </button>
-            <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}>
-              <Icon name="User" size={18} /> Контакт
-            </button>
-            <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}>
-              <Icon name="MapPin" size={18} /> Место
-            </button>
-            <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}>
-              <Icon name="Zap" size={18} /> Игра
-            </button>
-            <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}>
-              <Icon name="Star" size={18} /> Кубик
-            </button>
+            {attachmentsOpen ? (
+              <div className={styles.attachmentChoice} aria-label="Вложения истории">
+                <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}><Icon name="BarChart" size={18} /> Опрос</button>
+                <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}><Icon name="CheckCheck" size={18} /> Чек-лист</button>
+                <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}><Icon name="User" size={18} /> Контакт</button>
+                <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}><Icon name="MapPin" size={18} /> Место</button>
+                <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}><Icon name="Zap" size={18} /> Игра</button>
+                <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}><Icon name="Star" size={18} /> Кубик</button>
+              </div>
+            ) : null}
             <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
           </div>
         ) : null}
@@ -228,10 +230,23 @@ export function StoriesBar({ me }: { me: SelfUser }) {
           )
         )}
       </div>
-      {selectedFiles.length > 0 ? (
+      {selectedFiles.length > 0 || storyAttachments.length > 0 ? (
         <div className={styles.mediaSelection}>
-          <div className={styles.mediaSelectionTitle}>Выбрано {selectedFiles.length} {plural(selectedFiles.length, "файл", "файла", "файлов")}</div>
-          <div className={styles.mediaSelectionGrid} aria-label="Выбранные фото и видео">
+          <div className={styles.mediaSelectionTitle}>
+            {selectedFiles.length ? `Выбрано ${selectedFiles.length} ${plural(selectedFiles.length, "файл", "файла", "файлов")}` : "Вложения истории"}
+          </div>
+          {storyAttachments.length ? (
+            <div className={styles.attachmentList} aria-label="Добавленные вложения">
+              {storyAttachments.map((item, i) => (
+                <div key={`${item.kind}-${i}`} className={styles.attachmentItem}>
+                  <Icon name="Paperclip" size={15} />
+                  <span>{attachmentLabel(item.kind)}</span>
+                  <button type="button" className={styles.mediaSelectionRemove} title="Удалить вложение" onClick={() => removeAttachment(i)}><Icon name="X" size={12} /></button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {selectedFiles.length ? <div className={styles.mediaSelectionGrid} aria-label="Выбранные фото и видео">
             {selectedFiles.map((file, i) => {
               const url = previewUrls[i]!;
               return (
@@ -252,12 +267,15 @@ export function StoriesBar({ me }: { me: SelfUser }) {
               <Icon name="Plus" size={14} />
               Ещё фото/видео
             </button>
-          </div>
+          </div> : null}
           <div className={styles.mediaSelectionActions}>
+            <button type="button" className={styles.mediaSelectionCancel} onClick={() => { setCreating("media"); setAttachmentsOpen(true); }}>
+              <Icon name="Paperclip" size={14} /> Вложение
+            </button>
             <button type="button" className={styles.mediaSelectionCancel} onClick={() => setSelectedFiles([])}>
               Отмена
             </button>
-            <button type="button" className={styles.mediaSelectionPublish} disabled={progress !== null} onClick={publish}>
+            <button type="button" className={styles.mediaSelectionPublish} disabled={progress !== null || !selectedFiles.length} onClick={publish}>
               {progress ?? "Опубликовать историю"}
             </button>
           </div>
@@ -275,4 +293,16 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       ) : null}
     </div>
   );
+}
+
+function attachmentLabel(kind: NewStoryItem["kind"]) {
+  switch (kind) {
+    case "poll": return "Опрос";
+    case "checklist": return "Чек-лист";
+    case "contact": return "Контакт";
+    case "location": return "Место";
+    case "game": return "Игра";
+    case "dice": return "Кубик";
+    default: return "Вложение";
+  }
 }

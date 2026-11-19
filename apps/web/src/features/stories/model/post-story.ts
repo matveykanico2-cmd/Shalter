@@ -18,13 +18,15 @@ type Hooks = {
   progress: (text: string) => void;
   /** История канала, а не своя. */
   channelId?: string;
+  /** Вложения из меню скрепки, добавленные к этой же истории. */
+  attachments?: NewStoryItem[];
 };
 
 /**
  * Выложить историю из выбранных файлов (postStory в storiesBar.js): фото — через редактор,
  * видео — как есть (сервер обработает его в фоне), всё одной историей. false — нечего выкладывать.
  */
-export async function postStory(files: File[], { edit, progress, channelId }: Hooks) {
+export async function postStory(files: File[], { edit, progress, channelId, attachments = [] }: Hooks) {
   const items: NewStoryItem[] = [];
   for (const [i, file] of files.entries()) {
     const isVideo = file.type.startsWith("video/");
@@ -47,18 +49,19 @@ export async function postStory(files: File[], { edit, progress, channelId }: Ho
     const { url } = await uploadFile(upload, isVideo ? "video" : "image");
     items.push({ kind: isVideo ? "video" : "image", url });
   }
-  if (!items.length) return false;
-  await (channelId ? storyApi.postToChannel(channelId, items) : storyApi.post(items));
+  if (!items.length && !attachments.length) return false;
+  const allItems = [...items, ...attachments];
+  await (channelId ? storyApi.postToChannel(channelId, allItems) : storyApi.post(allItems));
   return true;
 }
 
 /** Текстовая история: готовая картинка из редактора — как обычное фото одной историей. */
-export async function postTextStory(image: File, sound?: File) {
+export async function postTextStory(image: File, sound?: File, attachments: NewStoryItem[] = []) {
   const { url } = await uploadFile(image, "image");
   if (!sound) {
-    await storyApi.post([{ kind: "image", url }]);
+    await storyApi.post([{ kind: "image", url }, ...attachments]);
     return;
   }
   const audio = await uploadFile(sound, "story-audio");
-  await storyApi.post([{ kind: "image", url, audioUrl: audio.url }]);
+  await storyApi.post([{ kind: "image", url, audioUrl: audio.url }, ...attachments]);
 }

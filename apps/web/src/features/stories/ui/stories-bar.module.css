@@ -149,6 +149,40 @@
   min-width: 56px;
 }
 
+.attachmentChoice {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  padding-top: 2px;
+  border-top: 1px solid var(--color-border);
+}
+
+.attachmentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachmentItem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 28px 0 9px;
+  border-radius: 10px;
+  background: var(--color-muted-bg);
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.attachmentItem .mediaSelectionRemove {
+  top: 5px;
+  right: 4px;
+}
+
 /* Выбор медиа перед публикацией истории — можно добавить ещё фото/видео. */
 .mediaSelection {
   display: flex;
