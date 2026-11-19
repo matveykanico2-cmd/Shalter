@@ -24,6 +24,13 @@ import { AtUsername } from "./at-username";
 // Экраны — отдельными чанками (как import() в public/js/app.js): оболочка и список чатов
 // появляются раньше, экран чата подгружается в простое (prefetchChat).
 const loadChat = () => import("@/views/chat");
+const preloadCommonRoutes = () => [
+  loadChat,
+  () => import("@/views/calls"),
+  () => import("@/views/contacts"),
+  () => import("@/views/archive"),
+  () => import("@/views/settings"),
+];
 const ChatView = lazyLoadedView(() => loadChat().then((m) => m.ChatView));
 const CallView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallView));
 const CallJoinView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallJoinView));
@@ -83,13 +90,28 @@ export function AppRoutes({ user }: { user: SelfUser }) {
   const desktop = useMediaQuery(DESKTOP_QUERY);
   // Экран чата — заранее, в простое: первый открытый чат не ждёт загрузки кода.
   useEffect(() => {
-    const prefetch = () => void loadChat().catch(() => {});
+    const timers: number[] = [];
+    const prefetch = () => {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+      // На 2G/3G и при Save-Data не конкурируем с текущими чатами за канал.
+      if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
+      const loaders = preloadCommonRoutes();
+      loaders.forEach((load, index) => {
+        timers.push(window.setTimeout(() => void load().catch(() => {}), index * 180));
+      });
+    };
     if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(prefetch, { timeout: 3000 });
-      return () => window.cancelIdleCallback(id);
+      const id = window.requestIdleCallback(prefetch, { timeout: 2200 });
+      return () => {
+        window.cancelIdleCallback(id);
+        timers.forEach((timer) => window.clearTimeout(timer));
+      };
     }
-    const t = setTimeout(prefetch, 1200);
-    return () => clearTimeout(t);
+    const t = setTimeout(prefetch, 900);
+    return () => {
+      clearTimeout(t);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
   }, []);
   const side = desktop && isSidePath(location.pathname);
   // Пока слева открыт боковой раздел, справа остаётся прежний экран.
