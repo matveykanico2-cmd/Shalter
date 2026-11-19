@@ -389,6 +389,7 @@ export function MessageBubble(props: Props) {
         text={text}
         customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined}
         meta={reactions.length || below || isChannel ? null : meta}
+        className={m.attachments?.length ? styles.mediaCaption : undefined}
       />
     );
     if (inlineStickers?.length) body.push(<InlineStickers key="inline-stickers" stickers={inlineStickers} onStickerClick={props.onStickerClick} />);

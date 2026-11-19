@@ -22,12 +22,12 @@ const HIGHLIGHT_LIMIT = 20_000;
  * formatText в public/js/lib/formatText.js. meta — время с галочками: встаёт в конец
  * последней строки.
  */
-export function MessageText({ text, meta, customEmoji, markdown = true }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean }) {
+export function MessageText({ text, meta, customEmoji, markdown = true, className }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[]; markdown?: boolean; className?: string }) {
   const blocks = useMemo(() => parseText(text, { markdown }), [text, markdown]);
   const lastLine = blocks.at(-1)?.kind === "line" ? blocks.length - 1 : -1;
   return (
     <CustomEmojiScenes value={customEmoji}>
-      <div className={styles.text}>
+      <div className={[styles.text, className].filter(Boolean).join(" ")}>
         {blocks.map((block, i) => (
           <BlockView key={i} block={block} tail={i === lastLine ? meta : undefined} />
         ))}

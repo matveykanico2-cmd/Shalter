@@ -34,6 +34,7 @@ const withBust = (url: string, bust: string) => (bust ? `${url}${url.includes("?
 export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onOpen, onDoubleTap }: Props) {
   const item = mediaItem(a, { id: messageId });
   const [posterBroken, setPosterBroken] = useState(false);
+  const [frameReady, setFrameReady] = useState(false);
   // Не загрузились ни обложка, ни сам ролик (нет доступа, удалён, нет сети) — плашка
   // «Повторить» вместо пустого чёрного прямоугольника и значка браузера «видео не открывается».
   const [frameFailed, setFrameFailed] = useState(false);
@@ -80,14 +81,17 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
           alt=""
           loading={inAlbum ? "lazy" : "eager"}
           decoding="async"
+          fetchPriority={inAlbum ? "low" : "high"}
+          style={frameReady ? undefined : { opacity: 0.01 }}
           onLoad={(e) => learnShape(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+          onLoadCapture={() => setFrameReady(true)}
           // Обложка не загрузилась — берём первый кадр самого ролика.
           onError={() => setPosterBroken(true)}
         />
       ) : (
         <video
           key={bust}
-          className={styles.poster}
+          className={`${styles.poster} ${frameReady ? styles.frameReady : ""}`}
           src={frameSrc.includes("#") ? frameSrc : `${frameSrc.startsWith("blob:") ? frameSrc : withBust(frameSrc, bust)}#t=0.1`}
           poster={item.thumbUrl}
           preload="metadata"
@@ -99,6 +103,7 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
             // Явно просим декодировать первый кадр, не начиная воспроизведение.
             try { e.currentTarget.currentTime = 0.1; } catch { /* кадр появится после загрузки */ }
           }}
+          onLoadedData={() => setFrameReady(true)}
           onError={() => {
             setFrameFailed(true);
             notifyMediaError(a.name, "видео");

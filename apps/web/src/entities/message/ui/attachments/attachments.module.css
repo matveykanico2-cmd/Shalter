@@ -4,7 +4,7 @@
 .tile {
   position: relative;
   display: block;
-  margin: 0 0 4px;
+  margin: 0 0 5px;
   padding: 0;
   overflow: hidden;
   border: none;
@@ -125,7 +125,10 @@
   height: 100%;
   object-fit: cover;
   background: #0e151e;
+  transition: opacity 0.16s ease;
 }
+
+.frameReady { opacity: 1; }
 
 /* Пока poster/первый кадр ещё не пришёл, не показываем серый браузерный блок. */
 .videoTile::before,
