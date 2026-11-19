@@ -247,9 +247,9 @@
   border-radius: 16px;
 }
 
-/* Альбомы повторяют раскладку Telegram: первое медиа крупнее, остальные —
-   компактной колонкой справа. Это лучше использует место и не превращает
-   четыре фотографии в четыре одинаковых маленьких квадрата. */
+/* Для 3 файлов оставляем акцентную раскладку, а 4+ показываем ровной
+   сеткой: так превью не слипается и поверх последнего файла не появляется
+   устаревший счётчик «+N». */
 .album3,
 .album4,
 .albumMany {
@@ -285,19 +285,17 @@
   grid-row: 2;
 }
 
-.album4 .albumCell:first-child {
-  grid-column: 1;
-  grid-row: 1 / span 3;
+.album4 {
+  aspect-ratio: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.album4 .albumCell {
+  grid-column: auto;
+  grid-row: auto;
   aspect-ratio: auto;
 }
-
-.album4 {
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-}
-
-.album4 .albumCell:nth-child(2) { grid-column: 2; grid-row: 1; }
-.album4 .albumCell:nth-child(3) { grid-column: 2; grid-row: 2; }
-.album4 .albumCell:nth-child(4) { grid-column: 2; grid-row: 3; }
 
 .albumMany .albumCell:first-child {
   grid-column: auto;
