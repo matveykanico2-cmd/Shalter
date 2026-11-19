@@ -5,9 +5,9 @@ import { useNavigate } from "react-router";
 import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, Button, Dialog, SettingsSection, TextField } from "@/shared/ui";
+import { askConfirm, askText, Button, Dialog, SettingsSection, TextField } from "@/shared/ui";
 
-import { addUsername, pinUsername, removeUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
+import { addUsername, pinUsername, removeUsername, renameUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
 
 import styles from "./usernames.module.css";
 
@@ -26,10 +26,29 @@ export function ProfileUsernames() {
   const normalizedNewUsername = newUsername.trim().replace(/^@/, "");
   const newUsernameValid = /^[A-Za-z0-9_]{3,32}$/.test(normalizedNewUsername);
 
-  const remove = async (username: string) => {
-    if (!(await askConfirm(`Удалить дополнительный юзернейм @${username}?`, { okLabel: "Удалить", danger: true }))) return;
+  const edit = async (current: string) => {
+    const next = await askText(`Новое имя вместо @${current}`, { initial: current, placeholder: "новый юзернейм", okLabel: "Сохранить" });
+    const normalized = (next ?? "").trim().replace(/^@/, "");
+    if (!/^[A-Za-z0-9_]{3,32}$/.test(normalized) || normalized.toLowerCase() === current.toLowerCase()) return;
     setSelected(null);
-    await change(() => removeUsername(username));
+    await change(() => renameUsername(current, normalized));
+  };
+
+  const remove = async (username: string) => {
+    if (!(await askConfirm(`Удалить юзернейм @${username}?`, { okLabel: "Удалить", danger: true }))) return;
+    setSelected(null);
+    const result = await change(() => removeUsername(username)) as { generatedUsername?: string } | undefined;
+    if (result?.generatedUsername) {
+      const replacement = await askText(`У вас не осталось юзернеймов. Временно установлен @${result.generatedUsername}. Введите новый юзернейм:`, { initial: result.generatedUsername, placeholder: "новый юзернейм", okLabel: "Изменить" });
+      const normalized = (replacement ?? "").trim().replace(/^@/, "");
+      if (/^[A-Za-z0-9_]{3,32}$/.test(normalized) && normalized.toLowerCase() !== result.generatedUsername.toLowerCase()) {
+        await change(() => renameUsername(result.generatedUsername!, normalized));
+      }
+    }
+  };
+
+  const runEdit = (username: string) => {
+    void edit(username);
   };
 
   const change = async (request: () => Promise<unknown>) => {
@@ -37,10 +56,11 @@ export function ProfileUsernames() {
     setBusy(true);
     setError(null);
     try {
-      await request();
+      const result = await request();
       setNewUsername("");
       await client.refetchQueries({ queryKey: usernamesQueries.mine().queryKey });
       await client.invalidateQueries({ queryKey: sessionQueries.current().queryKey });
+      return result;
     } catch (err) {
       setError(errorText(err, "Не удалось изменить юзернейм"));
     } finally {
@@ -64,6 +84,8 @@ export function ProfileUsernames() {
             </span>
           </div>
           <div className={styles.row}>
+            <Button variant="link" disabled={busy} onClick={() => runEdit(item.username)}>Редактировать</Button>
+            <Button variant="link" className={styles.dangerLink} disabled={busy} onClick={() => void remove(item.username)}>Удалить</Button>
             {!item.primary ? <Button variant="secondary" disabled={busy} onClick={() => void change(() => setPrimaryUsername(item.username))}>Сделать основным</Button> : null}
             {!item.primary ? <Button variant="link" disabled={busy} onClick={() => void change(() => pinUsername(item.username, !item.pinned))}>{item.pinned ? "Открепить" : "Закрепить"}</Button> : null}
           </div>
@@ -97,9 +119,10 @@ export function ProfileUsernames() {
             </div>
             <p className={styles.hint}>{selected.purchasePriceStars != null ? "Коллекционный юзернейм принадлежит вашему аккаунту." : "Юзернейм добавлен без покупки."}</p>
             <div className={styles.row}>
+              <Button variant="link" disabled={busy} onClick={() => runEdit(selected.username)}>Редактировать</Button>
+              <Button variant="link" className={styles.dangerLink} disabled={busy} onClick={() => void remove(selected.username)}>Удалить</Button>
               {!selected.primary ? <Button variant="secondary" disabled={busy} onClick={() => void change(() => setPrimaryUsername(selected.username))}>Сделать основным</Button> : null}
               {!selected.primary ? <Button variant="link" disabled={busy} onClick={() => void change(() => pinUsername(selected.username, !selected.pinned))}>{selected.pinned ? "Открепить" : "Закрепить"}</Button> : null}
-              {!selected.primary ? <Button variant="link" className={styles.dangerLink} disabled={busy} onClick={() => void remove(selected.username)}>Удалить</Button> : null}
             </div>
           </div>
         </Dialog>

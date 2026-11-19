@@ -44,3 +44,4 @@ export const setPrimaryUsername = (username: string) => http.post("/api/username
 export const pinUsername = (username: string, pinned = true) => http.post("/api/usernames/mine/pin", { username, pinned });
 export const addUsername = (username: string) => http.post<{ usernames: OwnedUsername[] }>("/api/usernames/mine/add", { username });
 export const removeUsername = (username: string) => http.delete<{ usernames: OwnedUsername[] }>(`/api/usernames/mine/${id(username)}`);
+export const renameUsername = (current: string, username: string) => http.post<{ usernames: OwnedUsername[] }>(`/api/usernames/mine/${id(current)}/rename`, { username });

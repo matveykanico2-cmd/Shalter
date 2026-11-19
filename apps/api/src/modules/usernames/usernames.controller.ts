@@ -114,6 +114,10 @@ export class UsernameAccountController {
   @Delete(":username")
   public remove(@Req() req: Request, @Param("username") username: string) { return this.account.remove(req.uid!, username); }
 
+  @Post(":username/rename")
+  @HttpCode(200)
+  public rename(@Req() req: Request, @Param("username") username: string, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.rename(req.uid!, username, dto); }
+
   @Post("primary")
   @HttpCode(200)
   public primary(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.primary(req.uid!, dto); }
