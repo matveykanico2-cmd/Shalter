@@ -183,7 +183,32 @@
 }
 
 .mediaCaption {
-  margin: 4px 6px 0;
+  /* Подпись/ссылка — самостоятельный блок под альбомом. Не даём ей
+     попасть под float времени и не обрезаем длинные URL. */
+  display: block;
+  box-sizing: border-box;
+  width: calc(100% - 12px);
+  max-width: calc(100% - 12px);
+  margin: 6px 6px 0;
+  padding: 7px 8px 3px;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+  border-radius: 8px;
+  color: var(--color-text);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  clear: both;
+}
+
+.mediaCaption :global(a),
+.mediaCaption :global(button) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bubble:has(.tile) > .linkCard {
+  max-width: calc(100% - 12px);
+  margin: 6px 6px 0;
 }
 
 /* Размытие каждого пузыря очень дорого на телефонах и средних планшетах: при
