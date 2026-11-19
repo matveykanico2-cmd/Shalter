@@ -274,7 +274,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.paused .header,
 .paused .progressRow,
 .paused .footer {
   opacity: 0;

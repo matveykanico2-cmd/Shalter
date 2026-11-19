@@ -111,6 +111,9 @@ export class UsernameAccountController {
   @HttpCode(200)
   public add(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.add(req.uid!, dto); }
 
+  @Delete(":username")
+  public remove(@Req() req: Request, @Param("username") username: string) { return this.account.remove(req.uid!, username); }
+
   @Post("primary")
   @HttpCode(200)
   public primary(@Req() req: Request, @Body(new ZodValidationPipe(usernameActionSchema)) dto: UsernameActionDto) { return this.account.primary(req.uid!, dto); }

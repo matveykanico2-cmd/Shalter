@@ -5,9 +5,9 @@ import { useNavigate } from "react-router";
 import { sessionQueries } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Button, Dialog, SettingsSection, TextField } from "@/shared/ui";
+import { askConfirm, Button, Dialog, SettingsSection, TextField } from "@/shared/ui";
 
-import { addUsername, pinUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
+import { addUsername, pinUsername, removeUsername, setPrimaryUsername, usernamesQueries } from "../api/usernames";
 
 import styles from "./usernames.module.css";
 
@@ -25,6 +25,12 @@ export function ProfileUsernames() {
   const paidByName = new Map((market.data?.owned ?? []).map((item) => [item.username.toLowerCase(), item.priceStars]));
   const normalizedNewUsername = newUsername.trim().replace(/^@/, "");
   const newUsernameValid = /^[A-Za-z0-9_]{3,32}$/.test(normalizedNewUsername);
+
+  const remove = async (username: string) => {
+    if (!(await askConfirm(`Удалить дополнительный юзернейм @${username}?`, { okLabel: "Удалить", danger: true }))) return;
+    setSelected(null);
+    await change(() => removeUsername(username));
+  };
 
   const change = async (request: () => Promise<unknown>) => {
     if (busy) return;
@@ -93,6 +99,7 @@ export function ProfileUsernames() {
             <div className={styles.row}>
               {!selected.primary ? <Button variant="secondary" disabled={busy} onClick={() => void change(() => setPrimaryUsername(selected.username))}>Сделать основным</Button> : null}
               {!selected.primary ? <Button variant="link" disabled={busy} onClick={() => void change(() => pinUsername(selected.username, !selected.pinned))}>{selected.pinned ? "Открепить" : "Закрепить"}</Button> : null}
+              {!selected.primary ? <Button variant="link" className={styles.dangerLink} disabled={busy} onClick={() => void remove(selected.username)}>Удалить</Button> : null}
             </div>
           </div>
         </Dialog>

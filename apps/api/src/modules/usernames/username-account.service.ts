@@ -46,6 +46,17 @@ export class UsernameAccountService {
     return this.mine(userId);
   }
 
+  public remove(userId: string, rawUsername: string) {
+    const username = normalizeUsername(rawUsername);
+    const user = this.users.findById(userId);
+    if (!user) throw new ApiError(404, "Пользователь не найден");
+    if (user.username?.toLowerCase() === username.toLowerCase()) throw new ApiError(400, "Нельзя удалить основной юзернейм — сначала выберите другой");
+    const owned = this.users.listUsernames(userId, user.username).some((item) => item.username.toLowerCase() === username.toLowerCase());
+    if (!owned) throw new ApiError(404, "Этот юзернейм не принадлежит вам");
+    this.users.removeUsername(username);
+    return this.mine(userId);
+  }
+
   private withPurchasePrices(userId: string, primary: string | null | undefined) {
     const prices = this.users.usernamePrices(userId);
     return this.users.listUsernames(userId, primary).map((item) => ({ ...item, ...(prices.has(item.username.toLowerCase()) ? { purchasePriceStars: prices.get(item.username.toLowerCase()) } : {}) }));

@@ -237,13 +237,23 @@
 
 .usernameEntry {
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 10px 12px;
+  border: 0;
   border-radius: 12px;
   background: var(--color-surface-alt);
+  color: var(--color-text);
   font-family: var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+
+.usernameEntry:hover,
+.usernameEntry:focus-visible {
+  background: color-mix(in srgb, var(--color-accent-soft) 72%, var(--color-surface-alt));
 }
 
 .usernameEntry small {

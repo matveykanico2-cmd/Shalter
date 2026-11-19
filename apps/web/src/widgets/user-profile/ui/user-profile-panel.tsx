@@ -710,25 +710,29 @@ function ProfileButtons({ links, onOpen }: { links: { title: string; target: str
 
 function ProfileUsernames({ user }: { user: ProfileUser }) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const names = user.usernames ?? (user.username ? [{ username: user.username, primary: true, pinned: true }] : []);
   const extra = names.filter((item) => !item.primary);
   if (!extra.length) return null;
-  const shown = extra.slice(0, 3).map((item) => `@${item.username}`).join(", ");
-  const more = extra.length > 3 ? ` и ещё ${extra.length - 3}` : "";
+  const shown = extra.map((item) => `@${item.username}`).join(", ");
+  const openUsername = (username: string) => {
+    setOpen(false);
+    void navigate(`/u/${encodeURIComponent(username)}`);
+  };
   return (
     <>
       <button type="button" className={styles.usernamesSummary} onClick={() => setOpen(true)}>
         <span className={styles.usernamesPrimary}>@{user.username}</span>
-        <span>а также {shown}{more}</span>
+        <span>а также {shown}</span>
       </button>
       {open ? (
         <Dialog title="Юзернеймы профиля" onClose={() => setOpen(false)}>
           <div className={styles.usernamesDialog}>
             {names.map((item) => (
-              <div key={item.username} className={styles.usernameEntry}>
+              <button key={item.username} type="button" className={styles.usernameEntry} onClick={() => openUsername(item.username)} title={`Открыть профиль по @${item.username}`}>
                 <span>@{item.username}</span>
                 <small>{item.primary ? "Основной" : item.priceStars ? `Куплен за ${item.priceStars} ⭐` : item.pinned ? "Закреплён" : "Дополнительный"}</small>
-              </div>
+              </button>
             ))}
           </div>
         </Dialog>

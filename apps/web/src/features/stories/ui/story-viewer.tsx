@@ -370,6 +370,9 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             <p className={styles.time}>{timeAgo(story.createdAt)}</p>
           </div>
           <div className={styles.headerActions}>
+            <button type="button" className={styles.headerButton} title={held ? "Продолжить историю" : "Остановить историю"} aria-label={held ? "Продолжить историю" : "Остановить историю"} onClick={() => setHeld((value) => !value)}>
+              <Icon name={held ? "Play" : "Pause"} size={18} />
+            </button>
             {isVideo ? (
               <button type="button" className={styles.headerButton} title={muted ? "Включить звук" : "Выключить звук"} aria-label={muted ? "Включить звук" : "Выключить звук"} onClick={() => setMuted((m) => !m)}>
                 <Icon name={muted ? "BellOff" : "Bell"} size={18} />

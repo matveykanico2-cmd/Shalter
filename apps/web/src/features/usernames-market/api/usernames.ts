@@ -43,3 +43,4 @@ export const activateUsername = async (userId: string, username: string) => {
 export const setPrimaryUsername = (username: string) => http.post("/api/usernames/mine/primary", { username });
 export const pinUsername = (username: string, pinned = true) => http.post("/api/usernames/mine/pin", { username, pinned });
 export const addUsername = (username: string) => http.post<{ usernames: OwnedUsername[] }>("/api/usernames/mine/add", { username });
+export const removeUsername = (username: string) => http.delete<{ usernames: OwnedUsername[] }>(`/api/usernames/mine/${id(username)}`);
