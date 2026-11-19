@@ -67,6 +67,7 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
             // ленивый режим на входе показывал серую плитку даже для видимого медиа.
             loading={inAlbum ? "lazy" : "eager"}
             decoding="async"
+            fetchPriority={inAlbum ? "low" : "high"}
             style={box ?? undefined}
             onLoad={(e) => {
               setLoaded(true);

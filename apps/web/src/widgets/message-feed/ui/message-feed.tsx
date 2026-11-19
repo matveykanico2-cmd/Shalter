@@ -233,9 +233,9 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_ESTIMATE,
-    // Шести строк с каждой стороны хватает для быстрого свайпа и не держит за экраном
-    // десятки пузырей с медиа, Markdown и реакциями на слабом Android.
-    overscan: 6,
+    // Четырёх строк достаточно для быстрого свайпа, но на экране не держатся
+    // лишние тяжёлые пузырьки с медиа, Markdown и реакциями.
+    overscan: 4,
     getItemKey: (i) => rows[i]!.key,
     // При prepend старой страницы сохраняем первую видимую строку и её смещение.
     // Виртуализатор также компенсирует уточнение высоты динамических пузырей, поэтому
