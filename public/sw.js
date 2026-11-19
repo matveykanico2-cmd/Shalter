@@ -163,6 +163,26 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Браузер может заменить endpoint после обновления ключей push-сервиса. Без
+// повторной привязки сервер продолжает слать на старую подписку, а сообщения
+// начинают появляться только после открытия приложения и новой подписки.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    const subscription = event.newSubscription;
+    if (!subscription) return;
+    try {
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+    } catch {
+      // При временном отсутствии сети следующая загрузка приложения повторит привязку.
+    }
+  })());
+});
+
 // ---------- Push-уведомления (server/push.js: { title, body, url, tag, kind, avatar, … }) ----------
 // Без обработчика 'push' браузер показывал вместо сообщения своё «Сайт обновлён в фоне»
 // (Chrome) или ничего (iOS — и через пару таких пушей отзывал подписку).
@@ -301,7 +321,7 @@ self.addEventListener('push', (event) => {
         }
       }
 
-      await self.registration.showNotification(title, {
+      const options = {
         body: notifBody,
         tag,
         requireInteraction: !!requireInteraction,
@@ -320,7 +340,20 @@ self.addEventListener('push', (event) => {
             ? messageActions()
             : undefined,
         data: { url: url || '/', kind, callId, count, chatId, messageId },
-      });
+      };
+      try {
+        await self.registration.showNotification(title, options);
+      } catch {
+        // Отдельные браузеры не принимают расширенные actions/options. Пуш всё
+        // равно должен быть виден, поэтому повторяем с минимальным набором.
+        await self.registration.showNotification(title, {
+          body: notifBody,
+          tag,
+          requireInteraction: !!requireInteraction,
+          icon: '/icons/icon-192.png',
+          data: { url: url || '/', kind, callId, count, chatId, messageId },
+        });
+      }
     })()
   );
 });

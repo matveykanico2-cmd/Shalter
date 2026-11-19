@@ -17,7 +17,9 @@ installEmojiCopy();
 // здесь не запрашиваем: подписываемся только если пользователь уже разрешил
 // уведомления, а обычный запрос остаётся в окне разрешений.
 if ("serviceWorker" in navigator && !(window as Window & { Capacitor?: unknown }).Capacitor) {
-  void navigator.serviceWorker.register("/sw.js").then(() => ensurePushSubscribed().catch(() => {})).catch(() => {});
+  // Не брать старый sw.js из HTTP-кэша: именно Service Worker доставляет push,
+  // когда вкладка и приложение закрыты.
+  void navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(() => ensurePushSubscribed().catch(() => {})).catch(() => {});
 }
 
 createRoot(root).render(

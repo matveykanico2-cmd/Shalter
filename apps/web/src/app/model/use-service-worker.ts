@@ -42,7 +42,7 @@ export function useServiceWorker() {
       clearTimeout(timer);
       timer = setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(precache, { timeout: 10000 }) : precache()), 15000);
     };
-    navigator.serviceWorker.register("/sw.js").then(precacheLater, () => {});
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(precacheLater, () => {});
     // Поднять очередь прошлого запуска сразу. При pagehide SW продолжит её без открытого чата.
     void syncOutgoingMessages();
     const sync = () => void syncOutgoingMessages();
