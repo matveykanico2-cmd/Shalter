@@ -90,13 +90,16 @@ function SignedIn({ user }: { user: SelfUser }) {
   useRealtime(user.id);
   useMessageSounds(user.id);
   // Список из прошлого запуска — сразу, /api/bootstrap его заменит (localCache.js старого клиента).
-  const [cached] = useState(() => restoreCachedChats(client, user.id));
+  useState(() => {
+    restoreCachedChats(client, user.id);
+    return true;
+  });
   useEffect(() => persistChats(client, user.id), [client, user.id]);
   const boot = useQuery(bootstrapQuery(client, user.id));
   useAppearance(!boot.isPending);
   return (
     <AppServices user={user} ready={!boot.isPending}>
-      <AppRoutes user={user} chatsReady={cached || !boot.isPending} />
+      <AppRoutes user={user} />
     </AppServices>
   );
 }

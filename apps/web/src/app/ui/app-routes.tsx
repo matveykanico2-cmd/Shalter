@@ -18,8 +18,6 @@ import { lazyView as lazyLoadedView } from "@/shared/lib/lazy-view";
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
 
-import { Splash } from "../ui/splash";
-
 import styles from "./app-routes.module.css";
 import { AtUsername } from "./at-username";
 
@@ -80,7 +78,7 @@ const mainRoutes = () => [
 ];
 
 /** Оболочка и экраны внутри неё: справа — чат и прочее, слева — список чатов или боковой раздел. */
-export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: boolean }) {
+export function AppRoutes({ user }: { user: SelfUser }) {
   const location = useLocation();
   const desktop = useMediaQuery(DESKTOP_QUERY);
   // Экран чата — заранее, в простое: первый открытый чат не ждёт загрузки кода.
@@ -101,10 +99,6 @@ export function AppRoutes({ user, chatsReady }: { user: SelfUser; chatsReady: bo
   useEffect(() => setMainPath(shownMain.pathname + shownMain.search), [shownMain.pathname, shownMain.search]);
   // Нативное приложение тихо подтягивает новых людей из телефонной книги.
   usePhoneBookSync();
-
-  // Пока данные не прогрузились (первый вход без кэша) — показываем заставку,
-  // а не пустой экран.
-  if (!chatsReady) return <Splash />;
 
   return (
     <ActualPathProvider pathname={location.pathname}>
