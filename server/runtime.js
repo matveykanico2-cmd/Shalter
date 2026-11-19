@@ -45,6 +45,7 @@ function startRuntime(server, listen, opts = {}) {
   return Promise.all([
     initPush().catch((err) => console.error("push init failed, push notifications disabled:", err)),
     checkBucketEncryption(),
+    checkBucketVersioning(),
   ]).finally(() => listen(process.env.PORT || 3000));
 }
 
@@ -77,6 +78,12 @@ function checkBucketEncryption() {
   }, 10 * 60 * 1000);
   timer.unref();
   return Promise.race([storage.verifyEncryptionAtRest().catch(() => {}), new Promise((r) => setTimeout(r, 5000).unref())]);
+}
+
+function checkBucketVersioning() {
+  const storage = require("./lib/storage");
+  if (!storage.isS3Enabled || process.env.S3_ENABLE_VERSIONING !== "1") return Promise.resolve();
+  return storage.ensureBucketVersioning();
 }
 
 module.exports = { startRuntime };

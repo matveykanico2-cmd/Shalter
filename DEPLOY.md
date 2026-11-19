@@ -1084,6 +1084,26 @@ Docker/Dokploy: пересобрать образ и перезапустить 
 Cloudflare R2, AWS S3, MinIO) — переменные `S3_*` в `.env.example`,
 реализация в `server/lib/storage.js`.
 
+### Рекомендуемый self-hosted backend: SeaweedFS
+
+Репозиторий содержит production-shaped Helm values в
+`deploy/seaweedfs/values.yaml`. SeaweedFS подключается к Shalter как обычный
+S3 endpoint: `S3_ENDPOINT=http://seaweedfs-s3:8333`, с репликацией `001` и
+тремя volume-серверами. Размещайте volume PVC на разных узлах/дисках; три
+контейнера на одном диске не дают защиты от его отказа.
+
+После создания бакета настройте `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`,
+`S3_ENDPOINT`, `S3_REGION=us-east-1`, `S3_FORCE_PATH_STYLE=1` и
+`S3_ENABLE_VERSIONING=1`. Проверка подключения:
+
+```bash
+npm run s3:verify
+```
+
+Старые локальные файлы не удаляйте до проверки: сначала включите
+`S3_MIGRATE_KEEP_LOCAL=1`, выполните `npm run uploads:to-s3 -- --dry-run`,
+проверьте старые фото/видео/файлы и только потом переходите к очистке диска.
+
 **Как это работает.** В бакете файлы лежат открытыми байтами, а шифрует их само
 хранилище (SSE). Запрос `/uploads/<id>` по-прежнему приходит в Node: он проверяет
 сессию и доступ к файлу (участник чата, загрузивший, покупатель платного поста) и

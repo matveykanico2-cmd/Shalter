@@ -31,6 +31,9 @@ if (isS3Enabled && process.env.S3_APP_ENCRYPTION !== "1" && !sseMode) {
 }
 // S3_DIRECT_DOWNLOAD=0 — открытые файлы всё равно отдаёт Node (например, бакет без CORS).
 const directDownloadsWanted = process.env.S3_DIRECT_DOWNLOAD !== "0";
+// Включается явно после настройки репликации: удаление создаёт delete-marker,
+// а предыдущая версия объекта остаётся доступной для восстановления.
+const versioningWanted = isS3Enabled && process.env.S3_ENABLE_VERSIONING === "1";
 // Пометка открытого объекта в метаданных: x-amz-meta-shalter-format: plain.
 const FORMAT_META = "shalter-format";
 
@@ -90,6 +93,27 @@ async function verifyEncryptionAtRest() {
     console.log("[s3] шифрование бакета по умолчанию подтверждено — файлы шифрует хранилище");
   }
   return ok;
+}
+
+async function ensureBucketVersioning() {
+  if (!versioningWanted) return false;
+  const { GetBucketVersioningCommand, PutBucketVersioningCommand } = require("@aws-sdk/client-s3");
+  try {
+    const current = await client().send(new GetBucketVersioningCommand({ Bucket: S3_BUCKET }));
+    if (current.Status === "Enabled") {
+      console.log("[s3] версионирование объектов включено");
+      return true;
+    }
+    await client().send(new PutBucketVersioningCommand({
+      Bucket: S3_BUCKET,
+      VersioningConfiguration: { Status: "Enabled" },
+    }));
+    console.log("[s3] версионирование объектов включено автоматически");
+    return true;
+  } catch (err) {
+    console.error(`[s3] не удалось включить версионирование (${err?.name ?? "ошибка"}: ${err?.message ?? "нет описания"})`);
+    return false;
+  }
 }
 
 function s3Key(filename) {
@@ -384,6 +408,7 @@ module.exports = {
   },
   sseMode,
   verifyEncryptionAtRest,
+  ensureBucketVersioning,
   isChangedError,
   readRemoteHeader,
   UPLOAD_DIR,

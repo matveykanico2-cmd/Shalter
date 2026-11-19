@@ -1,0 +1,38 @@
+# Реплицируемый SeaweedFS backend для Shalter.
+# Не запускайте это как single-node storage: минимум три volume-сервера
+# с разными persistent disks/узлами. Секреты задаются через Secret в Helm.
+global:
+  seaweedfs:
+    enableReplication: true
+    replicationPlacement: "001"
+
+master:
+  replicas: 3
+  data:
+    type: persistentVolumeClaim
+    size: 2Gi
+
+volume:
+  replicas: 3
+  dataDirs:
+    - name: data
+      type: persistentVolumeClaim
+      size: 500Gi
+  maxVolumes: 0
+
+filer:
+  replicas: 2
+  data:
+    type: persistentVolumeClaim
+    size: 20Gi
+
+s3:
+  enabled: true
+  replicas: 2
+  enableAuth: true
+  credentials:
+    admin:
+      accessKey: shalter
+      secretKey: CHANGE_ME_IN_K8S_SECRET
+  createBuckets:
+    - name: shalter-uploads

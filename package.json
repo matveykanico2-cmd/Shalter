@@ -21,6 +21,7 @@
     "mail-dns": "node scripts/mail-dns.js",
     "uploads:to-s3": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/migrate-uploads-to-s3.js",
     "s3:cors": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/s3-cors.js",
+    "s3:verify": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/verify-s3-storage.js",
     "loadtest:cleanup": "node --env-file-if-exists=config.env --env-file-if-exists=.env scripts/loadtest-cleanup.js",
     "start": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 apps/api/dist/main.js",
     "build:api": "npm run build -w @shalter/api",
