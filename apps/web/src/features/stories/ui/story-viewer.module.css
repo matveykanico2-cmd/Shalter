@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: rgb(0 0 0 / 82%);
   outline: none;
 }
 
@@ -167,10 +167,27 @@
   min-height: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* История всегда сохраняет исходную ориентацию. На ПК вертикальная область
+     имеет телефонное соотношение, а широкие фото получают поля вместо обрезки. */
+  object-fit: contain;
   object-position: center;
   background: #000;
   display: block;
+}
+
+@media (min-width: 700px) {
+  .shell {
+    width: min(540px, calc((100vh - 32px) * 9 / 16), calc(100vw - 32px));
+    height: min(960px, calc(100vh - 32px));
+    aspect-ratio: 9 / 16;
+    border-radius: 18px;
+    box-shadow: 0 18px 70px rgb(0 0 0 / 55%);
+  }
+
+  .media {
+    max-width: 100%;
+    max-height: 100%;
+  }
 }
 
 .attachmentCard {
