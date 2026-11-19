@@ -332,7 +332,7 @@
   height: 100%;
   margin: 0;
   border-radius: 0;
-  background: #000;
+  background: #0a111a;
 }
 
 .albumTile :is(img, video) {
@@ -343,7 +343,10 @@
   max-width: none;
   max-height: none;
   border-radius: 0;
-  object-fit: cover;
+  /* В просмотрщике файл показывается целиком. В альбоме сохраняем ту же
+     пропорцию, иначе вертикальные фото и видео обрезались по краям. */
+  object-fit: contain;
+  background: #0a111a;
 }
 
 .file {
