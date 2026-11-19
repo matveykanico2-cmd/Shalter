@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ContactPicker } from "@/entities/user";
 
@@ -448,21 +448,29 @@ function LocalVideo({ stream, mirrored, freeze }: LocalVideoProps) {
   const video = useRef<HTMLVideoElement | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [frame, setFrame] = useState<"shown" | "leaving" | null>(null);
-  if (freeze && frame !== "shown") setFrame("shown");
 
-  // Кадр рисуем, как только холст появился, — видео ещё показывает старую камеру.
-  useEffect(() => {
+  // Сохраняем старый кадр до того, как браузер привяжет новый MediaStream.
+  // useLayoutEffect важен: обычный effect срабатывал уже после серого кадра.
+  useLayoutEffect(() => {
     const v = video.current;
     const c = canvas.current;
-    if (frame !== "shown" || !freeze || !v || !c || !v.videoWidth) return;
+    if (!freeze || !v || !c || !v.videoWidth || !v.videoHeight) return;
     c.width = v.videoWidth;
     c.height = v.videoHeight;
     try {
       c.getContext("2d")?.drawImage(v, 0, 0);
+      window.requestAnimationFrame(() => setFrame("shown"));
     } catch {
       // Кадр не нарисовался — просто без него.
     }
-  }, [frame, freeze]);
+  }, [freeze, stream]);
+
+  useEffect(() => {
+    if (!freeze) return;
+    if (frame === "shown") return;
+    const timer = window.setTimeout(() => setFrame("shown"), 80);
+    return () => window.clearTimeout(timer);
+  }, [freeze, frame]);
 
   // Камера переключилась — убираем кадр с первым новым (или через 1,5 с).
   useEffect(() => {
@@ -487,7 +495,7 @@ function LocalVideo({ stream, mirrored, freeze }: LocalVideoProps) {
   return (
     <div className={styles.localStack}>
       <StreamVideo stream={stream} className={`${styles.localVideo} ${mirror}`} ref={(el) => void (video.current = el)} />
-      {frame ? <canvas ref={canvas} className={[styles.localVideo, styles.freeze, mirror, frame === "leaving" ? styles.freezeLeaving : ""].filter(Boolean).join(" ")} /> : null}
+      {freeze || frame ? <canvas ref={canvas} className={[styles.localVideo, styles.freeze, mirror, frame === "leaving" ? styles.freezeLeaving : ""].filter(Boolean).join(" ")} /> : null}
     </div>
   );
 }

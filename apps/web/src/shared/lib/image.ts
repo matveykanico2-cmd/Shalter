@@ -93,10 +93,15 @@ export function videoPosterDataUrl(file: File, maxSize = 256): Promise<string> {
     video.muted = true;
     video.playsInline = true;
     video.preload = "metadata";
+    let done = false;
     const fail = (msg: string) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timeout);
       URL.revokeObjectURL(url);
       reject(new Error(msg));
     };
+    const timeout = window.setTimeout(() => fail("Не удалось получить первый кадр"), 4000);
     video.onerror = () => fail("Не удалось прочитать видео");
     video.onloadeddata = () => {
       video.currentTime = Math.min(0.25, (video.duration || 1) / 4);
@@ -112,6 +117,9 @@ export function videoPosterDataUrl(file: File, maxSize = 256): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (!ctx) return fail("Не удалось получить кадр из видео");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      if (done) return;
+      done = true;
+      window.clearTimeout(timeout);
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL("image/jpeg", 0.85));
     };

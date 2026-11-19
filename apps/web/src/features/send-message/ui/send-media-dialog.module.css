@@ -85,6 +85,10 @@
   object-fit: contain;
 }
 
+.videoPreview {
+  background: #080b10;
+}
+
 .count1 .media :is(img, video) {
   object-fit: contain;
 }

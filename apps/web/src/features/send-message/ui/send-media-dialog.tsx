@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { videoPosterDataUrl } from "@/shared/lib/image";
 import { plural } from "@/shared/lib/presence";
@@ -180,11 +180,15 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
 function FilePreview({ file, as, className }: { file: File; as: "img" | "video" | "thumb"; className?: string }) {
   const ref = useRef<HTMLImageElement & HTMLVideoElement & HTMLSpanElement>(null);
   const [videoPoster, setVideoPoster] = useState<string | null>(null);
+  const videoSrc = useMemo(() => as === "video" ? URL.createObjectURL(file) : null, [file, as]);
   useEffect(() => {
     if (as === "video") {
       let active = true;
       void videoPosterDataUrl(file, 192).then((poster) => active && setVideoPoster(poster)).catch(() => {});
-      return () => { active = false; };
+      return () => {
+        active = false;
+        setVideoPoster(null);
+      };
     }
     const el = ref.current;
     if (!el) return;
@@ -193,7 +197,28 @@ function FilePreview({ file, as, className }: { file: File; as: "img" | "video" 
     else el.src = url;
     return () => URL.revokeObjectURL(url);
   }, [file, as]);
-  if (as === "video") return videoPoster ? <img src={videoPoster} alt="" /> : <span className={styles.videoFallback}><Icon name="Video" size={22} /></span>;
+  useEffect(() => () => {
+    if (videoSrc) URL.revokeObjectURL(videoSrc);
+  }, [videoSrc]);
+  if (as === "video") {
+    if (videoPoster) return <img src={videoPoster} alt="" />;
+    if (videoSrc) {
+      return (
+        <video
+          className={styles.videoPreview}
+          src={videoSrc}
+          muted
+          playsInline
+          preload="auto"
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget;
+            if (video.duration > 0) video.currentTime = Math.min(0.1, video.duration / 4);
+          }}
+        />
+      );
+    }
+    return <span className={styles.videoFallback}><Icon name="Video" size={22} /></span>;
+  }
   if (as === "img") return <img ref={ref} alt="" />;
   return <span ref={ref} className={className} />;
 }
