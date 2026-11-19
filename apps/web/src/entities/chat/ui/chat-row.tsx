@@ -93,7 +93,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
         onMenu({ x: e.clientX, y: e.clientY });
       }}
       onPointerEnter={(e) => {
-        if (e.pointerType === "mouse") prefetchChat(client, chat);
+        // По списку можно быстро провести мышью через десятки чатов. На hover
+        // подгружаем только карточку, а историю — уже при нажатии.
+        if (e.pointerType === "mouse") prefetchChat(client, chat, { history: false });
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

@@ -162,10 +162,21 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   const [calendarDay, setCalendarDay] = useState(() => new Date().toDateString());
   useEffect(() => {
     const update = () => setCalendarDay(new Date().toDateString());
-    const timer = setInterval(update, 1000);
+    // Дата нужна только для разделителей сообщений. Обновление каждую секунду
+    // заставляло весь виртуализированный чат пересчитываться без причины.
+    const schedule = () => {
+      const now = new Date();
+      const nextDay = new Date(now);
+      nextDay.setHours(24, 0, 0, 50);
+      return window.setTimeout(() => {
+        update();
+        timer = schedule();
+      }, Math.max(1000, nextDay.getTime() - now.getTime()));
+    };
+    let timer = schedule();
     document.addEventListener("visibilitychange", update);
     return () => {
-      clearInterval(timer);
+      clearTimeout(timer);
       document.removeEventListener("visibilitychange", update);
     };
   }, []);
