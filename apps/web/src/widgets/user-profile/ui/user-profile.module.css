@@ -867,24 +867,72 @@
 
 .linkItem {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  color: var(--color-text);
-  text-decoration: none;
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, transparent);
 }
 
 .linkItem:hover {
   background: var(--color-surface-alt);
 }
 
+.linkMain {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.linkIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-accent);
+}
+
+.linkBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.linkCopy {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.linkCopy:hover,
+.linkCopy:focus-visible {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+}
+
 .linkUrl {
   overflow: hidden;
   color: var(--color-accent);
   font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .voiceRow {
@@ -899,6 +947,13 @@
   height: 160px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.videoUnavailable {
+  display: block;
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 13px;
 }
 
 .voiceCompact {

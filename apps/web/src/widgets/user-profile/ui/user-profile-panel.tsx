@@ -92,6 +92,19 @@ export function UserProfilePanel({ userId, me }: Props) {
     } satisfies SharedMedia);
   });
 
+  // Удаление отдельных фото/видео приходит как message:updated. Профиль не
+  // должен оставлять старую плитку до следующего открытия или перезагрузки.
+  useWsEvent("message:updated", (e) => {
+    const data = client.getQueryData(profileQueries.sharedMedia(userId).queryKey) as SharedMedia | undefined;
+    if (!data || data.chatId !== e.chatId || !e.message) return;
+    const id = e.message.id;
+    const has = (list: Array<{ messageId: string }>) => list.some((item) => item.messageId === id);
+    if (!has(data.media) && !has(data.files) && !has(data.links) && !has(data.voice)) return;
+    // Состав вложений и linkPreview мог измениться — надёжнее получить
+    // компактный актуальный список с сервера, чем оставлять stale-плитки.
+    void client.invalidateQueries({ queryKey: profileQueries.sharedMedia(userId).queryKey });
+  });
+
   const isSelf = userId === me.id;
   const known = chats?.find((c) => c.otherUser?.id === userId)?.otherUser ?? (isSelf ? me : null);
   const data = profile.data;

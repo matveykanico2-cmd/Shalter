@@ -180,8 +180,14 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
   const download = item.originalUrl ?? item.url;
   const share = async () => {
     if (typeof navigator.share === "function") {
-      await navigator.share({ title: item.name || "Медиа Shalter", url: download }).catch(() => {});
-      return;
+      try {
+        await navigator.share({ title: item.name || "Медиа Shalter", url: new URL(download, window.location.origin).href });
+        return;
+      } catch (error) {
+        // Отмена системного окна — не ошибка. Если Share API не поддержал
+        // текущий URL/тип, всё равно даём рабочий запасной вариант.
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
     }
     await copyText(download, "Ссылка на медиа скопирована");
   };

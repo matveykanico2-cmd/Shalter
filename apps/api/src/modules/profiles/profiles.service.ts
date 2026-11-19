@@ -175,9 +175,11 @@ export class ProfilesService {
     for (const m of messages) {
       for (const a of m.attachments ?? []) {
         const item = { messageId: m.id, createdAt: m.createdAt, senderId: m.senderId, attachment: a };
-        if (a.kind === "image" || a.kind === "video") media.push(item);
-        else if (a.kind === "file") files.push(item);
-        else if (a.kind === "voice" || a.kind === "video-note") voice.push(item);
+        // Не отдаём в профиль старые «призрачные» вложения без URL: после
+        // удаления отдельного файла сообщение ещё может жить в кэше/БД.
+        if ((a.kind === "image" || a.kind === "video") && typeof a.url === "string" && a.url) media.push(item);
+        else if (a.kind === "file" && typeof a.url === "string" && a.url) files.push(item);
+        else if ((a.kind === "voice" || a.kind === "video-note") && typeof a.url === "string" && a.url) voice.push(item);
       }
       if (m.linkPreview || LINK_RE.test(m.text ?? "")) {
         links.push({ messageId: m.id, createdAt: m.createdAt, text: m.text, linkPreview: m.linkPreview });

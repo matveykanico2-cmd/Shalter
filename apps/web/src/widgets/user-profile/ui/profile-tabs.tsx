@@ -7,6 +7,7 @@ import { type Attachment, mediaItem } from "@/entities/message";
 import { openStoryViewer, storyDate, type StoryGroup, storyQueries } from "@/entities/story";
 import { closeUserProfile } from "@/entities/user";
 
+import { copyText } from "@/shared/lib/clipboard";
 import { notifyDownloadStart } from "@/shared/lib/media/download-notify";
 import { plural } from "@/shared/lib/presence";
 import { Avatar, Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
@@ -78,11 +79,19 @@ export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onG
         const url = preview?.url ?? l.text.match(/https?:\/\/\S+/)?.[0];
         if (!url) return null;
         return (
-          <a key={l.messageId} className={styles.linkItem} href={url} target="_blank" rel="noreferrer">
-            {preview?.title ? <span className={styles.channelTitle}>{preview.title}</span> : null}
-            {preview?.description ? <span className={styles.channelSub}>{preview.description}</span> : null}
-            <span className={styles.linkUrl}>{url}</span>
-          </a>
+          <div key={l.messageId} className={styles.linkItem}>
+            <a className={styles.linkMain} href={url} target="_blank" rel="noreferrer">
+              <span className={styles.linkIcon}><Icon name="Link" size={17} /></span>
+              <span className={styles.linkBody}>
+                {preview?.title ? <span className={styles.channelTitle}>{preview.title}</span> : null}
+                {preview?.description ? <span className={styles.channelSub}>{preview.description}</span> : null}
+                <span className={styles.linkUrl}>{url}</span>
+              </span>
+            </a>
+            <button type="button" className={styles.linkCopy} aria-label="Скопировать ссылку" title="Скопировать ссылку" onClick={() => void copyText(url, "Ссылка скопирована")}>
+              <Icon name="Copy" size={17} />
+            </button>
+          </div>
         );
       })}
     </div>
@@ -99,7 +108,7 @@ function MediaGrid({ items }: { items: SharedMedia["media"] }) {
       <div className={styles.mediaGrid}>
         {viewer.slice(0, shown).map((v, i) => (
           <button key={`${items[i]?.messageId}-${i}`} type="button" className={styles.mediaCell} aria-label={v.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(i)}>
-            {v.kind === "video" && !v.thumbUrl ? <video className={styles.cellMedia} src={`${v.url}#t=0.1`} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} /> : <img className={styles.cellMedia} src={v.thumbUrl ?? v.url} alt="" loading="lazy" />}
+            {v.kind === "video" ? <video className={styles.cellMedia} src={`${v.url}#t=0.1`} poster={v.thumbUrl} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} onLoadedData={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр уже показан */ } }} /> : <img className={styles.cellMedia} src={v.thumbUrl ?? v.url} alt="" loading="lazy" />}
             {v.kind === "video" ? (
               <span className={styles.cellPlay}>
                 <Icon name="Play" size={14} />
@@ -196,12 +205,19 @@ function VoiceList({ items }: { items: SharedMedia["voice"] }) {
         return (
           <div key={v.messageId} className={styles.voiceRow}>
             <span className={styles.channelSub}>{meta}</span>
-            {note ? <video className={styles.voiceNote} src={a.url ?? undefined} controls preload="metadata" playsInline /> : <CompactVoice url={a.url ?? ""} durationSec={a.durationSec ?? 0} />}
+            {note ? <ProfileVideoNote attachment={a} /> : <CompactVoice url={a.url ?? ""} durationSec={a.durationSec ?? 0} />}
           </div>
         );
       })}
     </div>
   );
+}
+
+function ProfileVideoNote({ attachment: a }: { attachment: Attachment }) {
+  const [failed, setFailed] = useState(false);
+  const src = a.previewUrl || a.url;
+  if (!src || failed) return <span className={styles.videoUnavailable}>Видео недоступно</span>;
+  return <video className={styles.voiceNote} src={`${src}#t=0.1`} poster={a.posterUrl ?? a.thumbUrl} controls preload="metadata" playsInline onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр появится штатно */ } }} onError={() => setFailed(true)} />;
 }
 
 const fmt = (sec: number) => {
