@@ -115,15 +115,21 @@
 /* Выбор при создании истории: текстовый пост или фото/видео. */
 .createChoice {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 5px;
+  box-sizing: border-box;
   border: 1px solid var(--color-border);
   border-radius: 14px;
   background: var(--color-surface);
 }
 .createAction, .createClose {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 5px;
   min-height: 34px;
@@ -269,6 +275,24 @@
 }
 
 @media (max-width: 420px) {
+  .bar {
+    overflow-x: hidden;
+  }
+
+  .storyItems {
+    overflow-x: hidden;
+  }
+
+  .createChoice {
+    align-content: flex-start;
+    gap: 5px;
+  }
+
+  .createAction,
+  .createClose {
+    max-width: 100%;
+  }
+
   .mediaSelection {
     padding: 10px;
   }

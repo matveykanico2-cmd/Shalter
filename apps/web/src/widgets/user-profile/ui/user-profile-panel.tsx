@@ -286,7 +286,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           aria-label="Открыть фото"
           onClick={() => setOverlay("avatars")}
         >
-          <Avatar size={88} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={u.online} />
+          <Avatar size={128} name={u.name} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} online={u.online} />
           {pinnedGifts.length ? (
             <span className={styles.avatarGifts} aria-label="Закреплённые подарки">
               {pinnedGifts.map((gift, index) => (

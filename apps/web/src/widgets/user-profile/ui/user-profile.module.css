@@ -1126,3 +1126,282 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Профиль в стиле полноэкранной карточки: крупный hero, контрастные секции и
+   безопасная сетка для узких экранов. Все размеры остаются fluid, поэтому панель
+   не превращается в «телефон» на промежуточной ширине окна. */
+.panel {
+  width: min(488px, 100vw);
+  background: #171717;
+  color: #f4f4f5;
+  box-shadow: -14px 0 42px rgb(0 0 0 / 38%);
+}
+
+.header {
+  min-height: 64px;
+  padding: 8px 14px 8px 18px;
+  border-bottom: 1px solid rgb(255 255 255 / 5%);
+  background: #171717;
+}
+
+.header h2 {
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.iconButton {
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  color: #f4f4f5;
+}
+
+.body {
+  gap: 0;
+  padding: 0 16px 28px;
+  background: #171717;
+}
+
+.avatarRow {
+  position: relative;
+  align-self: stretch;
+  min-height: 238px;
+  margin: 0 -16px;
+  padding: 40px 0 34px;
+  isolation: isolate;
+  background: radial-gradient(circle at 50% 42%, rgb(100 100 100 / 24%), transparent 54%), #1d1d1d;
+}
+
+.avatarRow::after {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 46px;
+  background: linear-gradient(transparent, #171717);
+  content: "";
+}
+
+.withBanner {
+  min-height: 238px;
+  margin-bottom: 0;
+  padding: 40px 0 34px;
+}
+
+.withBanner::before {
+  border-radius: 0;
+  opacity: 0.78;
+}
+
+.avatarButton {
+  box-shadow: 0 0 0 4px #f4f4f5, 0 8px 28px rgb(0 0 0 / 40%);
+}
+
+.withBanner .avatarButton {
+  box-shadow: 0 0 0 4px #f4f4f5, 0 8px 28px rgb(0 0 0 / 40%);
+}
+
+.avatarGifts {
+  inset: -30px;
+}
+
+.avatarGift {
+  width: 42px;
+  height: 42px;
+}
+
+.avatarCount {
+  right: -7px;
+  bottom: -7px;
+  border-color: #171717;
+  background: #8d68e8;
+}
+
+.selfHint {
+  margin-top: 10px;
+  color: #a8a8ad;
+}
+
+.name {
+  margin-top: 2px;
+  color: #fff;
+  font-size: 23px;
+  line-height: 1.2;
+}
+
+.status,
+.contactName {
+  color: #a8a8ad;
+  font-size: 14px;
+}
+
+.online,
+.usernamesSummary,
+.badge {
+  color: #9a73f2;
+}
+
+.usernamesSummary {
+  margin-top: 5px;
+  font-size: 14px;
+}
+
+.quickActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.quickAction {
+  width: 100%;
+  max-width: none;
+  min-height: 70px;
+  justify-content: center;
+  padding: 12px 8px;
+  border: 1px solid rgb(255 255 255 / 4%);
+  border-radius: 18px;
+  background: #101010;
+  color: #f2f2f2;
+  font-size: 13px;
+}
+
+.quickAction > svg {
+  color: #fff;
+}
+
+.quickLabel {
+  color: #f2f2f2;
+}
+
+.infoCard,
+.section,
+.stories {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 12px;
+  border: 1px solid rgb(255 255 255 / 5%);
+  border-radius: 22px;
+  background: #232323;
+  box-sizing: border-box;
+}
+
+.infoCard {
+  gap: 2px;
+}
+
+.linkButtons,
+.trackSlot,
+.ad {
+  margin-top: 16px;
+}
+
+.linkButton,
+.ad {
+  border-radius: 18px;
+  background: #232323;
+}
+
+.sectionHead {
+  padding: 0 4px 6px;
+}
+
+.sectionTitle {
+  color: #a278fa;
+  font-size: 16px;
+}
+
+.channelRow,
+.fileRow {
+  padding: 10px 4px;
+  border-radius: 15px;
+}
+
+.channelRow:hover,
+.fileRow:hover,
+.hours:hover {
+  background: rgb(255 255 255 / 5%);
+}
+
+.stories {
+  text-align: left;
+}
+
+.storiesHead {
+  margin-bottom: 0;
+}
+
+.storiesTitle {
+  color: #fff;
+  font-size: 16px;
+}
+
+.tabs {
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 4px;
+  border: 1px solid rgb(255 255 255 / 5%);
+  border-radius: 22px;
+  background: #232323;
+  box-sizing: border-box;
+  gap: 4px;
+}
+
+.tab {
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 17px;
+  color: #a8a8ad;
+}
+
+.tabActive {
+  background: #302b3f;
+  color: #a278fa;
+  font-weight: 600;
+}
+
+.tabContent {
+  padding-top: 14px;
+}
+
+.mediaGrid,
+.storiesGrid {
+  gap: 3px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #232323;
+}
+
+.mediaCell,
+.storyCell {
+  background: #292929;
+}
+
+@media (max-width: 520px) {
+  .panel {
+    width: 100vw;
+  }
+
+  .body {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .avatarRow,
+  .withBanner {
+    margin-right: -12px;
+    margin-left: -12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .quickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .avatarRow,
+  .withBanner {
+    min-height: 218px;
+  }
+}
