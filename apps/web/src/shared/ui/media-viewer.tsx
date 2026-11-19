@@ -1,6 +1,7 @@
 import { type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { copyText } from "../lib/clipboard";
 import { notifyDownloadStart, notifyMediaError } from "../lib/media/download-notify";
 
 import { Icon } from "./icon";
@@ -31,6 +32,13 @@ type Props = {
 const MAX_ZOOM = 5;
 type Load = "loading" | "ready" | "failed";
 
+function constrainedConnection() {
+  if (typeof navigator === "undefined") return false;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return connection?.saveData === true || /^(slow-2g|2g)$/.test(connection?.effectiveType ?? "") || (memory != null && memory <= 2);
+}
+
 /**
  * Просмотр фото и видео — как openMediaViewer в public/js/components/mediaViewer.js:
  * листание стрелками, кнопками и свайпом, свайп вниз и Escape закрывают, колесо, двойной
@@ -48,10 +56,14 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
   // Подготавливаем только соседние элементы. Так следующий кадр открывается
   // сразу, но просмотрщик не создаёт десятки декодеров на больших альбомах.
   useEffect(() => {
+    // На 2G/Save-Data и слабых устройствах не скачиваем соседние оригиналы:
+    // миниатюра уже есть в сообщении, а оригинал нужен только после выбора.
+    if (constrainedConnection()) return;
     const near = [items[at - 1], items[at + 1]].filter((value): value is ViewerItem => Boolean(value));
     const images = near.filter((value) => value.kind === "image").map((value) => {
       const image = new Image();
       image.decoding = "async";
+      image.fetchPriority = "low";
       image.src = value.url;
       return image;
     });
@@ -166,6 +178,13 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
 
   const transform = { transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` };
   const download = item.originalUrl ?? item.url;
+  const share = async () => {
+    if (typeof navigator.share === "function") {
+      await navigator.share({ title: item.name || "Медиа Shalter", url: download }).catch(() => {});
+      return;
+    }
+    await copyText(download, "Ссылка на медиа скопирована");
+  };
 
   return createPortal(
     <div
@@ -203,6 +222,16 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
               </a>
             )
           ) : null}
+          {canDownload && (typeof navigator.share === "function" || typeof navigator.clipboard !== "undefined") ? (
+            <button type="button" className={styles.iconButton} title="Поделиться" aria-label="Поделиться медиа" onClick={() => void share()}>
+              <Icon name="Share" size={19} />
+            </button>
+          ) : null}
+          {view.scale > 1 ? (
+            <button type="button" className={styles.iconButton} title="Сбросить масштаб" aria-label="Сбросить масштаб" onClick={() => setView({ scale: 1, tx: 0, ty: 0 })}>
+              <Icon name="Fit" size={19} />
+            </button>
+          ) : null}
           <button type="button" className={styles.iconButton} title="Закрыть" aria-label="Закрыть просмотрщик" onClick={onClose}>
             <Icon name="X" size={20} />
           </button>
@@ -237,7 +266,7 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
               controls
               autoPlay
               playsInline
-              preload="auto"
+              preload={constrainedConnection() ? "metadata" : "auto"}
               onLoadedData={() => setLoad("ready")}
               onCanPlay={() => setLoad("ready")}
               onWaiting={() => setLoad("loading")}
@@ -254,6 +283,7 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
                 src={src}
                 alt={item.name || ""}
                 decoding="async"
+                fetchPriority="high"
                 draggable={false}
                 onLoad={() => setLoad("ready")}
                 onError={onError}
@@ -292,7 +322,7 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
                   setView({ scale: 1, tx: 0, ty: 0 });
                 }}
               >
-                {thumb.kind === "video" ? <video src={thumb.url} poster={thumb.thumbUrl} muted preload="metadata" /> : <img src={thumb.thumbUrl ?? thumb.url} alt="" loading="lazy" />}
+                {thumb.kind === "video" ? <video src={thumb.url} poster={thumb.thumbUrl} muted preload="metadata" /> : <img src={thumb.thumbUrl ?? thumb.url} alt="" loading="lazy" fetchPriority="low" />}
                 {thumb.kind === "video" ? <span className={styles.thumbPlay}><Icon name="PlayFill" size={10} /></span> : null}
               </button>
             ))}

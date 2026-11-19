@@ -32,7 +32,7 @@ describe("многошаговые опросы", () => {
     } as never;
 
     const next = votePoll(message, 1, "u_me", 0);
-    const poll = (next.attachments?.[0] as { meta: { questions: Array<{ voterIds?: string[][]; votes?: number[] }> } }).meta;
+    const poll = (next.attachments?.[0] as unknown as { meta: { questions: Array<{ voterIds?: string[][]; votes?: number[] }> } }).meta;
     expect(poll.questions[0]?.voterIds).toEqual([[], ["u_me"]]);
     expect(poll.questions[0]?.votes).toEqual([0, 1]);
     expect(poll.questions[1]?.votes).toEqual([0, 0]);
@@ -52,7 +52,7 @@ describe("многошаговые опросы", () => {
     } as never;
 
     const next = retractPollVote(message, "u_me", 1);
-    const questions = (next.attachments?.[0] as { meta: { questions: Array<{ voterIds?: string[][]; votes?: number[] }> } }).meta.questions;
+    const questions = (next.attachments?.[0] as unknown as { meta: { questions: Array<{ voterIds?: string[][]; votes?: number[] }> } }).meta.questions;
     expect(questions[0]?.voterIds).toEqual([["u_me"], []]);
     expect(questions[0]?.votes).toEqual([1, 0]);
     expect(questions[1]?.voterIds).toEqual([[], []]);

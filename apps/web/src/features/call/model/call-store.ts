@@ -368,8 +368,10 @@ function createPeer(otherUserId: string, { answering = false } = {}) {
   const qualityTimer = setInterval(() => void sampleQuality(), QUALITY_POLL_MS);
   cleanups.push(() => {
     clearInterval(qualityTimer);
-    state?.qualityReports.delete(otherUserId);
-    publishQuality();
+    if (state === s) {
+      state.qualityReports.delete(otherUserId);
+      publishQuality();
+    }
   });
   pc.onconnectionstatechange = onStateChange;
   pc.oniceconnectionstatechange = onStateChange;
@@ -529,6 +531,7 @@ function removePeer(userId: string) {
   state.remoteStreams = without(state.remoteStreams, userId);
   state.remoteMedia = without(state.remoteMedia, userId);
   state.remoteCamStreams = without(state.remoteCamStreams, userId);
+  state.qualityReports.delete(userId);
   state.others = state.others.filter((p) => p.id !== userId);
   notify();
   // Последний собеседник ушёл — звонок окончен. В голосовом чате группы остаются ждать
