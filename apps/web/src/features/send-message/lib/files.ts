@@ -37,8 +37,8 @@ export function uploadActionFor(kinds: readonly UploadKind[]) {
   return "upload_document";
 }
 
-/** В одном сообщении — не больше 10 вложений (server/lib/sanitizeAttachments.js). */
-export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+/** В одном сообщении — до 100 вложений; выбранный альбом не дробится на части. */
+export const MAX_ATTACHMENTS_PER_MESSAGE = 100;
 
 export function chunks<T>(list: readonly T[], size: number) {
   const out: T[][] = [];

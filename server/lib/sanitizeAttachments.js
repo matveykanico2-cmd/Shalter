@@ -3,7 +3,9 @@ const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", 
 // клиент присылает только какой эмодзи бросить. Значение — максимум очков.
 const DICE = { "🎲": 6, "🎯": 6, "🏀": 5, "⚽": 5, "🎳": 6, "🎰": 64 };
 const MAX_CHECKLIST_ITEMS = 30;
-const MAX_ATTACHMENTS = 10;
+// Большие выбранные альбомы сохраняются одним сообщением. Жёсткий предел
+// оставляем для защиты API от случайных/вредных запросов.
+const MAX_ATTACHMENTS = 100;
 const crypto = require("crypto");
 
 const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
