@@ -125,6 +125,10 @@ self.addEventListener('fetch', (event) => {
 // (scripts/build.js, ссылка в <meta name="shalter-precache"> страницы); файлы прошлых сборок удаляем.
 let precaching = null;
 async function precacheBuild() {
+  // Pre-caching every lazy route can download several megabytes. Never compete
+  // with messages, media or calls on a metered/slow connection.
+  const connection = self.navigator?.connection;
+  if (connection?.saveData || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType || '')) return;
   const page = await fetch('/', { cache: 'no-cache' });
   if (!page.ok) return;
   const html = await page.clone().text();

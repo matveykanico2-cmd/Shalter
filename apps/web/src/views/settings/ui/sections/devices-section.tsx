@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrowserQRCodeReader } from "@zxing/browser";
+import type { BrowserQRCodeReader } from "@zxing/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { pollQrLogin, startQrLogin } from "@/features/sign-in";
@@ -196,7 +196,13 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
         else element.addEventListener("loadedmetadata", () => resolve(), { once: true });
       });
       await element.play();
-      scanner.current ??= new BrowserQRCodeReader();
+      // QR decoding is a rarely used settings action. Keep the heavy ZXing
+      // decoder out of the initial bundle and load it only after the camera is
+      // actually available.
+      if (!scanner.current) {
+        const { BrowserQRCodeReader } = await import("@zxing/browser");
+        scanner.current = new BrowserQRCodeReader();
+      }
       controls.current = await scanner.current.decodeFromVideoElement(element, (result) => {
         const token = result ? tokenFromQr(result.getText()) : null;
         if (!token) return;

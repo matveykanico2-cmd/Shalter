@@ -1,23 +1,26 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
 import { MainMenuHost, openMainMenu } from "@/features/accounts";
 import { CallDock, IncomingCall } from "@/features/call";
-import { DownloadsDialog } from "@/features/downloads";
-import { GamesHost } from "@/features/games";
-import { GiftShopHost } from "@/features/gifts";
 import { LiveHost } from "@/features/live";
-import { PurchaseHost } from "@/features/purchase";
 import { openPwaInstallDialog, PwaInstallDialog } from "@/features/pwa-install";
 import { StoryViewerHost } from "@/features/stories";
 
-import { openGamesCatalog } from "@/entities/game";
 import type { SelfUser } from "@/entities/session";
 
 import { useAppUpdate } from "@/shared/lib/app-update";
 import { Avatar, Icon, type IconName, NowPlayingBar } from "@/shared/ui";
 
 import styles from "./app-shell.module.css";
+
+// Эти overlay-экраны не должны попадать в первый чанк: они открываются только
+// по действию пользователя. Сама оболочка чатов и входящий звонок остаются
+// синхронными, поэтому уведомления не ждут загрузки ленивых разделов.
+const DownloadsDialog = lazy(() => import("@/features/downloads").then((m) => ({ default: m.DownloadsDialog })));
+const GamesHost = lazy(() => import("@/features/games").then((m) => ({ default: m.GamesHost })));
+const GiftShopHost = lazy(() => import("@/features/gifts").then((m) => ({ default: m.GiftShopHost })));
+const PurchaseHost = lazy(() => import("@/features/purchase").then((m) => ({ default: m.PurchaseHost })));
 
 type Props = {
   user: SelfUser;
@@ -135,10 +138,24 @@ const LINKS: { to: string; icon: IconName; label: string; active: (path: string)
 export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
   const { pathname } = useLocation();
   const [downloadsOpen, setDownloadsOpen] = useState(false);
+  const [optionalHostsReady, setOptionalHostsReady] = useState(false);
   const appUpdate = useAppUpdate();
   const linkClass = (active: boolean) => (active ? `${styles.railButton} ${styles.railActive}` : styles.railButton);
 
   useKeyboardViewport();
+
+  // Оверлеи нужны постоянно только после первого кадра: до этого они не должны
+  // конкурировать с чатом за CPU, память и сетевой канал.
+  useEffect(() => {
+    const reveal = () => setOptionalHostsReady(true);
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void }).requestIdleCallback;
+    if (idle) {
+      const id = idle(reveal, { timeout: 1800 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const fallback = window.setTimeout(reveal, 1200);
+    return () => window.clearTimeout(fallback);
+  }, []);
 
   // При переходе между чатами textarea размонтируется, но iOS иногда оставляет
   // системную клавиатуру открытой ещё на один экран. Снимаем фокус явно.
@@ -183,11 +200,13 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
       </nav>
       {/* Главное меню: аватар здесь и «Меню» в шапке списка; extra — разделы со своим окном. */}
       <MainMenuHost me={user} extra={[
-          { icon: "Smile", label: "Игры", onClick: () => openGamesCatalog() },
+          { icon: "Smile", label: "Игры", onClick: () => void import("@/entities/game").then(({ openGamesCatalog }) => openGamesCatalog()) },
           { icon: "Download", label: "Загрузки", onClick: () => setDownloadsOpen(true) },
           { icon: "Download", label: "Установить Shalter", onClick: openPwaInstallDialog },
         ]} />
-      {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+      <Suspense fallback={null}>
+        {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+      </Suspense>
       <PwaInstallDialog />
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
@@ -201,15 +220,16 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
           </div>
         </div>
       ) : null}
-      {/* Эфир — поверх всего, как overlay в public/js/components/liveScreen.js. */}
+      {/* Эфир и истории слушают события сразу; тяжёлые окна подключаются после первого кадра. */}
       <LiveHost me={user} />
-      {/* Просмотр историй — из полосы над чатами и из профиля. */}
       <StoryViewerHost me={user} />
-      {/* Окна покупки звёзд и оплаты донатом — их открывают из ленты, магазина и настроек. */}
-      <PurchaseHost />
-      {/* Магазин подарков и окна игр — их открывают из профиля, ленты, меню и настроек. */}
-      <GiftShopHost />
-      <GamesHost />
+      {optionalHostsReady ? (
+        <Suspense fallback={null}>
+          <PurchaseHost />
+          <GiftShopHost />
+          <GamesHost />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

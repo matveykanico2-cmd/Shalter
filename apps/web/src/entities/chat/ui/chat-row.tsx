@@ -49,8 +49,19 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
     setShift(0);
   };
   const client = useQueryClient();
-  const onPointerDown = (e: PointerEvent) => {
+  const hoverPrefetch = useRef<number | null>(null);
+  const cancelHoverPrefetch = () => {
+    if (hoverPrefetch.current !== null) {
+      window.clearTimeout(hoverPrefetch.current);
+      hoverPrefetch.current = null;
+    }
+  };
+  const prefetchNow = () => {
+    cancelHoverPrefetch();
     prefetchChat(client, chat);
+  };
+  const onPointerDown = (e: PointerEvent) => {
+    prefetchNow();
     if (onMenu) hold.onPointerDown(e);
     swipe.current = e.pointerType !== "mouse" && onSwipe ? { x: e.clientX, y: e.clientY, active: null } : null;
   };
@@ -96,7 +107,13 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
         // История готовится заранее для уже прочитанных чатов, чтобы переход
         // открывался без пустого экрана. Для непрочитанных prefetchChat
         // намеренно загружает только карточку и не меняет счётчик прочтения.
-        if (e.pointerType === "mouse") prefetchChat(client, chat);
+        if (e.pointerType === "mouse") {
+          cancelHoverPrefetch();
+          hoverPrefetch.current = window.setTimeout(() => {
+            hoverPrefetch.current = null;
+            prefetchChat(client, chat);
+          }, 180);
+        }
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -105,7 +122,10 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
         hold.onPointerCancel();
         endSwipe();
       }}
-      onPointerLeave={hold.onPointerLeave}
+      onPointerLeave={() => {
+        cancelHoverPrefetch();
+        hold.onPointerLeave();
+      }}
       onClickCapture={(e) => void hold.swallow(e)}
     >
       {onSwipe ? (
