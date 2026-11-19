@@ -11,7 +11,7 @@
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 5px 14px color-mix(in srgb, var(--color-accent) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.26);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  transition: transform 0.16s var(--ease-ui), box-shadow 0.16s var(--ease-ui), filter 0.16s var(--ease-ui);
 }
 
 .button:hover:not(:disabled) {
@@ -23,6 +23,16 @@
 .button:active:not(:disabled) {
   transform: translateY(1px) scale(0.985);
   box-shadow: 0 3px 8px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.button::after {
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.2), transparent 42%);
+  content: "";
+  pointer-events: none;
 }
 
 .button:focus-visible,
@@ -65,4 +75,10 @@
 .secondary:hover {
   background: var(--color-surface);
   box-shadow: 0 5px 14px rgba(8, 18, 28, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
 }

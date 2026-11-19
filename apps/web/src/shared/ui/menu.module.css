@@ -9,11 +9,11 @@
   max-height: calc(100vh - 16px);
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: var(--card-radius);
   background: var(--panel-bg);
   box-shadow: var(--shadow-float);
   backdrop-filter: blur(20px) saturate(150%);
-  animation: menu-in 0.14s ease-out both;
+  animation: menu-in 0.14s var(--ease-ui) both;
 }
 
 .wide {
