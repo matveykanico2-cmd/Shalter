@@ -308,13 +308,15 @@
 .albumMany {
   aspect-ratio: auto;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: auto;
+  /* Фиксированная высота строки не даёт grid-элементам схлопываться и
+     оставлять пустые области между превью при 5+ файлах. */
+  grid-auto-rows: clamp(88px, 16vw, 150px);
 }
 
 .albumMany .albumCell {
   grid-column: auto !important;
   grid-row: auto !important;
-  aspect-ratio: 1;
+  aspect-ratio: auto;
 }
 
 .albumCell {

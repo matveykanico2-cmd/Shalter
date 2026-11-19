@@ -761,6 +761,9 @@
 
 /* Фото/видео без подписи: пузырь — сама картинка, время поверх неё. */
 .mediaOnly {
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: min(100%, 420px);
   padding: 0;
   background: none;
   box-shadow: none;
