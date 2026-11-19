@@ -641,14 +641,14 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
           me={me}
           userOf={userOf}
           onClose={() => setThread(null)}
-          composer={(onSent, target) => (
+          composer={(onSent, target, replyTo) => (
             <Composer
               chatId={target.chatId}
               meId={me.id}
               channel={false}
               initialDraft=""
-              replyTo={null}
-              replyToName={null}
+              replyTo={replyTo}
+              replyToName={replyTo ? senderName(replyTo) : null}
               onCancelReply={noop}
               people={target.postId ? target.people.filter((u) => u.id !== me.id) : threadPeople}
               thread={{ rootId: target.rootId, onSent, postId: target.postId }}

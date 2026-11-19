@@ -285,19 +285,6 @@
   font-size: 12px;
 }
 
-.handRaised {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 55%);
-  font-size: 18px;
-}
-
 .remove {
   position: absolute;
   top: 8px;
@@ -524,9 +511,8 @@
   width: 100%;
   height: 100%;
   border-radius: 999px;
-  /* Не обрезаем края камеры: на ПК и телефоне лицо/предметы должны быть видны
-     целиком, даже если камера отдаёт нестандартное соотношение сторон. */
-  object-fit: contain;
+  /* В круглом PiP видео должно заполнять весь круг без чёрных полос. */
+  object-fit: cover;
   object-position: center;
   background: #000;
   user-select: none;

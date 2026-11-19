@@ -10,7 +10,7 @@ import { startRingback, stopRingtone } from "@/shared/lib/media/sounds";
 import { type Call, callApi, type CallKind, type CallPeer, type Signal } from "../api/call-api";
 
 export type CallPhase = "ringing" | "connected" | "ended";
-export type PeerMedia = { camera: boolean; sharing: boolean; handRaised?: boolean };
+export type PeerMedia = { camera: boolean; sharing: boolean };
 export type CallConnectionStatus = "connecting" | "connected" | "reconnecting" | "failed";
 
 /** Снимок звонка для экранов (useCall). */
@@ -33,7 +33,6 @@ export type CallState = {
   cameraError: string | null;
   cameraCount: number;
   sharing: boolean;
-  handRaised: boolean;
   screenStream: MediaStream | null;
   remoteMedia: Record<string, PeerMedia>;
   remoteStreams: Record<string, MediaStream>;
@@ -136,7 +135,7 @@ function tunePeer(pc: RTCPeerConnection) {
 }
 
 function sendMedia(userId: string) {
-  if (state) sendSignal(userId, "media", { camera: state.cameraOn, sharing: state.sharing, handRaised: state.handRaised });
+  if (state) sendSignal(userId, "media", { camera: state.cameraOn, sharing: state.sharing });
 }
 
 const broadcastMedia = () => state?.others.forEach((p) => sendMedia(p.id));
@@ -417,7 +416,7 @@ async function handleSignal(sig: Signal) {
       removePeer(sig.fromUserId);
     } else if (sig.kind === "media") {
       const media = sig.data as Partial<PeerMedia> | null;
-      state.remoteMedia = { ...state.remoteMedia, [sig.fromUserId]: { camera: !!media?.camera, sharing: !!media?.sharing, handRaised: !!media?.handRaised } };
+      state.remoteMedia = { ...state.remoteMedia, [sig.fromUserId]: { camera: !!media?.camera, sharing: !!media?.sharing } };
       notify();
     } else if (sig.kind === "accepted") {
       // Ответивший клиент подтверждает принятие сразу, не дожидаясь ICE/медиа.
@@ -496,7 +495,6 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     cameraError: null,
     cameraCount: 1,
     sharing: false,
-    handRaised: false,
     screenStream: null,
     screenTrack: null,
     screenAudio: null,
@@ -725,7 +723,9 @@ type JoinCallOptions = { answer?: boolean; canStart?: () => boolean };
 
 /** Ответ должен пережить короткий обрыв сети в момент нажатия кнопки. */
 async function answerWithRetry(callId: string): Promise<boolean> {
-  const delays = [0, 250, 750, 1500];
+  // Первый ответ отправляем сразу. Короткие повторы покрывают гонку с peer
+  // connection, но не создают заметную задержку начала звонка.
+  const delays = [0, 100, 300];
   for (const delay of delays) {
     if (delay) await new Promise<void>((resolve) => setTimeout(resolve, delay));
     try {
@@ -821,14 +821,6 @@ export function toggleMute() {
   const muted = !state.muted;
   state.muted = muted;
   state.localStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
-  notify();
-}
-
-/** Поднять/опустить руку и сообщить состояние всем участникам звонка. */
-export function toggleHand() {
-  if (!state) return;
-  state.handRaised = !state.handRaised;
-  broadcastMedia();
   notify();
 }
 

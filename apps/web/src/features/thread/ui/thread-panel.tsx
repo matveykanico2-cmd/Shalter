@@ -1,15 +1,15 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type ChatSummary, isChatAdmin, isChatModerator, useChats } from "@/entities/chat";
-import { type Message, MessageBubble, messageQueries, type MessageSender } from "@/entities/message";
-import { isServerModerator, type SelfUser } from "@/entities/session";
+import { type ChatSummary, useChats } from "@/entities/chat";
+import { type Message, MessageBubble, type MessageSender } from "@/entities/message";
+import { type SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, askText, Icon, Menu, type MenuItem, toast } from "@/shared/ui";
+import { askText, Icon, toast } from "@/shared/ui";
 
-import { deleteReply, editReply } from "../api/thread";
+import { MessageMenus, useMessageActions, useMessageMenu } from "../../message-actions";
+import { editReply } from "../api/thread";
 import { type ThreadSource, useThread } from "../model/use-thread";
 
 import styles from "./thread-panel.module.css";
@@ -25,7 +25,7 @@ type Props = {
   userOf: (userId: string) => MessageSender | null;
   onClose: () => void;
   /** Поле ответа (Composer в режиме ветки): onSent — ответ ушёл, сразу в список. */
-  composer: (onSent: (m: Message) => void, target: ThreadTarget) => ReactNode;
+  composer: (onSent: (m: Message) => void, target: ThreadTarget, replyTo: Message | null) => ReactNode;
 };
 
 /**
@@ -33,26 +33,24 @@ type Props = {
  * openThreadPanel в public/js/components/threadPanel.js (openPostComments в chatView.js).
  */
 export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Props) {
-  const client = useQueryClient();
-  const { query, replies, comments, chatId, rootId, add, replace, remove } = useThread(source);
+  const { query, replies, comments, chatId, rootId, add, replace } = useThread(source);
   const isComments = source.kind === "comments";
   const root = isComments ? (comments?.anchor ?? source.post) : ((query.data as { root?: Message } | undefined)?.root ?? source.root);
   const title = isComments ? "Комментарии" : "Тема";
   const [entering, setEntering] = useState(true);
-  const [menu, setMenu] = useState<{ message: Message; at: { x: number; y: number } } | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const menu = useMessageMenu();
   const body = useRef<HTMLDivElement>(null);
   // Комментарии лежат в группе обсуждения, и удаляет их её админ, а не админ канала.
   const chats = useChats().data;
   const scope = isComments ? (chats?.find((c) => c.id === chatId) ?? null) : chat;
-  const staff = (!!scope && (isChatAdmin(scope, me.id) || isChatModerator(scope, me.id))) || isServerModerator(me);
+  const actionChat = scope ?? chat;
+  const actions = useMessageActions(actionChat, me);
   // Комментаторы — из ответа сервера: в группе обсуждения могут быть не подписчики канала.
   const people = comments?.members ?? null;
   const author = (id: string) => people?.find((u) => u.id === id) ?? userOf(id);
   const channelSender: MessageSender = { id: chat.id, name: chat.title ?? "Канал", avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, avatarEmoji: chat.avatarEmoji };
   const displayRoot = isComments && root.forwardedFrom ? { ...root, forwardedFrom: undefined } : root;
-  // Счётчик «N ответов» под сообщением в ленте.
-  const touchFeed = () => void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chat.id) });
-
   useLayoutEffect(() => {
     const el = body.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -87,23 +85,6 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
       toast(errorText(err, "Не удалось сохранить"), { error: true });
     }
   };
-
-  const removeReply = async (m: Message) => {
-    const name = sender(m)?.name ?? "участника";
-    if (!(await askConfirm(m.senderId === me.id ? "Удалить комментарий?" : `Удалить комментарий ${name}?`, { okLabel: "Удалить", danger: true }))) return;
-    try {
-      await deleteReply(chatId, m.id);
-      remove(m.id);
-      touchFeed();
-    } catch (err) {
-      toast(errorText(err, "Не удалось удалить"), { error: true });
-    }
-  };
-
-  const menuItems = (m: Message): MenuItem[] => [
-    ...(m.senderId === me.id && m.text ? [{ icon: "Edit" as const, label: "Изменить", onClick: () => void edit(m) }] : []),
-    ...(m.senderId === me.id || staff ? [{ icon: "Trash" as const, label: "Удалить", danger: true, onClick: () => void removeReply(m) }] : []),
-  ];
 
   return createPortal(
     <div
@@ -149,7 +130,6 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
           {query.isSuccess && !replies.length ? <p className={styles.empty}>{isComments ? "Комментариев пока нет — напишите первым" : "Пока нет ответов — начните тему первым"}</p> : null}
           {replies.map((m) => {
             const mine = m.senderId === me.id && !fromChannel(m);
-            const canAct = menuItems(m).length > 0;
             return (
               <MessageBubble
                 key={m.id}
@@ -161,7 +141,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
                 meId={me.id}
                 metaApart
                 className={mine ? styles.mineReply : styles.otherReply}
-                onOpenMenu={canAct ? (msg, at) => setMenu({ message: msg, at }) : undefined}
+                onOpenMenu={menu.openMenu}
               />
             );
           })}
@@ -174,10 +154,25 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
               postId: isComments ? source.post.id : undefined,
               paidStars: comments && !comments.commentPriceFree ? comments.commentPriceStars : 0,
               people: people ?? [],
-            })}
+            }, replyTo)}
           </div>
         ) : null}
-        {menu ? <Menu at={menu.at} label="Комментарий" items={menuItems(menu.message)} onClose={() => setMenu(null)} /> : null}
+        <MessageMenus
+          control={menu}
+          actions={actions}
+          chat={actionChat}
+          me={me}
+          senderName={(m) => sender(m)?.name ?? null}
+          userOf={userOf}
+          onReply={(m) => {
+            menu.close();
+            setReplyTo(m);
+          }}
+          onEdit={(m) => {
+            menu.close();
+            void edit(m);
+          }}
+        />
       </aside>
     </div>,
     document.body

@@ -8,7 +8,7 @@ import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, Volu
 
 import { callApi, type CallPeer } from "../api/call-api";
 import { formatElapsed } from "../lib/format";
-import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleHand, toggleMute, toggleScreenShare } from "../model/call-store";
+import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, type PeerMedia, toggleCamera, toggleMute, toggleScreenShare } from "../model/call-store";
 import { useCallGestures, useGesturesEnabled } from "../model/use-call-gestures";
 
 import { GestureEffect } from "./call-gestures";
@@ -55,6 +55,11 @@ function Glyph({ d }: { d: string }) {
 
 /** Экран звонка — как public/js/views/callScreen.js. */
 export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
+  const connectionLabel = s.connectionStatus === "reconnecting"
+    ? "Переподключение"
+    : s.connectionStatus === "connecting"
+      ? (s.phase === "ringing" ? "Вызов" : "Подключение")
+      : "Соединение";
   const screen = useRef<HTMLDivElement>(null);
   const [swapped, setSwapped] = useState(false);
   const [stripHidden, setStripHidden] = useState(false);
@@ -82,7 +87,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
   // Не показываем промежуточный экран «Звонок завершён» даже на один кадр.
   if (s.phase === "ended") return null;
 
-  const mediaOf = (p: CallPeer): PeerMedia => s.remoteMedia[p.id] ?? { camera: s.call.kind === "video", sharing: false, handRaised: false };
+  const mediaOf = (p: CallPeer): PeerMedia => s.remoteMedia[p.id] ?? { camera: s.call.kind === "video", sharing: false };
   const remoteSharerId = s.sharing ? null : (s.others.find((p) => mediaOf(p).sharing)?.id ?? null);
   // Кто-то показывает экран — он крупно, остальные полосой сверху.
   const stageMode = s.sharing || !!remoteSharerId;
@@ -181,7 +186,6 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
         )}
         {role === "stage" ? <p className={styles.stageLabel}>Экран: {p.name}</p> : null}
         {showVideo && small ? <p className={styles.caption}>{p.name}</p> : null}
-        {m.handRaised ? <span className={styles.handRaised} title={`${p.name} поднял руку`} aria-label={`${p.name} поднял руку`}>✋</span> : null}
         {s.call.callerId === me.id && role !== "stage" ? (
           <button type="button" className={styles.remove} title={`Убрать из звонка: ${p.name}`} onClick={() => void remove(p)}>
             <Icon name="X" size={15} />
@@ -255,7 +259,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <Avatar size={36} name={headerPerson.name} color={headerPerson.avatarColor} image={headerPerson.avatarImage} emoji={headerPerson.avatarEmoji} />
           <div className={styles.headerCenter}>
             <p className={styles.title}>{s.chatTitle}</p>
-            <p className={styles.subtitle}>{s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed)}</p>
+            <p className={styles.subtitle} role="status">{connectionLabel} · {formatElapsed(s.elapsed)}</p>
           </div>
           <div className={styles.headerActions}>
             {stageMode ? null : (
@@ -292,7 +296,7 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           </div>
         </div>
         {s.mediaError ? <p className={styles.error}>{s.mediaError}</p> : null}
-        {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : s.connectionStatus === "reconnecting" ? <p className={`${styles.error} ${styles.reconnecting}`} role="status"><span className={styles.statusDot} />Переподключение…</p> : s.connectionStatus === "connecting" && s.phase === "ringing" ? <p className={`${styles.error} ${styles.connecting}`} role="status"><span className={styles.statusDot} />Подключение…</p> : null}
+        {s.connectionError ? <p className={styles.error}>{s.connectionError}</p> : null}
         {linkStatus ? <p className={`${styles.error} ${styles.linkStatus}`}>{linkStatus}</p> : null}
       </div>
       <div
@@ -351,16 +355,6 @@ export function CallScreen({ s, me, onMinimize, onHangup }: Props) {
           <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>
             ✋
           </span>
-        </button>
-        <button
-          type="button"
-          className={s.handRaised ? `${styles.control} ${styles.accent}` : styles.control}
-          title={s.handRaised ? "Опустить руку" : "Поднять руку"}
-          aria-label={s.handRaised ? "Опустить руку" : "Поднять руку"}
-          aria-pressed={s.handRaised}
-          onClick={toggleHand}
-        >
-          <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>✋</span>
         </button>
         <VolumeControl className={styles.volume} />
         <button type="button" className={styles.control} title="Добавить участника" onClick={(e) => void openAddMenu(e)}>
