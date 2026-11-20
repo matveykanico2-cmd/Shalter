@@ -58,7 +58,10 @@ function installed() {
   if (!w.Capacitor?.isNativePlatform?.()) return null;
   const platform = w.Capacitor.getPlatform?.();
   if (platform !== "android" && platform !== "ios") return null;
-  return { platform, version: /ShalterNative\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? "0" };
+  // Android builds are distributed through RuStore. Opening an APK installer from
+  // inside the messenger requires REQUEST_INSTALL_PACKAGES and creates an avoidable
+  // store-policy/privacy review blocker, so updates go through the store page.
+  return { platform, version: /ShalterNative\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? "0", automatic: false };
 }
 
 export function newer(a: string, b: string) {

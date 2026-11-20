@@ -221,7 +221,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         />
         {groups.map((g, i) =>
           g.user.id === me.id ? null : (
-            <button key={g.user.id} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
+            <button key={`${g.user.id}:${i}`} type="button" className={styles.item} onClick={() => openStoryViewer(groups, i)}>
               <span className={ring(g)}>
                 <Avatar name={g.user.name ?? ""} color={g.user.avatarColor} image={g.user.avatarImage} emoji={g.user.avatarEmoji} size={52} />
               </span>

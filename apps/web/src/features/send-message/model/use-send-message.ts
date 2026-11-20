@@ -27,7 +27,7 @@ function scheduleReconcile(client: ReturnType<typeof useQueryClient>, chatId: st
     setTimeout(() => {
       reconcileTimers.delete(chatId);
       void client.refetchQueries({ queryKey: messageQueries.chatHistories(chatId), type: "active" });
-    }, 1000)
+    }, 500)
   );
 }
 

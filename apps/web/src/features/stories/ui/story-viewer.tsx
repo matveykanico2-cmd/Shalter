@@ -503,8 +503,8 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
         {mine && s.viewersOpen ? (
           <div className={styles.panel}>
             <p className={styles.panelTitle}>{s.viewers === null ? "Загружаем…" : s.viewers.length ? "Смотрели" : "Пока никто не смотрел"}</p>
-            {(s.viewers ?? []).map((u) => (
-              <button key={u.id} type="button" className={styles.viewerRow} title="Открыть профиль" onClick={() => openAuthor(u)}>
+            {(s.viewers ?? []).map((u, index) => (
+              <button key={`${u.id}:${index}`} type="button" className={styles.viewerRow} title="Открыть профиль" onClick={() => openAuthor(u)}>
                 <Avatar name={u.name ?? ""} color={u.avatarColor} image={u.avatarImage} emoji={u.avatarEmoji} size={30} />
                 <span>{u.name}</span>
               </button>
@@ -522,9 +522,9 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
             </div>
             <div className={styles.commentsList}>
               {s.comments === null ? <p className={styles.panelTitle}>Загружаем…</p> : !s.comments.length ? <p className={styles.panelTitle}>Пока нет комментариев</p> : null}
-              {threaded(s.comments ?? []).map(({ comment: c, isReply }) => (
+              {threaded(s.comments ?? []).map(({ comment: c, isReply }, index) => (
                 <CommentRow
-                  key={c.id}
+                  key={`${c.id}:${index}`}
                   comment={c}
                   isReply={isReply}
                   meId={me.id}
