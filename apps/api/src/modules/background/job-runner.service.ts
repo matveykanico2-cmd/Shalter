@@ -19,6 +19,7 @@ export class JobRunnerService implements OnApplicationShutdown {
   public constructor(private readonly jobs: BackgroundJobsRepository) {}
 
   public start(handlers: Record<string, JobHandler>): void {
+    if (this.timer) return;
     this.handlers = handlers;
     this.jobs.releaseAll();
     // Без фонового процесса (BACKGROUND_WORKER=0) queueJob будит этот исполнитель напрямую.
@@ -42,6 +43,8 @@ export class JobRunnerService implements OnApplicationShutdown {
 
   public onApplicationShutdown(): void {
     clearInterval(this.timer);
+    this.timer = undefined;
+    this.handlers = null;
   }
 
   private async run(job: ClaimedJob): Promise<void> {

@@ -17,6 +17,7 @@ let child = null;
 let entry = null;
 let stopping = false;
 let restartDelay = 1000;
+let restartTimer = null;
 const handlers = new Map();
 let onWake = null;
 // Запросы основного к фоновому, ждущие ответа (askWorker): id → { resolve, reject }.
@@ -76,7 +77,11 @@ function startWorker(file) {
     // Прожил дольше минуты — падение разовое, перезапускаем сразу; иначе всё реже.
     restartDelay = Date.now() - started > 60_000 ? 1000 : Math.min(restartDelay * 2, 60_000);
     console.error(`[worker] фоновый процесс завершился (${signal ?? code}), перезапуск через ${restartDelay / 1000} с`);
-    setTimeout(startWorker, restartDelay).unref();
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      startWorker();
+    }, restartDelay);
+    restartTimer.unref();
   });
 }
 
@@ -113,6 +118,10 @@ function wakeWorker() {
 
 function stopWorker() {
   stopping = true;
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
   if (!child) return Promise.resolve();
   const proc = child;
   return new Promise((resolve) => {

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
@@ -8,7 +8,6 @@ import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
 import { chatAdsQueries, ChatListSponsoredAd, type ServedAd } from "@/features/chat-ads";
 import { CreateCommunityDialog } from "@/features/community-editor";
 import { NewChatButton } from "@/features/create-chat";
-import { DownloadsDialog } from "@/features/downloads";
 import { SearchBox, SearchResults } from "@/features/global-search";
 import { NewBotFlow } from "@/features/my-bots";
 import { StoriesBar } from "@/features/stories";
@@ -34,6 +33,9 @@ import { CommunityPanel, CommunityRow } from "./community-panel";
 
 /** Высота строки чата (аватар 54 + отступы 7 + 7); точную меряет виртуализатор. */
 const ROW_HEIGHT = 68;
+
+// Загрузки открываются только по кнопке и не должны утяжелять первый чанк списка чатов.
+const DownloadsDialog = lazy(() => import("@/features/downloads").then((m) => ({ default: m.DownloadsDialog })));
 
 const NO_FOLDERS: ChatFolder[] = [];
 
@@ -338,7 +340,11 @@ export function ChatList({ meId }: { meId: string }) {
             <Icon name="Download" size={20} />
           </button>
         </div>
-        {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
+        {downloadsOpen ? (
+          <Suspense fallback={null}>
+            <DownloadsDialog onClose={() => setDownloadsOpen(false)} />
+          </Suspense>
+        ) : null}
         {/* Вышла новая версия — обновиться одним нажатием, без переустановки PWA. */}
         {appUpdate.available ? (
           <button type="button" className={styles.updatePill} disabled={appUpdate.updating} onClick={() => void applyUpdate()}>

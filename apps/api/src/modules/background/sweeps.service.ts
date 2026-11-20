@@ -15,6 +15,7 @@ import { RemindersSweep } from "./sweeps/reminders.sweep.js";
 export class SweepsService implements OnApplicationShutdown {
   private readonly sweeps: Map<string, Sweep>;
   private readonly timers: NodeJS.Timeout[] = [];
+  private started = false;
 
   public constructor(
     autoDelete: AutoDeleteSweep,
@@ -29,6 +30,8 @@ export class SweepsService implements OnApplicationShutdown {
 
   /** Запуск по таймеру; в режиме тестов обходы не идут (кроме переноса в S3, если его включил тест). */
   public start(testMode: boolean): void {
+    if (this.started) return;
+    this.started = true;
     if (!testMode) for (const sweep of this.sweeps.values()) this.schedule(sweep);
     startLegacySweeps(testMode, [...this.sweeps.keys()]);
   }
@@ -46,6 +49,8 @@ export class SweepsService implements OnApplicationShutdown {
 
   public onApplicationShutdown(): void {
     for (const timer of this.timers) clearTimeout(timer);
+    this.timers.length = 0;
+    this.started = false;
   }
 
   private schedule(sweep: Sweep): void {

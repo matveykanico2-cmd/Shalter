@@ -11,6 +11,7 @@ const workerBridge = require("./lib/workerBridge");
 
 function startRuntime(server, listen, opts = {}) {
   useRealtime(opts.realtime);
+  let stopBucketEncryptionCheck = () => {};
 
   // Обходы по таймеру и обработка вложений — в фоновом процессе; в режиме тестов
   // (SHALTER_TEST_MODE) он обходы не запускает. RTMP — всегда здесь; в режиме тестов
@@ -24,6 +25,7 @@ function startRuntime(server, listen, opts = {}) {
 
   function shutdown() {
     console.log("shutting down…");
+    stopBucketEncryptionCheck();
     server.close(async () => {
       await workerBridge.stopWorker();
       // Сливаем WAL в app.db и закрываем базу: иначе после каждой остановки
@@ -44,7 +46,9 @@ function startRuntime(server, listen, opts = {}) {
 
   return Promise.all([
     initPush().catch((err) => console.error("push init failed, push notifications disabled:", err)),
-    checkBucketEncryption(),
+    checkBucketEncryption((stop) => {
+      stopBucketEncryptionCheck = stop;
+    }),
     checkBucketVersioning(),
   ]).finally(() => listen(process.env.PORT || 3000));
 }
@@ -69,7 +73,7 @@ function startRtmp() {
 
 // S3_SSE=bucket: до первого запроса узнаём у бакета, шифрует ли он сам (иначе файлы
 // шифрует приложение); не ответил за 5 с — проверка повторится позже.
-function checkBucketEncryption() {
+function checkBucketEncryption(registerStop = () => {}) {
   const storage = require("./lib/storage");
   if (!storage.plainConfigured || storage.storesPlain) return Promise.resolve();
   const timer = setInterval(() => {
@@ -77,6 +81,8 @@ function checkBucketEncryption() {
     storage.verifyEncryptionAtRest().catch(() => {});
   }, 10 * 60 * 1000);
   timer.unref();
+  // The runtime owns this retry loop; it must not survive a graceful shutdown.
+  registerStop(() => clearInterval(timer));
   return Promise.race([storage.verifyEncryptionAtRest().catch(() => {}), new Promise((r) => setTimeout(r, 5000).unref())]);
 }
 
