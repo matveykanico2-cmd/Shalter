@@ -79,24 +79,27 @@ export const communityQueries = {
     queryOptions({
       queryKey: [...baseKey, "detail", id],
       queryFn: async ({ signal }) => (await http.get<Body>(path(id), signal)).community,
-      staleTime: 0,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: "always",
+      // Детали обновляются после community:updated; повторный mount не должен
+      // показывать белый экран и запускать запрос заново.
+      staleTime: 30_000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
       retry: false,
     }),
   byChat: (chatId: string) =>
     queryOptions({
       queryKey: [...baseKey, "by-chat", chatId],
       queryFn: async ({ signal }) => (await http.get<z.infer<typeof byChatBody>>(`/api/communities/by-chat/${encodeURIComponent(chatId)}`, signal)).community,
-      staleTime: 30_000,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: "always",
+      staleTime: 60_000,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
       retry: false,
     }),
   media: (id: string) =>
     queryOptions({
       queryKey: [...baseKey, "media", id],
       queryFn: ({ signal }) => communityApi.media(id, signal),
-      staleTime: 0,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
     }),
 };

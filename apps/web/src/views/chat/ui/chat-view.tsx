@@ -45,6 +45,11 @@ export function ChatView() {
   useWsEvent("chat:updated", (e) => {
     if (e.chat.id === chatId) void client.invalidateQueries({ queryKey: chatQueries.card(chatId).queryKey });
   });
+  useWsEvent("community:updated", () => {
+    // Запрос сообщества кэшируется, поэтому явно будим его только по событию,
+    // а не на каждом открытии чата.
+    void client.invalidateQueries({ queryKey: communityQueries.byChat(chatId).queryKey });
+  });
   // Пока карточка грузится, чат берём из списка — экран открывается сразу.
   const chat = card.data?.chat ?? listed.data ?? null;
 
