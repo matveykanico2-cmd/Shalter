@@ -91,26 +91,22 @@ export function QrScanView() {
         detect: (source: ImageBitmap | HTMLImageElement) => Promise<Array<{ rawValue?: string }>>;
       };
     }).BarcodeDetector;
-    if (!Detector) return "";
-
-    const detector = new Detector({ formats: ["qr_code"] });
-    if (typeof createImageBitmap === "function") {
-      const bitmap = await createImageBitmap(f);
-      try {
-        const found = await detector.detect(bitmap);
-        return found.map((item) => tokenFromQr(item.rawValue ?? "")).find(Boolean) ?? "";
-      } finally {
-        bitmap.close();
-      }
-    }
-
     const url = URL.createObjectURL(f);
     try {
       const image = new Image();
       image.src = url;
       await image.decode();
-      const found = await detector.detect(image);
-      return found.map((item) => tokenFromQr(item.rawValue ?? "")).find(Boolean) ?? "";
+      if (Detector) {
+        const detector = new Detector({ formats: ["qr_code"] });
+        const found = await detector.detect(image);
+        return found.map((item) => tokenFromQr(item.rawValue ?? "")).find(Boolean) ?? "";
+      }
+      // BarcodeDetector отсутствует в Firefox и в части Android WebView. ZXing
+      // уже используется камерой в настройках, поэтому картинка должна иметь
+      // тот же надёжный fallback, а не сразу считаться «битой».
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      const result = await new BrowserQRCodeReader().decodeFromImageElement(image);
+      return tokenFromQr(result.getText());
     } finally {
       URL.revokeObjectURL(url);
     }

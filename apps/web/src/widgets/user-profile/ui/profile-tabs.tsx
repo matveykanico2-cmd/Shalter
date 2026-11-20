@@ -124,12 +124,23 @@ function MediaGrid({ items }: { items: SharedMedia["media"] }) {
 
 function MediaCell({ item, onOpen }: { item: ViewerItem; onOpen: () => void }) {
   const [failed, setFailed] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
   if (failed) {
     return <button type="button" className={styles.mediaCell} aria-label="Медиа недоступно" onClick={onOpen}><Icon name="File" size={22} /></button>;
   }
+  // Для видео в сетке сначала показываем уже сгенерированный poster. Это не
+  // требует декодировать HEVC/оригинал на телефоне и не оставляет пустой
+  // чёрный tile, пока metadata у ролика ещё грузится.
+  const poster = item.kind === "video" && !posterFailed ? item.thumbUrl : undefined;
   return (
     <button type="button" className={styles.mediaCell} aria-label={item.kind === "video" ? "Видео" : "Фото"} onClick={onOpen}>
-      {item.kind === "video" ? <video className={styles.cellMedia} src={item.url ? `${item.url}#t=0.1` : undefined} poster={item.thumbUrl} muted playsInline preload="metadata" onError={() => setFailed(true)} /> : <img className={styles.cellMedia} src={item.thumbUrl ?? item.url} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />}
+      {item.kind === "video" && poster ? (
+        <img className={styles.cellMedia} src={poster} alt="" loading="lazy" decoding="async" onError={() => setPosterFailed(true)} />
+      ) : item.kind === "video" ? (
+        <video className={styles.cellMedia} src={item.url ? `${item.url}#t=0.1` : undefined} muted playsInline preload="metadata" onError={() => setFailed(true)} />
+      ) : (
+        <img className={styles.cellMedia} src={item.thumbUrl ?? item.url} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+      )}
       {item.kind === "video" ? <span className={styles.cellPlay}><Icon name="Play" size={14} /></span> : null}
     </button>
   );
@@ -158,7 +169,9 @@ function StoriesArchive({ user, isSelf }: { user: Owner; isSelf: boolean }) {
             })
           }
         >
-          {item.kind === "video" ? <video className={styles.cellMedia} src={`${item.url}#t=0.1`} poster={item.posterUrl} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} /> : <img className={styles.cellMedia} src={item.url} alt="" />}
+          {item.kind === "video" ? (
+            <img className={styles.cellMedia} src={item.posterUrl ?? item.url} alt="" loading="lazy" decoding="async" />
+          ) : <img className={styles.cellMedia} src={item.url} alt="" loading="lazy" decoding="async" />}
           {item.kind === "video" ? (
             <span className={styles.cellPlay}>
               <Icon name="Play" size={14} />
