@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { type CallKind, useStartCall } from "@/features/call";
 import { SponsoredMessage } from "@/features/chat-ads";
@@ -235,7 +235,9 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     estimateSize: () => ROW_ESTIMATE,
     // Небольшой запас сглаживает быстрый свайп: следующий экран уже измерен,
     // но в DOM не держатся десятки тяжёлых пузырьков с медиа и реакциями.
-    overscan: 6,
+    // На телефонах лишние тяжёлые пузырьки (медиа, реакции, превью) в DOM
+    // заметно тормозят быстрый свайп. Держим небольшой запас, десктопу оставляем больше.
+    overscan: typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? 3 : 6,
     getItemKey: (i) => rows[i]!.key,
     // При prepend старой страницы сохраняем первую видимую строку и её смещение.
     // Виртуализатор также компенсирует уточнение высоты динамических пузырей, поэтому
@@ -721,7 +723,7 @@ type RowProps = {
   onOpenStory?: (reply: { url?: string | null; kind?: string; authorName?: string | null; authorId?: string; createdAt?: string }, message: Message) => void;
 };
 
-function MessageRow(props: RowProps) {
+function MessageRowView(props: RowProps) {
   const { message, me, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact, onStickerClick, onOpenStory } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
@@ -816,6 +818,10 @@ function MessageRow(props: RowProps) {
     </>
   );
 }
+
+// Прокрутка меняет служебное состояние ленты, но не содержимое уже видимых
+// сообщений. Memo не даёт перерисовывать весь экран чата на каждом scroll-событии.
+const MessageRow = memo(MessageRowView);
 
 /** У поста есть обсуждение: канал связан с группой, комментарии не выключены (withComments). */
 const withComments = (chat: ChatSummary, m: FeedMessage) => chat.type === "channel" && m.type !== "system" && !!chat.linkedDiscussionChatId && !chat.commentsOff && !!m.discussionAnchorId;

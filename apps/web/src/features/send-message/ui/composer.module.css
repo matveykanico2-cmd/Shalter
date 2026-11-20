@@ -10,6 +10,16 @@
   padding: 0;
   /* Android WebView не должен прокручивать страницу при фокусе textarea. */
   overscroll-behavior: contain;
+  contain: layout style;
+}
+
+/* Blur на каждом кадре ввода дорогой в Android WebView: самоввод должен
+   оставаться приоритетным, а фон под полем не обязан пересчитываться. */
+@media (pointer: coarse) {
+  .field {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 :global(html.keyboard-open) .composer {
