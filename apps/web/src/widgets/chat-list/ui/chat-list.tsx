@@ -12,7 +12,7 @@ import { SearchBox, SearchResults } from "@/features/global-search";
 import { NewBotFlow } from "@/features/my-bots";
 import { StoriesBar } from "@/features/stories";
 
-import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
+import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, prefetchChat, sortChats, useChatFolders, useChats } from "@/entities/chat";
 import { communityActivity, communityQueries, type JoinedCommunity, memberChatsOf, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
@@ -195,6 +195,22 @@ export function ChatList({ meId }: { meId: string }) {
     return out;
   }, [chats, externalChats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
+  // На телефоне нет hover-события, поэтому прогреваем только первые несколько
+  // прочитанных чатов после получения списка. Это делает первое открытие быстрым,
+  // но не превращает весь список и все медиа в бесконтрольный поток запросов.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      let warmed = 0;
+      for (const row of rows) {
+        if (row.kind !== "chat" || row.chat.unreadCount !== 0) continue;
+        prefetchChat(client, row.chat);
+        warmed += 1;
+        if (warmed >= 3) break;
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [client, rows]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
@@ -204,7 +220,7 @@ export function ChatList({ meId }: { meId: string }) {
     estimateSize: () => ROW_HEIGHT,
     // Пять строк с каждой стороны скрывают подгрузку при быстром свайпе, не удерживая
     // десятки превью медиа в DOM на слабом телефоне.
-    overscan: 5,
+    overscan: 6,
     getItemKey: (i) => rowKey(rows[i]!),
   });
 
