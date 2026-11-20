@@ -164,6 +164,8 @@ self.addEventListener('message', (event) => {
     event.waitUntil?.(precaching);
   } else if (event.data?.type === 'sync-messages') {
     event.waitUntil?.(syncMessages());
+  } else if (event.data?.type === 'sync-media') {
+    event.waitUntil?.(syncMedia());
   }
 });
 
@@ -473,13 +475,15 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 // сохраняют порядок даже после выгрузки вкладки; clientId на сервере делает повторы безопасными.
 const OUTBOX_DB = 'shalter-outbox';
 const OUTBOX_STORE = 'messages';
+const MEDIA_STORE = 'media';
 let syncingMessages = null;
 
 function outboxDb() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(OUTBOX_DB, 1);
+    const request = indexedDB.open(OUTBOX_DB, 2);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(OUTBOX_STORE)) request.result.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
+      if (!request.result.objectStoreNames.contains(MEDIA_STORE)) request.result.createObjectStore(MEDIA_STORE, { keyPath: 'id' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -512,7 +516,53 @@ self.addEventListener('sync', (event) => {
   if (event.tag === 'send-messages') {
     event.waitUntil(syncMessages());
   }
+  if (event.tag === 'send-media') event.waitUntil(syncMedia());
 });
+
+function mediaEntries(db) {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(MEDIA_STORE).objectStore(MEDIA_STORE).getAll();
+    request.onsuccess = () => resolve(request.result.sort((a, b) => a.createdAt - b.createdAt));
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function removeMediaEntry(db, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    tx.objectStore(MEDIA_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function syncMedia() {
+  const db = await outboxDb();
+  try {
+    for (const entry of await mediaEntries(db)) {
+      const attachments = [];
+      for (const item of entry.files) {
+        const query = new URLSearchParams({ kind: item.kind, name: item.name || 'file', mimeType: item.mimeType || '' });
+        let response;
+        try {
+          response = await fetch(`/api/uploads?${query}`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/octet-stream' }, body: item.file });
+        } catch { return; }
+        if (!response.ok) return;
+        const uploaded = await response.json();
+        attachments.push({ ...uploaded, ...(entry.spoiler ? { spoiler: true } : {}) });
+      }
+      let sent;
+      try {
+        sent = await fetch(entry.path, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...entry.body, attachments }) });
+      } catch { return; }
+      if (!sent.ok) return;
+      let result = null;
+      try { result = await sent.json(); } catch {}
+      await removeMediaEntry(db, entry.id);
+      await tellWindows({ type: 'shalter:media-sent', chatId: entry.chatId, clientId: entry.id, message: result?.message });
+    }
+  } finally { db.close(); }
+}
 
 async function syncMessages() {
   if (syncingMessages) return syncingMessages;

@@ -55,7 +55,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
   const client = useQueryClient();
   return useCallback(
     async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, options: SendOptions = {}) => {
-      const localId = `local_${++localSeq}_${Date.now()}`;
+      const localId = options.clientId ?? `local_${++localSeq}_${Date.now()}`;
       const topic = topicId ?? replyTo?.topicId ?? null;
       if (threadRootId) {
         try {

@@ -13,6 +13,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { blurThumb } from "@/shared/lib/image";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
+import { forgetMediaUpload, queueMediaUpload, syncMediaUploads } from "@/shared/lib/media-outbox";
 import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
 import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
@@ -493,6 +494,33 @@ export function Composer(props: Props) {
     setMediaChoice(null);
     setError(null);
     setMediaSending(true);
+    const caption = typedCaption.trim();
+    const reply = replyTo;
+    const queueIds: Array<string | null> = [];
+    const queueClientIds: string[] = [];
+    const queueable = !thread && !paidStars;
+    const identity = takeIdentity();
+    if (queueable) {
+      for (const [i, part] of chunks(picks, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
+        const clientId = `media_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
+        queueClientIds.push(clientId);
+        const id = await queueMediaUpload({
+          chatId,
+          path: channel ? `/api/posts/${encodeURIComponent(chatId)}/publish` : `/api/chats/${encodeURIComponent(chatId)}/messages`,
+          body: {
+            text: i === 0 ? caption : "",
+            replyToId: i === 0 ? reply?.id ?? null : null,
+            clientId,
+            ...(props.topicId ? { topicId: props.topicId } : {}),
+            ...identity,
+          },
+          files: part.map((pick) => ({ file: pick.file, name: pick.file.name || "file", mimeType: pick.file.type || "application/octet-stream", kind: pick.kind === "image" || pick.kind === "video" ? pick.kind : "file" })),
+          spoiler,
+        });
+        queueIds.push(id);
+      }
+      void syncMediaUploads();
+    }
     try {
       const { uploaded, error: uploadError, total } = await uploads.upload(picks);
       if (uploadError) {
@@ -504,16 +532,18 @@ export function Composer(props: Props) {
       }
       if (!uploaded.length) return;
       const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
-      const first: SendOptions = { ...takeIdentity(), ...(paidMedia ? { paidMedia } : {}) };
-      const caption = typedCaption.trim();
-      const reply = replyTo;
+      const first: SendOptions = { ...identity, ...(paidMedia ? { paidMedia } : {}) };
       const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
       setText("");
       onCancelReply();
       clearDraft();
       onSent?.();
       for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-        await sendMediaChunk(i === 0 ? caption : "", i === 0 ? reply : null, part, i === 0 ? first : {}).catch((err: unknown) => {
+        const clientId = queueable ? queueClientIds[i] : undefined;
+        await sendMediaChunk(i === 0 ? caption : "", i === 0 ? reply : null, part, { ...(i === 0 ? first : {}), ...(clientId ? { clientId } : {}) }).then(() => {
+          const queued = queueIds[i];
+          if (queued) void forgetMediaUpload(queued);
+        }).catch((err: unknown) => {
           setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
         });
       }

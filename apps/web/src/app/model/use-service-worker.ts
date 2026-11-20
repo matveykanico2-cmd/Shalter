@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { chatCache } from "@/entities/chat";
 import { historyCache, type Message, messageQueries } from "@/entities/message";
 
+import { syncMediaUploads } from "@/shared/lib/media-outbox";
 import { forgetOutgoingMessage, syncOutgoingMessages } from "@/shared/lib/message-outbox";
 import { ensurePushSubscribed, pushDiagnostics } from "@/shared/lib/push";
 import { toast } from "@/shared/ui";
@@ -57,7 +58,9 @@ export function useServiceWorker() {
     }, () => {});
     // Поднять очередь прошлого запуска сразу. При pagehide SW продолжит её без открытого чата.
     void syncOutgoingMessages();
+    void syncMediaUploads();
     const sync = () => void syncOutgoingMessages();
+    const syncMedia = () => void syncMediaUploads();
     const onWorkerMessage = (event: MessageEvent<{ type?: string; chatId?: string; clientId?: string; message?: Message }>) => {
       const { type, chatId, clientId, message } = event.data ?? {};
       if (!chatId || !clientId) return;
@@ -67,6 +70,9 @@ export function useServiceWorker() {
       } else if (type === "shalter:outbox-failed") {
         historyCache.dropPending(client, chatId, clientId);
         toast("Не удалось отправить сообщение", { error: true });
+      } else if (type === "shalter:media-sent") {
+        void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+        return;
       } else return;
       void forgetOutgoingMessage(clientId);
       void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
@@ -74,6 +80,7 @@ export function useServiceWorker() {
     navigator.serviceWorker.addEventListener("message", onWorkerMessage);
     window.addEventListener("online", precacheLater);
     window.addEventListener("online", sync);
+    window.addEventListener("online", syncMedia);
     window.addEventListener("pagehide", sync);
     // При возврате во вкладку и при появлении сети — переподписка на пуши.
     window.addEventListener("visibilitychange", resubscribe);
@@ -82,6 +89,7 @@ export function useServiceWorker() {
       clearTimeout(timer);
       window.removeEventListener("online", precacheLater);
       window.removeEventListener("online", sync);
+      window.removeEventListener("online", syncMedia);
       window.removeEventListener("pagehide", sync);
       navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
       window.removeEventListener("visibilitychange", resubscribe);
