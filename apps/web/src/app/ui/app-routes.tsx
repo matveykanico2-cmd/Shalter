@@ -22,7 +22,7 @@ import styles from "./app-routes.module.css";
 import { AtUsername } from "./at-username";
 
 // Экраны — отдельными чанками (как import() в public/js/app.js): оболочка и список чатов
-// появляются раньше, экран чата подгружается в простое (prefetchChat).
+// появляются раньше, а основные разделы прогреваются сразу после первого кадра.
 const loadChat = () => import("@/views/chat");
 const preloadCommonRoutes = () => [
   loadChat,
@@ -97,17 +97,17 @@ export function AppRoutes({ user }: { user: SelfUser }) {
       if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
       const loaders = preloadCommonRoutes();
       loaders.forEach((load, index) => {
-        timers.push(window.setTimeout(() => void load().catch(() => {}), index * 180));
+        timers.push(window.setTimeout(() => void load().catch(() => {}), index * 40));
       });
     };
     if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(prefetch, { timeout: 2200 });
+      const id = window.requestIdleCallback(prefetch, { timeout: 500 });
       return () => {
         window.cancelIdleCallback(id);
         timers.forEach((timer) => window.clearTimeout(timer));
       };
     }
-    const t = setTimeout(prefetch, 900);
+    const t = setTimeout(prefetch, 120);
     return () => {
       clearTimeout(t);
       timers.forEach((timer) => window.clearTimeout(timer));

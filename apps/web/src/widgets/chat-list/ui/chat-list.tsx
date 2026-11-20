@@ -195,19 +195,19 @@ export function ChatList({ meId }: { meId: string }) {
     return out;
   }, [chats, externalChats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
-  // На телефоне нет hover-события, поэтому прогреваем только первые несколько
-  // прочитанных чатов после получения списка. Это делает первое открытие быстрым,
-  // но не превращает весь список и все медиа в бесконтрольный поток запросов.
+  // На телефоне нет hover-события, поэтому прогреваем первые несколько чатов сразу
+  // после получения списка. История непрочитанных не запрашивается до открытия,
+  // чтобы не менять счётчики прочитанного.
   useEffect(() => {
     const timer = window.setTimeout(() => {
       let warmed = 0;
       for (const row of rows) {
-        if (row.kind !== "chat" || row.chat.unreadCount !== 0) continue;
+        if (row.kind !== "chat") continue;
         prefetchChat(client, row.chat);
         warmed += 1;
-        if (warmed >= 3) break;
+        if (warmed >= 4) break;
       }
-    }, 1500);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [client, rows]);
 

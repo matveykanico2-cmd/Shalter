@@ -25,20 +25,24 @@ export const profileQueries = {
     queryOptions({
       queryKey: [...baseKey, "shared-media", userId],
       queryFn: ({ signal }) => http.get<SharedMedia>(`/api/users/${id(userId)}/shared-media`, signal),
-      staleTime: 0,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
     }),
   /** Общие группы — вкладка «Группы». */
   commonChats: (userId: string) =>
     queryOptions({
       queryKey: [...baseKey, "common-chats", userId],
       queryFn: async ({ signal }) => (await http.get<z.infer<typeof commonChatsBody>>(`/api/users/${id(userId)}/common-chats`, signal)).chats,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
     }),
   /** Реклама этого человека с размещением «в профиле». */
   ad: (userId: string) =>
     queryOptions({
       queryKey: [...baseKey, "ad", userId],
       queryFn: async ({ signal }) => (await http.get<{ ad: ProfileAd | null }>(`/api/ads/serve?placement=profile&owner=${id(userId)}`, signal)).ad,
-      staleTime: 0,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
       retry: false,
     }),
 };
