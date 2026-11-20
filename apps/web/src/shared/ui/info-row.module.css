@@ -11,7 +11,7 @@
   background: none;
   font: inherit;
   text-align: left;
-  color: var(--color-text);
+  color: var(--color-text, #f4f4f5);
 }
 
 .clickable {
@@ -40,6 +40,7 @@
   font-size: 16px;
   line-height: 21px;
   overflow-wrap: anywhere;
+  color: var(--color-text, #f4f4f5);
 }
 
 .accent {
@@ -53,5 +54,5 @@
 .label {
   font-size: 14px;
   line-height: 18px;
-  color: var(--color-muted);
+  color: var(--color-muted, #a8a8ad);
 }

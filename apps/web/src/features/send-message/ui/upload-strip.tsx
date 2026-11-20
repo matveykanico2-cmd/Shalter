@@ -15,7 +15,9 @@ export function UploadStrip({ tiles, onCancel }: { tiles: readonly UploadTile[];
       {tiles.map((t) => (
         <div key={t.id} className={t.failed ? `${styles.uploadTile} ${styles.uploadFailed}` : styles.uploadTile} role="listitem" title={t.name}>
           <span className={styles.uploadPreview}>
-            {t.previewUrl && t.kind === "video" ? <video src={t.previewUrl} muted playsInline preload="metadata" aria-label={t.name} /> : null}
+            {/* Не декодируем каждый ролик в фоне: на Android это подвешивало composer.
+                После отправки нормальное превью отдаёт сервер в сообщении. */}
+            {t.previewUrl && t.kind === "video" ? <Icon name="Video" size={20} /> : null}
             {t.previewUrl && t.kind !== "video" ? <span className={styles.uploadImagePreview} style={{ backgroundImage: `url("${t.previewUrl}")` }} /> : null}
             {!t.previewUrl ? <Icon name={t.kind === "video" ? "Video" : t.kind === "image" ? "Image" : "File"} size={20} /> : null}
           </span>

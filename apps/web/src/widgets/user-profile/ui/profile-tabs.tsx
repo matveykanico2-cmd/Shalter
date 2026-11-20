@@ -137,7 +137,7 @@ function MediaCell({ item, onOpen }: { item: ViewerItem; onOpen: () => void }) {
       {item.kind === "video" && poster ? (
         <img className={styles.cellMedia} src={poster} alt="" loading="lazy" decoding="async" onError={() => setPosterFailed(true)} />
       ) : item.kind === "video" ? (
-        <video className={styles.cellMedia} src={item.url ? `${item.url}#t=0.1` : undefined} muted playsInline preload="metadata" onError={() => setFailed(true)} />
+        <span className={styles.cellMedia} aria-hidden="true"><Icon name="Video" size={24} /></span>
       ) : (
         <img className={styles.cellMedia} src={item.thumbUrl ?? item.url} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
       )}

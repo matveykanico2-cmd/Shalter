@@ -132,6 +132,15 @@
   object-fit: cover;
 }
 
+.thumbVideo {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: #121a24 center / cover no-repeat;
+  color: #fff;
+}
+
 .thumbPlay {
   position: absolute;
   right: 3px;
@@ -299,6 +308,14 @@
   }
 
   .nav {
-    display: none;
+    position: fixed;
+    top: auto;
+    bottom: max(18px, env(safe-area-inset-bottom, 0px));
+    display: flex;
+    transform: none;
   }
+
+  .nav:hover:not(:disabled) { transform: scale(1.04); }
+  .prev { left: calc(50% - 54px); }
+  .next { right: calc(50% - 54px); }
 }

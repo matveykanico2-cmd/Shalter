@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { videoPosterDataUrl } from "@/shared/lib/image";
 import { plural } from "@/shared/lib/presence";
@@ -32,6 +32,7 @@ const MAX_PAID_STARS = 10_000;
  */
 export function SendMediaDialog({ files: initial, allowPaid = false, initialCaption = "", onChange, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
+  const addInput = useRef<HTMLInputElement>(null);
   const [asFiles, setAsFiles] = useState(false);
   const [spoiler, setSpoiler] = useState(false);
   const [paidStars, setPaidStars] = useState(0);
@@ -110,6 +111,21 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
     <div className={styles.dialog} role="dialog" aria-label={title(files, isMedia)}>
         <div className={styles.header}>
           <h2 className={styles.title}>{title(files, isMedia)}</h2>
+          <input
+            ref={addInput}
+            className={styles.hiddenInput}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={(event) => {
+              const added = [...(event.target.files ?? [])];
+              if (added.length) setFiles((current) => [...current, ...added]);
+              event.target.value = "";
+            }}
+          />
+          <button type="button" className={styles.iconButton} title="Добавить медиа" aria-label="Добавить медиа" onClick={() => addInput.current?.click()}>
+            <Icon name="Plus" size={20} />
+          </button>
           {compressible ? (
             <button type="button" className={styles.iconButton} title="Ещё" onClick={(e) => setMenuAt({ x: e.clientX - 200, y: e.clientY + 8 })}>
               <Icon name="More" size={22} />
@@ -180,11 +196,12 @@ export function SendMediaDialog({ files: initial, allowPaid = false, initialCapt
 function FilePreview({ file, as, className }: { file: File; as: "img" | "video" | "thumb"; className?: string }) {
   const ref = useRef<HTMLImageElement & HTMLVideoElement & HTMLSpanElement>(null);
   const [videoPoster, setVideoPoster] = useState<string | null>(null);
-  const videoSrc = useMemo(() => as === "video" ? URL.createObjectURL(file) : null, [file, as]);
   useEffect(() => {
     if (as === "video") {
       let active = true;
-      void videoPosterDataUrl(file, 192).then((poster) => active && setVideoPoster(poster)).catch(() => {});
+      void videoPosterDataUrl(file, 192)
+        .then((poster) => active && setVideoPoster(poster))
+        .catch(() => {});
       return () => {
         active = false;
         setVideoPoster(null);
@@ -197,27 +214,16 @@ function FilePreview({ file, as, className }: { file: File; as: "img" | "video" 
     else el.src = url;
     return () => URL.revokeObjectURL(url);
   }, [file, as]);
-  useEffect(() => () => {
-    if (videoSrc) URL.revokeObjectURL(videoSrc);
-  }, [videoSrc]);
   if (as === "video") {
-    if (videoPoster) return <img src={videoPoster} alt="" />;
-    if (videoSrc) {
-      return (
-        <video
-          className={styles.videoPreview}
-          src={videoSrc}
-          muted
-          playsInline
-          preload="auto"
-          onLoadedMetadata={(event) => {
-            const video = event.currentTarget;
-            if (video.duration > 0) video.currentTime = Math.min(0.1, video.duration / 4);
-          }}
-        />
-      );
-    }
-    return <span className={styles.videoFallback}><Icon name="Video" size={22} /></span>;
+    // Не монтируем тяжёлый <video> до готовности кадра: на Android это
+    // показывало серый экран с огромной системной кнопкой Play и запускало
+    // декодирование каждого выбранного ролика сразу.
+    if (videoPoster) return <img className={styles.videoPreview} src={videoPoster} alt="Превью видео" />;
+    return (
+      <span className={styles.videoFallback} aria-label="Подготовка превью видео">
+        <Icon name="Video" size={22} />
+      </span>
+    );
   }
   if (as === "img") return <img ref={ref} alt="" />;
   return <span ref={ref} className={className} />;

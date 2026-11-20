@@ -205,7 +205,19 @@ async function acquireMedia(): Promise<MediaStream | null> {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo ? cameraConstraints() : false });
   } catch {
-    s.error = wantVideo ? "Нет доступа к камере или микрофону" : "Нет доступа к микрофону";
+    if (wantVideo) {
+      // Камера не должна лишать ведущего голоса. Это также покрывает
+      // Android WebView, где разрешения микрофона и камеры выдаются отдельно.
+      try {
+        s.camOn = false;
+        s.error = "Камера недоступна — эфир продолжается с микрофоном";
+        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch {
+        s.error = "Нет доступа к микрофону — проверьте разрешения браузера";
+      }
+    } else {
+      s.error = "Нет доступа к микрофону";
+    }
     return null;
   }
 }
@@ -453,11 +465,34 @@ export function toggleMic() {
   notify();
 }
 
-export function toggleCam() {
-  if (!state) return;
-  state.camOn = !state.camOn;
-  applyMuteFlags();
-  notify();
+export async function toggleCam() {
+  const s = state;
+  if (!s) return;
+  if (s.camOn) {
+    s.camOn = false;
+    applyMuteFlags();
+    notify();
+    return;
+  }
+  const existing = s.camStream?.getVideoTracks()[0];
+  if (!existing) {
+    try {
+      const camera = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints() });
+      if (state !== s) {
+        camera.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const stream = s.camStream ?? new MediaStream();
+      camera.getVideoTracks().forEach((track) => stream.addTrack(track));
+      s.camStream = stream;
+    } catch {
+      s.error = "Не удалось включить камеру — разрешите доступ и повторите";
+      notify();
+      return;
+    }
+  }
+  s.camOn = true;
+  await republish();
 }
 
 export async function toggleScreenShare() {

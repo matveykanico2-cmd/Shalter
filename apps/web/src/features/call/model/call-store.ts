@@ -730,10 +730,25 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   if (accepted) others.forEach((p) => sendSignal(p.id, "accepted", null));
 
   try {
-    const stream = await getUserMediaSafe({
-      audio: CALL_AUDIO,
-      video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
-    });
+    let stream: MediaStream;
+    try {
+      stream = await getUserMediaSafe({
+        audio: CALL_AUDIO,
+        video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
+      });
+    } catch (videoError) {
+      // Камера — необязательная часть видеозвонка. На Android WebView и iOS
+      // запрос камеры может быть запрещён отдельно от микрофона, а слишком
+      // строгие camera constraints могут не поддерживаться конкретным
+      // устройством. Не оставляем пользователя без голоса: пробуем аудио,
+      // после чего камеру можно включить кнопкой повторно.
+      if (call.kind !== "video") throw videoError;
+      stream = await getUserMediaSafe({ audio: CALL_AUDIO, video: false });
+      if (state === mine) {
+        mine.cameraOn = false;
+        mine.mediaError = "Камера недоступна — звонок продолжается с голосом. Камеру можно включить позже";
+      }
+    }
     if (state !== mine) {
       stream.getTracks().forEach((t) => t.stop());
       markReady();
@@ -743,7 +758,11 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     mine.localStream = stream;
     void refreshCameraCount();
   } catch {
-    if (state === mine) mine.mediaError = "Нет доступа к микрофону или камере — звук и видео от вас не передаются";
+    if (state === mine) {
+      mine.mediaError = call.kind === "video"
+        ? "Нет доступа к микрофону — проверьте разрешение браузера"
+        : "Нет доступа к микрофону или камере — звук и видео от вас не передаются";
+    }
   }
   iceServers = await icePromise;
   if (state !== mine) return;

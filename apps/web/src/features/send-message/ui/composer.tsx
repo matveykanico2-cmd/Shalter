@@ -469,6 +469,22 @@ export function Composer(props: Props) {
 
   // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
   // (по 10 вложений; подпись — у первого).
+  const sendMediaChunk = async (text: string, reply: Message | null, attachments: OutgoingAttachment[], options: SendOptions) => {
+    // После загрузки видео/аудио серверу может понадобиться время на обработку.
+    // MAX документирует именно такой двухфазный протокол: upload → attachment
+    // ready → message. Не показываем ложную ошибку пользователю на первом 400.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await send(text, reply, attachments, undefined, options);
+      } catch (err) {
+        const message = errorText(err, "").toLowerCase();
+        const isAttachmentPending = /not.?ready|не готов|обработ|processing|подготов/.test(message);
+        if (!isAttachmentPending || attempt >= 4) throw err;
+        await new Promise<void>((resolve) => setTimeout(resolve, 700 * 2 ** attempt));
+      }
+    }
+  };
+
   const sendMedia = async ({ picks, spoiler, paidStars, caption: typedCaption }: MediaSendChoice) => {
     // Платный пост: размытая миниатюра первого фото или видео — её видят до оплаты; готовится, пока идёт загрузка.
     const firstMedia = picks.find((p) => p.kind === "image" || p.kind === "video");
@@ -497,7 +513,7 @@ export function Composer(props: Props) {
       clearDraft();
       onSent?.();
       for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-        await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 ? first : {}).catch((err: unknown) => {
+        await sendMediaChunk(i === 0 ? caption : "", i === 0 ? reply : null, part, i === 0 ? first : {}).catch((err: unknown) => {
           setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
         });
       }

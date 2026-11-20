@@ -328,7 +328,7 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
                   setView({ scale: 1, tx: 0, ty: 0 });
                 }}
               >
-                {thumb.kind === "video" ? <video src={thumb.url} poster={thumb.thumbUrl} muted preload="metadata" /> : <img src={thumb.thumbUrl ?? thumb.url} alt="" loading="lazy" fetchPriority="low" />}
+                {thumb.kind === "video" ? <span className={styles.thumbVideo} style={thumb.thumbUrl ? { backgroundImage: `url("${thumb.thumbUrl}")` } : undefined}><Icon name="Video" size={16} /></span> : <img src={thumb.thumbUrl ?? thumb.url} alt="" loading="lazy" fetchPriority="low" />}
                 {thumb.kind === "video" ? <span className={styles.thumbPlay}><Icon name="PlayFill" size={10} /></span> : null}
               </button>
             ))}

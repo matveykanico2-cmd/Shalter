@@ -317,7 +317,9 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
           <Thumb />
         </span>
         {story.likeCount ? ` ${story.likeCount}` : ""}
-        {burst ? <Particles key={burst} /> : null}
+        {/* Это не элемент массива: key здесь создавал предупреждение и
+            лишнюю пересборку при каждом лайке. */}
+        {burst ? <Particles /> : null}
       </button>
     ) : story.likeCount ? (
       <span className={styles.likeCount}>

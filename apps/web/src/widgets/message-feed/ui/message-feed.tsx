@@ -305,20 +305,28 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     const el = scrollRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     let height = el.clientHeight;
+    let frame = 0;
     const observer = new ResizeObserver(() => {
-      const prev = height;
-      height = el.clientHeight;
-      if (stuck.current) {
-        const target = Math.max(0, el.scrollHeight - el.clientHeight);
-        if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
-      } else if (height !== prev) {
-        const target = el.scrollHeight - fromBottom.current + (prev - height);
-        if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
-      }
-      fromBottom.current = el.scrollHeight - el.scrollTop;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const prev = height;
+        height = el.clientHeight;
+        if (stuck.current) {
+          const target = Math.max(0, el.scrollHeight - el.clientHeight);
+          if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+        } else if (height !== prev) {
+          const target = el.scrollHeight - fromBottom.current + (prev - height);
+          if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
+        }
+        fromBottom.current = el.scrollHeight - el.scrollTop;
+      });
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [hasScroller]);
 
   const loadOlder = useCallback(async () => {
