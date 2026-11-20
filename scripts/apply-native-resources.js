@@ -44,6 +44,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     wirePackageInstallerPermission();
     wireAndroidDeepLinks();
     wireAndroidWebkit();
+    wireAndroidBuildCompatibility();
     wireAndroidAppIcons();
   }
 }
@@ -145,6 +146,29 @@ function wireAndroidWebkit() {
   gradle = gradle.replace(/dependencies\s*\{/, (m) => `${m}\n    implementation "androidx.webkit:webkit:1.12.1"`);
   fs.writeFileSync(gradlePath, gradle);
   console.log("android: androidx.webkit для прокси приложения");
+}
+
+// Native push handling extends FirebaseMessagingService directly. The Capacitor
+// plugin keeps Firebase as an implementation dependency, so it is not visible
+// while compiling the app's own service. Also exclude server-only compressed
+// web assets: AAPT normalizes .gz/.br names and otherwise reports duplicates.
+function wireAndroidBuildCompatibility() {
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  let gradle = fs.readFileSync(gradlePath, "utf8");
+  if (!gradle.includes("com.google.firebase:firebase-messaging:24.1.0")) {
+    gradle = gradle.replace(
+      /implementation project\(':capacitor-android'\)/,
+      `$&\n    implementation "com.google.firebase:firebase-messaging:24.1.0"`
+    );
+  }
+  if (!gradle.includes(":!*.gz:!*.br")) {
+    gradle = gradle.replace(
+      /ignoreAssetsPattern '([^']*)'/,
+      (_, pattern) => `ignoreAssetsPattern '${pattern}:!*.gz:!*.br'`
+    );
+  }
+  fs.writeFileSync(gradlePath, gradle);
+  console.log("android: Firebase push dependency and compressed asset exclusions applied");
 }
 
 // Ссылки в приложение (MainActivity.pathFromIntent): shalter://chat/… — как у приложения для
