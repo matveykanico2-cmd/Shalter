@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { canApplyLive, historyCache, messageQueries } from "@/entities/message";
 
 import { ws } from "@/shared/api";
+import { listOutgoingMessages } from "@/shared/lib/message-outbox";
 
 const LIVE_RECONCILE_MS = 1000;
 const DEFAULT_REFRESH_MS = 200;
@@ -42,6 +43,36 @@ export function useHistorySync(chatId: string, meId: string) {
       if (document.hidden) return;
       scheduleRefresh(0);
     };
+
+    // Если приложение было свернуто во время офлайн-отправки, UI-компонент мог
+    // размонтироваться, хотя запись в outbox осталась. Показываем её сразу при
+    // повторном открытии чата; SW позже заменит пузырь настоящим сообщением.
+    void listOutgoingMessages(chatId).then((entries) => {
+      for (const entry of entries) {
+        if (historyCache.find(client, chatId, entry.id)) continue;
+        const body = entry.body as { text?: string; attachments?: unknown[]; sticker?: unknown; replyToId?: string | null; topicId?: string | null; effect?: string; article?: unknown };
+        const pending = {
+          id: entry.id,
+          chatId,
+          senderId: meId,
+          type: body.sticker ? "sticker" : body.article ? "article" : "text",
+          text: body.text ?? "",
+          createdAt: new Date(entry.createdAt).toISOString(),
+          pinned: false,
+          replyToId: body.replyToId ?? null,
+          ...(body.topicId ? { topicId: body.topicId } : {}),
+          ...(body.sticker ? { sticker: body.sticker } : {}),
+          ...(body.effect ? { effect: body.effect } : {}),
+          attachments: body.attachments ?? [],
+          reactions: [],
+          readByIds: [],
+          deletedForIds: [],
+          mentionedUserIds: [],
+          views: null,
+        } as never;
+        historyCache.addPending(client, chatId, pending);
+      }
+    });
     document.addEventListener("visibilitychange", catchUp);
     window.addEventListener("online", catchUp);
 

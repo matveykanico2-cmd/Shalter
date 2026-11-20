@@ -133,6 +133,7 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
   const [login, setLogin] = useState<{ token: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const [manual, setManual] = useState("");
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -169,20 +170,26 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
     controls.current = null;
     stream.current?.getTracks().forEach((track) => track.stop());
     stream.current = null;
+    if (video.current) video.current.srcObject = null;
+    setCameraReady(false);
   }, []);
 
   const startCamera = useCallback(async () => {
     setError(null);
+    setCameraReady(false);
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Камера недоступна. Откройте Shalter по HTTPS и разрешите доступ к камере в настройках браузера.");
       return;
     }
     stopCamera();
     try {
-      const currentStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+      let currentStream: MediaStream;
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      } catch (firstError) {
+        if ((firstError as DOMException)?.name === "NotAllowedError" || (firstError as DOMException)?.name === "PermissionDeniedError") throw firstError;
+        currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      }
       stream.current = currentStream;
       const element = video.current;
       if (!element) {
@@ -202,6 +209,7 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
         else element.addEventListener("loadedmetadata", () => resolve(), { once: true });
       });
       await element.play();
+      setCameraReady(true);
       // QR decoding is a rarely used settings action. Keep the heavy ZXing
       // decoder out of the initial bundle and load it only after the camera is
       // actually available.
@@ -266,7 +274,8 @@ function QrDeviceDialog({ mode, onClose }: { mode: "show" | "scan"; onClose: () 
         <>
           <div className={styles.qrScannerFrame}>
             <video ref={video} className={styles.qrScanner} muted playsInline aria-label="Камера для сканирования QR-кода" />
-            {!error ? <span className={styles.qrScannerMark} aria-hidden="true" /> : null}
+            {!cameraReady && !error ? <span className={styles.qrScannerLoading}>Включаем камеру…</span> : null}
+            {cameraReady && !error ? <span className={styles.qrScannerMark} aria-hidden="true" /> : null}
           </div>
           <p className={error ? `${styles.dialogText} ${styles.dialogError}` : styles.dialogText}>{error || "Наведите камеру на QR-код входа."}</p>
           {error && !manual ? <Button variant="secondary" onClick={() => void startCamera()}>Разрешить камеру / Повторить</Button> : null}

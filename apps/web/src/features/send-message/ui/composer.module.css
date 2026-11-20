@@ -217,9 +217,22 @@
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  background: var(--color-surface) center / contain no-repeat;
+  background: var(--color-surface) center / cover no-repeat;
   box-shadow: var(--bubble-shadow);
   color: var(--color-muted);
+}
+
+.uploadPreview video,
+.uploadImagePreview {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.uploadImagePreview {
+  background-position: center;
+  background-size: cover;
 }
 
 .uploadRing {
@@ -237,13 +250,25 @@
 }
 
 .uploadRingTrack {
-  stroke: rgba(0, 0, 0, 0.35);
+  stroke: color-mix(in srgb, var(--color-text) 35%, transparent);
 }
 
 .uploadRingFill {
-  stroke: #fff;
+  stroke: var(--color-accent);
   stroke-linecap: round;
   transition: stroke-dashoffset 0.15s linear;
+}
+
+.uploadPercent {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
+  pointer-events: none;
 }
 
 .uploadFailed .uploadRingFill {

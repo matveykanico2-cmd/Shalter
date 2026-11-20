@@ -121,8 +121,21 @@
   aspect-ratio: 1;
   margin: 0;
   border-radius: 14px;
-  background: #20242b;
+  background: #101318;
   object-fit: cover;
+  object-position: center;
+}
+
+.qrScannerLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: #fff;
+  background: rgb(16 19 24 / 72%);
+  font-size: 15px;
+  text-align: center;
 }
 
 .qrScannerFrame {

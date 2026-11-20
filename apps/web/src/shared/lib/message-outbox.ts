@@ -43,6 +43,17 @@ export const keepOutgoingMessage = (entry: MessageOutboxEntry) => write("readwri
 
 export const forgetOutgoingMessage = (id: string) => write("readwrite", (store) => store.delete(id));
 
+/** Восстановить исходящие пузыри после возврата во вкладку/чат. */
+export async function listOutgoingMessages(chatId?: string) {
+  const db = await database();
+  if (!db) return [] as MessageOutboxEntry[];
+  return await new Promise<MessageOutboxEntry[]>((resolve) => {
+    const request = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
+    request.onsuccess = () => resolve((request.result as MessageOutboxEntry[]).filter((entry) => !chatId || entry.chatId === chatId).sort((a, b) => a.createdAt - b.createdAt));
+    request.onerror = () => resolve([]);
+  }).finally(() => db.close());
+}
+
 /** Просим SW отправить очередь сейчас; Background Sync используется, когда он доступен. */
 export async function syncOutgoingMessages() {
   if (!("serviceWorker" in navigator)) return;

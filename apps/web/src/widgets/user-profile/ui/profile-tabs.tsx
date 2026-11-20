@@ -102,28 +102,36 @@ export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onG
 function MediaGrid({ items }: { items: SharedMedia["media"] }) {
   const [shown, setShown] = useState(MEDIA_PAGE);
   const [open, setOpen] = useState<number | null>(null);
-  const viewer: ViewerItem[] = items.map((m) => mediaItem(asAttachment(m.attachment), { id: m.messageId }));
+  const usable = items.filter((m) => {
+    const a = asAttachment(m.attachment);
+    return (a.kind === "image" || a.kind === "video") && Boolean(a.url || a.thumbUrl || a.previewUrl || a.posterUrl);
+  });
+  const viewer: ViewerItem[] = usable.map((m) => mediaItem(asAttachment(m.attachment), { id: m.messageId }));
   return (
     <div>
       <div className={styles.mediaGrid}>
-        {viewer.slice(0, shown).map((v, i) => (
-          <button key={`${items[i]?.messageId}-${i}`} type="button" className={styles.mediaCell} aria-label={v.kind === "video" ? "Видео" : "Фото"} onClick={() => setOpen(i)}>
-            {v.kind === "video" ? <video className={styles.cellMedia} src={`${v.url}#t=0.1`} poster={v.thumbUrl} muted playsInline preload="metadata" onLoadedMetadata={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр загрузится штатно */ } }} onLoadedData={(e) => { try { e.currentTarget.currentTime = 0.1; } catch { /* первый кадр уже показан */ } }} /> : <img className={styles.cellMedia} src={v.thumbUrl ?? v.url} alt="" loading="lazy" />}
-            {v.kind === "video" ? (
-              <span className={styles.cellPlay}>
-                <Icon name="Play" size={14} />
-              </span>
-            ) : null}
-          </button>
-        ))}
+        {viewer.slice(0, shown).map((v, i) => <MediaCell key={`${usable[i]?.messageId}-${i}`} item={v} onOpen={() => setOpen(i)} />)}
       </div>
-      {shown < items.length ? (
+      {shown < viewer.length ? (
         <button type="button" className={styles.actionButton} onClick={() => setShown((n) => n + MEDIA_PAGE)}>
           Показать ещё
         </button>
       ) : null}
       {open !== null ? <MediaViewer items={viewer} index={open} onClose={() => setOpen(null)} /> : null}
     </div>
+  );
+}
+
+function MediaCell({ item, onOpen }: { item: ViewerItem; onOpen: () => void }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <button type="button" className={styles.mediaCell} aria-label="Медиа недоступно" onClick={onOpen}><Icon name="File" size={22} /></button>;
+  }
+  return (
+    <button type="button" className={styles.mediaCell} aria-label={item.kind === "video" ? "Видео" : "Фото"} onClick={onOpen}>
+      {item.kind === "video" ? <video className={styles.cellMedia} src={item.url ? `${item.url}#t=0.1` : undefined} poster={item.thumbUrl} muted playsInline preload="metadata" onError={() => setFailed(true)} /> : <img className={styles.cellMedia} src={item.thumbUrl ?? item.url} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />}
+      {item.kind === "video" ? <span className={styles.cellPlay}><Icon name="Play" size={14} /></span> : null}
+    </button>
   );
 }
 

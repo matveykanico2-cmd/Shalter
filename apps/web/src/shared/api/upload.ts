@@ -53,13 +53,13 @@ function releaseSlot() {
   else running--;
 }
 
-type Options = { onProgress?: (fraction: number) => void; signal?: AbortSignal };
+type Options = { onProgress?: (fraction: number) => void; onProcessing?: () => void; signal?: AbortSignal };
 
 // Фото, которое увидят другие (в чате, на аватарке, в истории), — без EXIF: геопозиция,
 // модель телефона. Файл «без сжатия» (kind=file) уходит байт в байт, как в Telegram.
 const PHOTO_KINDS = new Set<UploadKind>(["image", "avatar", "gift"]);
 
-export async function uploadFile(original: File, kind: UploadKind, { onProgress, signal }: Options = {}): Promise<Uploaded> {
+export async function uploadFile(original: File, kind: UploadKind, { onProgress, onProcessing, signal }: Options = {}): Promise<Uploaded> {
   await takeSlot(signal);
   try {
     // Внутри слота: не больше трёх файлов в памяти разом, отменённый не читаем.
@@ -68,7 +68,7 @@ export async function uploadFile(original: File, kind: UploadKind, { onProgress,
     for (let attempt = 0; ; attempt++) {
       if (signal?.aborted) throw new UploadError(UPLOAD_CANCELLED);
       try {
-        return await sendOnce(file, kind, onProgress, signal);
+        return await sendOnce(file, kind, onProgress, onProcessing, signal);
       } catch (err) {
         if (signal?.aborted || !(err instanceof UploadError) || !err.retryable || attempt >= RETRY_DELAYS_MS.length) throw err;
         onProgress?.(0);
@@ -89,7 +89,7 @@ function failure(status: number, body: { error?: string }) {
   return new UploadError(`Не удалось загрузить файл (ошибка ${status})`, status >= 500);
 }
 
-function sendOnce(file: File, kind: UploadKind, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
+function sendOnce(file: File, kind: UploadKind, onProgress?: (fraction: number) => void, onProcessing?: () => void, signal?: AbortSignal) {
   const params = new URLSearchParams({ kind, name: file.name || "file", mimeType: file.type || "" });
   return new Promise<Uploaded>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -104,7 +104,11 @@ function sendOnce(file: File, kind: UploadKind, onProgress?: (fraction: number) 
     };
     xhr.addEventListener("loadend", () => clearTimeout(timer));
     // Байты отправлены — дальше сервер дописывает файл (большой в S3 — долго): не торопим.
-    xhr.upload.addEventListener("load", () => clearTimeout(timer));
+    xhr.upload.addEventListener("load", () => {
+      clearTimeout(timer);
+      onProgress?.(1);
+      onProcessing?.();
+    });
     xhr.open("POST", `/api/uploads?${params}`);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.upload.addEventListener("progress", (e) => {

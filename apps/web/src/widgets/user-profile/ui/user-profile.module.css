@@ -1234,6 +1234,18 @@
    не превращается в «телефон» на промежуточной ширине окна. */
 .panel {
   width: min(488px, 100vw);
+  /* The profile is intentionally dark on both themes. Keep shared primitives
+     (InfoRow, username badges and buttons) readable inside this surface. */
+  --color-bg: #171717;
+  --color-surface: #1d1d1d;
+  --color-surface-alt: #232323;
+  --color-text: #f4f4f5;
+  --color-muted: #a8a8ad;
+  --color-border: rgb(255 255 255 / 10%);
+  --color-accent: #a278fa;
+  --color-accent-soft: #302b3f;
+  --color-danger: #ff595a;
+  --color-accent-contrast: #fff;
   background: #171717;
   color: #f4f4f5;
   box-shadow: -14px 0 42px rgb(0 0 0 / 38%);

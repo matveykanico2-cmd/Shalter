@@ -12,7 +12,7 @@ const ACTION_PING_MS = 2500;
 
 export type Pick = { file: File; kind: UploadKind };
 
-export type UploadTile = { id: number; name: string; kind: UploadKind; previewUrl: string | null; progress: number; failed: boolean };
+export type UploadTile = { id: number; name: string; kind: UploadKind; previewUrl: string | null; progress: number; phase: "uploading" | "processing" | "failed"; failed: boolean };
 
 let seq = 0;
 
@@ -48,11 +48,11 @@ export function useUploads(chatId: string) {
 
       const started = items.map((p) => {
         const id = ++seq;
-        const previewUrl = p.file.type.startsWith("image/") ? URL.createObjectURL(p.file) : null;
+        const previewUrl = p.file.type.startsWith("image/") || p.file.type.startsWith("video/") ? URL.createObjectURL(p.file) : null;
         if (previewUrl) urls.current.push(previewUrl);
         const controller = new AbortController();
         aborts.current.set(id, controller);
-        return { id, pick: p, controller, tile: { id, name: p.file.name, kind: p.kind, previewUrl, progress: 0, failed: false } satisfies UploadTile };
+        return { id, pick: p, controller, tile: { id, name: p.file.name, kind: p.kind, previewUrl, progress: 0, phase: "uploading", failed: false } satisfies UploadTile };
       });
       setTiles((list) => [...list, ...started.map((s) => s.tile)]);
 
@@ -65,9 +65,9 @@ export function useUploads(chatId: string) {
           // Фото уходит оригиналом, без пережатия: превью для ленты сервер делает сам
           // (mediaPreview), а в хранилище остаётся исходник без потери качества. EXIF
           // (геопозиция и т. п.) вырезает uploadFile без перекодирования, поворот остаётся.
-          uploadFile(pick.file, pick.kind, { signal: controller.signal, onProgress: (progress) => patch(id, { progress }) })
+          uploadFile(pick.file, pick.kind, { signal: controller.signal, onProcessing: () => patch(id, { phase: "processing", progress: 1 }), onProgress: (progress) => patch(id, { progress, phase: "uploading" }) })
             .catch((err: unknown) => {
-              patch(id, { failed: true });
+              patch(id, { failed: true, phase: "failed" });
               throw err;
             })
         )
