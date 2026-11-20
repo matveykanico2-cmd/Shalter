@@ -12,20 +12,30 @@ const workerBridge = require("./lib/workerBridge");
 function startRuntime(server, listen, opts = {}) {
   useRealtime(opts.realtime);
   let stopBucketEncryptionCheck = () => {};
+  let stopped = false;
 
   // Обходы по таймеру и обработка вложений — в фоновом процессе; в режиме тестов
-  // (SHALTER_TEST_MODE) он обходы не запускает. RTMP — всегда здесь; в режиме тестов
-  // его нет: параллельные серверы не должны делить порт RTMP.
+  // (SHALTER_TEST_MODE) он обходы не запускает. RTMP живёт здесь, но в dev/test его
+  // можно отключить, чтобы обычная разработка не занимала отдельные порты.
   if (workerBridge.enabled) workerBridge.startWorker(opts.workerEntry);
   if (TEST_MODE) {
     console.log("[test] SHALTER_TEST_MODE: фоновые обходы и RTMP выключены");
-  } else {
+  } else if (process.env.RTMP_ENABLED !== "0") {
     startRtmp();
+  } else {
+    console.log("[rtmp] выключен (RTMP_ENABLED=0)");
   }
 
   function shutdown() {
+    if (stopped) return;
+    stopped = true;
     console.log("shutting down…");
     stopBucketEncryptionCheck();
+    try {
+      require("./rtmp").stop();
+    } catch (err) {
+      console.error("[rtmp] ошибка остановки:", err.message);
+    }
     server.close(async () => {
       await workerBridge.stopWorker();
       // Сливаем WAL в app.db и закрываем базу: иначе после каждой остановки
@@ -43,6 +53,9 @@ function startRuntime(server, listen, opts = {}) {
   }
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+  // Nodemon uses SIGUSR2 for a restart. Without handling it, RTMP/HTTP
+  // listeners could outlive the child and make the next start fail with EADDRINUSE.
+  process.on("SIGUSR2", shutdown);
 
   return Promise.all([
     initPush().catch((err) => console.error("push init failed, push notifications disabled:", err)),

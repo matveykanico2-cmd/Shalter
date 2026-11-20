@@ -62,6 +62,18 @@ function start({ onStreamChange } = {}) {
   return nms;
 }
 
+function stop() {
+  if (!nms) return;
+  const server = nms;
+  nms = null;
+  onChange = () => {};
+  try {
+    server.stop();
+  } catch (err) {
+    console.error("[rtmp] не удалось корректно остановить приём эфиров:", err.message);
+  }
+}
+
 function stopPublisher(streamKey) {
   if (!nms || !KEY_RE.test(String(streamKey ?? ""))) return false;
   const sessionId = context.publishers.get(`/live/${streamKey}`);
@@ -81,4 +93,4 @@ function ingestUrlFor(requestHost) {
   return `rtmp://${host}:${RTMP_PORT}/live`;
 }
 
-module.exports = { start, internalFlvUrl, ingestUrlFor, stopPublisher, RTMP_PORT, KEY_RE };
+module.exports = { start, stop, internalFlvUrl, ingestUrlFor, stopPublisher, RTMP_PORT, KEY_RE };
