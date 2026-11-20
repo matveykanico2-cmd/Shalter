@@ -19,6 +19,8 @@ const dialogOpen = () => !!document.querySelector('[role="dialog"], [role="alert
 export function useVersionWatch() {
   useEffect(() => {
     const check = async () => {
+      // Фоновая вкладка не должна будить сеть и приложение каждые пять минут.
+      if (document.visibilityState !== "visible") return;
       await checkForUpdate();
     };
     const onVisible = () => document.visibilityState === "visible" && void check();
