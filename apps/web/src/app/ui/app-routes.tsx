@@ -14,6 +14,7 @@ import { ShareInboxHost, ShareRoute } from "@/features/share-inbox";
 
 import type { SelfUser } from "@/entities/session";
 
+import { isLowEndDevice } from "@/shared/lib/device-profile";
 import { lazyView as lazyLoadedView } from "@/shared/lib/lazy-view";
 import { DESKTOP_QUERY, isSidePath, setMainPath } from "@/shared/lib/side-panel";
 import { useMediaQuery } from "@/shared/lib/use-media-query";
@@ -94,7 +95,7 @@ export function AppRoutes({ user }: { user: SelfUser }) {
     const prefetch = () => {
       const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
       // На 2G/3G и при Save-Data не конкурируем с текущими чатами за канал.
-      if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
+      if (isLowEndDevice() || connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
       const loaders = preloadCommonRoutes();
       loaders.forEach((load, index) => {
         timers.push(window.setTimeout(() => void load().catch(() => {}), index * 40));

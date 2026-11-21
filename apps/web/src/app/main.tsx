@@ -3,6 +3,7 @@ import "./styles/index.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { markDeviceProfile } from "@/shared/lib/device-profile";
 import { installEmojiCopy } from "@/shared/lib/emoji-images";
 import { ensurePushSubscribed } from "@/shared/lib/push";
 import { capturePwaInstallPrompt } from "@/shared/lib/pwa-install";
@@ -14,6 +15,7 @@ if (!root) throw new Error("Нет корневого узла #root");
 
 installEmojiCopy();
 capturePwaInstallPrompt();
+markDeviceProfile();
 
 // Фоновая доставка должна быть готова до полной загрузки оболочки. Разрешение
 // здесь не запрашиваем: подписываемся только если пользователь уже разрешил

@@ -125,3 +125,25 @@ html[data-power-saving-effects] * {
     --shadow-float: 0 8px 24px rgba(15, 35, 52, 0.16);
   }
 }
+
+/* Слабые WebView: не создаём дорогие compositor-слои для декоративных панелей.
+   Медиа, видео и полноэкранные просмотрщики этот профиль не отключает. */
+html[data-low-end] body {
+  background-image: none;
+}
+
+html[data-low-end] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-low-end] .sparkles,
+html[data-low-end] .holidaySparkles {
+  display: none !important;
+}
+
+html[data-low-end] .panel,
+html[data-low-end] [class*="panel"],
+html[data-low-end] [class*="dialog"] {
+  box-shadow: var(--shadow-soft) !important;
+}
