@@ -191,6 +191,10 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
         {LINKS.map((l) => (
           <NavLink key={l.to} to={l.to} className={linkClass(l.active(pathname))} title={l.label} aria-label={l.label}>
             <Icon name={l.icon} size={20} />
+            <span className={styles.railLabel}>
+              {l.label}
+              {l.label === "Чаты" && user.isPremium ? <Icon name="Star" size={12} className={styles.premiumChatStar} aria-hidden="true" /> : null}
+            </span>
           </NavLink>
         ))}
         <span className={styles.spacer} />

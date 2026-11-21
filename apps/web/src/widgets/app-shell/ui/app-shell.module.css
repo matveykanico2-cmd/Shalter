@@ -141,6 +141,17 @@
   transition: background-color 0.16s, color 0.16s, transform 0.16s;
 }
 
+.railLabel {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.premiumChatStar {
+  color: #f5b83d;
+}
+
 .railButton:hover {
   background: var(--color-surface-alt);
   color: var(--color-text);
@@ -257,11 +268,14 @@
     text-decoration: none;
   }
 
-  .railButton::after,
-  .account::after {
+  .railButton::after {
+    display: none;
+  }
+
+  .railLabel {
+    display: inline-flex;
     max-width: 100%;
     overflow: hidden;
-    content: attr(aria-label);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
