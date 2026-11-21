@@ -4,9 +4,6 @@ import type { UploadTile } from "../model/use-uploads";
 
 import styles from "./composer.module.css";
 
-const R = 16;
-const C = 2 * Math.PI * R;
-
 /** Загружаемые файлы над полем ввода: превью, кольцо прогресса, отмена. */
 export function UploadStrip({ tiles, onCancel }: { tiles: readonly UploadTile[]; onCancel: (id: number) => void }) {
   if (!tiles.length) return null;
@@ -21,10 +18,9 @@ export function UploadStrip({ tiles, onCancel }: { tiles: readonly UploadTile[];
             {t.previewUrl && t.kind !== "video" ? <span className={styles.uploadImagePreview} style={{ backgroundImage: `url("${t.previewUrl}")` }} /> : null}
             {!t.previewUrl ? <Icon name={t.kind === "video" ? "Video" : t.kind === "image" ? "Image" : "File"} size={20} /> : null}
           </span>
-          <svg className={styles.uploadRing} viewBox="0 0 40 40" aria-label={t.phase === "processing" ? "Обработка файла" : `Загружено ${Math.round(t.progress * 100)}%`}>
-            <circle cx="20" cy="20" r={R} className={styles.uploadRingTrack} />
-            <circle cx="20" cy="20" r={R} className={styles.uploadRingFill} strokeDasharray={C} strokeDashoffset={C * (1 - t.progress)} />
-          </svg>
+          <span className={styles.uploadProgress} role="progressbar" aria-label={t.phase === "processing" ? "Обработка файла" : `Загружено ${Math.round(t.progress * 100)}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(t.progress * 100)}>
+            <span className={styles.uploadProgressFill} style={{ width: `${Math.round(t.progress * 100)}%` }} />
+          </span>
           <span className={styles.uploadPercent}>{t.phase === "processing" ? "…" : `${Math.round(t.progress * 100)}%`}</span>
           <button type="button" className={styles.uploadCancel} title="Отменить" onClick={() => onCancel(t.id)}>
             <Icon name="X" size={12} />

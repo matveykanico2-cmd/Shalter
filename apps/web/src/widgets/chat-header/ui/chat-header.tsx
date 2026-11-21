@@ -14,8 +14,8 @@ import { useTopicsToggle } from "@/features/topics";
 import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
-import { hasUnseen, openStoryViewer, storyQueries } from "@/entities/story";
-import { ProfileStatusBadge } from "@/entities/user";
+import { storyQueries } from "@/entities/story";
+import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
 
@@ -50,7 +50,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const middleItems: MenuItem[] = [
     // Личка с Shalter AI: тариф и «крутилки» ответов.
     ...(chat.type === "dm" && chat.otherUser?.id === SHALTER_AI_ID ? [{ icon: "Settings", label: "Настройки ИИ и тариф", onClick: () => setDialog("ai") } satisfies MenuItem] : []),
-    { icon: "Info", label: "Информация о чате", onClick: () => onInfo(true) },
+    ...(chat.type === "dm" ? [] : [{ icon: "Info" as const, label: "Информация о чате", onClick: () => onInfo(true) }]),
     { icon: "Image", label: "Фон чата", onClick: () => setDialog("wallpaper") },
     { icon: "Clock", label: "Запланированные сообщения", onClick: () => setDialog("scheduled") },
   ];
@@ -64,7 +64,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
   const openAvatar = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
-    if (stories?.stories.length) openStoryViewer([stories], 0);
+    if (chat.type === "dm" && other) openUserProfile(other.id);
     else onInfo(true);
   };
   const avatar = (
@@ -90,7 +90,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
         role="button"
         tabIndex={0}
         aria-label={chat.type === "dm" ? `${title} · Открыть профиль` : `Открыть информацию о чате: ${title}`}
-        onClick={() => onInfo(true)}
+        onClick={() => (chat.type === "dm" && other ? openUserProfile(other.id) : onInfo(true))}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -104,7 +104,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
           </span>
         ) : chat.type === "dm" ? (
           <span className={styles.avatarStoryButton} onClick={openAvatar}>
-            <span className={stories?.stories.length ? `${styles.avatarStoryRing} ${hasUnseen(stories) ? styles.avatarStoryUnseen : ""}` : undefined}>
+            <span className={stories?.stories.length ? styles.avatarStoryRing : undefined}>
               {avatar}
             </span>
           </span>
@@ -151,9 +151,11 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
         <CallButtons chat={chat} me={me} />
         <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
         {/* «i» — после «Ещё», как .info-toggle в chatView.js. */}
-        <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
-          <Icon name="Info" size={18} />
-        </button>
+        {chat.type !== "dm" ? (
+          <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
+            <Icon name="Info" size={18} />
+          </button>
+        ) : null}
         <Link to="/" className={styles.desktopClose} title="Закрыть чат" aria-label="Закрыть чат">
           <Icon name="X" size={19} />
         </Link>

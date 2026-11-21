@@ -3,30 +3,34 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  padding: 1px 5px;
+  padding: 2px 6px;
+  border: 1px solid rgb(255 255 255 / 35%);
   border-radius: 6px;
-  background: var(--color-danger);
+  background: #c62828;
   color: #fff;
-  font-size: 9.5px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 28%);
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .mini {
-  padding: 1px 4px;
-  font-size: 8.5px;
+  padding: 2px 5px;
+  font-size: 9px;
 }
 
 .dark {
-  background: #1f2430;
-  color: #ff9d9d;
+  background: #273b55;
+  color: #fff;
 }
 
 .fake {
-  background: #8a6d1f;
+  background: #a86b00;
+  color: #fff;
 }
 
 .drugs {
-  background: #6d3fa0;
+  background: #7136a2;
+  color: #fff;
 }
