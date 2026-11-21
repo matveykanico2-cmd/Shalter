@@ -88,12 +88,38 @@ button.row:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+.userMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .rowSub {
   overflow: hidden;
   color: var(--color-muted);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loadError {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  color: var(--color-danger);
+  font-size: 13px;
+  text-align: center;
 }
 
 .rowRight {
@@ -229,7 +255,7 @@ button.row:hover:not(:disabled) {
   font-size: 12px;
   color: var(--color-accent);
   background: var(--color-surface-alt);
-  margin-right: 8px;
+  margin: 0;
 }
 
 .iconRow {
@@ -243,6 +269,13 @@ button.row:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.badgeField :global(input) { min-width: 0; }
+
+@media (max-width: 520px) {
+  .buttons { position: sticky; bottom: -16px; padding: 12px 0 4px; background: var(--panel-bg); }
+  .sectionName { margin-top: 8px; }
 }
 
 .badgeField > input {

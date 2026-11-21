@@ -104,14 +104,10 @@ export function UserLine({ user, subtitle, right, onClick }: { user: Person; sub
       <Avatar size={42} name={user.name ?? "Пользователь"} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} />
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{user.name ?? "Пользователь"}</span>
-        {user.badge && badgeIcon(user.badge) ? (
-          <span className={styles.badge}>
-            <Icon name={badgeIcon(user.badge)!} size={14} />
-          </span>
-        ) : user.badge ? (
-          <span className={styles.badge}>{user.badge}</span>
-        ) : null}
-        {user.title ? <span className={styles.title}>{user.title}</span> : null}
+        <span className={styles.userMeta}>
+          {user.badge && badgeIcon(user.badge) ? <span className={styles.badge}><Icon name={badgeIcon(user.badge)!} size={14} /></span> : user.badge ? <span className={styles.badge}>{user.badge}</span> : null}
+          {user.title ? <span className={styles.title}>{user.title}</span> : null}
+        </span>
         {subtitle ? <span className={styles.rowSub}>{subtitle}</span> : null}
       </span>
     </>

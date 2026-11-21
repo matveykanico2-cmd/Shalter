@@ -39,6 +39,16 @@
   font-weight: 500;
 }
 
+.connectionState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .spinner {
   width: 14px;
   height: 14px;
@@ -322,6 +332,57 @@
   font-size: 14px;
   text-align: center;
 }
+
+.error {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.retry {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.skeletonList {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 7px 10px;
+}
+
+.skeletonAvatar,
+.skeletonCopy span {
+  display: block;
+  background: linear-gradient(100deg, var(--color-surface-alt) 20%, color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-alt)) 45%, var(--color-surface-alt) 70%);
+  background-size: 240% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.skeletonAvatar { width: 54px; height: 54px; flex: none; border-radius: 50%; }
+.skeletonCopy { display: grid; flex: 1; gap: 8px; min-width: 0; }
+.skeletonCopy span:first-child { width: 46%; height: 13px; border-radius: 6px; }
+.skeletonCopy span:last-child { width: 72%; height: 11px; border-radius: 6px; }
+.skeletonHint { padding: 16px; color: var(--color-muted); font-size: 13px; text-align: center; }
+
+@keyframes skeleton-shimmer { to { background-position: -140% 0; } }
+
+@media (prefers-reduced-motion: reduce) { .skeletonAvatar, .skeletonCopy span { animation: none; } }
 
 /* Куда встанет перетаскиваемый закреплённый чат (.drop-before, .drop-after). */
 .dropBefore {

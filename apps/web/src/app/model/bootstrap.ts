@@ -28,8 +28,9 @@ export const bootstrapQuery = (client: QueryClient, userId: string) =>
       return data;
     },
     staleTime: Infinity,
-    // Не вышло — список чатов загрузит себя сам.
-    retry: false,
+    // Медленная сеть не должна оставлять приложение на пустой заставке.
+    retry: (count, error) => !(error instanceof Error && "status" in error && Number((error as { status?: unknown }).status) < 500) && count < 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
 export type CachedChats = { chats: ChatSummary[]; folders?: ChatFolder[] };

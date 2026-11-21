@@ -330,9 +330,9 @@ export function ChatList({ meId }: { meId: string }) {
   return (
     <div className={styles.pane}>
       <div className={styles.panel}>
-        <div className={connection ? `${styles.titleBar} ${styles.connecting}` : styles.titleBar} role="status" aria-live="polite">
-          {connection ? <span className={styles.spinner} /> : null}
-          <span>{connection ?? "Shalter"}</span>
+        <div className={styles.titleBar} role="status" aria-live="polite">
+          <span>Shalter</span>
+          {connection ? <span className={styles.connectionState}><span className={styles.spinner} />{connection}</span> : null}
         </div>
 
         <div className={styles.searchRow}>
@@ -468,10 +468,13 @@ export function ChatList({ meId }: { meId: string }) {
               )}
             />
           ) : null
-        ) : chatsQuery.isPending || communitiesQuery.isPending ? null : chatsQuery.isError && !chats ? (
+        ) : chatsQuery.isError && !chats ? (
           <p className={styles.error} role="alert">
-            {errorText(chatsQuery.error)}
+            <span>{errorText(chatsQuery.error, "Не удалось загрузить чаты")}</span>
+            <button type="button" className={styles.retry} onClick={() => void chatsQuery.refetch()}>Повторить</button>
           </p>
+        ) : !chats || (communitiesQuery.isPending && rows.length === 0) ? (
+          <ChatListSkeleton />
         ) : rows.length === 0 ? (
           <Empty title={showArchive ? null : unreadOnly ? "Всё прочитано" : "Здесь пока пусто"} text={emptyText(showArchive, unreadOnly, activeTab, folders)} />
         ) : (
@@ -515,6 +518,20 @@ export function ChatList({ meId }: { meId: string }) {
       {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
       {tabMenu && externalChats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, externalChats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
       </div>
+    </div>
+  );
+}
+
+function ChatListSkeleton() {
+  return (
+    <div className={styles.skeletonList} role="status" aria-label="Загрузка списка чатов">
+      {Array.from({ length: 6 }, (_, index) => (
+        <div className={styles.skeletonRow} key={index}>
+          <span className={styles.skeletonAvatar} />
+          <span className={styles.skeletonCopy}><span /><span /></span>
+        </div>
+      ))}
+      <span className={styles.skeletonHint}>Загружаем чаты…</span>
     </div>
   );
 }

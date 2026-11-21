@@ -148,7 +148,12 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
     <>
       <Dialog title="Администраторы" onClose={onClose}>
         <div className={styles.list}>
-          {admins.isError ? <Empty>{errorText(admins.error, "Не удалось загрузить")}</Empty> : null}
+          {admins.isError ? (
+            <div className={styles.loadError} role="alert">
+              <span>{errorText(admins.error, "Не удалось загрузить администраторов")}</span>
+              <Button variant="secondary" className={styles.small} onClick={() => void admins.refetch()}>Повторить</Button>
+            </div>
+          ) : null}
           {admins.isPending ? <Empty>Загрузка…</Empty> : null}
           {admins.data ? (
             <>
