@@ -60,9 +60,9 @@
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
-  background: rgba(25, 32, 43, 0.72);
+  background: #19202b;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   color: #fff;
   cursor: pointer;
   transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
@@ -85,9 +85,9 @@
   padding: 7px 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(25, 32, 43, 0.72);
+  background: #19202b;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   color: #fff;
   font-size: 13px;
   text-decoration: none;
@@ -260,9 +260,9 @@
   justify-content: center;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(25, 32, 43, 0.72);
+  background: #19202b;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   color: #fff;
   cursor: pointer;
   transform: translateY(-50%);

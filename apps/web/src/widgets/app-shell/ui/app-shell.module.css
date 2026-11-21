@@ -64,7 +64,7 @@
   border-radius: var(--panel-radius);
   background: var(--panel-bg);
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: none;
 }
 
 .main {
@@ -94,9 +94,9 @@
   min-height: 60px;
   padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  background: var(--color-surface);
   box-shadow: 0 -8px 28px rgba(15, 35, 52, 0.06);
-  backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: none;
 }
 
 /* На телефоне blur большого слоя пересчитывался при каждом кадре прокрутки списка и ленты.

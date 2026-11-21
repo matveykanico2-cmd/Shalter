@@ -12,7 +12,7 @@ import { SearchBox, SearchResults } from "@/features/global-search";
 import { NewBotFlow } from "@/features/my-bots";
 import { StoriesBar } from "@/features/stories";
 
-import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, prefetchChat, sortChats, useChatFolders, useChats } from "@/entities/chat";
+import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
 import { communityActivity, communityQueries, type JoinedCommunity, memberChatsOf, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
@@ -133,17 +133,10 @@ export function ChatList({ meId }: { meId: string }) {
   // Ушли со списка чатов на другой экран — панель сообщества закрывается (как в chatList.js).
   const { pathname } = useLocation();
   const lastPath = useRef(pathname);
-  const resetAfterChat = useRef(false);
   const returnPosition = useRef<{ key: string | null; top: number; offset: number } | null>(null);
   useEffect(() => {
     if (lastPath.current === pathname) return;
-    const cameFromChat = lastPath.current.startsWith("/chat/");
     lastPath.current = pathname;
-    // На телефоне список не размонтируется при открытии чата. После возврата его
-    // прежний offset мог оставить закреплённые строки вне видимой области.
-    if (pathname === "/" && cameFromChat) {
-      resetAfterChat.current = true;
-    }
     if (pathname !== "/" && !pathname.startsWith("/chat/")) setCommunityPanel(null);
   }, [pathname]);
 
@@ -195,25 +188,6 @@ export function ChatList({ meId }: { meId: string }) {
     return out;
   }, [chats, externalChats, folders, activeTab, showArchive, unreadOnly, currentId, communities, listAd]);
 
-  // На телефоне нет hover-события, поэтому прогреваем первые несколько чатов сразу
-  // после получения списка. История непрочитанных не запрашивается до открытия,
-  // чтобы не менять счётчики прочитанного.
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      let warmed = 0;
-      const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-      for (const row of rows) {
-        if (row.kind !== "chat") continue;
-        // На телефоне готовим только карточки: загрузка четырёх историй сразу
-        // после открытия списка заметно прерывала первый свайп.
-        prefetchChat(client, row.chat, touch ? { history: false } : undefined);
-        warmed += 1;
-        if (warmed >= 4) break;
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [client, rows]);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollFrame = useRef<number | null>(null);
   const didInitialScroll = useRef(false);
@@ -227,15 +201,6 @@ export function ChatList({ meId }: { meId: string }) {
     overscan: 6,
     getItemKey: (i) => rowKey(rows[i]!),
   });
-
-  useLayoutEffect(() => {
-    if (!resetAfterChat.current || pathname !== "/") return;
-    resetAfterChat.current = false;
-    didInitialScroll.current = true;
-    returnPosition.current = null;
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    virtualizer.scrollToOffset(0, { align: "start" });
-  }, [pathname, virtualizer]);
 
   // На телефоне колонка списка получает display:none, пока открыт чат. ResizeObserver
   // виртуализатора в этот момент видит нулевую высоту; после возврата старый scrollTop мог
