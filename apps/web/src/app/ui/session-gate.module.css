@@ -5,3 +5,9 @@
 .offlineIcon{display:flex;width:78px;height:78px;align-items:flex-end;justify-content:center;gap:5px;padding:20px;border-radius:24px;background:var(--color-accent-soft);transform:rotate(-2deg)}
 .offlineIcon span{width:7px;border-radius:9px;background:var(--color-accent);animation:pulse 1.4s ease-in-out infinite}.offlineIcon span:nth-child(1){height:18px;animation-delay:-.25s}.offlineIcon span:nth-child(2){height:31px;animation-delay:-.12s}.offlineIcon span:nth-child(3){height:45px}@keyframes pulse{50%{opacity:.28;transform:scaleY(.72)}}
 @media(max-width:520px){.offline{padding:16px}.offlineCard{padding:28px 20px;border-radius:24px}}
+.cachedStartup{position:fixed;inset:0;overflow:hidden;background:var(--color-bg);color:var(--color-text)}
+.cachedHeader{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--panel-border);background:var(--panel-bg)}
+.cachedHeader strong,.cachedHeader span{display:block}.cachedHeader strong{font-size:20px}.cachedHeader div span{margin-top:2px;color:var(--color-muted);font-size:12px}
+.cachedLogo{display:grid;width:38px;height:38px;place-items:center;border-radius:12px;background:var(--color-accent);color:var(--color-accent-contrast);font-weight:800}
+.cachedList{max-width:680px;margin:auto;padding:8px 12px}.cachedRow{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid color-mix(in srgb,var(--panel-border) 55%,transparent)}
+.cachedAvatar{display:grid;width:46px;height:46px;flex:none;place-items:center;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);font-weight:700}.cachedCopy{min-width:0}.cachedCopy strong,.cachedCopy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cachedCopy span{margin-top:4px;color:var(--color-muted);font-size:13px}.cachedHint{position:fixed;bottom:20px;left:0;right:0;color:var(--color-muted);font-size:13px;text-align:center}

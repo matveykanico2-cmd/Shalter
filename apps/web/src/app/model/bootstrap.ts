@@ -32,7 +32,11 @@ export const bootstrapQuery = (client: QueryClient, userId: string) =>
     retry: false,
   });
 
-type CachedChats = { chats: ChatSummary[]; folders?: ChatFolder[] };
+export type CachedChats = { chats: ChatSummary[]; folders?: ChatFolder[] };
+
+export function readCachedChats(userId: string) {
+  return readCache<CachedChats>("chats", userId);
+}
 
 /**
  * Чаты и папки прошлого запуска (chatList.js: readCache("chats")) — в кэш запросов до ответа
@@ -41,7 +45,7 @@ type CachedChats = { chats: ChatSummary[]; folders?: ChatFolder[] };
 export function restoreCachedChats(client: QueryClient, userId: string) {
   const listKey = chatQueries.list().queryKey;
   if (client.getQueryData(listKey)) return true;
-  const cached = readCache<CachedChats>("chats", userId);
+  const cached = readCachedChats(userId);
   if (!cached?.chats?.length) return false;
   client.setQueryData(listKey, cached.chats);
   if (cached.folders && !client.getQueryData(chatQueries.folders().queryKey)) client.setQueryData(chatQueries.folders().queryKey, cached.folders);

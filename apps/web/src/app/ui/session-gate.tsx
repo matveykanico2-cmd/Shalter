@@ -6,11 +6,11 @@ import { SignInView } from "@/views/sign-in";
 
 import { rememberPendingShare } from "@/features/share-inbox";
 
-import { chatQueries } from "@/entities/chat";
-import { type SelfUser, useSession } from "@/entities/session";
+import { chatPreview, chatQueries, type ChatSummary,chatTitle } from "@/entities/chat";
+import { readCachedSession, type SelfUser, useSession } from "@/entities/session";
 
 import { hideBootSplash } from "../model/boot-splash";
-import { bootstrapQuery, persistChats, restoreCachedChats } from "../model/bootstrap";
+import { bootstrapQuery, persistChats, readCachedChats, restoreCachedChats } from "../model/bootstrap";
 import { useAppearance } from "../model/use-appearance";
 import { useMessageSounds } from "../model/use-message-sounds";
 import { useRealtime } from "../model/use-realtime";
@@ -49,7 +49,14 @@ export function RequireSession() {
   }, [client, refetch]);
   useHideSplash(!isPending);
   const { pathname, search, hash } = useLocation();
-  if (isPending) return <Splash />;
+  if (isPending) {
+    const cachedUser = readCachedSession()?.user;
+    if (cachedUser) {
+      const cachedChats = readCachedChats(cachedUser.id)?.chats;
+      if (cachedChats?.length) return <CachedStartup chats={cachedChats} meId={cachedUser.id} />;
+    }
+    return <Splash />;
+  }
   if (isError && (typeof navigator === "undefined" || navigator.onLine !== false || !data?.user)) {
     // Сервер недоступен: не выкидываем на вход, а предлагаем повторить.
     return <OfflineState retry={() => void refetch()} />;
@@ -61,6 +68,29 @@ export function RequireSession() {
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
   return <SignedIn user={data.user} />;
+}
+
+function CachedStartup({ chats, meId }: { chats: ChatSummary[]; meId: string }) {
+  return (
+    <main className={styles.cachedStartup} aria-label="Загрузка чатов">
+      <header className={styles.cachedHeader}>
+        <span className={styles.cachedLogo} aria-hidden="true">S</span>
+        <div><strong>Чаты</strong><span>Подключаемся…</span></div>
+      </header>
+      <section className={styles.cachedList} aria-label="Сохранённый список чатов">
+        {chats.slice(0, 30).map((chat) => {
+          const preview = chatPreview(chat, meId);
+          return (
+            <div className={styles.cachedRow} key={chat.id}>
+              <span className={styles.cachedAvatar} aria-hidden="true">{chatTitle(chat).slice(0, 1).toUpperCase() || "•"}</span>
+              <span className={styles.cachedCopy}><strong>{chatTitle(chat) || "Чат"}</strong><span>{preview.who}{preview.text}</span></span>
+            </div>
+          );
+        })}
+      </section>
+      <span className={styles.cachedHint}>Обновляем данные…</span>
+    </main>
+  );
 }
 
 function OfflineState({ retry }: { retry: () => void }) {

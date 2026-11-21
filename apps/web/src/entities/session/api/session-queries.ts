@@ -15,7 +15,7 @@ export type GuestLanguage = z.infer<typeof geoLanguageBody>;
 const baseKey = ["session"] as const;
 const OFFLINE_SESSION_KEY = "shalter:offline-session";
 
-function cachedOfflineSession(): Session | null {
+export function readCachedSession(): Session | null {
   try {
     const raw = localStorage.getItem(OFFLINE_SESSION_KEY);
     if (!raw) return null;
@@ -51,7 +51,7 @@ export const sessionQueries = {
           // разрешаем только уже вошедший read-only интерфейс из локального кэша;
           // серверные действия по-прежнему получат ошибку и не выдадут устаревшие данные.
           if (typeof navigator !== "undefined" && navigator.onLine === false) {
-            const cached = cachedOfflineSession();
+            const cached = readCachedSession();
             if (cached) return cached;
           }
           throw error;
