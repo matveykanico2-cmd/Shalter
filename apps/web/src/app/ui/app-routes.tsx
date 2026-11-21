@@ -51,6 +51,9 @@ const FolderInviteView = lazyLoadedView(() => import("@/views/folder-invite").th
 const RouteLoader = () => (
   <div className={styles.routeLoader} role="status" aria-label="Загрузка">
     <span />
+    <div className={styles.routeSkeleton} aria-hidden="true">
+      <i /><i /><i />
+    </div>
   </div>
 );
 const lazyView = (node: ReactNode) => <Suspense fallback={<RouteLoader />}>{node}</Suspense>;
@@ -95,8 +98,11 @@ export function AppRoutes({ user }: { user: SelfUser }) {
     const prefetch = () => {
       const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
       // На 2G/3G и при Save-Data не конкурируем с текущими чатами за канал.
-      if (isLowEndDevice() || connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
-      const loaders = preloadCommonRoutes();
+      if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || connection?.effectiveType === "3g") return;
+      // На слабом устройстве заранее готовим только код чата. Так первый чат
+      // открывается без пустого экрана, но четыре тяжёлых раздела не грузятся
+      // одновременно и не отнимают кадры у текущего списка.
+      const loaders = isLowEndDevice() ? [loadChat] : preloadCommonRoutes();
       loaders.forEach((load, index) => {
         timers.push(window.setTimeout(() => void load().catch(() => {}), index * 40));
       });

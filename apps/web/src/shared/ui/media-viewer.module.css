@@ -19,6 +19,8 @@
 }
 
 .head {
+  position: relative;
+  z-index: 3;
   display: flex;
   min-width: min(480px, calc(100vw - 32px));
   align-items: center;
@@ -162,6 +164,7 @@
   align-items: center;
   justify-content: center;
   touch-action: none;
+  overflow: hidden;
 }
 
 .media {
@@ -258,6 +261,15 @@
   transform: translateY(-50%);
 }
 
+.navBar {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.navBar .nav { pointer-events: auto; }
+
 .nav:hover:not(:disabled) {
   background: rgba(70, 84, 105, 0.86);
   transform: translateY(-50%) scale(1.04);
@@ -279,16 +291,27 @@
 @media (max-width: 640px) {
   .overlay {
     align-items: stretch;
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(84px, calc(72px + env(safe-area-inset-bottom, 0px))) max(8px, env(safe-area-inset-left, 0px));
   }
 
   .viewer {
+    width: 100%;
+    height: 100%;
+    max-height: none;
     justify-content: center;
+    gap: 8px;
   }
 
   .head {
     min-width: 0;
     width: 100%;
+    min-height: 48px;
+    flex: 0 0 auto;
+    padding-top: 2px;
   }
+
+  .head .iconButton,
+  .head .original { width: 42px; height: 42px; flex: 0 0 42px; }
 
   .original span {
     display: none;
@@ -307,15 +330,23 @@
     flex-basis: 42px;
   }
 
-  .nav {
+  .navBar {
     position: fixed;
-    top: auto;
-    bottom: max(18px, env(safe-area-inset-bottom, 0px));
+    inset: auto 0 max(12px, env(safe-area-inset-bottom, 0px));
     display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    height: 52px;
+    pointer-events: none;
+  }
+
+  .navBar .nav {
+    position: static;
+    width: 48px;
+    height: 48px;
     transform: none;
   }
 
-  .nav:hover:not(:disabled) { transform: scale(1.04); }
-  .prev { left: calc(50% - 54px); }
-  .next { right: calc(50% - 54px); }
+  .navBar .nav:hover:not(:disabled) { transform: scale(1.04); }
 }

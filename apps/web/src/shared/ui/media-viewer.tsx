@@ -337,14 +337,14 @@ export function MediaViewer({ items, index, canDownload = true, onClose }: Props
         {item.caption ? <p className={styles.caption}>{item.caption}</p> : null}
       </div>
       {items.length > 1 ? (
-        <>
+        <div className={styles.navBar} aria-label="Переключение медиа">
           <button type="button" className={`${styles.nav} ${styles.prev}`} title="Предыдущее" disabled={at === 0} onClick={() => go(-1)}>
             <Icon name="ChevronLeft" size={26} />
           </button>
           <button type="button" className={`${styles.nav} ${styles.next}`} title="Следующее" disabled={at === items.length - 1} onClick={() => go(1)}>
             <Icon name="ChevronRight" size={26} />
           </button>
-        </>
+        </div>
       ) : null}
     </div>,
     document.body

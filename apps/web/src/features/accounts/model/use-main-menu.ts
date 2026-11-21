@@ -44,7 +44,9 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
   const openDownloadPage = () => {
     const url = new URL("/download", window.location.origin).href;
     if (isInstalledApp()) return openExternally(url);
-    void navigate("/download");
+    // /download — серверная HTML-страница с определением ОС и файлами. Это не
+    // маршрут SPA: navigate() показывал домашний экран с «Выберите чат».
+    window.location.assign(url);
   };
 
   return [

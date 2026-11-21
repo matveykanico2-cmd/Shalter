@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { sessions } from "../db/schema.js";
 import type { Session } from "./model/domain.js";
@@ -28,6 +28,25 @@ export class SessionsRepository {
   public upsert({ userId, deviceId, device, location }: { userId: string; deviceId: string; device: string | null; location: string | null }): { session: Session; isNewDevice: boolean } {
     const lastActive = new Date().toISOString();
     const existing = this.get(userId, deviceId);
+    // При смене IP часть WebView/прокси теряет cookie device_id и присылает новый
+    // id. Если подпись браузера та же, а адрес изменился, это всё ещё то же устройство:
+    // переносим старую запись на новый cookie вместо создания «Chrome × N».
+    const moved = !existing && device && location
+      ? this.db
+          .select()
+          .from(sessions)
+          .where(and(eq(sessions.userId, userId), eq(sessions.device, device), ne(sessions.location, location), isNull(sessions.revokedAt)))
+          .orderBy(desc(sessions.lastActive))
+          .get()
+      : undefined;
+    if (moved) {
+      this.db
+        .update(sessions)
+        .set({ deviceId, device, location, lastActive, revokedAt: null })
+        .where(eq(sessions.id, moved.id))
+        .run();
+      return { session: this.get(userId, deviceId)!, isNewDevice: false };
+    }
     this.db
       .insert(sessions)
       .values({ id: existing?.id ?? genId("sess"), userId, deviceId, device, location, lastActive, revokedAt: null })

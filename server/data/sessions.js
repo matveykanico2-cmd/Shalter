@@ -13,6 +13,15 @@ async function getSession(userId, deviceId) {
 async function upsertSession({ userId, deviceId, device, location }) {
   const lastActive = new Date().toISOString();
   const existing = db.prepare("SELECT id FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId);
+  // WebView/прокси иногда теряет device_id при смене IP. Та же подпись браузера
+  // с другим адресом — это то же устройство, переносим запись вместо дубля.
+  const moved = !existing && device && location
+    ? db.prepare("SELECT * FROM sessions WHERE userId = ? AND device = ? AND location <> ? AND revokedAt IS NULL ORDER BY lastActive DESC LIMIT 1").get(userId, device, location)
+    : null;
+  if (moved) {
+    db.prepare("UPDATE sessions SET deviceId = ?, device = ?, location = ?, lastActive = ?, revokedAt = NULL WHERE id = ?").run(deviceId, device, location, lastActive, moved.id);
+    return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: false };
+  }
   const id = existing?.id ?? genId("sess");
   db.prepare(
     `INSERT INTO sessions (id, userId, deviceId, device, location, lastActive, revokedAt) VALUES (@id, @userId, @deviceId, @device, @location, @lastActive, NULL)
