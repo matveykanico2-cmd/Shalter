@@ -254,9 +254,10 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
 
 /** Статус после имени — у собеседника в личке, у группы и канала свой (ProfileStatusBadge в chatListItem.js). */
 function statusOf(chat: ChatSummary) {
-  const who = (chat.type === "dm" ? chat.otherUser : chat) as { statusIcon?: unknown; statusName?: unknown } | null | undefined;
+  const who = (chat.type === "dm" ? chat.otherUser : chat) as { statusIcon?: unknown; statusName?: unknown; statusItems?: unknown } | null | undefined;
   return {
     statusIcon: typeof who?.statusIcon === "string" ? who.statusIcon : null,
     statusName: typeof who?.statusName === "string" ? who.statusName : null,
+    statusItems: Array.isArray(who?.statusItems) ? who.statusItems as { id?: string; image: string; name?: string; active?: boolean }[] : undefined,
   };
 }

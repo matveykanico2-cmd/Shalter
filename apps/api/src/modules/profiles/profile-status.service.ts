@@ -9,7 +9,7 @@ import type { ActiveStatusDto, AddStatusDto } from "./model/schemas/profile-medi
 import { ProfileNotifyService } from "./profile-notify.service.js";
 import { ProfileStatusesRepository } from "./profile-statuses.repository.js";
 
-// Свои статусы профиля (/api/status) — как server/routes/profileStatus.js. Без Premium — один слот.
+// Свои статусы профиля: 5 слотов бесплатно, 10 — с Premium.
 @Injectable()
 export class ProfileStatusService {
   public constructor(
@@ -36,7 +36,7 @@ export class ProfileStatusService {
     const state = this.users.statusState(userId)!;
     const max = slotsFor(me);
     if (state.items.length >= max) {
-      throw new ApiError(409, max === 1 ? "Больше одного статуса не поместится — сначала удалите текущий" : `Больше ${max} статусов не поместится`);
+      throw new ApiError(409, `Больше ${max} статусов не поместится`);
     }
 
     let image: string;
@@ -46,10 +46,9 @@ export class ProfileStatusService {
       const found = this.catalog.findById(dto.catalogId);
       if (!found) throw new ApiError(404, "Такого статуса нет в каталоге");
       image = found.image;
-      name = found.name;
+      name = dto.name || found.name;
       catalogId = found.id;
     } else if (dto.sticker !== undefined) {
-      if (!me.isPremium) throw new ApiError(403, "Стикер в статусе — только с Shalter Premium");
       const checked = validateSticker(dto.sticker);
       if (checked.error !== undefined) throw new ApiError(400, checked.error);
       // Только стикер из пака: иначе ссылка в statusItems открыла бы всем чужой приватный файл.

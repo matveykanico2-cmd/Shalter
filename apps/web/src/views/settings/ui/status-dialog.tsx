@@ -5,7 +5,7 @@ import { useUpdateSelf } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
-import { Button, Dialog, Icon } from "@/shared/ui";
+import { Button, Dialog, Icon, TextField } from "@/shared/ui";
 
 import { addStatus, myStickerPacksQuery, profileQueries, removeStatus, setActiveStatus } from "../api/profile-api";
 
@@ -19,15 +19,16 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
   const catalog = useQuery(profileQueries.statusCatalog()).data ?? [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const items = mine.data?.items ?? [];
   const activeId = mine.data?.activeId ?? null;
-  const max = mine.data?.max ?? 1;
+  const max = mine.data?.max ?? 5;
   const full = items.length >= max;
-  // Слотов больше одного только у Premium — ему же доступны стикеры статусом.
-  const premium = max > 1;
-  const packs = useQuery({ ...myStickerPacksQuery(), enabled: premium }).data ?? [];
+  // Premium даёт дополнительные слоты; стикеры из доступных паков можно выбрать в обоих тарифах.
+  const premium = max > 5;
+  const packs = useQuery({ ...myStickerPacksQuery(), enabled: true }).data ?? [];
   const loadError = mine.isError ? errorText(mine.error, "Не удалось загрузить статусы") : null;
 
   const run = async (fn: () => Promise<{ user: Parameters<typeof updateSelf>[0]; items?: typeof items; activeId: string | null }>) => {
@@ -49,6 +50,13 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
       <p className={styles.heading}>
         Свои статусы — {items.length} из {max}
       </p>
+      <TextField
+        value={description}
+        maxLength={40}
+        placeholder="Описание статуса (необязательно)"
+        aria-label="Описание статуса"
+        onChange={(e) => setDescription(e.target.value)}
+      />
       <div className={styles.grid}>
         <button type="button" className={activeId == null ? `${styles.cell} ${styles.active}` : styles.cell} title="Без статуса" aria-label="Без статуса" disabled={busy} onClick={() => void run(() => setActiveStatus(null))}>
           <span className={styles.none}>
@@ -84,16 +92,16 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
-          if (file) void run(async () => addStatus({ image: await fileToImageDataUrl(file, 96, "image/png", 0.92) }));
+          if (file) void run(async () => addStatus({ image: await fileToImageDataUrl(file, 512, "image/webp", 0.95), name: description.trim() || undefined }));
         }}
       />
-      {max === 1 ? <p className={styles.hint}>С Shalter Premium — до 5 статусов вместо одного.</p> : null}
+      <p className={styles.hint}>{premium ? "Shalter Premium — до 10 статусов." : "Обычный аккаунт — до 5 статусов."} Стикеры можно выбрать из доступных паков.</p>
       {error || loadError ? <p className={styles.error}>{error || loadError}</p> : null}
       <p className={styles.heading}>Готовые</p>
       <div className={styles.grid}>
         {catalog.length ? (
-          catalog.map((c) => (
-            <button key={c.id} type="button" className={styles.cell} title={c.name || "Статус"} aria-label={c.name || "Статус"} disabled={busy || full} onClick={() => void run(() => addStatus({ catalogId: c.id }))}>
+            catalog.map((c) => (
+            <button key={c.id} type="button" className={styles.cell} title={c.name || "Статус"} aria-label={c.name || "Статус"} disabled={busy || full} onClick={() => void run(() => addStatus({ catalogId: c.id, name: description.trim() || undefined }))}>
               <img className={styles.image} src={c.image} alt="" />
             </button>
           ))
@@ -114,7 +122,7 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
                   title={st.emoji}
                   aria-label={`Стикер ${st.emoji}`}
                   disabled={busy || full}
-                  onClick={() => void run(() => addStatus({ sticker: st.url, name: st.emoji }))}
+                  onClick={() => void run(() => addStatus({ sticker: st.url, name: description.trim() || st.emoji }))}
                 >
                   <img className={styles.image} src={st.url} alt="" />
                 </button>

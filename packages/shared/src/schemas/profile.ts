@@ -27,7 +27,7 @@ export const statusItem = z.strictObject({
 export const statusMeBody = z.strictObject({
   items: z.array(statusItem),
   activeId: statusItemId.nullable(),
-  max: z.union([z.literal(1), z.literal(5)]),
+  max: z.union([z.literal(5), z.literal(10)]),
 });
 export const statusChangeBody = z.strictObject({ user: publicUser, items: z.array(statusItem), activeId: statusItemId.nullable() });
 export const statusActiveBody = z.strictObject({ user: publicUser, activeId: statusItemId.nullable() });

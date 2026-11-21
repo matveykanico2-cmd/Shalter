@@ -92,6 +92,15 @@ function rowToUser(row) {
         return null;
       }
     })(),
+    statusItems: (() => {
+      const items = safeParse(row.statusItems, []);
+      if (!Array.isArray(items)) return undefined;
+      const visible = items
+        .filter((i) => i && typeof i.id === "string" && typeof i.image === "string" && typeof i.name === "string")
+        .slice(0, 10)
+        .map((i) => ({ id: i.id, image: i.image, name: i.name, active: i.id === row.activeStatusId }));
+      return visible.length ? visible : undefined;
+    })(),
     banReason: banActive(row) ? row.banReason ?? undefined : undefined,
     bannedAt: banActive(row) ? row.bannedAt ?? undefined : undefined,
     bannedUntil: banActive(row) ? row.bannedUntil ?? undefined : undefined,

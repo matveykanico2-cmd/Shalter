@@ -62,21 +62,25 @@ function profileTracksOf(raw: string | null): { profileTrack: unknown; profileTr
 }
 
 interface StatusItem {
-  id?: string;
+  id?: unknown;
   image?: unknown;
-  name?: string;
+  name?: unknown;
 }
 
-function activeStatus(row: UserRow): StatusItem | undefined {
-  if (!row.activeStatusId) return undefined;
+function profileStatuses(row: UserRow) {
   const items = safeParse<StatusItem[]>(row.statusItems, []);
-  return Array.isArray(items) ? items.find((i) => i.id === row.activeStatusId) : undefined;
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item): item is StatusItem & { id: string; image: string; name: string } => typeof item.id === "string" && typeof item.image === "string" && typeof item.name === "string")
+    .slice(0, 10)
+    .map((item) => ({ id: item.id, image: item.image, name: item.name, active: item.id === row.activeStatusId }));
 }
 
 export function toUser(row: UserRow) {
   const now = new Date().toISOString();
   const banned = banActive(row);
-  const status = activeStatus(row);
+  const statusItems = profileStatuses(row);
+  const status = statusItems.find((item) => item.active);
   return {
     id: row.id,
     name: row.name,
@@ -122,6 +126,7 @@ export function toUser(row: UserRow) {
     messagePriceStars: row.messagePriceStars ?? 0,
     statusIcon: status?.image ?? null,
     statusName: status?.name || null,
+    statusItems: statusItems.length ? statusItems : undefined,
     banReason: banned ? row.banReason ?? undefined : undefined,
     bannedAt: banned ? row.bannedAt ?? undefined : undefined,
     bannedUntil: banned ? row.bannedUntil ?? undefined : undefined,

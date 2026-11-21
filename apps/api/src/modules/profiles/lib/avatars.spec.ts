@@ -51,6 +51,6 @@ describe("аватарки и статусы совпадают с server/lib", 
       { error: "Некорректное изображение" },
       { error: "Некорректное изображение" },
     ]);
-    expect(USERS.map(slotsFor)).toEqual([1, 1, 5]);
+    expect(USERS.map(slotsFor)).toEqual([5, 5, 10]);
   });
 });

@@ -43,6 +43,8 @@ const publicUserShape = {
   messagePriceStars: z.number(),
   statusIcon: z.string().nullable(),
   statusName: z.string().nullable(),
+  /** Все статусы, которые показываются рядом с именем; active отмечает выбранный. */
+  statusItems: z.array(z.strictObject({ id: z.string(), image: z.string(), name: z.string(), active: z.boolean() })).optional(),
   profileTrack: anyJson.nullable(),
   profileTracks: z.array(anyJson),
   // Кнопки в профиле: до трёх, target — «@ник» или https-ссылка.

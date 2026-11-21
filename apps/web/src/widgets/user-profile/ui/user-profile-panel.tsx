@@ -331,7 +331,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           </span>
         ) : null}
         {u.isPremium ? <PremiumStar size={19} /> : null}
-        <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, name: u.name }} size={18} />
+        <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, statusItems: u.statusItems, name: u.name }} size={18} />
         {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>
       <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{status ?? "был(а) недавно"}</p>

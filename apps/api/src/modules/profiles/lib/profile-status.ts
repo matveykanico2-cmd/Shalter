@@ -2,8 +2,8 @@ import type { User } from "../../users/model/domain.js";
 
 // Слоты и проверка картинки статуса — как server/lib/profileStatus.js (avatars.spec.ts сверяет их).
 
-const FREE_SLOTS = 1;
-const PREMIUM_SLOTS = 5;
+const FREE_SLOTS = 5;
+const PREMIUM_SLOTS = 10;
 const MAX_IMAGE_BYTES = 80 * 1024;
 const IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 

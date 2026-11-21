@@ -12,6 +12,10 @@
   color: var(--color-muted);
 }
 
+.dialog > input {
+  width: 100%;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
@@ -52,7 +56,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .none {
