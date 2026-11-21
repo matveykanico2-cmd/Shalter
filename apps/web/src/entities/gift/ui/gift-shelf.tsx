@@ -95,6 +95,7 @@ export function GiftShelf({ user, isSelf, onChanged }: Props) {
               corner={corner}
               badge={exclusive ? { text: g.pinned ? `#${g.serial}` : `1 из ${compactCount(g.supply)}`, style: { background: `linear-gradient(180deg, ${c1} 0%, ${c2} 100%)` } } : null}
               price={g.priceStars ?? 0}
+              onPriceClick={() => openGiftShop({ recipient: isSelf ? null : { id: user.id, name: user.name }, gift: g })}
               onClick={() => setOpen(g)}
             />
           );

@@ -22,11 +22,13 @@ type Props = {
   price: number | "free";
   backdrop?: Parameters<typeof giftBackdrop>[0];
   soldOut?: boolean;
+  /** Нажатие на нижнюю подпись/цену — отдельное быстрое действие. */
+  onPriceClick?: () => void;
   onClick: () => void;
 };
 
 /** Плитка подарка в сетке (tw-gift-item): витрина, выбор, полка в профиле. */
-export function GiftTile({ gift, label, title, badge, corner, name, price, backdrop, soldOut, onClick }: Props) {
+export function GiftTile({ gift, label, title, badge, corner, name, price, backdrop, soldOut, onPriceClick, onClick }: Props) {
   const bd = giftBackdrop(backdrop ?? null);
   const cls = [styles.tile, bd ? styles.tileBackdrop : "", soldOut ? styles.soldOut : ""].filter(Boolean).join(" ");
   return (
@@ -43,9 +45,9 @@ export function GiftTile({ gift, label, title, badge, corner, name, price, backd
       </span>
       {name ? <span className={styles.tileName}>{name}</span> : null}
       {price === "free" ? (
-        <span className={`${styles.price} ${styles.free}`}>Бесплатно</span>
+        <span className={`${styles.price} ${styles.free}`} onClick={(e) => { if (onPriceClick) { e.stopPropagation(); onPriceClick(); } }}>Бесплатно</span>
       ) : (
-        <span className={styles.price}>
+        <span className={styles.price} onClick={(e) => { if (onPriceClick) { e.stopPropagation(); onPriceClick(); } }}>
           <span>⭐</span>
           {formatStars(price)}
         </span>
