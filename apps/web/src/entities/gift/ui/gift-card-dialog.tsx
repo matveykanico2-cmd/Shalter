@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type CSSProperties, type ReactNode, useEffect } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { openUserProfile, userQueries } from "@/entities/user/@x/gift";
@@ -28,13 +28,6 @@ type Props = {
 export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onTogglePin, onClose }: Props) {
   const sender = useQuery({ ...userQueries.profile(gift.fromId ?? ""), enabled: !gift.anon && !!gift.fromId }).data?.user;
   const owner = useQuery({ ...userQueries.profile(ownerId ?? ""), enabled: !!ownerId }).data?.user;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const traits = giftTraits(gift);
   // Выбранный при отправке фон — он и показываем; у коллекционных без выбора — фон серии.
@@ -42,10 +35,9 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
   // используем безопасный фон серии, чтобы удалённый фон не возвращался в UI.
   const backdrop = giftBackdrop(gift.background) ?? giftBackdrop(traits.backdrop)!;
   const symbol = backdrop.symbol ?? traits.symbol;
-  const act = (fn: () => void) => () => {
-    onClose();
-    fn();
-  };
+  // Карточка не закрывается от случайного нажатия по строке, владельцу, аватару
+  // или атрибуту. Закрытие — только явной кнопкой «Закрыть».
+  const act = (fn: () => void) => () => fn();
   // Имя — ссылка на профиль: карточка закрывается, открывается профиль.
   const profileLink = (userId: string, name: string, avatar: ReactNode = null) => (
     <button type="button" className={styles.sender} title="Открыть профиль" onClick={act(() => openUserProfile(userId))}>
@@ -79,9 +71,6 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
   return createPortal(
     <div
       className={styles.overlay}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
     >
       <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={gift.name ?? "Подарок"}>
         <div className={styles.hero} style={{ "--gift-from": backdrop.center, "--gift-to": backdrop.edge } as CSSProperties}>

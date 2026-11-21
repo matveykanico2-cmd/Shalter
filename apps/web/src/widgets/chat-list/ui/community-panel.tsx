@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type MouseEvent, type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { MuteDialog } from "@/features/chat-actions";
 import { AddChatFlow, CommunitySettingsDialog, RequestsDialog, useCommunityActions } from "@/features/community-editor";
 import { createChannel, CreateChatDialog, createGroup } from "@/features/create-chat";
 
-import { chatPreview, chatQueries, type ChatSummary, hasUnread, isChatMuted, sortChats, timeLabel } from "@/entities/chat";
+import { chatPreview, chatQueries, type ChatSummary, hasUnread, isChatMuted, timeLabel } from "@/entities/chat";
 import {
   chatMembersLabel,
   chatsCountLabel,
@@ -134,7 +134,6 @@ export function CommunityRow({ community, chats, meId, active }: RowProps) {
         onPointerEnter={(event) => {
           if (event.pointerType === "mouse") void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 });
         }}
-        onPointerDown={() => void client.prefetchQuery({ ...communityQueries.detail(community.id), staleTime: 20_000 })}
         onClick={openInternalCommunity}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -200,7 +199,13 @@ export function CommunityPanel({ community: base, chats, meId, renderChat }: Pan
   const [creating, setCreating] = useState<"group" | "channel" | null>(null);
   const menu = useCommunityMenu(community, chats, { inPanel: true });
   const general = base.generalChatId ? chats.find((chat) => chat.id === base.generalChatId) : undefined;
-  const mine = sortChats([...memberChatsOf(base, chats), ...(general ? [general] : [])]).sort((a, b) => Number(b.id === community.generalChatId) - Number(a.id === community.generalChatId));
+  // Внутри сообщества порядок задаётся самим сообществом, а не временем последнего
+  // сообщения. Иначе каждое WS-событие переставляет строки и сбивает прокрутку.
+  const mine = useMemo(() => {
+    const members = new Map(memberChatsOf(base, chats).map((chat) => [chat.id, chat]));
+    const ordered = base.chatIds.map((id) => members.get(id)).filter((chat): chat is ChatSummary => Boolean(chat));
+    return general ? [general, ...ordered.filter((chat) => chat.id !== general.id)] : ordered;
+  }, [base, chats, general]);
   const others = (info?.chats ?? []).filter((c) => !c.isMember);
   const hiddenIds = new Set((info?.chats ?? []).filter((c) => c.visible === false).map((c) => c.id));
   const count = info?.chats.length ?? base.chatIds.length;

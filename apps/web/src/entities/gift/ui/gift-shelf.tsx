@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { userQueries } from "@/entities/user/@x/gift";
@@ -83,9 +83,7 @@ export function GiftShelf({ user, isSelf, onChanged }: Props) {
               ?
             </span>
           ) : (
-            <span className={styles.corner} title={g.fromName ?? ""}>
-              <Avatar size={20} name={g.fromName ?? "?"} color={g.fromAvatarColor} image={g.fromAvatarImage} />
-            </span>
+            <GiftSenderCorner gift={g} />
           );
           return (
             <GiftTile
@@ -114,5 +112,16 @@ export function GiftShelf({ user, isSelf, onChanged }: Props) {
         />
       ) : null}
     </>
+  );
+}
+
+function GiftSenderCorner({ gift }: { gift: ReceivedGift }) {
+  const profile = useQuery({ ...userQueries.profile(gift.fromId!), enabled: !!gift.fromId });
+  const sender = profile.data?.user;
+  const name = sender?.name ?? gift.fromName ?? "Пользователь";
+  return (
+    <span className={styles.corner} title={name}>
+      <Avatar size={20} name={name} color={sender ? sender.avatarColor : undefined} image={sender ? sender.avatarImage : undefined} emoji={sender?.avatarEmoji} />
+    </span>
   );
 }
