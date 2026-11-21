@@ -18,6 +18,9 @@ export function closeUserProfile() {
   emit();
 }
 
+/** Синхронная проверка для системной кнопки «Назад» вне React-деревa. */
+export const isUserProfileOpen = () => current !== null;
+
 const subscribe = (fn: () => void) => {
   listeners.add(fn);
   return () => void listeners.delete(fn);

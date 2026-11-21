@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { type NavigateFunction, useNavigate } from "react-router";
 
+import { closeUserProfile, isUserProfileOpen } from "@/entities/user";
+
 type BackWindow = Window & { __shalterBack?: () => boolean };
 
 const overlayOpen = () => !!document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]');
@@ -22,6 +24,13 @@ export function handleHardwareBack(navigate: NavigateFunction) {
   const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
   target.dispatchEvent(ev);
   if (hadOverlay || handled || ev.defaultPrevented) return true;
+
+  // Профиль — панель без role="dialog", поэтому Escape мог не попасть в неё,
+  // а маршрут под профилем успевал измениться. Закрываем профиль первым.
+  if (isUserProfileOpen()) {
+    closeUserProfile();
+    return true;
+  }
 
   if (location.pathname === "/" || location.pathname === "") return false;
   // Своя история приложения (react-router хранит номер записи) — назад по ней; открыли сразу

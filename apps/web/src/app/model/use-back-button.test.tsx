@@ -2,11 +2,14 @@ import { cleanup, render } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { closeUserProfile, openUserProfile } from "@/entities/user";
+
 import { handleHardwareBack, useBackButton } from "./use-back-button";
 
 type BackWindow = Window & { __shalterBack?: () => boolean };
 
 afterEach(() => {
+  closeUserProfile();
   cleanup();
   document.body.innerHTML = "";
   window.history.replaceState(null, "", "/");
@@ -46,6 +49,16 @@ describe("«Назад» в Android-приложении", () => {
 
     window.history.replaceState({ idx: 0 }, "", "/");
     expect(handleHardwareBack(vi.fn())).toBe(false);
+  });
+
+  it("системная кнопка назад сначала закрывает открытый профиль", () => {
+    const navigate = vi.fn();
+    openUserProfile("u_profile0001");
+    window.history.replaceState({ idx: 3 }, "", "/chat/c1");
+
+    expect(handleHardwareBack(navigate)).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/chat/c1");
   });
 
   it("есть своя история — назад по ней", () => {
