@@ -4,7 +4,7 @@
      нижней навигации. Сверху они не перекрываются клавиатурой/композером. */
   top: calc(14px + env(safe-area-inset-top));
   left: 50%;
-  z-index: 200;
+  z-index: 10000;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
   padding: 10px 18px;

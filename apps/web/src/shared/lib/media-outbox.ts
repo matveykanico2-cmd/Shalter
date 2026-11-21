@@ -31,14 +31,15 @@ export async function queueMediaUpload(entry: Omit<MediaOutboxEntry, "id" | "cre
   const db = await database();
   if (!db) return null;
   const id = `media_${Date.now()}_${++sequence}`;
-  await new Promise<void>((resolve) => {
+  const saved = await new Promise<boolean>((resolve) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put({ ...entry, id, createdAt: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => resolve();
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+    tx.onabort = () => resolve(false);
   });
   db.close();
-  return id;
+  return saved ? id : null;
 }
 
 export async function forgetMediaUpload(id: string) {

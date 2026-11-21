@@ -952,6 +952,7 @@ function flashCameraError(message: string) {
 
 export async function toggleCamera() {
   if (!state) return;
+  const requestedState = state;
   if (state.cameraOn) {
     state.cameraOn = false;
     const tracks = state.localStream?.getTracks() ?? [];
@@ -966,7 +967,7 @@ export async function toggleCamera() {
     } catch {
       // Ниже — «Нет доступа к камере».
     }
-    if (!state) {
+    if (state !== requestedState || state.phase === "ended" || state.cameraOn) {
       track?.stop();
       return;
     }

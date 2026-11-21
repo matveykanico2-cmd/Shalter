@@ -455,7 +455,7 @@ export async function stopLive() {
   const s = state;
   if (!s) return;
   await liveApi.stop(s.stream.id);
-  teardown();
+  if (state === s) teardown();
 }
 
 export function toggleMic() {
@@ -467,7 +467,7 @@ export function toggleMic() {
 
 export async function toggleCam() {
   const s = state;
-  if (!s) return;
+  if (!s || !publishes(s.myRole)) return;
   if (s.camOn) {
     s.camOn = false;
     applyMuteFlags();
@@ -478,7 +478,7 @@ export async function toggleCam() {
   if (!existing) {
     try {
       const camera = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints() });
-      if (state !== s) {
+      if (state !== s || !publishes(s.myRole) || s.camOn) {
         camera.getTracks().forEach((track) => track.stop());
         return;
       }

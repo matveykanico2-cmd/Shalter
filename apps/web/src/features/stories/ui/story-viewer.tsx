@@ -311,7 +311,7 @@ export function StoryViewer({ request, me, onHashtag }: { request: StoryViewerRe
   const viewsCount = story.viewedByIds?.length ?? s.viewers?.length ?? 0;
 
   const likeButton =
-    !mine && !story.expired ? (
+    (!mine || (author && "isChannel" in author && author.isChannel)) && !story.expired ? (
       <button type="button" className={story.liked ? `${styles.pill} ${styles.liked}` : styles.pill} title={story.liked ? "Убрать лайк" : "Нравится"} aria-label={story.liked ? "Убрать лайк" : "Нравится"} onClick={() => void toggleLike()}>
         <span key={burst} className={burst ? `${styles.heart} ${styles.pop}` : styles.heart}>
           <Thumb />

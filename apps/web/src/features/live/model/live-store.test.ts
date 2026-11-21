@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ws } from "@/shared/api";
 import { fakeApi, FakePeer, fakeRtc, FakeSocket, fakeSocket } from "@/shared/lib/test";
 
-import { closeLive, getLive, leaveLive, openLive, toggleMic } from "./live-store";
+import { closeLive, getLive, leaveLive, openLive, toggleCam, toggleMic } from "./live-store";
 
 const ME = "u_me0000000";
 const HOST = "u_host00000";
@@ -41,6 +41,8 @@ describe("эфир", () => {
     expect(getLive().screen).toMatchObject({ streamId: ID, joining: true });
     await vi.waitFor(() => expect(getLive().live?.myRole).toBe("viewer"));
     expect(getLive().screen?.joining).toBe(false);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await toggleCam();
     expect(getUserMedia).not.toHaveBeenCalled();
     // Зритель offer не шлёт — шлёт ведущий.
     expect(sent()).toEqual([]);

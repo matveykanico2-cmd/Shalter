@@ -26,6 +26,7 @@ import { Avatar, Icon, type IconName, InfoRow, MediaViewer, Menu } from "@/share
 import { ChatHistoryClear } from "../../message-feed/ui/chat-history-clear";
 import { membersLine, sortMembers } from "../lib/members";
 
+import { ChannelStories } from "./channel-stories";
 import styles from "./chat-info-panel.module.css";
 
 type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; hideMembers?: boolean; community?: { id: string; title: string } | null; onClose: () => void };
@@ -91,6 +92,11 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, communit
         </button>
       </div>
       <div className={styles.body}>
+        {isChannelAdmin ? (
+          <ChannelStoryButton chatId={chat.id}>
+            {(open, progress) => <Row icon="Plus" onClick={open}>{progress ?? "Добавить историю канала"}</Row>}
+          </ChannelStoryButton>
+        ) : null}
         {/* В личке аватар с именем открывает полный профиль (как info-panel-avatar-row в infoPanel.js). */}
         <HeroBox className={styles.hero} onClick={other ? () => openUserProfile(other.id) : undefined}>
           {chat.isSaved ? (
@@ -217,6 +223,7 @@ export function ChatInfoPanel({ chat, members, me, hideMembers = false, communit
           ) : null}
         </div>
 
+        {chat.type === "channel" ? <ChannelStories chatId={chat.id} /> : null}
         {chat.type === "channel" ? <SimilarChannels chatId={chat.id} /> : null}
 
         <div className={styles.card}>
