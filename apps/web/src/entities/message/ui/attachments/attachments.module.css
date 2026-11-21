@@ -241,8 +241,8 @@
      раздувает сообщение сильнее одиночного медиа. */
   width: min(100%, clamp(260px, 42vw, 420px));
   grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  margin-bottom: 4px;
+  gap: 2px;
+  margin: 0;
   overflow: hidden;
   border-radius: 16px;
 }
@@ -325,6 +325,20 @@
   aspect-ratio: 1;
   overflow: hidden;
   contain: layout paint;
+}
+
+/* Обёртки экономии трафика и кнопки медиа обязаны занять всю ячейку альбома.
+   Иначе у изображения с подписью остаются пустые полосы/«дыры» из-за
+   фиксированных 220×140px у tap-to-load. */
+.albumCell > * {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.albumCell > .tapToLoad {
+  border: 0;
+  border-radius: 0;
 }
 
 .albumTile {
@@ -836,6 +850,14 @@ button.contact { cursor: pointer; }
   font-size: 12.5px;
   text-align: center;
   cursor: pointer;
+}
+
+.albumCell .tapToLoad {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
 }
 
 .tapToLoad:hover {

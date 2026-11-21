@@ -178,7 +178,7 @@
 
 /* Медиа с подписью касается краёв пузыря, а подпись остаётся внутри. */
 .bubble:has(.tile) {
-  padding: 4px 4px 7px;
+  padding: 0 0 7px;
 }
 
 .mediaCaption {
@@ -186,8 +186,8 @@
      попасть под float времени и не обрезаем длинные URL. */
   display: block;
   box-sizing: border-box;
-  width: calc(100% - 12px);
-  max-width: calc(100% - 12px);
+  width: auto;
+  max-width: none;
   margin: 6px 6px 0;
   padding: 5px 8px 4px;
   border-radius: 8px;

@@ -25,11 +25,6 @@ function badgeIcon(value: string) {
   return BADGE_ICONS.find((name) => name.toLowerCase() === raw) ?? null;
 }
 
-function BadgeView({ value }: { value: string }) {
-  const icon = badgeIcon(value);
-  return <span className={styles.badge}>{icon ? <Icon name={icon} size={14} /> : value}</span>;
-}
-
 function BadgeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const selected = badgeIcon(value);
   return (
@@ -217,12 +212,6 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
       <UserLine
         user={user}
         subtitle={current ? rightsSummary(rights) : (user.role === "owner" ? "Владелец" : rightsSummary(current ?? mine))}
-        right={
-          <>
-            {user.badge ? <BadgeView value={user.badge} /> : null}
-            {user.title ? <span className={styles.title}>{user.title}</span> : null}
-          </>
-        }
       />
       <p className={styles.sectionName}>Что может этот администратор</p>
       <div>
