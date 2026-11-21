@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import { openUserProfile, userQueries } from "@/entities/user/@x/gift";
@@ -28,6 +28,19 @@ type Props = {
 export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onTogglePin, onClose }: Props) {
   const sender = useQuery({ ...userQueries.profile(gift.fromId ?? ""), enabled: !gift.anon && !!gift.fromId }).data?.user;
   const owner = useQuery({ ...userQueries.profile(ownerId ?? ""), enabled: !!ownerId }).data?.user;
+  // Случайные клики по содержимому не закрывают карточку, но системная кнопка
+  // «Назад» должна закрывать верхнее окно, чтобы обработчик приложения не застревал.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
 
   const traits = giftTraits(gift);
   // Показываем только фон, сохранённый при отправке. Фон серии и старые белые/чёрные

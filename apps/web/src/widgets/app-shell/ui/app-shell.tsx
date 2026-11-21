@@ -70,7 +70,9 @@ function useKeyboardViewport() {
       frame = 0;
       if (!vv) return;
       const height = `${Math.round(vv.height)}px`;
-      const top = `${Math.max(0, Math.round(vv.offsetTop))}px`;
+      // Не двигаем оболочку вслед за caret/автопрокруткой iOS: offsetTop меняется
+      // во время набора и из-за этого поле прыгало между верхом и низом экрана.
+      const top = "0px";
       if (height !== lastHeight) {
         lastHeight = height;
         root.style.setProperty("--vvh", height);
@@ -88,13 +90,11 @@ function useKeyboardViewport() {
       apply();
       root.classList.add("keyboard-open");
       vv?.addEventListener("resize", schedule);
-      vv?.addEventListener("scroll", schedule);
     };
     const close = () => {
       if (!root.classList.contains("keyboard-open")) return;
       root.classList.remove("keyboard-open");
       vv?.removeEventListener("resize", schedule);
-      vv?.removeEventListener("scroll", schedule);
       root.style.removeProperty("--vvh");
       root.style.removeProperty("--vvt");
       lastHeight = "";
