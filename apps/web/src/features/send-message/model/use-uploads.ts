@@ -37,7 +37,7 @@ export function useUploads(chatId: string) {
    * Слишком большие файлы не начинаются вовсе.
    */
   const upload = useCallback(
-    async (picks: readonly Pick[]) => {
+    async (picks: readonly Pick[], callbacks?: { uploaded: (index: number, attachment: Uploaded) => Promise<void>; cancelled: (index: number) => Promise<void> }) => {
       const errors: string[] = [];
       const items = picks.filter((p) => {
         const sizeError = checkSize(p.file, p.kind);
@@ -61,12 +61,17 @@ export function useUploads(chatId: string) {
       const ping = setInterval(() => sendTyping(chatId, action).catch(() => {}), ACTION_PING_MS);
 
       const results = await Promise.allSettled(
-        started.map(({ id, pick, controller }) =>
+        started.map(({ id, pick, controller }, index) =>
           // Фото уходит оригиналом, без пережатия: превью для ленты сервер делает сам
           // (mediaPreview), а в хранилище остаётся исходник без потери качества. EXIF
           // (геопозиция и т. п.) вырезает uploadFile без перекодирования, поворот остаётся.
           uploadFile(pick.file, pick.kind, { signal: controller.signal, onProcessing: () => patch(id, { phase: "processing", progress: 1 }), onProgress: (progress) => patch(id, { progress, phase: "uploading" }) })
-            .catch((err: unknown) => {
+            .then(async (attachment) => {
+              await callbacks?.uploaded(index, attachment);
+              return attachment;
+            })
+            .catch(async (err: unknown) => {
+              if (err instanceof Error && err.message === UPLOAD_CANCELLED) await callbacks?.cancelled(index);
               patch(id, { failed: true, phase: "failed" });
               throw err;
             })

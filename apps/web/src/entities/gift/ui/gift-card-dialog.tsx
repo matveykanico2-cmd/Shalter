@@ -1,7 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { type CSSProperties, type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 
-import { openUserProfile } from "@/entities/user/@x/gift";
+import { openUserProfile, userQueries } from "@/entities/user/@x/gift";
 
 import { Avatar, Button } from "@/shared/ui";
 
@@ -25,6 +26,8 @@ type Props = {
 
 /** Карточка подарка — openGiftCardDialog в public/js/components/giftCardDialog.js. */
 export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onTogglePin, onClose }: Props) {
+  const sender = useQuery({ ...userQueries.profile(gift.fromId ?? ""), enabled: !gift.anon && !!gift.fromId }).data?.user;
+  const owner = useQuery({ ...userQueries.profile(ownerId ?? ""), enabled: !!ownerId }).data?.user;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -94,13 +97,13 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
           <p className={styles.serial}>{gift.serial != null ? `Коллекционный подарок №${gift.serial}` : "Подарок"}</p>
         </div>
         <div className={styles.rows}>
-          {ownerName ? row("Владелец", ownerId ? profileLink(ownerId, ownerName) : ownerName) : null}
+          {ownerName ? row("Владелец", ownerId ? profileLink(ownerId, ownerName, <Avatar size={20} name={ownerName} color={owner?.avatarColor} image={owner?.avatarImage} emoji={owner?.avatarEmoji} />) : ownerName) : null}
           {gift.fromName
             ? row(
                 "От кого",
                 gift.anon || !gift.fromId
                   ? gift.fromName
-                  : profileLink(gift.fromId, gift.fromName, <Avatar size={20} name={gift.fromName} color={gift.fromAvatarColor} image={gift.fromAvatarImage} />)
+                  : profileLink(gift.fromId, sender?.name ?? gift.fromName, <Avatar size={20} name={sender?.name ?? gift.fromName} color={sender?.avatarColor ?? gift.fromAvatarColor} image={sender ? sender.avatarImage : gift.fromAvatarImage} emoji={sender?.avatarEmoji} />)
               )
             : null}
           {gift.note ? row("Сообщение", gift.note) : null}

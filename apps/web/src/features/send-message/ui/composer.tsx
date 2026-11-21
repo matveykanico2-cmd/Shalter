@@ -13,12 +13,13 @@ import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { blurThumb } from "@/shared/lib/image";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
-import { forgetMediaUpload, queueMediaUpload, syncMediaUploads } from "@/shared/lib/media-outbox";
+import { forgetMediaUpload, queueMediaUpload, rememberMediaUpload, syncMediaUploads } from "@/shared/lib/media-outbox";
+import { withoutPhotoMetadata } from "@/shared/lib/strip-exif";
 import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
 import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
 import { fitTextarea } from "../lib/autosize";
-import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
+import { checkSize, chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
 import { splitLongText } from "../lib/long-text";
@@ -136,7 +137,8 @@ export function Composer(props: Props) {
   // Статью правят в её окне (заголовок и текст), а не в поле ввода.
   const editingArticle = props.editing?.type === "article" ? props.editing : null;
   const editing = editingArticle ? null : (props.editing ?? null);
-  const isPremium = !!useSession().data?.user?.isPremium;
+  const sessionUser = useSession().data?.user;
+  const isPremium = !!sessionUser?.isPremium;
   const client = useQueryClient();
   const thread = props.thread;
   const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId, thread?.postId);
@@ -496,30 +498,62 @@ export function Composer(props: Props) {
     setMediaSending(true);
     const caption = typedCaption.trim();
     const reply = replyTo;
-    const queueIds: Array<string | null> = [];
-    const queueClientIds: string[] = [];
-    const queueable = !thread && !paidStars;
     const identity = takeIdentity();
+    // A shared lock gives the page and worker one transport owner. Browsers without
+    // locks keep the foreground path rather than racing an independent worker.
+    const queueable = !thread && !paidStars && sessionUser?.id && navigator.locks && navigator.serviceWorker?.controller;
     if (queueable) {
-      for (const [i, part] of chunks(picks, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-        const clientId = `media_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
-        queueClientIds.push(clientId);
-        const id = await queueMediaUpload({
-          chatId,
-          path: channel ? `/api/posts/${encodeURIComponent(chatId)}/publish` : `/api/chats/${encodeURIComponent(chatId)}/messages`,
-          body: {
-            text: i === 0 ? caption : "",
-            replyToId: i === 0 ? reply?.id ?? null : null,
-            clientId,
-            ...(props.topicId ? { topicId: props.topicId } : {}),
-            ...identity,
-          },
-          files: part.map((pick) => ({ file: pick.file, name: pick.file.name || "file", mimeType: pick.file.type || "application/octet-stream", kind: pick.kind === "image" || pick.kind === "video" ? pick.kind : "file" })),
-          spoiler,
+      const ids: string[] = [];
+      let prepared = false;
+      try {
+        await navigator.locks.request("shalter-media-outbox", async () => {
+          for (const pick of picks) {
+            const problem = checkSize(pick.file, pick.kind);
+            if (problem) throw new Error(problem);
+          }
+          for (const [i, part] of chunks(picks, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
+            const files = await Promise.all(part.map(async (pick) => ({
+              file: pick.kind === "image" ? await withoutPhotoMetadata(pick.file) : pick.file,
+              name: pick.file.name || "file", mimeType: pick.file.type || "application/octet-stream", kind: pick.kind,
+            })));
+            const id = await queueMediaUpload({
+              ownerId: sessionUser.id, chatId,
+              path: channel ? `/api/posts/${encodeURIComponent(chatId)}/publish` : `/api/chats/${encodeURIComponent(chatId)}/messages`,
+              body: { text: i === 0 ? caption : "", replyToId: i === 0 ? reply?.id ?? null : null,
+                clientId: crypto.randomUUID(), ...(props.topicId ? { topicId: props.topicId } : {}), ...identity },
+              files, spoiler,
+            });
+            if (!id) {
+              await Promise.all(ids.map(forgetMediaUpload));
+              throw new Error("Не удалось сохранить очередь отправки. Повторите отправку.");
+            }
+            ids.push(id);
+          }
+          prepared = true;
+          setText("");
+          onCancelReply();
+          clearDraft();
+          onSent?.();
+          // Checkpoint successful uploads; the worker only sends once this lock is
+          // released, or resumes remaining uploads after the page is closed.
+          void syncMediaUploads();
+          await uploads.upload(picks, {
+            uploaded: (index, attachment) => rememberMediaUpload(ids[Math.floor(index / MAX_ATTACHMENTS_PER_MESSAGE)]!, index % MAX_ATTACHMENTS_PER_MESSAGE, attachment),
+            cancelled: async (index) => {
+              await forgetMediaUpload(ids[Math.floor(index / MAX_ATTACHMENTS_PER_MESSAGE)]!);
+              toast("Отправка этой группы медиа отменена");
+            },
+          });
         });
-        queueIds.push(id);
+      } catch (err) {
+        if (!prepared) await Promise.all(ids.map(forgetMediaUpload));
+        setError(errorText(err, "Не удалось сохранить отправку"));
+        if (!prepared) setPicked(picks.map((pick) => pick.file));
+      } finally {
+        setMediaSending(false);
+        void syncMediaUploads();
       }
-      void syncMediaUploads();
+      return;
     }
     try {
       const { uploaded, error: uploadError, total } = await uploads.upload(picks);
@@ -539,11 +573,7 @@ export function Composer(props: Props) {
       clearDraft();
       onSent?.();
       for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-        const clientId = queueable ? queueClientIds[i] : undefined;
-        await sendMediaChunk(i === 0 ? caption : "", i === 0 ? reply : null, part, { ...(i === 0 ? first : {}), ...(clientId ? { clientId } : {}) }).then(() => {
-          const queued = queueIds[i];
-          if (queued) void forgetMediaUpload(queued);
-        }).catch((err: unknown) => {
+        await sendMediaChunk(i === 0 ? caption : "", i === 0 ? reply : null, part, i === 0 ? first : {}).catch((err: unknown) => {
           setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
         });
       }

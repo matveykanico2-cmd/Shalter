@@ -9,11 +9,11 @@ import type { GiftLike } from "../model/types";
 import styles from "./gift.module.css";
 
 /** Ключ картинки: другой подарок — новая картинка, перерисовка ленты анимацию не перезапускает. */
-const artKey = (g: GiftLike) => `${g.giftId ?? g.id ?? ""}|${g.emoji ?? ""}|${g.mediaUrl ?? ""}|${g.scene ? JSON.stringify(g.scene).length : 0}`;
+const artKey = (g: GiftLike) => JSON.stringify([g.giftId ?? g.id, g.emoji, g.mediaUrl, g.scene]);
 
 /** Картинка подарка (renderGiftArt в public/js/lib/giftTraits.js): сцена, анимация или эмодзи. */
 export function GiftArt({ gift, size = 84, replay = true, className }: { gift: GiftLike; className?: string } & GiftArtOptions) {
-  return <DomNode key={`${artKey(gift)}|${size}`} className={className ?? styles.art} create={() => renderGiftArt(gift, { size, replay })} />;
+  return <DomNode key={`${artKey(gift)}|${size}|${replay}`} className={className ?? styles.art} create={() => renderGiftArt(gift, { size, replay })} />;
 }
 
 type BackdropSrc = Parameters<typeof giftBackdrop>[0];

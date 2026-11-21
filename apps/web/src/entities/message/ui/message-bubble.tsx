@@ -1,4 +1,5 @@
 import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, use, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { GiftMessage, type MessageGift } from "@/entities/gift/@x/message";
 
@@ -169,6 +170,7 @@ export function MessageBubble(props: Props) {
   const rowRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pendingMenu, setPendingMenu] = useState(false);
+  const [reactionPreview, setReactionPreview] = useState<Reaction | null>(null);
   // Выделение снимается раньше, чем дойдёт click, — запоминаем его при нажатии.
   const quote = useRef("");
   const remember = () => {
@@ -418,7 +420,7 @@ export function MessageBubble(props: Props) {
             play={justReacted(m.id, r.emoji)}
             disabled={!props.onReact || !!m.pending}
             userOf={props.userOf}
-            onReact={() => props.onReact?.(m, r.emoji)}
+            onReact={() => setReactionPreview(r)}
             onDetails={props.onReactionDetails && !m.pending ? (at) => props.onReactionDetails?.(m, r.emoji, at) : undefined}
           />
         ))}
@@ -616,7 +618,38 @@ export function MessageBubble(props: Props) {
           ) : null}
         </span>
       ) : null}
+      {reactionPreview ? (
+        <ReactionPreview
+          reaction={reactionPreview}
+          userOf={props.userOf}
+          onReact={props.onReact ? () => props.onReact?.(m, reactionPreview.emoji) : undefined}
+          onClose={() => setReactionPreview(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function ReactionPreview({ reaction, userOf, onReact, onClose }: { reaction: Reaction; userOf?: (id: string) => MessageSender | null; onReact?: () => void; onClose: () => void }) {
+  const users = userOf ? reaction.userIds.map(userOf).filter((user): user is MessageSender => !!user).slice(0, 8) : [];
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div className={styles.reactionPreviewOverlay} role="dialog" aria-modal="true" aria-label={`Реакция ${reaction.emoji}`} onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <div className={styles.reactionPreview}>
+        <button type="button" className={styles.reactionPreviewClose} aria-label="Закрыть" onClick={onClose}>×</button>
+        <div className={styles.reactionPreviewGlyph} aria-hidden="true"><ReactionGlyph emoji={reaction.emoji} size={128} play /></div>
+        <strong className={styles.reactionPreviewCount}>{reaction.userIds.length} {reaction.userIds.length === 1 ? "реакция" : "реакций"}</strong>
+        {users.length ? <div className={styles.reactionPreviewUsers}>{users.map((user) => <span key={user.id} title={user.name}><Avatar size={32} name={user.name} color={user.avatarColor} image={user.avatarImage} emoji={user.avatarEmoji} /></span>)}</div> : null}
+        {onReact ? <button type="button" className={styles.reactionPreviewAction} onClick={() => { onReact(); onClose(); }}>Поставить эту реакцию</button> : null}
+      </div>
+    </div>,
+    document.body
   );
 }
 

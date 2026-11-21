@@ -20,7 +20,7 @@ type NativePushPlugin = CapPlugin & {
   addListener: (event: string, cb: (data: never) => void) => Promise<unknown>;
 };
 type PushWindow = Window & {
-  Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { PushNotifications?: NativePushPlugin; LocalNotifications?: CapPlugin; IncomingCall?: unknown } };
+  Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string; Plugins?: { PushNotifications?: NativePushPlugin; LocalNotifications?: CapPlugin; IncomingCall?: unknown } };
   shalterDesktop?: { notify?: unknown; requestNotifications?: () => Promise<boolean> };
   __shalterOpen?: (path: string) => void;
 };
@@ -63,6 +63,13 @@ function bindNativeToken(token: string) {
   return http.post("/api/push/subscribe-native", { token, callUi: !!win().Capacitor?.Plugins?.IncomingCall }).catch(() => {});
 }
 
+function nativeTokenForServer(token: string) {
+  // Capacitor gives Android an FCM registration token, while iOS gives an APNs
+  // device token. Keep the distinction in the existing token field so the
+  // server cannot accidentally send an APNs token through FCM.
+  return win().Capacitor?.getPlatform?.() === "ios" ? `apns:${token}` : token;
+}
+
 /** Каналы, токен и нажатие на уведомление — один раз за запуск (setupNativePush в push.js). */
 function setupNativePush(plugin: NativePushPlugin) {
   nativeReady ??= (async () => {
@@ -70,7 +77,7 @@ function setupNativePush(plugin: NativePushPlugin) {
     await plugin.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
     await plugin.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
     await plugin.addListener("registration", ({ value }: { value: string }) => {
-      bindNativeToken(value);
+      bindNativeToken(nativeTokenForServer(value));
       // callUi: сборка умеет сама показывать экран звонка — сервер шлёт звонок data-сообщением.
     });
     await plugin.addListener("registrationError", (err: { error?: string }) => {

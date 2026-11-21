@@ -536,26 +536,60 @@ function removeMediaEntry(db, id) {
   });
 }
 
-async function syncMedia() {
+let syncingMedia = null;
+function syncMedia() {
+  if (!syncingMedia) {
+    syncingMedia = (self.navigator.locks
+      ? self.navigator.locks.request('shalter-media-outbox', drainMedia)
+      : Promise.resolve()).finally(() => { syncingMedia = null; });
+  }
+  return syncingMedia;
+}
+
+function saveMediaEntry(db, entry) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    const store = tx.objectStore(MEDIA_STORE);
+    const request = store.get(entry.id);
+    request.onsuccess = () => { if (request.result) store.put(entry); };
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function drainMedia() {
   const db = await outboxDb();
   try {
     for (const entry of await mediaEntries(db)) {
+      // Older queue records have no account binding: never replay them with an
+      // arbitrary currently signed-in account.
+      if (!entry.ownerId) continue;
+      const session = await fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' });
+      if (!session.ok || (await session.json()).user?.id !== entry.ownerId) continue;
       const attachments = [];
       for (const item of entry.files) {
+        if (item.uploaded) {
+          attachments.push({ ...item.uploaded, ...(entry.spoiler && ['image', 'video'].includes(item.kind) ? { spoiler: true } : {}) });
+          continue;
+        }
         const query = new URLSearchParams({ kind: item.kind, name: item.name || 'file', mimeType: item.mimeType || '' });
         let response;
         try {
           response = await fetch(`/api/uploads?${query}`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/octet-stream' }, body: item.file });
-        } catch { return; }
-        if (!response.ok) return;
+        } catch (error) { throw error; }
+        if (!response.ok) throw new Error(`Media upload failed: ${response.status}`);
         const uploaded = await response.json();
-        attachments.push({ ...uploaded, ...(entry.spoiler ? { spoiler: true } : {}) });
+        if (typeof uploaded.url !== 'string' || !uploaded.url.startsWith('/uploads/')) throw new Error('Invalid upload response');
+        item.uploaded = { ...uploaded, ...(entry.spoiler && ['image', 'video'].includes(item.kind) ? { spoiler: true } : {}) };
+        await saveMediaEntry(db, entry);
+        attachments.push(item.uploaded);
       }
       let sent;
       try {
         sent = await fetch(entry.path, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...entry.body, attachments }) });
-      } catch { return; }
-      if (!sent.ok) return;
+      } catch (error) { throw error; }
+      if (!sent.ok) throw new Error(`Media send failed: ${sent.status}`);
       let result = null;
       try { result = await sent.json(); } catch {}
       await removeMediaEntry(db, entry.id);

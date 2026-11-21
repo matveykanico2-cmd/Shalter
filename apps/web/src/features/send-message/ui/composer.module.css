@@ -12,34 +12,6 @@
   overscroll-behavior: contain;
   contain: layout style;
 }
-
-/* Blur на каждом кадре ввода дорогой в Android WebView: самоввод должен
-   оставаться приоритетным, а фон под полем не обязан пересчитываться. */
-@media (pointer: coarse) {
-  .field {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .input {
-    min-height: 42px;
-    max-height: 120px;
-    padding-top: 9px;
-    padding-bottom: 9px;
-    line-height: 1.25;
-  }
-
-  .attach,
-  .send {
-    width: 42px;
-    height: 42px;
-  }
-
-  .field > .attach {
-    flex-basis: 42px;
-  }
-}
-
 :global(html.keyboard-open) .composer {
   margin-bottom: 8px;
 }
@@ -621,4 +593,31 @@
   padding: 6px 12px 0;
   color: var(--color-danger);
   font-size: 13px;
+}
+
+/* Blur на каждом кадре ввода дорогой в Android WebView: самоввод должен
+   оставаться приоритетным, а фон под полем не обязан пересчитываться. */
+@media (pointer: coarse) {
+  .field {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .input {
+    min-height: 42px;
+    max-height: 120px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    line-height: 1.25;
+  }
+
+  .attach,
+  .send {
+    width: 42px;
+    height: 42px;
+  }
+
+  .field > .attach {
+    flex-basis: 42px;
+  }
 }

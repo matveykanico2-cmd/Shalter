@@ -125,6 +125,12 @@ blocked by the browser and calls/voice-messages/video-notes won't work.
 события всё ещё идут через WebSocket. После изменения Firebase-конфигурации выполните
 `npm run cap:sync` и соберите APK заново.
 
+Для native iOS нужен APNs ключ Apple: задайте на сервере `APNS_PRIVATE_KEY`,
+`APNS_KEY_ID`, `APNS_TEAM_ID` и `APNS_BUNDLE_ID=ru.shalter.app`. В production
+используется `api.push.apple.com`; для sandbox задайте `APNS_PRODUCTION=0`.
+В проекте iOS включён `aps-environment`, а Capacitor передаёт APNs-токен с
+префиксом `apns:` — сервер отправляет его через APNs, а не ошибочно через FCM.
+
 I wrote this Dockerfile carefully for this specific app (right Node version,
 the actual entry point and port, the esbuild/Alpine issue above) but couldn't
 build-test it myself — Docker isn't available in the environment I worked in.

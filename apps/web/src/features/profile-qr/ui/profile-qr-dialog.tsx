@@ -85,6 +85,21 @@ export function ProfileQrDialog({ user, url: customUrl, onClose }: { user: QrOwn
     }
   };
 
+  const shareLink = async () => {
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: user.name, text: `${user.name} — Shalter`, url });
+        setNote("Ссылка отправлена ✓");
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setNote("Ссылка скопирована ✓");
+    } catch (err) {
+      if ((err as { name?: string } | null)?.name === "AbortError") return;
+      await copy();
+    }
+  };
+
   // Картинку загружаем один раз — даже если отправляем сразу многим.
   const uploaded = useRef<Promise<Uploaded> | null>(null);
   const sent = useRef(0);
@@ -188,13 +203,17 @@ export function ProfileQrDialog({ user, url: customUrl, onClose }: { user: QrOwn
             <Icon name="Copy" size={16} />
             Скопировать ссылку
           </Button>
-          <Button variant="secondary" onClick={() => void shareImage()}>
+          <Button variant="secondary" onClick={() => void shareLink()}>
             <Icon name="Share" size={16} />
             Поделиться
           </Button>
           <Button variant="secondary" onClick={() => void downloadCard()}>
             <Icon name="Download" size={16} />
             Скачать картинку
+          </Button>
+          <Button variant="secondary" onClick={() => void shareImage()}>
+            <Icon name="Image" size={16} />
+            Поделиться картинкой
           </Button>
           <Button variant="secondary" onClick={() => setPicking(true)}>
             <Icon name="Send" size={16} />

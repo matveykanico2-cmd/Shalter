@@ -449,7 +449,7 @@ describe("действия с сообщением", () => {
     expect(within(dialog).getByText("Чужое сообщение можно убрать только из своей переписки.")).toBeTruthy();
   });
 
-  it("двойное нажатие — реакции; своя реакция сразу в пузыре, повтор снимает", async () => {
+  it("двойное нажатие — реакции; нажатие на плашку открывает крупный просмотр", async () => {
     const theirs = msg("смешно");
     const reacted = { ...theirs, reactions: [{ emoji: "😂", userIds: [ME.id] }] };
     const { calls } = fakeApi({
@@ -469,7 +469,9 @@ describe("действия с сообщением", () => {
     expect(calls.find((c) => c.key.endsWith("/react"))?.body).toEqual({ emoji: "😂" });
 
     fireEvent.click(pill);
-    await waitFor(() => expect(screen.queryByRole("button", { name: "😂 1" })).toBeNull());
+    expect(await screen.findByRole("dialog", { name: "Реакция 😂" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Закрыть" })).toBeTruthy();
+    expect(calls.filter((c) => c.key.endsWith("/react"))).toHaveLength(1);
   });
 
   it("плашка реакций: Premium с замком, ▾ — все эмодзи и стикеры; кто поставил — правой кнопкой", async () => {
