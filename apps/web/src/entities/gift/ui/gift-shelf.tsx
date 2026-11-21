@@ -8,7 +8,6 @@ import { askConfirm, Avatar, Icon, toast } from "@/shared/ui";
 
 import { giftApi } from "../api/gift-api";
 import { giftBackdrop } from "../lib/gift-background";
-import { giftTraits } from "../lib/gift-traits";
 import { openGiftShop } from "../model/shop-store";
 import type { ReceivedGift } from "../model/types";
 
@@ -70,8 +69,9 @@ export function GiftShelf({ user, isSelf, onChanged }: Props) {
         {ordered.map((g) => {
           const from = g.fromName ? ` · от ${g.fromName}` : "";
           const exclusive = g.serial != null;
-          // Фон: выбранный при отправке, у коллекционных без выбора — фон серии.
-          const bd = giftBackdrop(g.background ?? (exclusive ? giftTraits(g).backdrop : null));
+          // Показываем только фон, который был явно выбран при отправке. Фон серии,
+          // белый и чёрный пресеты не должны появляться сами по себе.
+          const bd = giftBackdrop(g.background);
           const c1 = bd?.center ?? "#6f8cff";
           const c2 = bd?.edge ?? "#2a3dff";
           const corner = g.pinned ? (

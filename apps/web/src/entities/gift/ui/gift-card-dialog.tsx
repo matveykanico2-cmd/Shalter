@@ -30,11 +30,10 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
   const owner = useQuery({ ...userQueries.profile(ownerId ?? ""), enabled: !!ownerId }).data?.user;
 
   const traits = giftTraits(gift);
-  // Выбранный при отправке фон — он и показываем; у коллекционных без выбора — фон серии.
-  // Старые подарки могли быть сохранены с белым/чёрным пресетом. Для них
-  // используем безопасный фон серии, чтобы удалённый фон не возвращался в UI.
-  const backdrop = giftBackdrop(gift.background) ?? giftBackdrop(traits.backdrop)!;
-  const symbol = backdrop.symbol ?? traits.symbol;
+  // Показываем только фон, сохранённый при отправке. Фон серии и старые белые/чёрные
+  // пресеты не подставляем автоматически.
+  const backdrop = giftBackdrop(gift.background);
+  const symbol = backdrop?.symbol ?? null;
   // Карточка не закрывается от случайного нажатия по строке, владельцу, аватару
   // или атрибуту. Закрытие — только явной кнопкой «Закрыть».
   const act = (fn: () => void) => () => fn();
@@ -57,7 +56,7 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
   // Нажатие на атрибут сразу открывает отправку этого подарка с этим фоном (как в tweb).
   const attrRow = (label: string, value: string, rarity?: number | null) =>
     onSend ? (
-      <button type="button" className={`${styles.row} ${styles.attr}`} title="Отправить подарок с этим фоном" onClick={act(() => onSend(backdrop.id || null))}>
+      <button type="button" className={`${styles.row} ${styles.attr}`} title="Отправить подарок с этим фоном" onClick={act(() => onSend(backdrop?.id || null))}>
         <span className={styles.label}>{label}</span>
         <span className={styles.value}>
           {value}
@@ -73,12 +72,8 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
       className={styles.overlay}
     >
       <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={gift.name ?? "Подарок"}>
-        <div className={styles.hero} style={{ "--gift-from": backdrop.center, "--gift-to": backdrop.edge } as CSSProperties}>
-          <div className={styles.pattern} style={{ "--gift-symbol": `url("${symbol.image}")`, "--gift-pattern": backdrop.pattern } as CSSProperties}>
-            {Array.from({ length: 18 }, (_, i) => (
-              <span key={i} />
-            ))}
-          </div>
+        <div className={backdrop ? styles.hero : `${styles.hero} ${styles.heroPlain}`} style={backdrop ? ({ "--gift-from": backdrop.center, "--gift-to": backdrop.edge } as CSSProperties) : undefined}>
+          {backdrop && symbol ? <div className={styles.pattern} style={{ "--gift-symbol": `url("${symbol.image}")`, "--gift-pattern": backdrop.pattern } as CSSProperties}>{Array.from({ length: 18 }, (_, i) => <span key={i} />)}</div> : null}
           <div className={styles.emoji}>
             <GiftArt gift={gift} size={96} />
           </div>
@@ -97,8 +92,8 @@ export function GiftCardDialog({ gift, ownerName, ownerId, onSend, onRemove, onT
             : null}
           {gift.note ? row("Сообщение", gift.note) : null}
           {row("Модель", traits.model.name, traits.model.rarity)}
-          {attrRow("Фон", backdrop.name || "Без фона", backdrop.rarity)}
-          {attrRow("Узор", symbol.name, symbol.rarity)}
+          {attrRow("Фон", backdrop?.name || "Без фона", backdrop?.rarity)}
+          {attrRow("Узор", symbol?.name || "Без узора", symbol?.rarity)}
           {gift.serial != null && gift.supply ? row("Количество", `${gift.serial}/${gift.supply} выпущено`) : null}
           {gift.priceStars ? row("Цена", `⭐ ${Number(gift.priceStars).toLocaleString("ru-RU")}`) : null}
         </div>
