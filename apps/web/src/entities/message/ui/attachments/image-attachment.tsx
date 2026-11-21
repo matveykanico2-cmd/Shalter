@@ -9,13 +9,13 @@ import type { Attachment } from "../../model/attachment";
 import styles from "./attachments.module.css";
 import { MediaTile } from "./media-tile";
 
-type Props = { attachment: Attachment; inAlbum?: boolean; onOpen?: () => void; onDoubleTap?: (at: { x: number; y: number }) => void };
+type Props = { attachment: Attachment; inAlbum?: boolean; priority?: boolean; onOpen?: () => void; onDoubleTap?: (at: { x: number; y: number }) => void };
 
 /**
  * Фото с запасными адресами (resilientImage в attachments.js): сначала миниатюра, потом
  * оригинал; не отдался ни один — плашка «Повторить», а с возвращением сети — само.
  */
-export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }: Props) {
+export function ImageAttachment({ attachment: a, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
   // Пока worker делает превью (в том числе для HEIC с iPhone), исходник может быть
   // недоступен для браузера. Не показываем битую иконку — дождёмся thumbUrl из WS.
   const processing = a.previewPending === true && !a.thumbUrl;
@@ -65,9 +65,9 @@ export function ImageAttachment({ attachment: a, inAlbum, onOpen, onDoubleTap }:
             alt={a.name || "photo"}
             // Первое фото в открытом чате должно начать загружаться сразу;
             // ленивый режим на входе показывал серую плитку даже для видимого медиа.
-            loading={inAlbum ? "lazy" : "eager"}
+            loading={priority ? "eager" : "lazy"}
             decoding="async"
-            fetchPriority={inAlbum ? "low" : "high"}
+            fetchPriority={priority ? "high" : "low"}
             style={box ?? undefined}
             onLoad={(e) => {
               setLoaded(true);

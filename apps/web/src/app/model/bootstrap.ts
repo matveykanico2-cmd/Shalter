@@ -52,7 +52,9 @@ export function restoreCachedChats(client: QueryClient, userId: string) {
   return true;
 }
 
-const PERSIST_DELAY_MS = 1000;
+// Локальный кэш нужен для следующего запуска, но секундная задержка заметна
+// при быстром переходе между чатами и закрытии вкладки.
+const PERSIST_DELAY_MS = 200;
 
 /** Каждое обновление списка или папок — в localStorage (не чаще раза в секунду). Возвращает отписку. */
 export function persistChats(client: QueryClient, userId: string) {

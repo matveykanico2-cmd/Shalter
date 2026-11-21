@@ -34,8 +34,9 @@ export function useServiceWorker() {
     // При первом запуске и при возврате во вкладку — переподписываемся на пуши.
     resubscribe();
     if (!("serviceWorker" in navigator)) return;
-    // Без сети приложение открывается из кэша: просим SW докачать сборку при запуске и когда сеть
-    // вернулась — но не сразу, а в простое: на медленной сети это отбирало бы канал у чатов.
+    // Без сети приложение открывается из кэша: просим SW докачать сборку после первого
+    // короткого простоя. На медленной сети это по-прежнему отключено, чтобы не отбирать
+    // канал у чатов и медиа.
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     const slowNetwork = connection?.saveData || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? "");
     const precache = () => {
@@ -48,7 +49,7 @@ export function useServiceWorker() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const precacheLater = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(precache, { timeout: 10000 }) : precache()), 15000);
+      timer = setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(precache, { timeout: 2500 }) : precache()), 2000);
     };
     navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
       // Проверяем свежесть worker сразу: новый клиент не должен ждать суток,

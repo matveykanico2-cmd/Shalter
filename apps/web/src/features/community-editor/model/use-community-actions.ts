@@ -18,8 +18,11 @@ export function useCommunityActions() {
   const panel = useCommunityPanel();
   /** Перечитать строки сообществ в списке чатов и карточку сообщества. */
   const refresh = async (id?: string) => {
-    if (id) void client.invalidateQueries({ queryKey: communityQueries.detail(id).queryKey });
-    await client.invalidateQueries({ queryKey: communityQueries.joined().queryKey }).catch(() => {});
+    await Promise.all([
+      id ? client.invalidateQueries({ queryKey: communityQueries.detail(id).queryKey }) : Promise.resolve(),
+      client.invalidateQueries({ queryKey: communityQueries.joined().queryKey }),
+      client.invalidateQueries({ queryKey: chatQueries.list().queryKey }),
+    ]).catch(() => {});
   };
   const refreshChats = () => client.invalidateQueries({ queryKey: chatQueries.list().queryKey }).catch(() => {});
 

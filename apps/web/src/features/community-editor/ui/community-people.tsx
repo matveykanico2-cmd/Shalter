@@ -123,8 +123,11 @@ export function AdminsDialog({ community, meId, onChanged, onClose }: Base & { m
   const [step, setStep] = useState<{ kind: "pick" } | { kind: "rights"; user: Person; current: CommunityRights | null } | null>(null);
   const [badgeUser, setBadgeUser] = useState<Person | null>(null);
   const done = () => {
-    void client.invalidateQueries({ queryKey: peopleKey(community.id, "admins") });
-    onChanged();
+    void Promise.all([
+      client.invalidateQueries({ queryKey: peopleKey(community.id, "admins") }),
+      client.invalidateQueries({ queryKey: ["communities", "detail", community.id] }),
+      client.invalidateQueries({ queryKey: ["communities", "joined"] }),
+    ]).finally(onChanged);
   };
 
   if (step?.kind === "pick") {
@@ -186,8 +189,12 @@ function AdminRightsDialog({ community, user, current, onDone, onClose }: { comm
   const save = async () => {
     setBusy(true);
     try {
-      await communityApi.setAdmin(community.id, user.id, rights);
-      await communityApi.setAdminBadge(community.id, user.id, badge || null, title || null);
+      // Оба изменения независимы: отправляем одновременно, чтобы сохранение
+      // не занимало сумму двух сетевых задержек на мобильной сети.
+      await Promise.all([
+        communityApi.setAdmin(community.id, user.id, rights),
+        communityApi.setAdminBadge(community.id, user.id, badge || null, title || null),
+      ]);
       toast(current ? "Права сохранены" : `${user.name} теперь администратор`);
       onClose();
       onDone();

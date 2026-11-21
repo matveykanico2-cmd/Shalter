@@ -21,6 +21,7 @@ type Props = {
   /** createdAt сообщения — чтобы не показывать вечную «обработку» у старых видео. */
   sentAt?: string;
   inAlbum?: boolean;
+  priority?: boolean;
   onOpen?: () => void;
   onDoubleTap?: (at: { x: number; y: number }) => void;
 };
@@ -31,7 +32,7 @@ const withBust = (url: string, bust: string) => (bust ? `${url}${url.includes("?
  * Видео — VideoAttachment из attachments.js: обложка (или первый кадр самого ролика),
  * кнопка Play, длительность; пузырь — по форме ролика, вертикальное уже.
  */
-export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onOpen, onDoubleTap }: Props) {
+export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
   const item = mediaItem(a, { id: messageId });
   const [posterBroken, setPosterBroken] = useState(false);
   const [frameReady, setFrameReady] = useState(false);
@@ -79,9 +80,9 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, onO
           className={styles.poster}
           src={withBust(item.thumbUrl, bust)}
           alt=""
-          loading={inAlbum ? "lazy" : "eager"}
+          loading={priority ? "eager" : "lazy"}
           decoding="async"
-          fetchPriority={inAlbum ? "low" : "high"}
+          fetchPriority={priority ? "high" : "low"}
           style={frameReady ? undefined : { opacity: 0.01 }}
           onLoad={(e) => learnShape(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
           onLoadCapture={() => setFrameReady(true)}
