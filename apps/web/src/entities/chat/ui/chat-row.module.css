@@ -215,6 +215,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 12px;
+  touch-action: pan-y;
 }
 
 .withMore {

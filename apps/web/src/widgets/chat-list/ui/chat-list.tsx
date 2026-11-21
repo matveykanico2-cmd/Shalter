@@ -201,9 +201,12 @@ export function ChatList({ meId }: { meId: string }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       let warmed = 0;
+      const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
       for (const row of rows) {
         if (row.kind !== "chat") continue;
-        prefetchChat(client, row.chat);
+        // На телефоне готовим только карточки: загрузка четырёх историй сразу
+        // после открытия списка заметно прерывала первый свайп.
+        prefetchChat(client, row.chat, touch ? { history: false } : undefined);
         warmed += 1;
         if (warmed >= 4) break;
       }
@@ -212,6 +215,7 @@ export function ChatList({ meId }: { meId: string }) {
   }, [client, rows]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollFrame = useRef<number | null>(null);
   const didInitialScroll = useRef(false);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
   const virtualizer = useVirtualizer({
@@ -260,6 +264,16 @@ export function ChatList({ meId }: { meId: string }) {
       offset,
     };
   }, [rows, virtualizer]);
+  const rememberDuringScroll = useCallback(() => {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      rememberReturnPosition();
+    });
+  }, [rememberReturnPosition]);
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+  }, []);
   // Cleanup layout-эффекта выполняется перед тем, как маршрут скроет мобильную колонку. Так
   // прямой переход из меню («Избранное») сохраняет позицию без клика по строке списка.
   useLayoutEffect(() => {
@@ -451,7 +465,7 @@ export function ChatList({ meId }: { meId: string }) {
         role="list"
         aria-label="Список чатов"
         hidden={!searching && !!panelCommunity}
-        onScroll={rememberReturnPosition}
+        onScroll={rememberDuringScroll}
       >
         {searching ? (
           query ? (

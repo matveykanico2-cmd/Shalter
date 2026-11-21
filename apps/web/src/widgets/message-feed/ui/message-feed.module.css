@@ -15,6 +15,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  overflow-anchor: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   /* Поле ввода находится следующим flex-элементом, а не поверх ленты. Старый запас 90px
      создавал пустой экран под последним сообщением, особенно заметный на iPhone. */
   padding: 14px 0;

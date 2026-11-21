@@ -61,7 +61,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
     prefetchChat(client, chat);
   };
   const onPointerDown = (e: PointerEvent) => {
-    prefetchNow();
+    // Touch pointerdown — это часто начало вертикального свайпа. Сетевой prefetch
+    // в этот момент конкурировал с жестом за главный поток на слабых WebView.
+    if (e.pointerType === "mouse") prefetchNow();
     if (onMenu) hold.onPointerDown(e);
     swipe.current = e.pointerType !== "mouse" && onSwipe ? { x: e.clientX, y: e.clientY, active: null } : null;
   };
