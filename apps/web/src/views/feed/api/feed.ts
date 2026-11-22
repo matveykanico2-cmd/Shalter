@@ -16,3 +16,4 @@ export const feedQueries = {
 };
 
 export const subscribeChannel = (id: string) => http.post<unknown>(`/api/channels/${encodeURIComponent(id)}/subscribe`);
+export const reactToMessage = (chatId: string, messageId: string, emoji: string) => http.post<unknown>(`/api/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/react`, { emoji });

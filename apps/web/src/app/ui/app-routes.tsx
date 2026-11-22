@@ -36,6 +36,7 @@ const ChatView = lazyLoadedView(() => loadChat().then((m) => m.ChatView));
 const CallView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallView));
 const CallJoinView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallJoinView));
 const FeedView = lazyLoadedView(() => import("@/views/feed").then((m) => m.FeedView));
+const StoriesView = lazyLoadedView(() => import("@/views/stories").then((m) => m.StoriesView));
 const CallsView = lazyLoadedView(() => import("@/views/calls").then((m) => m.CallsView));
 const UsernameView = lazyLoadedView(() => import("@/views/username").then((m) => m.UsernameView));
 const JoinView = lazyLoadedView(() => import("@/views/join").then((m) => m.JoinView));
@@ -71,6 +72,7 @@ const sideRoutes = () => [
 const mainRoutes = (user: SelfUser) => [
   <Route key="home" index element={<HomeView />} />,
   <Route key="feed" path="feed" element={lazyView(<FeedView me={user} />)} />,
+  <Route key="stories" path="stories" element={lazyView(<StoriesView me={user} />)} />,
   <Route key="chat" path="chat/:chatId" element={lazyView(<ChatView />)} />,
   <Route key="call" path="call/:callId" element={lazyView(<CallView />)} />,
   <Route key="call-join" path="call-join/:token" element={lazyView(<CallJoinView />)} />,
