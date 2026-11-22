@@ -114,7 +114,9 @@ export class UsersRepository {
       .where(eq(usernameAliases.userId, userId))
       .orderBy(sql`${usernameAliases.pinned} DESC`, sql`${usernameAliases.createdAt} ASC`)
       .all();
-    const result = primary ? [{ username: primary, primary: true, pinned: true }] : [];
+    // Основной username показывается отдельно и не является закреплённым alias.
+    // Иначе после открепления дополнительного имени профиль снова рисует его как pinned.
+    const result = primary ? [{ username: primary, primary: true, pinned: false }] : [];
     return result.concat(aliases.filter((a) => a.username.toLowerCase() !== (primary ?? "").toLowerCase()).map((a) => ({ username: a.username, primary: false, pinned: !!a.pinned, createdAt: a.createdAt })));
   }
 

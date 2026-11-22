@@ -720,7 +720,7 @@ function ProfileUsernameInfo({ user }: { user: ProfileUser }) {
   const names: ProfileUsername[] = user.usernames?.length
     ? user.usernames
     : user.username
-      ? [{ username: user.username, primary: true, pinned: true }]
+      ? [{ username: user.username, primary: true, pinned: false }]
       : [];
   const [selected, setSelected] = useState<ProfileUsername | null>(null);
   if (!names.length) return null;

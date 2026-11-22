@@ -35,6 +35,12 @@
   font-family: var(--font-mono);
 }
 
+.addUsername :global(input) {
+  min-height: 48px;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
 .block {
   margin-bottom: 16px;
 }
