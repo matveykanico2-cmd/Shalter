@@ -13,7 +13,7 @@
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .row:hover {
@@ -22,7 +22,8 @@
 
 .active,
 .active:hover {
-  background: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 11%, var(--color-surface));
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
 .active .title,
@@ -32,7 +33,11 @@
 .active .secret,
 .active .lock,
 .active .verified {
-  color: var(--color-accent-contrast);
+  color: inherit;
+}
+
+.active .title {
+  color: var(--color-accent);
 }
 
 /* Значки в превью (микрофон голосового и т. п.) красятся акцентом — на акцентном фоне
@@ -57,12 +62,12 @@
 }
 
 .active .unread {
-  background: var(--color-accent-contrast);
-  color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 
 .active .premium {
-  color: var(--color-accent-contrast);
+  color: #a77bf3;
 }
 
 .saved {
