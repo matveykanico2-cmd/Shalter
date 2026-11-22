@@ -299,8 +299,11 @@ function Profile({ me }: { me: SelfUser }) {
 
 function NameDecorations({ me, onChanged, onOpenStickerPicker }: { me: SelfUser; onChanged: (giftsReceived: ReceivedGift[]) => void; onOpenStickerPicker: () => void }) {
   const [busyGift, setBusyGift] = useState<string | null>(null);
-  const gifts = (me.giftsReceived as ReceivedGift[]).filter((gift) => !gift.custom);
-  const pinned = gifts.filter((gift) => gift.pinned);
+  // Старые сессии и гостевые ответы могут не содержать новую полку подарков.
+  // Настройки профиля должны оставаться рабочими до следующего обновления сессии.
+  const gifts = (Array.isArray(me.giftsReceived) ? me.giftsReceived : []) as ReceivedGift[];
+  const visibleGifts = gifts.filter((gift) => !gift.custom);
+  const pinned = visibleGifts.filter((gift) => gift.pinned);
   const toggleGift = async (gift: ReceivedGift) => {
     if (busyGift) return;
     setBusyGift(gift.id);
@@ -323,11 +326,11 @@ function NameDecorations({ me, onChanged, onOpenStickerPicker }: { me: SelfUser;
           </div>
           <Button variant="secondary" onClick={onOpenStickerPicker}>Настроить</Button>
         </div>
-        {gifts.length ? (
+        {visibleGifts.length ? (
           <>
             <p className={profileStyles.rowTitle}>Подарки рядом с именем</p>
             <div className={profileStyles.decorationGrid} aria-label="Подарки рядом с именем">
-              {gifts.map((gift) => (
+              {visibleGifts.map((gift) => (
                 <button
                   key={gift.id}
                   type="button"

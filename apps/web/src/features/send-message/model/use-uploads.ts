@@ -17,7 +17,9 @@ export type UploadTile = UploadTask;
 export function useUploads(chatId: string) {
   const all = useSyncExternalStore(subscribeUploadTasks, getUploadTasks, getUploadTasks);
   const cancelled = useRef(new Map<number, () => Promise<void>>());
-  const tiles = all.filter((task) => task.chatId === chatId);
+  // Ошибка остаётся в общем лотке передач, но не блокирует поле ввода
+  // неудачным вложением и не оставляет его в локальной полосе composer.
+  const tiles = all.filter((task) => task.chatId === chatId && !task.failed);
 
   const upload = useCallback(
     async (picks: readonly Pick[], callbacks?: { uploaded: (index: number, attachment: Uploaded) => Promise<void>; cancelled: (index: number) => Promise<void> }) => {
