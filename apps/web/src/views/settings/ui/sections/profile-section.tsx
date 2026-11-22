@@ -6,6 +6,7 @@ import { AvatarViewer, TABS } from "@/widgets/user-profile";
 
 import { ProfileUsernames, usernamesQueries } from "@/features/usernames-market";
 
+import { giftApi, GiftArt, type ReceivedGift } from "@/entities/gift";
 import { type SelfUser, useSession, useUpdateSelf } from "@/entities/session";
 import { bannerBackground, openUserProfile, PremiumStar, PROFILE_BANNERS, ProfileStatusBadge, ProfileTrackCard } from "@/entities/user";
 
@@ -251,6 +252,8 @@ function Profile({ me }: { me: SelfUser }) {
         </div>
       </SettingsSection>
 
+      <NameDecorations me={me} onChanged={(giftsReceived) => updateSelf({ giftsReceived })} onOpenStickerPicker={() => setStatusOpen(true)} />
+
       <ProfileLinksEditor me={me} />
 
       <SettingsSection title="Вкладка профиля по умолчанию" caption="Её первой увидят люди, открывшие ваш профиль. Если раздел пуст, откроется ближайший доступный.">
@@ -291,6 +294,61 @@ function Profile({ me }: { me: SelfUser }) {
         />
       ) : null}
     </SettingsPage>
+  );
+}
+
+function NameDecorations({ me, onChanged, onOpenStickerPicker }: { me: SelfUser; onChanged: (giftsReceived: ReceivedGift[]) => void; onOpenStickerPicker: () => void }) {
+  const [busyGift, setBusyGift] = useState<string | null>(null);
+  const gifts = (me.giftsReceived as ReceivedGift[]).filter((gift) => !gift.custom);
+  const pinned = gifts.filter((gift) => gift.pinned);
+  const toggleGift = async (gift: ReceivedGift) => {
+    if (busyGift) return;
+    setBusyGift(gift.id);
+    try {
+      const result = await giftApi.setPinned(gift.id, !gift.pinned);
+      onChanged(result.user.giftsReceived);
+    } catch (err) {
+      toast(errorText(err, "Не удалось изменить оформление имени"), { error: true });
+    } finally {
+      setBusyGift(null);
+    }
+  };
+  return (
+    <SettingsSection title="Оформление имени" caption="Выберите, что показывать рядом с вашим именем в профиле.">
+      <div className={profileStyles.decorationSection}>
+        <div className={profileStyles.decorationHeader}>
+          <div>
+            <p className={profileStyles.rowTitle}>Стикер рядом с именем</p>
+            <p className={profileStyles.sub}>Стикер выбирается из подключённых стикерпаков.</p>
+          </div>
+          <Button variant="secondary" onClick={onOpenStickerPicker}>Настроить</Button>
+        </div>
+        {gifts.length ? (
+          <>
+            <p className={profileStyles.rowTitle}>Подарки рядом с именем</p>
+            <div className={profileStyles.decorationGrid} aria-label="Подарки рядом с именем">
+              {gifts.map((gift) => (
+                <button
+                  key={gift.id}
+                  type="button"
+                  className={gift.pinned ? `${profileStyles.decorationGift} ${profileStyles.decorationGiftActive}` : profileStyles.decorationGift}
+                  aria-pressed={!!gift.pinned}
+                  title={gift.pinned ? `Открепить ${gift.name}` : `Закрепить ${gift.name}`}
+                  disabled={busyGift === gift.id}
+                  onClick={() => void toggleGift(gift)}
+                >
+                  <GiftArt gift={gift} size={54} replay={false} />
+                  <span>{gift.name}</span>
+                </button>
+              ))}
+            </div>
+            <p className={profileStyles.sub}>{pinned.length ? `Закреплено: ${pinned.length}` : "Нажмите на подарок, чтобы закрепить его рядом с именем."}</p>
+          </>
+        ) : (
+          <p className={profileStyles.sub}>Полученные подарки появятся здесь. Их можно будет закрепить рядом с именем.</p>
+        )}
+      </div>
+    </SettingsSection>
   );
 }
 
