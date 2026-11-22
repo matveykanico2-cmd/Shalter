@@ -72,6 +72,10 @@ export function useServiceWorker() {
         historyCache.dropPending(client, chatId, clientId);
         toast("Не удалось отправить сообщение", { error: true });
       } else if (type === "shalter:media-sent") {
+        if (message) {
+          historyCache.confirmPending(client, chatId, clientId, message);
+          chatCache.noteMessage(client, chatId, message);
+        }
         // Media can finish while the chat is closed. Refetch inactive histories too:
         // invalidateQueries alone waits until the user opens the chat, which left a
         // stale history snapshot visible for one render after returning to it.

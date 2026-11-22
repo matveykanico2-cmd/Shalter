@@ -306,6 +306,21 @@
   color: var(--color-danger);
 }
 
+.uploadTileCompact {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+
+.uploadTileCompact .uploadPreview,
+.uploadTileCompact .uploadMeta {
+  display: none;
+}
+
+.uploadTileCompact .uploadControl {
+  inset: 1px;
+}
+
 /* Подсказки над полем: @участники и /команды (.composer-mention-menu). */
 .suggest {
   max-height: 220px;

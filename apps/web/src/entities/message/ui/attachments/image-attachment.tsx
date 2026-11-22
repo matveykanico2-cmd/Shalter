@@ -9,13 +9,13 @@ import type { Attachment } from "../../model/attachment";
 import styles from "./attachments.module.css";
 import { MediaTile } from "./media-tile";
 
-type Props = { attachment: Attachment; inAlbum?: boolean; priority?: boolean; onOpen?: () => void; onDoubleTap?: (at: { x: number; y: number }) => void };
+type Props = { attachment: Attachment; pendingUpload?: boolean; inAlbum?: boolean; priority?: boolean; onOpen?: () => void; onDoubleTap?: (at: { x: number; y: number }) => void };
 
 /**
  * Фото с запасными адресами (resilientImage в attachments.js): сначала миниатюра, потом
  * оригинал; не отдался ни один — плашка «Повторить», а с возвращением сети — само.
  */
-export function ImageAttachment({ attachment: a, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
+export function ImageAttachment({ attachment: a, pendingUpload = false, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
   // Пока worker делает превью (в том числе для HEIC с iPhone), исходник может быть
   // недоступен для браузера. Не показываем битую иконку — дождёмся thumbUrl из WS.
   const processing = a.previewPending === true && !a.thumbUrl;
@@ -79,6 +79,7 @@ export function ImageAttachment({ attachment: a, inAlbum, priority = !inAlbum, o
             }}
           />
           {!loaded ? <span className={styles.mediaLoading} aria-label="Фото загружается"><span className={styles.downloadSpinner} /></span> : null}
+          {pendingUpload ? <span className={styles.pendingSpinner} aria-label="Фото отправляется" /> : null}
         </>
       )}
     </MediaTile>

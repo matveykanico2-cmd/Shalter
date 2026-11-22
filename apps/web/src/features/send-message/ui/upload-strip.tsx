@@ -7,12 +7,12 @@ import type { UploadTile } from "../model/use-uploads";
 import styles from "./composer.module.css";
 
 /** Загружаемые файлы над полем ввода: превью, кольцо прогресса, отмена. */
-export function UploadStrip({ tiles, onCancel, onTogglePause }: { tiles: readonly UploadTile[]; onCancel: (id: number) => void; onTogglePause: (id: number) => void }) {
+export function UploadStrip({ tiles, onCancel, onTogglePause, compact = false }: { tiles: readonly UploadTile[]; onCancel: (id: number) => void; onTogglePause: (id: number) => void; compact?: boolean }) {
   if (!tiles.length) return null;
   return (
     <div className={styles.uploads} role="list" aria-label="Загрузка файлов">
       {tiles.map((t) => (
-        <div key={t.id} className={t.failed ? `${styles.uploadTile} ${styles.uploadFailed}` : styles.uploadTile} role="listitem" title={t.name}>
+        <div key={t.id} className={[styles.uploadTile, compact ? styles.uploadTileCompact : "", t.failed ? styles.uploadFailed : ""].filter(Boolean).join(" ")} role="listitem" title={t.name}>
           <span className={styles.uploadPreview}>
             {/* Не декодируем каждый ролик в фоне: на Android это подвешивало composer.
                 После отправки нормальное превью отдаёт сервер в сообщении. */}

@@ -20,6 +20,7 @@ type Props = {
   messageId: string;
   /** createdAt сообщения — чтобы не показывать вечную «обработку» у старых видео. */
   sentAt?: string;
+  pendingUpload?: boolean;
   inAlbum?: boolean;
   priority?: boolean;
   onOpen?: () => void;
@@ -32,7 +33,7 @@ const withBust = (url: string, bust: string) => (bust ? `${url}${url.includes("?
  * Видео — VideoAttachment из attachments.js: обложка (или первый кадр самого ролика),
  * кнопка Play, длительность; пузырь — по форме ролика, вертикальное уже.
  */
-export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
+export function VideoAttachment({ attachment: a, messageId, sentAt, pendingUpload = false, inAlbum, priority = !inAlbum, onOpen, onDoubleTap }: Props) {
   const item = mediaItem(a, { id: messageId });
   const [posterBroken, setPosterBroken] = useState(false);
   const [frameReady, setFrameReady] = useState(false);
@@ -111,7 +112,7 @@ export function VideoAttachment({ attachment: a, messageId, sentAt, inAlbum, pri
           }}
         />
       )}
-      {frameFailed ? null : pending ? (
+      {frameFailed ? null : pending || pendingUpload ? (
         <span className={styles.pendingSpinner} aria-label="Видео обрабатывается" />
       ) : (
         <span className={styles.play}>

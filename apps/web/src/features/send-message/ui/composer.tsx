@@ -3,7 +3,7 @@ import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImpera
 
 import { chatCache } from "@/entities/chat";
 import { gameAttachmentFor, openGamesCatalog } from "@/entities/game";
-import { MediaPreview, type Message, messagePreview, splitArticle, stripCustomEmoji } from "@/entities/message";
+import { historyCache, MediaPreview, type Message, messagePreview, splitArticle, stripCustomEmoji } from "@/entities/message";
 import { useSession } from "@/entities/session";
 import { useSettings } from "@/entities/settings";
 import { ContactPicker, type PickedContact } from "@/entities/user";
@@ -528,6 +528,35 @@ export function Composer(props: Props) {
               throw new Error("Не удалось сохранить очередь отправки. Повторите отправку.");
             }
             ids.push(id);
+            const previewAttachments = part.map((pick) => {
+              const preview = pick.kind === "image" || pick.kind === "video" ? URL.createObjectURL(pick.file) : "";
+              return {
+                kind: pick.kind,
+                url: preview,
+                thumbUrl: preview || undefined,
+                name: pick.file.name || "file",
+                mimeType: pick.file.type || "application/octet-stream",
+                size: pick.file.size,
+                ...(spoiler && (pick.kind === "image" || pick.kind === "video") ? { spoiler: true as const } : {}),
+              } as OutgoingAttachment;
+            });
+            historyCache.addPending(client, chatId, {
+              id,
+              chatId,
+              senderId: sessionUser.id,
+              type: "text",
+              text: i === 0 ? caption : "",
+              createdAt: new Date().toISOString(),
+              pinned: false,
+              replyToId: i === 0 ? reply?.id ?? null : null,
+              ...(props.topicId ? { topicId: props.topicId } : {}),
+              attachments: previewAttachments,
+              reactions: [],
+              readByIds: [],
+              deletedForIds: [],
+              mentionedUserIds: [],
+              views: null,
+            } as Message);
           }
           prepared = true;
           setText("");
@@ -540,13 +569,18 @@ export function Composer(props: Props) {
           await uploads.upload(picks, {
             uploaded: (index, attachment) => rememberMediaUpload(ids[Math.floor(index / MAX_ATTACHMENTS_PER_MESSAGE)]!, index % MAX_ATTACHMENTS_PER_MESSAGE, attachment),
             cancelled: async (index) => {
-              await forgetMediaUpload(ids[Math.floor(index / MAX_ATTACHMENTS_PER_MESSAGE)]!);
+              const id = ids[Math.floor(index / MAX_ATTACHMENTS_PER_MESSAGE)]!;
+              historyCache.dropPending(client, chatId, id);
+              await forgetMediaUpload(id);
               toast("Отправка этой группы медиа отменена");
             },
           });
         });
       } catch (err) {
-        if (!prepared) await Promise.all(ids.map(forgetMediaUpload));
+        if (!prepared) {
+          ids.forEach((id) => historyCache.dropPending(client, chatId, id));
+          await Promise.all(ids.map(forgetMediaUpload));
+        }
         setError(errorText(err, "Не удалось сохранить отправку"));
         if (!prepared) setPicked(picks.map((pick) => pick.file));
       } finally {
@@ -889,7 +923,7 @@ export function Composer(props: Props) {
         />
       ) : null}
       {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onChange={setMediaChoice} onClose={() => { setPicked(null); setMediaChoice(null); }} /> : null}
-      <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} onTogglePause={uploads.togglePause} />
+      <UploadStrip tiles={uploads.tiles} compact={mediaSending} onCancel={uploads.cancel} onTogglePause={uploads.togglePause} />
       {paid ? (
         <p className={styles.paidHint}>
           <EmojiText
