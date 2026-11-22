@@ -889,7 +889,7 @@ export function Composer(props: Props) {
         />
       ) : null}
       {picked ? <SendMediaDialog files={picked} initialCaption={text} allowPaid={!!props.canPostPaid && !thread} onChange={setMediaChoice} onClose={() => { setPicked(null); setMediaChoice(null); }} /> : null}
-      <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
+      <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} onTogglePause={uploads.togglePause} />
       {paid ? (
         <p className={styles.paidHint}>
           <EmojiText

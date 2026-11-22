@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { Icon } from "@/shared/ui";
 
 import type { UploadTile } from "../model/use-uploads";
@@ -5,7 +7,7 @@ import type { UploadTile } from "../model/use-uploads";
 import styles from "./composer.module.css";
 
 /** Загружаемые файлы над полем ввода: превью, кольцо прогресса, отмена. */
-export function UploadStrip({ tiles, onCancel }: { tiles: readonly UploadTile[]; onCancel: (id: number) => void }) {
+export function UploadStrip({ tiles, onCancel, onTogglePause }: { tiles: readonly UploadTile[]; onCancel: (id: number) => void; onTogglePause: (id: number) => void }) {
   if (!tiles.length) return null;
   return (
     <div className={styles.uploads} role="list" aria-label="Загрузка файлов">
@@ -18,10 +20,17 @@ export function UploadStrip({ tiles, onCancel }: { tiles: readonly UploadTile[];
             {t.previewUrl && t.kind !== "video" ? <span className={styles.uploadImagePreview} style={{ backgroundImage: `url("${t.previewUrl}")` }} /> : null}
             {!t.previewUrl ? <Icon name={t.kind === "video" ? "Video" : t.kind === "image" ? "Image" : "File"} size={20} /> : null}
           </span>
-          <span className={styles.uploadProgress} role="progressbar" aria-label={t.phase === "processing" ? "Обработка файла" : `Загружено ${Math.round(t.progress * 100)}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(t.progress * 100)}>
-            <span className={styles.uploadProgressFill} style={{ width: `${Math.round(t.progress * 100)}%` }} />
-          </span>
-          <span className={styles.uploadPercent}>{t.phase === "processing" ? "…" : `${Math.round(t.progress * 100)}%`}</span>
+          <button
+            type="button"
+            className={styles.uploadControl}
+            style={{ "--upload-progress": `${Math.round(t.progress * 100)}%` } as CSSProperties}
+            title={t.phase === "paused" ? "Продолжить" : "Поставить на паузу"}
+            aria-label={t.phase === "paused" ? `Продолжить загрузку ${t.name}` : `Поставить загрузку ${t.name} на паузу`}
+            onClick={() => onTogglePause(t.id)}
+          >
+            <Icon name={t.phase === "paused" ? "PlayFill" : "PauseFill"} size={15} />
+          </button>
+          <span className={styles.uploadMeta}>{t.phase === "processing" ? "Обработка" : t.phase === "paused" ? "Пауза" : `${Math.round(t.progress * 100)}%`}</span>
           <button type="button" className={styles.uploadCancel} title="Отменить" onClick={() => onCancel(t.id)}>
             <Icon name="X" size={12} />
           </button>

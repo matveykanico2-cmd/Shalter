@@ -194,28 +194,38 @@
 
 /* Загружаемые файлы над полем (.composer-upload-strip). */
 .uploads {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 64px);
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  max-width: 440px;
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   box-sizing: border-box;
   align-self: stretch;
-  padding: 4px 2px 2px;
+  padding: 4px 2px 1px;
+  scrollbar-width: none;
+}
+
+.uploads::-webkit-scrollbar {
+  display: none;
 }
 
 .uploadTile {
   position: relative;
-  width: 64px;
-  height: 72px;
+  display: flex;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
   flex: none;
+  align-items: center;
+  justify-content: center;
 }
 
 .uploadPreview {
   display: flex;
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   border-radius: 16px;
@@ -237,49 +247,48 @@
   background-size: cover;
 }
 
-.uploadProgress {
+.uploadControl {
   position: absolute;
-  right: 4px;
-  bottom: 2px;
-  left: 4px;
-  display: block;
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text) 35%, var(--color-surface));
-}
-
-.uploadProgressFill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  stroke: var(--color-accent);
-  background: var(--color-accent);
-  transition: width 0.15s linear;
-}
-
-.uploadPercent {
-  position: absolute;
-  right: 4px;
-  bottom: 9px;
-  left: 4px;
+  inset: 4px;
   display: grid;
-  justify-content: center;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-accent) var(--upload-progress, 0%), color-mix(in srgb, var(--color-text) 16%, transparent) 0);
   color: var(--color-text);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 11px;
-  pointer-events: none;
+  cursor: pointer;
+  transition: background 0.15s linear;
 }
 
-.uploadFailed .uploadProgressFill {
-  background: var(--color-danger);
+.uploadControl::before {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  content: "";
+}
+
+.uploadControl > svg {
+  position: relative;
+}
+
+.uploadMeta {
+  position: absolute;
+  top: calc(100% + 1px);
+  max-width: 90px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .uploadCancel {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -3px;
+  right: -3px;
   display: flex;
   width: 20px;
   height: 20px;
@@ -290,6 +299,11 @@
   background: var(--color-text);
   color: var(--color-bg);
   cursor: pointer;
+}
+
+.uploadFailed .uploadControl {
+  border-color: color-mix(in srgb, var(--color-danger) 75%, var(--color-surface));
+  color: var(--color-danger);
 }
 
 /* Подсказки над полем: @участники и /команды (.composer-mention-menu). */

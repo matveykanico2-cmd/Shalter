@@ -1,9 +1,10 @@
-// Загрузка выбранных файлов перед отправкой — uploadPicks в public/js/components/composer.js:
-// плитки с кольцом прогресса и отменой над полем ввода, у собеседника — «отправляет фото…».
-import { useCallback, useEffect, useRef, useState } from "react";
+// Состояние загрузок живёт вне Composer: переход в другой чат и размонтирование
+// компонента больше не сбрасывают прогресс и превью.
+import { useCallback, useRef, useSyncExternalStore } from "react";
 
-import { UPLOAD_CANCELLED, type Uploaded, uploadFile, type UploadKind } from "@/shared/api";
+import { UPLOAD_CANCELLED, type Uploaded, type UploadKind } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
+import { cancelUpload, getUploadTasks, pauseUpload, resumeUpload, startUploadTask, subscribeUploadTasks, type UploadTask } from "@/shared/lib/media-upload-manager";
 
 import { sendTyping } from "../api/send-message";
 import { checkSize, uploadActionFor } from "../lib/files";
@@ -11,90 +12,61 @@ import { checkSize, uploadActionFor } from "../lib/files";
 const ACTION_PING_MS = 2500;
 
 export type Pick = { file: File; kind: UploadKind };
-
-export type UploadTile = { id: number; name: string; kind: UploadKind; previewUrl: string | null; progress: number; phase: "uploading" | "processing" | "failed"; failed: boolean };
-
-let seq = 0;
+export type UploadTile = UploadTask;
 
 export function useUploads(chatId: string) {
-  const [tiles, setTiles] = useState<UploadTile[]>([]);
-  const aborts = useRef(new Map<number, AbortController>());
-  const urls = useRef<string[]>([]);
+  const all = useSyncExternalStore(subscribeUploadTasks, getUploadTasks, getUploadTasks);
+  const cancelled = useRef(new Map<number, () => Promise<void>>());
+  const tiles = all.filter((task) => task.chatId === chatId);
 
-  useEffect(
-    () => () => {
-      // Переход в другой чат не отменяет уже подтверждённую отправку: Promise ниже продолжит
-      // загрузку и затем отправит сообщение. Явная кнопка отмены по-прежнему abort-ит запрос.
-      urls.current.forEach((u) => URL.revokeObjectURL(u));
-    },
-    []
-  );
-
-  const patch = (id: number, p: Partial<UploadTile>) => setTiles((list) => list.map((t) => (t.id === id ? { ...t, ...p } : t)));
-
-  /**
-   * Загрузить всё; вернуть загруженное и текст первой ошибки (отменённое — не ошибка).
-   * Слишком большие файлы не начинаются вовсе.
-   */
   const upload = useCallback(
     async (picks: readonly Pick[], callbacks?: { uploaded: (index: number, attachment: Uploaded) => Promise<void>; cancelled: (index: number) => Promise<void> }) => {
       const errors: string[] = [];
-      const items = picks.filter((p) => {
-        const sizeError = checkSize(p.file, p.kind);
-        if (sizeError) errors.push(sizeError);
-        return !sizeError;
+      const items = picks.filter((pick) => {
+        const issue = checkSize(pick.file, pick.kind);
+        if (issue) errors.push(issue);
+        return !issue;
       });
       if (!items.length) return { uploaded: [] as Uploaded[], error: errors[0] ?? null, total: picks.length };
 
-      const started = items.map((p) => {
-        const id = ++seq;
-        const previewUrl = p.file.type.startsWith("image/") || p.file.type.startsWith("video/") ? URL.createObjectURL(p.file) : null;
-        if (previewUrl) urls.current.push(previewUrl);
-        const controller = new AbortController();
-        aborts.current.set(id, controller);
-        return { id, pick: p, controller, tile: { id, name: p.file.name, kind: p.kind, previewUrl, progress: 0, phase: "uploading", failed: false } satisfies UploadTile };
+      const action = uploadActionFor(items.map((pick) => pick.kind));
+      void sendTyping(chatId, action).catch(() => {});
+      const ping = window.setInterval(() => void sendTyping(chatId, action).catch(() => {}), ACTION_PING_MS);
+      const started = items.map((pick, index) => {
+        const task = startUploadTask(chatId, pick.file, pick.kind);
+        cancelled.current.set(task.id, async () => { await callbacks?.cancelled(index); });
+        return { ...task, index };
       });
-      setTiles((list) => [...list, ...started.map((s) => s.tile)]);
-
-      const action = uploadActionFor(items.map((p) => p.kind));
-      sendTyping(chatId, action).catch(() => {});
-      const ping = setInterval(() => sendTyping(chatId, action).catch(() => {}), ACTION_PING_MS);
-
       const results = await Promise.allSettled(
-        started.map(({ id, pick, controller }, index) =>
-          // Фото уходит оригиналом, без пережатия: превью для ленты сервер делает сам
-          // (mediaPreview), а в хранилище остаётся исходник без потери качества. EXIF
-          // (геопозиция и т. п.) вырезает uploadFile без перекодирования, поворот остаётся.
-          uploadFile(pick.file, pick.kind, { signal: controller.signal, onProcessing: () => patch(id, { phase: "processing", progress: 1 }), onProgress: (progress) => patch(id, { progress, phase: "uploading" }) })
-            .then(async (attachment) => {
-              await callbacks?.uploaded(index, attachment);
-              return attachment;
-            })
-            .catch(async (err: unknown) => {
-              if (err instanceof Error && err.message === UPLOAD_CANCELLED) await callbacks?.cancelled(index);
-              patch(id, { failed: true, phase: "failed" });
-              throw err;
-            })
-        )
+        started.map(({ id, index, promise }) => promise.then(async (attachment) => {
+          cancelled.current.delete(id);
+          await callbacks?.uploaded(index, attachment);
+          return attachment;
+        }).catch(async (error: unknown) => {
+          const onCancel = cancelled.current.get(id);
+          cancelled.current.delete(id);
+          if (error instanceof Error && error.message === UPLOAD_CANCELLED) await onCancel?.();
+          throw error;
+        }))
       );
-      clearInterval(ping);
-      sendTyping(chatId, "cancel").catch(() => {});
-      for (const s of started) aborts.current.delete(s.id);
-      setTiles((list) => list.filter((t) => !started.some((s) => s.id === t.id)));
+      window.clearInterval(ping);
+      void sendTyping(chatId, "cancel").catch(() => {});
 
-      const uploaded = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-      for (const r of results) {
-        if (r.status === "rejected" && !(r.reason instanceof Error && r.reason.message === UPLOAD_CANCELLED)) errors.push(errorText(r.reason, "Не удалось загрузить файл"));
+      const uploaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      for (const result of results) {
+        if (result.status === "rejected" && !(result.reason instanceof Error && result.reason.message === UPLOAD_CANCELLED)) errors.push(errorText(result.reason, "Не удалось загрузить файл"));
       }
       return { uploaded, error: errors[0] ?? null, total: picks.length };
     },
     [chatId]
   );
 
-  const cancel = useCallback((id: number) => {
-    aborts.current.get(id)?.abort();
-    setTiles((list) => list.filter((t) => t.id !== id));
+  const cancel = useCallback((id: number) => cancelUpload(id), []);
+  const togglePause = useCallback((id: number) => {
+    const task = getUploadTasks().find((item) => item.id === id);
+    if (task?.phase === "paused") resumeUpload(id);
+    else pauseUpload(id);
   }, []);
 
-  return { tiles, upload, cancel };
+  return { tiles, upload, cancel, togglePause };
 }
