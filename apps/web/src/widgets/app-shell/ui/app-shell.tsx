@@ -126,6 +126,7 @@ function useKeyboardViewport() {
 }
 
 const LINKS: { to: string; icon: IconName; label: string; active: (path: string) => boolean }[] = [
+  { to: "/feed", icon: "Globe", label: "Лента", active: (p) => p === "/feed" },
   { to: "/", icon: "Send", label: "Чаты", active: (p) => p === "/" || p.startsWith("/chat") },
   { to: "/contacts", icon: "Users", label: "Контакты", active: (p) => p === "/contacts" },
   { to: "/calls", icon: "Phone", label: "Звонки", active: (p) => p === "/calls" },

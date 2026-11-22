@@ -35,6 +35,7 @@ const preloadCommonRoutes = () => [
 const ChatView = lazyLoadedView(() => loadChat().then((m) => m.ChatView));
 const CallView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallView));
 const CallJoinView = lazyLoadedView(() => import("@/views/call").then((m) => m.CallJoinView));
+const FeedView = lazyLoadedView(() => import("@/views/feed").then((m) => m.FeedView));
 const CallsView = lazyLoadedView(() => import("@/views/calls").then((m) => m.CallsView));
 const UsernameView = lazyLoadedView(() => import("@/views/username").then((m) => m.UsernameView));
 const JoinView = lazyLoadedView(() => import("@/views/join").then((m) => m.JoinView));
@@ -67,8 +68,9 @@ const sideRoutes = () => [
   <Route key="settings-section" path="settings/:section" element={lazyView(<SettingsView />)} />,
 ];
 
-const mainRoutes = () => [
+const mainRoutes = (user: SelfUser) => [
   <Route key="home" index element={<HomeView />} />,
+  <Route key="feed" path="feed" element={lazyView(<FeedView me={user} />)} />,
   <Route key="chat" path="chat/:chatId" element={lazyView(<ChatView />)} />,
   <Route key="call" path="call/:callId" element={lazyView(<CallView />)} />,
   <Route key="call-join" path="call-join/:token" element={lazyView(<CallJoinView />)} />,
@@ -136,7 +138,7 @@ export function AppRoutes({ user }: { user: SelfUser }) {
         mainOpen={!side && location.pathname !== "/"}
         sidebar={<ChatList meId={user.id} />}
         side={side ? <Routes>{sideRoutes()}</Routes> : null}
-        main={<Routes location={side ? shownMain : location}>{mainRoutes()}</Routes>}
+        main={<Routes location={side ? shownMain : location}>{mainRoutes(user)}</Routes>}
       />
       {/* Профиль человека — панель поверх всего, открывается откуда угодно (openUserProfile). */}
       <UserProfileHost />
