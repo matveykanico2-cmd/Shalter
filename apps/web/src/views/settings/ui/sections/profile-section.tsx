@@ -221,7 +221,7 @@ function Profile({ me }: { me: SelfUser }) {
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Юзернейм</span>
-          <TextField value={username} maxLength={32} onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))} />
+          <TextField className={profileStyles.usernameInput} value={username} maxLength={32} autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))} />
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Телефон</span>

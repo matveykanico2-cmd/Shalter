@@ -200,6 +200,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
         <span className={styles.spacer} />
         <NavLink to="/settings" className={linkClass(pathname.startsWith("/settings"))} title="Настройки" aria-label="Настройки">
           <Icon name="Settings" size={20} />
+          <span className={styles.railLabel}>Настройки</span>
         </NavLink>
       </nav>
       {/* Главное меню: аватар здесь и «Меню» в шапке списка; extra — разделы со своим окном. */}

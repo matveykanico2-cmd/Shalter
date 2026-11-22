@@ -38,6 +38,7 @@ import { type ReportInfo, ReportMessage } from "@/entities/report";
 import { isServerModerator, type SelfUser } from "@/entities/session";
 import { openStoryViewer, type StoryGroup } from "@/entities/story";
 
+import { http } from "@/shared/api";
 import { DRAWN_STICKERS, renderSticker, type Sticker } from "@/shared/lib/anim";
 
 const HELLO_STICKER: Sticker = DRAWN_STICKERS.find((s) => s.id === "art_hello") ?? { emoji: "👋", name: "Привет", scene: "hello" };
@@ -122,7 +123,6 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
     const packId = sticker.packId;
     void (async () => {
       try {
-        const { http } = await import("@/shared/api");
         const res = await http.get<{ pack: StickerPack }>(`/api/stickers/packs/${encodeURIComponent(packId)}`);
         if (res?.pack) openStickerPack(res.pack, sticker);
         else openStickerPreview(sticker, true);

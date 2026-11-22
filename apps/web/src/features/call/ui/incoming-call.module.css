@@ -8,8 +8,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #171b26 0%, #0c0e14 100%);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, rgb(105 115 255 / 30%), transparent 34%),
+    radial-gradient(circle at 18% 82%, rgb(38 196 172 / 16%), transparent 28%),
+    linear-gradient(145deg, #090d1b 0%, #15192b 52%, #080a12 100%);
   animation: fade-in 0.12s ease-out;
+}
+
+.screen::before,
+.screen::after {
+  position: absolute;
+  width: 42vw;
+  height: 42vw;
+  border-radius: 50%;
+  content: "";
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.screen::before {
+  top: -18vw;
+  right: -10vw;
+  background: rgb(89 109 255 / 18%);
+}
+
+.screen::after {
+  bottom: -24vw;
+  left: -12vw;
+  background: rgb(35 194 171 / 12%);
 }
 
 @keyframes fade-in {
@@ -19,11 +46,21 @@
 }
 
 .card {
+  position: relative;
+  z-index: 1;
+  width: min(360px, calc(100vw - 32px));
+  box-sizing: border-box;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 32px;
+  background: linear-gradient(145deg, rgb(28 35 59 / 82%), rgb(9 13 24 / 68%));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 38%), inset 0 1px 0 rgb(255 255 255 / 12%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  backdrop-filter: blur(22px) saturate(135%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 24px;
+  padding: 32px 24px 28px;
   color: #fff;
   text-align: center;
 }

@@ -114,7 +114,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
           hoverPrefetch.current = window.setTimeout(() => {
             hoverPrefetch.current = null;
             prefetchChat(client, chat);
-          }, 180);
+          }, 0);
         }
       }}
       onPointerDown={onPointerDown}
