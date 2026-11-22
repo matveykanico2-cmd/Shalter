@@ -1,10 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { GiftShelf } from "@/entities/gift";
-import { type Attachment, mediaItem } from "@/entities/message";
-import { openStoryViewer, storyDate, type StoryGroup, storyQueries } from "@/entities/story";
+import { type Attachment, mediaItem, type Message,messageQueries } from "@/entities/message";
 import { closeUserProfile } from "@/entities/user";
 
 import { copyText } from "@/shared/lib/clipboard";
@@ -28,7 +27,10 @@ type Props = {
   sharedLoaded: boolean;
   /** Своя полка подарков изменилась (убрали, закрепили). */
   onGiftsChanged: (giftsReceived: unknown[]) => void;
+  channels: Channel[];
 };
+
+type Channel = { id: string; title: string; username: string | null; avatarColor: string | null; avatarImage: string | null; avatarEmoji: string | null; isVerified: boolean; members: number; isMember: boolean };
 
 const asAttachment = (a: unknown) => a as Attachment;
 
@@ -38,9 +40,9 @@ function mediaDate(iso: string) {
 }
 
 /** Содержимое вкладки профиля — renderTabContent в public/js/components/profileDialog.js. */
-export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onGiftsChanged }: Props) {
+export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onGiftsChanged, channels }: Props) {
+  if (tab === "posts") return <ChannelPosts channels={channels} />;
   if (tab === "gifts") return <GiftShelf user={user} isSelf={isSelf} onChanged={(u) => onGiftsChanged(u.giftsReceived)} />;
-  if (tab === "stories") return <StoriesArchive user={user} isSelf={isSelf} />;
   if (tab === "groups") return <CommonGroups userId={user.id} />;
   if (tab === "voice") return <VoiceList items={shared?.voice ?? []} />;
   if (tab === "media") {
@@ -98,6 +100,29 @@ export function ProfileTabContent({ tab, user, isSelf, shared, sharedLoaded, onG
   );
 }
 
+function ChannelPosts({ channels }: { channels: Channel[] }) {
+  const queries = useQueries({ queries: channels.slice(0, 6).map((channel) => messageQueries.history(channel.id)) });
+  const posts = queries.flatMap((query, index) => (query.data?.messages ?? []).filter((message) => message.type !== "system" && (message.text?.trim() || message.attachments?.length)).map((message) => ({ channel: channels[index]!, message }))).sort((a, b) => b.message.createdAt.localeCompare(a.message.createdAt)).slice(0, 30);
+  if (!channels.length) return <p className={styles.emptyTab}>Постов пока нет</p>;
+  if (queries.some((query) => query.isPending)) return <div className={styles.spinner} />;
+  if (!posts.length) return <p className={styles.emptyTab}>Постов пока нет</p>;
+  return <div className={styles.postsList}>{posts.map(({ channel, message }) => <ProfilePost key={`${channel.id}-${message.id}`} channel={channel} message={message} />)}</div>;
+}
+
+function ProfilePost({ channel, message }: { channel: Channel; message: Message }) {
+  const attachments = (message.attachments ?? []) as Attachment[];
+  const media = attachments.filter((a) => a.kind === "image" || a.kind === "video").slice(0, 4);
+  const reactions = (message.reactions ?? []) as Array<{ userIds: string[] }>;
+  return (
+    <article className={styles.profilePost}>
+      <div className={styles.profilePostHead}><Avatar size={34} name={channel.title} color={channel.avatarColor ?? undefined} image={channel.avatarImage ?? undefined} emoji={channel.avatarEmoji ?? undefined} /><span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : "Публикация"} · {new Date(message.createdAt).toLocaleDateString("ru-RU")}</small></span></div>
+      {message.text?.trim() ? <p className={styles.profilePostText}>{message.text}</p> : null}
+      {media.length ? <div className={styles.profilePostMedia}>{media.map((item, index) => item.kind === "video" ? <video key={index} src={item.url} poster={item.posterUrl ?? item.thumbUrl} controls playsInline preload="metadata" /> : <img key={index} src={item.url} alt="" loading="lazy" />)}</div> : null}
+      <div className={styles.profilePostMeta}><span>◉ {message.views ?? 0}</span><span>💬 {message.commentCount ?? 0}</span><span>♡ {reactions.reduce((sum, reaction) => sum + reaction.userIds.length, 0)}</span></div>
+    </article>
+  );
+}
+
 /** Плитки — порциями: сразу все фото переписки большого чата подвешивали профиль. */
 function MediaGrid({ items }: { items: SharedMedia["media"] }) {
   const [shown, setShown] = useState(MEDIA_PAGE);
@@ -143,44 +168,6 @@ function MediaCell({ item, onOpen }: { item: ViewerItem; onOpen: () => void }) {
       )}
       {item.kind === "video" ? <span className={styles.cellPlay}><Icon name="Play" size={14} /></span> : null}
     </button>
-  );
-}
-
-function StoriesArchive({ user, isSelf }: { user: Owner; isSelf: boolean }) {
-  const archive = useQuery(storyQueries.archive(user.id));
-  if (archive.isPending) return <div className={styles.spinner} />;
-  if (archive.isError || !archive.data.allowed) return <p className={styles.emptyTab}>Архив историй закрыт</p>;
-  const stories = archive.data.stories;
-  if (!stories.length) return <p className={styles.emptyTab}>{isSelf ? "Вы ещё не выкладывали историй" : "Историй пока нет"}</p>;
-  const frames = stories.flatMap((story) => (story.items?.length ? story.items : [{ kind: story.kind, url: story.url }]).map((item, index) => ({ story, item, index })));
-  return (
-    <div className={styles.storiesGrid}>
-      {frames.map(({ story, item, index }) => (
-        <button
-          key={`${story.id}-${index}`}
-          type="button"
-          className={styles.storyCell}
-          data-expired={story.expired ? "" : undefined}
-          title={story.expired ? `Истекла ${storyDate(story.createdAt)}` : `Ещё в ленте · ${storyDate(story.createdAt)}`}
-          onClick={() =>
-            openStoryViewer([{ user, stories: [story] } as unknown as StoryGroup], 0, {
-              startIndex: index,
-              onChanged: () => void archive.refetch(),
-            })
-          }
-        >
-          {item.kind === "video" ? (
-            <img className={styles.cellMedia} src={item.posterUrl ?? item.url} alt="" loading="lazy" decoding="async" />
-          ) : <img className={styles.cellMedia} src={item.url} alt="" loading="lazy" decoding="async" />}
-          {item.kind === "video" ? (
-            <span className={styles.cellPlay}>
-              <Icon name="Play" size={14} />
-            </span>
-          ) : null}
-          <span className={styles.storyDate}>{storyDate(story.createdAt)}</span>
-        </button>
-      ))}
-    </div>
   );
 }
 

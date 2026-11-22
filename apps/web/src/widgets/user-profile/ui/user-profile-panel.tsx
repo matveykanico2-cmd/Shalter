@@ -155,9 +155,9 @@ export function UserProfilePanel({ userId, me }: Props) {
   const pinnedGifts = (Array.isArray(u.giftsReceived) ? (u.giftsReceived as ReceivedGift[]) : []).filter((gift) => gift.pinned && !gift.custom).slice(0, 4);
   const sharedData = shared.data ?? null;
   const has: Record<TabId, boolean> = {
+    posts: true,
     // Пока медиа грузится, вкладка видна с «Загрузка…» — чтобы она не перескакивала.
     media: (sharedData?.media.length ?? 0) > 0 || (shared.isPending && !isSelf),
-    stories: !u.isBot,
     gifts: giftsCount > 0,
     files: (sharedData?.files.length ?? 0) > 0,
     links: (sharedData?.links.length ?? 0) > 0,
@@ -165,7 +165,7 @@ export function UserProfilePanel({ userId, me }: Props) {
     groups: data.commonGroupsCount > 0,
   };
   const tabs = TABS.filter((t) => has[t.id]);
-  const activeTab = tabs.some((t) => t.id === tab) ? tab : ((tabs.find((t) => t.id !== "stories") ?? tabs[0])?.id ?? "stories");
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? "posts");
 
   const status =
     u.isBot && typeof u.botUserCount === "number"
@@ -551,7 +551,7 @@ export function UserProfilePanel({ userId, me }: Props) {
             ))}
           </div>
           <div className={styles.tabContent}>
-            <ProfileTabContent tab={activeTab} user={{ ...u, giftsReceived: u.giftsReceived ?? [] }} isSelf={isSelf} shared={sharedData} sharedLoaded={!shared.isPending}
+            <ProfileTabContent tab={activeTab} user={{ ...u, giftsReceived: u.giftsReceived ?? [] }} isSelf={isSelf} shared={sharedData} sharedLoaded={!shared.isPending} channels={data.pinnedChannels}
               onGiftsChanged={(giftsReceived) => patchProfile((p) => ({ user: { ...p.user, giftsReceived } as UserProfile["user"] }))}
             />
           </div>

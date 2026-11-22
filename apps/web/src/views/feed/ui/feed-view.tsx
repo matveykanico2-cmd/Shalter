@@ -90,12 +90,6 @@ export function FeedView({ me }: { me: SelfUser }) {
       </header>
 
       <div className={styles.content}>
-        <button type="button" className={styles.storiesLink} onClick={() => void navigate("/stories")}>
-          <span className={styles.storiesLinkIcon}><Icon name="Camera" size={20} /></span>
-          <span><strong>Истории</strong><small>Фото, видео, опросы и чек-листы отдельно от новостей</small></span>
-          <Icon name="ChevronRight" size={18} />
-        </button>
-
         <div className={styles.feedHead}>
           <div>
             <h2>Новости</h2>
