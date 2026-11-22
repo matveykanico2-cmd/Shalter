@@ -138,7 +138,12 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
       ) : null}
     <button
       type="button"
-      onClick={() => void navigate(openPath ?? `/chat/${chat.id}`)}
+      onClick={() => {
+        // На touch-устройствах hover нет: начинаем запрос до смены маршрута,
+        // чтобы ChatView получил карточку и историю из кэша уже на первом кадре.
+        prefetchNow();
+        void navigate(openPath ?? `/chat/${chat.id}`);
+      }}
       aria-current={active ? "page" : undefined}
       className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
       style={shift ? { transform: `translateX(${shift}px)` } : undefined}
