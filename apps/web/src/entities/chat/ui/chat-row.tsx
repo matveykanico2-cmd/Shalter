@@ -56,9 +56,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
       hoverPrefetch.current = null;
     }
   };
-  const prefetchNow = () => {
+  const prefetchNow = (options?: { waitForHistory?: boolean }) => {
     cancelHoverPrefetch();
-    prefetchChat(client, chat);
+    return prefetchChat(client, chat, options);
   };
   const onPointerDown = (e: PointerEvent) => {
     // Touch pointerdown — это часто начало вертикального свайпа. Сетевой prefetch
@@ -139,10 +139,11 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
     <button
       type="button"
       onClick={() => {
-        // На touch-устройствах hover нет: начинаем запрос до смены маршрута,
-        // чтобы ChatView получил карточку и историю из кэша уже на первом кадре.
-        prefetchNow();
-        void navigate(openPath ?? `/chat/${chat.id}`);
+        // На touch-устройствах hover нет. Ждём первую страницу истории до смены
+        // маршрута, чтобы ChatView получил сообщения уже на первом кадре.
+        void prefetchNow({ waitForHistory: true }).catch(() => undefined).finally(() => {
+          void navigate(openPath ?? `/chat/${chat.id}`);
+        });
       }}
       aria-current={active ? "page" : undefined}
       className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
