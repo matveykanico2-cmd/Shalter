@@ -15,10 +15,13 @@
 
 .badges {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 2px;
+  min-height: 18px;
   max-width: 180px;
   overflow: hidden;
+  vertical-align: middle;
 }
 
 .badgeButton:focus-visible {

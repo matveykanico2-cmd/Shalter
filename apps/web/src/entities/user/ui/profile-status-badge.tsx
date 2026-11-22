@@ -26,10 +26,19 @@ export function ProfileStatusBadge({ user, size = 16 }: { user: Subject; size?: 
   };
   return (
     <>
-      <span className={styles.badges} aria-label="Статусы" title={items.length === 1 ? items[0]?.name || "Статус" : undefined}>
+      <span
+        className={styles.badges}
+        aria-label="Статусы"
+        title={items.length === 1 ? items[0]?.name || "Статус" : undefined}
+        // Значки часто находятся внутри кликабельной шапки профиля. Гасим
+        // событие на контейнере после обработки кнопки, чтобы клик по
+        // промежутку между ними и клавиатурные события не открывали профиль.
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         {items.slice(0, 10).map((item, index) => (
           <button key={item.id ?? `${item.image}-${index}`} type="button" className={styles.badgeButton} title={item.name || "Статус"} aria-label={item.name || "Статус"} onClick={(e) => show(item, e)} onKeyDown={(e) => { if (e.key === "Escape") setOpen(null); }}>
-            <img className={styles.badge} src={item.image} alt="" style={{ width: size, height: size }} />
+            <img className={styles.badge} src={item.image} alt="" width={size} height={size} style={{ width: size, height: size }} />
           </button>
         ))}
       </span>
