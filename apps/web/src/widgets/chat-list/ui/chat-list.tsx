@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type DragEvent, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, type HTMLAttributes, type ReactNode, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { openMainMenu } from "@/features/accounts";
@@ -45,6 +45,63 @@ const NO_COMMUNITIES: JoinedCommunity[] = [];
 
 function rowKey(row: Row): string {
   return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : row.kind === "ad" ? `ad:${row.ad.id}` : "archive";
+}
+
+/**
+ * tweb-style glide for rows that keep their identity while the list is resorted.
+ * The slot gets its final position immediately; WAAPI only animates the visual
+ * delta, so layout and scroll anchoring stay synchronous and cheap.
+ */
+function GlideRow({
+  top,
+  rowKey: key,
+  animate,
+  index,
+  className,
+  measure,
+  children,
+  slotProps,
+}: {
+  top: number;
+  rowKey: string;
+  animate: boolean;
+  index: number;
+  className: string;
+  measure?: (node: HTMLElement | null) => void;
+  children: ReactNode;
+  slotProps?: HTMLAttributes<HTMLDivElement>;
+}) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const previous = useRef<{ key: string; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+    const old = previous.current;
+    previous.current = { key, top };
+    if (!node || !old || old.key !== key || old.top === top || !animate || typeof node.animate !== "function") return;
+    const animation = node.animate(
+      [{ transform: `translateY(${old.top - top}px)` }, { transform: "translateY(0)" }],
+      { duration: 120, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+    );
+    animation.finished.catch(() => {});
+    return () => animation.cancel();
+  }, [animate, key, top]);
+
+  return (
+    <div
+      {...slotProps}
+      ref={(node) => {
+        nodeRef.current = node;
+        measure?.(node);
+      }}
+      className={className}
+      data-index={index}
+      data-row-key={key}
+      style={{ transform: `translateY(${top}px)` }}
+    >
+      {children}
+    </div>
+  );
 }
 
 /** Список чатов в оболочке: вкладки, архив, «только непрочитанные». Живёт событиями сокета. */
@@ -190,6 +247,8 @@ export function ChatList({ meId }: { meId: string }) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollFrame = useRef<number | null>(null);
+  const scrollingRef = useRef(false);
+  const scrollingTimer = useRef<number | null>(null);
   const didInitialScroll = useRef(false);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
   const virtualizer = useVirtualizer({
@@ -236,8 +295,18 @@ export function ChatList({ meId }: { meId: string }) {
       rememberReturnPosition();
     });
   }, [rememberReturnPosition]);
+  const onListScroll = useCallback(() => {
+    scrollingRef.current = true;
+    if (scrollingTimer.current !== null) window.clearTimeout(scrollingTimer.current);
+    scrollingTimer.current = window.setTimeout(() => {
+      scrollingRef.current = false;
+      scrollingTimer.current = null;
+    }, 120);
+    rememberDuringScroll();
+  }, [rememberDuringScroll]);
   useEffect(() => () => {
     if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+    if (scrollingTimer.current !== null) window.clearTimeout(scrollingTimer.current);
   }, []);
   // Cleanup layout-эффекта выполняется перед тем, как маршрут скроет мобильную колонку. Так
   // прямой переход из меню («Избранное») сохраняет позицию без клика по строке списка.
@@ -430,7 +499,7 @@ export function ChatList({ meId }: { meId: string }) {
         role="list"
         aria-label="Список чатов"
         hidden={!searching && !!panelCommunity}
-        onScroll={rememberDuringScroll}
+        onScroll={onListScroll}
       >
         {searching ? (
           query ? (
@@ -461,14 +530,15 @@ export function ChatList({ meId }: { meId: string }) {
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]!;
               return (
-                <div
+                <GlideRow
                   key={item.key}
-                  ref={row.kind === "chat" ? undefined : virtualizer.measureElement}
-                  data-index={item.index}
-                  data-row-key={rowKey(row)}
+                  rowKey={rowKey(row)}
+                  top={item.start}
+                  animate={!scrollingRef.current}
+                  index={item.index}
+                  measure={row.kind === "chat" ? undefined : virtualizer.measureElement}
                   className={[styles.rowSlot, dropAt && row.kind === "chat" && dropAt.id === row.chat.id ? (dropAt.after ? styles.dropAfter : styles.dropBefore) : ""].filter(Boolean).join(" ")}
-                  style={{ transform: `translateY(${item.start}px)` }}
-                  {...(row.kind === "chat" && row.chat.pinned ? pinnedDrag(row.chat.id) : {})}
+                  slotProps={row.kind === "chat" && row.chat.pinned ? pinnedDrag(row.chat.id) : undefined}
                 >
                   {row.kind === "archive" ? (
                     <ArchiveRow chats={row.chats} onOpen={() => setShowArchive(true)} />
@@ -485,7 +555,7 @@ export function ChatList({ meId }: { meId: string }) {
                       onSwipe={(action) => void (action === "mute" ? listActions.toggleMute(row.chat) : listActions.toggleArchive(row.chat))}
                     />
                   )}
-                </div>
+                </GlideRow>
               );
             })}
           </div>
