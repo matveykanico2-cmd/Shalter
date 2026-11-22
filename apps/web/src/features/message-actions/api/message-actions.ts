@@ -53,6 +53,7 @@ export const votePoll = (chatId: string, id: string, optionIndex: number, questi
 export const retractVote = (chatId: string, id: string, questionIndex = 0) => http.delete<Envelope>(`${messagePath(chatId, id)}/vote`, questionIndex > 0 ? { questionIndex } : undefined);
 
 export const closePoll = (chatId: string, id: string) => http.post<Envelope>(`${messagePath(chatId, id)}/poll/close`);
+export const openPoll = (chatId: string, id: string) => http.post<Envelope>(`${messagePath(chatId, id)}/poll/open`);
 
 /** Отметить пункт ({ itemId }) или дописать пункты ({ add }). */
 export const updateChecklist = (chatId: string, id: string, body: { itemId: number } | { add: string[] }) => http.post<Envelope>(`${messagePath(chatId, id)}/checklist`, body);

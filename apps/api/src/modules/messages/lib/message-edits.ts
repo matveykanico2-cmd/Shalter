@@ -148,6 +148,17 @@ export const closePoll = (m: Message): Message => ({
   attachments: m.attachments?.map((a) => (a.kind === "poll" ? { ...a, meta: { ...a.meta, closed: true } } : a)),
 });
 
+/** Возобновить опрос; просроченный дедлайн снимается, чтобы опрос действительно продолжился. */
+export const reopenPoll = (m: Message): Message => ({
+  ...m,
+  attachments: m.attachments?.map((a) => {
+    if (a.kind !== "poll") return a;
+    const closesAt = a.meta?.closesAt;
+    const expired = typeof closesAt === "string" && Date.parse(closesAt) <= Date.now();
+    return { ...a, meta: { ...a.meta, closed: false, ...(expired ? { closesAt: null } : {}) } };
+  }),
+});
+
 interface ChecklistItem {
   id: number;
   text: string;

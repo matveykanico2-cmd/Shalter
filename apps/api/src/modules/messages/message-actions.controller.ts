@@ -85,4 +85,10 @@ export class MessageActionsController {
   public closePoll(@Req() req: Request, @Param("id") chatId: string, @Param("messageId") messageId: string) {
     return this.actions.closePoll(req.uid!, chatId, messageId);
   }
+
+  @Post("poll/open")
+  @HttpCode(200)
+  public openPoll(@Req() req: Request, @Param("id") chatId: string, @Param("messageId") messageId: string) {
+    return this.actions.openPoll(req.uid!, chatId, messageId);
+  }
 }

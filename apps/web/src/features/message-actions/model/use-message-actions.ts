@@ -35,6 +35,7 @@ import {
   editMessage,
   forwardMessage,
   type ForwardOrigin,
+  openPoll,
   paidDeleteMessage,
   pinMessage,
   reactToMessage,
@@ -264,6 +265,23 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
       async closePoll(m: Message) {
         historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => ({ ...meta, closed: true })));
         await applyServer(closePoll(chatId, m.id), "Не удалось остановить опрос");
+      },
+
+      async openPoll(m: Message) {
+        const before = historyCache.find(client, chatId, m.id);
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta) => {
+          const poll = meta as PollMeta;
+          const expired = typeof poll.closesAt === "string" && Date.parse(poll.closesAt) <= Date.now();
+          return { ...poll, closed: false, ...(expired ? { closesAt: null } : {}) };
+        }));
+        try {
+          const { message } = await openPoll(chatId, m.id);
+          historyCache.replace(client, chatId, message);
+        } catch (err) {
+          if (before) historyCache.restore(client, chatId, before);
+          fail(err, "Не удалось продолжить опрос");
+        }
+        reconcile();
       },
 
       async toggleChecklist(m: Message, itemId: number) {

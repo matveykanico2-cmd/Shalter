@@ -14,6 +14,7 @@ export type PollActions = {
   onVote?: (m: Message, optionIndex: number, questionIndex?: number) => void;
   onRetract?: (m: Message, questionIndex?: number) => void;
   onClose?: (m: Message) => void;
+  onOpen?: (m: Message) => void;
   /** Остановить чужой опрос — админы и модераторы группы. */
   canCloseOthers?: boolean;
 };
@@ -24,7 +25,7 @@ type Props = { message: Message; attachment: Attachment; meId: string; userOf?: 
 const POLL_AVATARS = 3;
 
 /** Опрос и викторина — PollAttachment из messageBubble.js. Вопрос — текст сообщения. */
-export function PollAttachment({ message: m, attachment, meId, userOf, onVote, onRetract, onClose, canCloseOthers }: Props) {
+export function PollAttachment({ message: m, attachment, meId, userOf, onVote, onRetract, onClose, onOpen, canCloseOthers }: Props) {
   const meta = pollMeta(attachment);
   const questions = meta.questions?.length ? meta.questions : [{ question: m.text, options: meta.options, votes: meta.votes, voterIds: meta.voterIds, correctIndex: meta.correctIndex }];
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -44,6 +45,7 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
   }, [meta.closesAt, now]);
   const v = pollView(viewMeta, meId, now);
   const canClose = !v.closed && !m.pending && (m.senderId === meId || canCloseOthers) && !!onClose;
+  const canOpen = v.closed && !m.pending && (m.senderId === meId || canCloseOthers) && !!onOpen;
   const allVoters = [...new Set(v.voterIds.flat())];
   const deadline = v.closesAt && !v.closed ? deadlineLabel(v.closesAt - now) : null;
   return (
@@ -103,6 +105,11 @@ export function PollAttachment({ message: m, attachment, meId, userOf, onVote, o
             }}
           >
             Остановить
+          </button>
+        ) : null}
+        {canOpen ? (
+          <button type="button" className={styles.action} onClick={() => onOpen?.(m)}>
+            Продолжить
           </button>
         ) : null}
       </div>

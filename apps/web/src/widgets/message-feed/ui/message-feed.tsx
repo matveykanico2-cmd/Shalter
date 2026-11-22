@@ -189,6 +189,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
         onVote: actions.vote,
         onRetract: actions.retractVote,
         onClose: actions.closePoll,
+        onOpen: actions.openPoll,
         // Чужой опрос останавливают админы и модераторы группы или канала.
         canCloseOthers: chat.type !== "dm" && (isChatAdmin(chat, meId) || isChatModerator(chat, meId)),
       },

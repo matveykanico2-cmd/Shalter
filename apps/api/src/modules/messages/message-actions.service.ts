@@ -221,6 +221,18 @@ export class MessageActionsService {
     return { message };
   }
 
+  /** Возобновить опрос может его автор или администратор. */
+  public openPoll(uid: string, chatId: string, messageId: string) {
+    const found = this.access.messageInChat(chatId, messageId, uid);
+    if (found.message.senderId !== uid && !isStaff(found.chat, uid)) {
+      throw new ApiError(403, "Возобновить опрос может только его автор или администратор");
+    }
+    if (!found.message.attachments?.some((a) => a.kind === "poll")) throw new ApiError(400, "Это не опрос");
+    const message = this.messages.mutate(messageId, edits.reopenPoll);
+    this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
+    return { message };
+  }
+
   /** Чек-лист: отметить/снять пункт, дописать пункты. Автор может всё; остальные — если он разрешил. */
   public checklist(uid: string, chatId: string, messageId: string, dto: ChecklistDto) {
     const found = this.access.messageInChat(chatId, messageId, uid);
