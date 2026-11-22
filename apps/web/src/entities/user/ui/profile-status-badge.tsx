@@ -5,14 +5,14 @@ import { Icon } from "@/shared/ui";
 
 import styles from "./profile-status-badge.module.css";
 
-type StatusBadgeItem = { id?: string; image: string; name?: string; active?: boolean };
+export type StatusBadgeItem = { id?: string; image: string; name?: string; packId?: string; active?: boolean };
 type Subject = { statusIcon?: string | null; statusName?: string | null; statusItems?: readonly StatusBadgeItem[]; name?: string };
 
 /**
  * Значок статуса рядом с именем (ProfileStatusBadge, public/js/components/profileStatusBadge.js):
  * нажатие показывает картинку крупно (statusViewer.js).
  */
-export function ProfileStatusBadge({ user, size = 16 }: { user: Subject; size?: number }) {
+export function ProfileStatusBadge({ user, size = 16, onOpenPack }: { user: Subject; size?: number; onOpenPack?: (item: StatusBadgeItem) => void }) {
   const items: readonly StatusBadgeItem[] = user.statusItems?.length
     ? user.statusItems
     : user.statusIcon
@@ -22,6 +22,12 @@ export function ProfileStatusBadge({ user, size = 16 }: { user: Subject; size?: 
   if (!items.length) return null;
   const show = (item: StatusBadgeItem, e: MouseEvent | KeyboardEvent) => {
     e.stopPropagation();
+    e.preventDefault();
+    if (item.packId && onOpenPack) {
+      setOpen(null);
+      onOpenPack(item);
+      return;
+    }
     setOpen(item);
   };
   return (

@@ -26,7 +26,7 @@ export const myStickerPacksQuery = () =>
     staleTime: 60_000,
   });
 
-export const addStatus = (entry: { image: string; name?: string } | { catalogId: string; name?: string } | { sticker: string; name?: string }) => http.post<StatusChange>("/api/status/me", entry);
+export const addStatus = (entry: { image: string; name?: string } | { catalogId: string; name?: string } | { sticker: string; packId?: string; name?: string }) => http.post<StatusChange>("/api/status/me", entry);
 export const removeStatus = (id: string) => http.delete<StatusChange>(`/api/status/me/${encodeURIComponent(id)}`);
 export const setActiveStatus = (id: string | null) => http.post<z.infer<typeof statusActiveBody>>("/api/status/me/active", { id });
 

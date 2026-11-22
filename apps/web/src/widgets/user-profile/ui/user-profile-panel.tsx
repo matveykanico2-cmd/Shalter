@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 
 import { useStartCall } from "@/features/call";
 import { ProfileQrDialog } from "@/features/profile-qr";
+import { openStickerPack, openStickerPreview, packSticker, stickerPackQueries } from "@/features/send-message";
 
 import { ChatPickerDialog, chatQueries, openDm, useChats } from "@/entities/chat";
 import { GiftArt, openGiftShop, type ReceivedGift } from "@/entities/gift";
@@ -12,7 +13,7 @@ import { ReportDialog } from "@/entities/report";
 import { SafetyBadge, useSafetyLabel } from "@/entities/safety-label";
 import { isServerModerator, type SelfUser, sessionQueries } from "@/entities/session";
 import { hasUnseen, openStoryViewer, storyQueries, storyWord } from "@/entities/story";
-import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, PremiumStar, ProfileStatusBadge, ProfileTrackCard, type UserProfile, userQueries } from "@/entities/user";
+import { bannerBackground, birthdayText, closeUserProfile, isBirthdayToday, PremiumStar, ProfileStatusBadge, ProfileTrackCard, type StatusBadgeItem, type UserProfile, userQueries } from "@/entities/user";
 
 import { useWsEvent } from "@/shared/api";
 import { internalAdRoute } from "@/shared/lib/ad-link";
@@ -61,6 +62,14 @@ export function UserProfilePanel({ userId, me }: Props) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const defaultTabApplied = useRef<string | null>(null);
   const dotsMenuRef = useRef<HTMLDivElement>(null);
+  const openStatusPack = (item: StatusBadgeItem) => {
+    if (!item.packId) return;
+    void client.fetchQuery(stickerPackQueries.get(item.packId)).then((pack) => {
+      const sticker = pack.stickers.find((candidate) => candidate.url === item.image);
+      if (sticker) openStickerPack(pack, packSticker(sticker));
+      else openStickerPreview({ kind: "image", url: item.image, name: item.name, emoji: item.name });
+    }).catch(() => openStickerPreview({ kind: "image", url: item.image, name: item.name, emoji: item.name }));
+  };
 
   const close = closeUserProfile;
   useEffect(() => {
@@ -331,7 +340,7 @@ export function UserProfilePanel({ userId, me }: Props) {
           </span>
         ) : null}
         {u.isPremium ? <PremiumStar size={19} /> : null}
-        <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, statusItems: u.statusItems, name: u.name }} size={18} />
+        <ProfileStatusBadge user={{ statusIcon: u.statusIcon, statusName: u.statusName, statusItems: u.statusItems, name: u.name }} size={18} onOpenPack={openStatusPack} />
         {u.safetyLabel ? <SafetyBadge label={u.safetyLabel} /> : null}
       </p>
       <p className={u.online ? `${styles.status} ${styles.online}` : styles.status}>{status ?? "был(а) недавно"}</p>

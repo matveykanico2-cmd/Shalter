@@ -74,6 +74,7 @@ export interface StatusEntry {
   image: string;
   name: string;
   catalogId?: string;
+  packId?: string;
   addedAt: string;
 }
 

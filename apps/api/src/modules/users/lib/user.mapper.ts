@@ -65,6 +65,7 @@ interface StatusItem {
   id?: unknown;
   image?: unknown;
   name?: unknown;
+  packId?: unknown;
 }
 
 function profileStatuses(row: UserRow) {
@@ -73,7 +74,13 @@ function profileStatuses(row: UserRow) {
   return items
     .filter((item): item is StatusItem & { id: string; image: string; name: string } => typeof item.id === "string" && typeof item.image === "string" && typeof item.name === "string")
     .slice(0, 10)
-    .map((item) => ({ id: item.id, image: item.image, name: item.name, active: item.id === row.activeStatusId }));
+    .map((item) => ({
+      id: item.id,
+      image: item.image,
+      name: item.name,
+      ...(typeof item.packId === "string" ? { packId: item.packId } : {}),
+      active: item.id === row.activeStatusId,
+    }));
 }
 
 export function toUser(row: UserRow) {

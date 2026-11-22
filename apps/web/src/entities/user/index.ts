@@ -6,5 +6,5 @@ export { closeUserProfile, isUserProfileOpen, openUserProfile, useOpenedProfile 
 export { ContactPicker, type PickedContact } from "./ui/contact-picker";
 export { PremiumStar } from "./ui/premium-star";
 export { ProfileRows } from "./ui/profile-rows";
-export { ProfileStatusBadge } from "./ui/profile-status-badge";
+export { ProfileStatusBadge, type StatusBadgeItem } from "./ui/profile-status-badge";
 export { type ProfileTrack, ProfileTrackCard } from "./ui/profile-track-card";

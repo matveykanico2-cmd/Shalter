@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
@@ -8,7 +8,7 @@ import { CallButtons, useVoiceRoomItem } from "@/features/call";
 import { ChatMenu } from "@/features/chat-actions";
 import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { useStartLiveItem } from "@/features/live";
-import { ScheduledList } from "@/features/send-message";
+import { openStickerPack, openStickerPreview, packSticker, ScheduledList, stickerPackQueries } from "@/features/send-message";
 import { ChannelStoryButton } from "@/features/stories";
 import { useTopicsToggle } from "@/features/topics";
 
@@ -16,7 +16,7 @@ import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, type Typing 
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
 import { openStoryViewer, storyQueries } from "@/entities/story";
-import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
+import { openUserProfile, ProfileStatusBadge, type StatusBadgeItem } from "@/entities/user";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
 
@@ -43,6 +43,7 @@ type Props = {
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
 export function ChatHeader({ chat, members, me, typing, hideMembers = false, onSearch, infoOpen, onInfo }: Props) {
   const meId = me.id;
+  const client = useQueryClient();
   const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | "ai" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
   const search: MenuItem = { icon: "Search", label: "Поиск по чату", onClick: onSearch };
@@ -64,6 +65,14 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
   const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
   const channelStories = useQuery({ ...storyQueries.ofUser(chat.id), enabled: chat.type === "channel" }).data?.group ?? null;
+  const openStatusPack = (item: StatusBadgeItem) => {
+    if (!item.packId) return;
+    void client.fetchQuery(stickerPackQueries.get(item.packId)).then((pack) => {
+      const sticker = pack.stickers.find((candidate) => candidate.url === item.image);
+      if (sticker) openStickerPack(pack, packSticker(sticker));
+      else openStickerPreview({ kind: "image", url: item.image, name: item.name, emoji: item.name });
+    }).catch(() => openStickerPreview({ kind: "image", url: item.image, name: item.name, emoji: item.name }));
+  };
   const openAvatar = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
     if (chat.type === "dm" && other) openUserProfile(other.id);
@@ -158,7 +167,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
                 <Icon name="Star" size={15} />
               </span>
             ) : null}
-            {chat.type === "dm" && other ? <ProfileStatusBadge user={other} size={15} /> : null}
+            {chat.type === "dm" && other ? <ProfileStatusBadge user={other} size={15} onOpenPack={openStatusPack} /> : null}
             {chat.type === "dm" && other?.safetyLabel ? <SafetyBadge label={other.safetyLabel} mini /> : null}
           </h1>
           {subtitle?.text ? (

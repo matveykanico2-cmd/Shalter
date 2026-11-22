@@ -122,7 +122,7 @@ export function StatusDialog({ onClose }: { onClose: () => void }) {
                   title={st.emoji}
                   aria-label={`Стикер ${st.emoji}`}
                   disabled={busy || full}
-                  onClick={() => void run(() => addStatus({ sticker: st.url, name: description.trim() || st.emoji }))}
+                  onClick={() => void run(() => addStatus({ sticker: st.url, packId: p.id, name: description.trim() || st.emoji }))}
                 >
                   <img className={styles.image} src={st.url} alt="" />
                 </button>

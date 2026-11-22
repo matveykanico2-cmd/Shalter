@@ -62,11 +62,18 @@ export class ProfileStatusService {
       name = dto.name;
     }
 
+    // Сохраняем связь с паком только после проверки, что файл действительно
+    // принадлежит этому паку: это не даёт подменить ссылку на чужой набор.
+    const packId = dto.sticker && dto.packId && this.stickerPacks.findPack(dto.packId)?.stickers.some((sticker) => sticker.url === image)
+      ? dto.packId
+      : undefined;
+
     const entry: StatusEntry = {
       id: `us_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       image,
       name,
       catalogId,
+      ...(packId ? { packId } : {}),
       addedAt: new Date().toISOString(),
     };
     const items = [...state.items, entry];

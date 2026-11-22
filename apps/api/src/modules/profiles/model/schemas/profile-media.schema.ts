@@ -41,6 +41,11 @@ export const addStatusSchema = requestBody({
     .unknown()
     .optional()
     .transform((v) => (v ? String(v) : undefined)),
+  /** Пак, из которого выбран статусный стикер — нужен для открытия набора из профиля. */
+  packId: z
+    .unknown()
+    .optional()
+    .transform((v) => (v ? String(v) : undefined)),
   name: z
     .unknown()
     .optional()
