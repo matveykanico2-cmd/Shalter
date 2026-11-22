@@ -418,6 +418,7 @@ export function MessageBubble(props: Props) {
             play={justReacted(m.id, r.emoji)}
             disabled={!props.onReact || !!m.pending}
             userOf={props.userOf}
+            showAvatars={!isChannel}
             onReact={() => props.onReact?.(m, r.emoji)}
             onDetails={props.onReactionDetails && !m.pending ? (at) => props.onReactionDetails?.(m, r.emoji, at) : undefined}
           />
@@ -699,13 +700,14 @@ type PillProps = {
   play: boolean;
   disabled: boolean;
   userOf?: (userId: string) => MessageSender | null;
+  showAvatars?: boolean;
   onReact: () => void;
   onDetails?: (at: Point) => void;
 };
 
-function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDetails }: PillProps) {
+function ReactionPill({ reaction: r, own, play, disabled, userOf, showAvatars = true, onReact, onDetails }: PillProps) {
   const hold = useLongPress((at) => onDetails?.(at));
-  const avatars = userOf
+  const avatars = showAvatars && userOf
     ? r.userIds
         .slice(0, PILL_AVATARS)
         .map(userOf)
