@@ -12,7 +12,7 @@ import { ScheduledList } from "@/features/send-message";
 import { ChannelStoryButton } from "@/features/stories";
 import { useTopicsToggle } from "@/features/topics";
 
-import { isChatAdmin, type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
+import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, type Typing } from "@/entities/chat";
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
 import { openStoryViewer, storyQueries } from "@/entities/story";
