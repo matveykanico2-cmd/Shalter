@@ -23,7 +23,16 @@ const tasks = new Map<number, Task>();
 const listeners = new Set<() => void>();
 let sequence = 0;
 
-const publicTask = ({ file: _file, controller: _controller, paused: _paused, cancelled: _cancelled, wake: _wake, ...task }: Task): UploadTask => task;
+const publicTask = (task: Task): UploadTask => ({
+  id: task.id,
+  chatId: task.chatId,
+  name: task.name,
+  kind: task.kind,
+  previewUrl: task.previewUrl,
+  progress: task.progress,
+  phase: task.phase,
+  failed: task.failed,
+});
 let snapshot: UploadTask[] = [];
 const notify = () => {
   snapshot = [...tasks.values()].map(publicTask);
@@ -60,7 +69,7 @@ async function run(task: Task): Promise<Uploaded> {
     } catch (error) {
       task.controller = null;
       if (task.paused) continue;
-      if (task.cancelled) throw new Error(UPLOAD_CANCELLED);
+      if (task.cancelled) throw new Error(UPLOAD_CANCELLED, { cause: error });
       task.failed = true;
       task.phase = "failed";
       notify();

@@ -5,6 +5,7 @@ import { MainMenuHost, openMainMenu } from "@/features/accounts";
 import { CallDock, IncomingCall } from "@/features/call";
 import { LiveHost } from "@/features/live";
 import { openPwaInstallDialog, PwaInstallDialog } from "@/features/pwa-install";
+import { UploadTasksHost } from "@/features/send-message";
 import { StoryViewerHost } from "@/features/stories";
 
 import type { SelfUser } from "@/entities/session";
@@ -213,6 +214,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
         {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
       </Suspense>
       <PwaInstallDialog />
+      <UploadTasksHost visible={!mainOpen} />
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
       <IncomingCall me={user} />

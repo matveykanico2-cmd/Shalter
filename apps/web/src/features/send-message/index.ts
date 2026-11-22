@@ -9,3 +9,4 @@ export { useSendMessage } from "./model/use-send-message";
 export { Composer, type ComposerHandle } from "./ui/composer";
 export { ScheduledList } from "./ui/scheduled-list";
 export { StickerPackDetail } from "./ui/sticker-pack-detail";
+export { UploadTasksHost } from "./ui/upload-tasks-host";
