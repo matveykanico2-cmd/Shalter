@@ -74,7 +74,9 @@ export class PostsService {
       readByIds: [uid],
       views: 0,
       commentCount: 0,
-      signedBy: chat.signMessages ? (this.users.findById(uid)?.name ?? null) : null,
+      // Для ленты сохраняем выбранный способ публикации: старые посты без
+      // подписи считаются постами канала, новые можно отправить от пользователя.
+      signedBy: body.asChannel === false ? (this.users.findById(uid)?.name ?? null) : (chat.title ?? null),
     });
 
     // Комментарии выключены — пост не копируем в группу обсуждения: под ним их не будет.

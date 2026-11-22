@@ -125,7 +125,11 @@ export function AppRoutes({ user }: { user: SelfUser }) {
   const side = desktop && isSidePath(location.pathname);
   // Пока слева открыт боковой раздел, справа остаётся прежний экран.
   const [mainLocation, setMainLocation] = useState(location);
-  if (!side && mainLocation !== location) setMainLocation(location);
+  useEffect(() => {
+    // Сохраняем экран справа во время боковой панели и синхронизируем его после выхода.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!side && mainLocation !== location) setMainLocation(location);
+  }, [location, mainLocation, side]);
   const shownMain = side && isSidePath(mainLocation.pathname) ? { ...mainLocation, pathname: "/" } : mainLocation;
   useEffect(() => setMainPath(shownMain.pathname + shownMain.search), [shownMain.pathname, shownMain.search]);
   // Нативное приложение тихо подтягивает новых людей из телефонной книги.

@@ -49,7 +49,9 @@ export async function postStory(files: File[], { edit, progress, channelId, atta
     const { url } = await uploadFile(upload, isVideo ? "video" : "image");
     items.push({ kind: isVideo ? "video" : "image", url });
   }
-  if (!items.length && !attachments.length) return false;
+  // Отмена редактора отменяет публикацию этой истории целиком. Не отправляем
+  // оставшиеся вложения отдельно после того, как пользователь нажал «Отмена».
+  if (!items.length) return false;
   const allItems = [...items, ...attachments];
   await (channelId ? storyApi.postToChannel(channelId, allItems) : storyApi.post(allItems));
   return true;

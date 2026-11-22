@@ -11,6 +11,6 @@ import { StoryAudienceService } from "./story-audience.service.js";
   imports: [ChatsModule, UsersModule],
   controllers: [StoriesController],
   providers: [StoriesService, StoryAudienceService, StoriesRepository],
-  exports: [StoriesRepository, StoryAudienceService],
+  exports: [StoriesRepository, StoryAudienceService, StoriesService],
 })
 export class StoriesModule {}

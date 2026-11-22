@@ -36,6 +36,7 @@ export function messageRequest(chatId: string, body: Body, channel: boolean) {
         text: body.text,
         attachments: body.attachments ?? [],
         clientId: body.clientId,
+        ...(body.asChannel ? { asChannel: true } : {}),
         ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
       },
     };

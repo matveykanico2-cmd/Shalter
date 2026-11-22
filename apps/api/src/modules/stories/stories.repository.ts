@@ -5,6 +5,15 @@ import { stories, storyComments } from "../db/schema.js";
 import { toggleId, toStory, toStoryComment } from "./lib/story.mapper.js";
 import type { NewStory, NewStoryComment, Story, StoryComment } from "./model/domain.js";
 
+function parseIds(json: string | null): string[] {
+  try {
+    const value: unknown = json ? JSON.parse(json) : [];
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // Истории и комментарии к ним — то же, что server/data/stories.js, на тех же таблицах.
 @Injectable()
 export class StoriesRepository {
@@ -38,6 +47,18 @@ export class StoriesRepository {
     return row && toStory(row);
   }
 
+  /** Последние активные истории для панели модерации. */
+  public listRecent(limit = 100): Story[] {
+    return this.db
+      .select()
+      .from(stories)
+      .where(gt(stories.expiresAt, new Date().toISOString()))
+      .orderBy(desc(stories.createdAt))
+      .limit(limit)
+      .all()
+      .map(toStory);
+  }
+
   public create(story: NewStory): Story {
     this.db
       .insert(stories)
@@ -56,35 +77,37 @@ export class StoriesRepository {
   }
 
   public markViewed(id: string, viewerId: string): Story | undefined {
-    const story = this.findById(id);
-    if (!story) return undefined;
-    if (!story.viewedByIds.includes(viewerId)) {
-      this.db
-        .update(stories)
-        .set({ viewedByIds: JSON.stringify([...story.viewedByIds, viewerId]) })
-        .where(eq(stories.id, id))
-        .run();
-    }
+    this.db.transaction((tx) => {
+      const row = tx.select().from(stories).where(eq(stories.id, id)).get();
+      if (!row) return;
+      const viewed = parseIds(row.viewedByIds);
+      if (!viewed.includes(viewerId)) {
+        tx.update(stories).set({ viewedByIds: JSON.stringify([...viewed, viewerId]) }).where(eq(stories.id, id)).run();
+      }
+    });
     return this.findById(id);
   }
 
   /** Поля поверх одного элемента истории (обработанное видео из фонового процесса). */
   public updateItem(id: string, index: number, patch: Record<string, unknown>): Story | undefined {
-    const story = this.findById(id);
-    if (!story) return undefined;
-    const items = story.items.map((it, i) => (i === index ? { ...it, ...patch } : it));
-    this.db.update(stories).set({ items: JSON.stringify(items) }).where(eq(stories.id, id)).run();
+    this.db.transaction((tx) => {
+      const row = tx.select().from(stories).where(eq(stories.id, id)).get();
+      if (!row) return;
+      const story = toStory(row);
+      if (!story) return;
+      const items = story.items.map((it, i) => (i === index ? { ...it, ...patch } : it));
+      tx.update(stories).set({ items: JSON.stringify(items) }).where(eq(stories.id, id)).run();
+    });
     return this.findById(id);
   }
 
   public toggleLike(id: string, userId: string): Story | undefined {
-    const story = this.findById(id);
-    if (!story) return undefined;
-    this.db
-      .update(stories)
-      .set({ likedByIds: JSON.stringify(toggleId(story.likedByIds, userId)) })
-      .where(eq(stories.id, id))
-      .run();
+    this.db.transaction((tx) => {
+      const row = tx.select().from(stories).where(eq(stories.id, id)).get();
+      if (!row) return;
+      const liked = parseIds(row.likedByIds);
+      tx.update(stories).set({ likedByIds: JSON.stringify(toggleId(liked, userId)) }).where(eq(stories.id, id)).run();
+    });
     return this.findById(id);
   }
 
@@ -117,13 +140,12 @@ export class StoriesRepository {
   }
 
   public toggleCommentLike(id: string, userId: string): StoryComment | undefined {
-    const comment = this.findComment(id);
-    if (!comment) return undefined;
-    this.db
-      .update(storyComments)
-      .set({ likedByIds: JSON.stringify(toggleId(comment.likedByIds, userId)) })
-      .where(eq(storyComments.id, id))
-      .run();
+    this.db.transaction((tx) => {
+      const row = tx.select().from(storyComments).where(eq(storyComments.id, id)).get();
+      if (!row) return;
+      const liked = parseIds(row.likedByIds);
+      tx.update(storyComments).set({ likedByIds: JSON.stringify(toggleId(liked, userId)) }).where(eq(storyComments.id, id)).run();
+    });
     return this.findComment(id);
   }
 }

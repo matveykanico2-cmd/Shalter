@@ -157,7 +157,9 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
 
   // Плашка «Непрочитанные» — по первому ответу после открытия и до ухода из чата.
   const [unreadId, setUnreadId] = useState<string | null | undefined>(undefined);
-  if (unreadId === undefined && history.isFetchedAfterMount && data) setUnreadId(data.firstUnreadId);
+  useEffect(() => {
+    if (unreadId === undefined && history.isFetchedAfterMount && data) setUnreadId(data.firstUnreadId);
+  }, [data, history.isFetchedAfterMount, unreadId]);
 
   const [calendarDay, setCalendarDay] = useState(() => new Date().toDateString());
   useEffect(() => {

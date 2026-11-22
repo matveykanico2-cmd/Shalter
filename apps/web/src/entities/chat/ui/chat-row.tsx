@@ -139,11 +139,10 @@ export function ChatRow({ chat, meId, onMenu, onSwipe, community, openPath }: Pr
     <button
       type="button"
       onClick={() => {
-        // На touch-устройствах hover нет. Ждём первую страницу истории до смены
-        // маршрута, чтобы ChatView получил сообщения уже на первом кадре.
-        void prefetchNow({ waitForHistory: true }).catch(() => undefined).finally(() => {
-          void navigate(openPath ?? `/chat/${chat.id}`);
-        });
+        // Предзагрузка ускоряет первый кадр, но не должна блокировать переход:
+        // при медленной сети пользователь всё равно сразу видит выбранный чат.
+        void prefetchNow({ waitForHistory: true }).catch(() => undefined);
+        void navigate(openPath ?? `/chat/${chat.id}`);
       }}
       aria-current={active ? "page" : undefined}
       className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}

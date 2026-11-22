@@ -5,6 +5,7 @@ import { MessagesModule } from "../messages/messages.module.js";
 import { ProfilesModule } from "../profiles/profiles.module.js";
 import { ReportsModule } from "../reports/reports.module.js";
 import { SessionsModule } from "../sessions/sessions.module.js";
+import { StoriesModule } from "../stories/stories.module.js";
 import { UsersModule } from "../users/users.module.js";
 import { AdminAccessService } from "./admin-access.service.js";
 import { AdminCatalogService } from "./admin-catalog.service.js";
@@ -21,7 +22,7 @@ import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 // статусов, сервер и цены, разделы админов. Удаление чатов и ботов модерацией, нагрузка
 // сервера, проверка почты и цены — в server/ через мост.
 @Module({
-  imports: [UsersModule, ChatsModule, MessagesModule, BotsModule, ReportsModule, ProfilesModule, SessionsModule],
+  imports: [UsersModule, ChatsModule, MessagesModule, BotsModule, ReportsModule, ProfilesModule, SessionsModule, StoriesModule],
   controllers: [AdminController, LabelsController],
   providers: [
     AdminAccessService,

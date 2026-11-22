@@ -6,9 +6,9 @@ import { type NewStoryItem,storyApi, storyQueries } from "@/entities/story";
 
 import { uploadFile } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { Icon, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
+import { askConfirm,Icon, SettingsPage, SettingsSection, TextField, toast } from "@/shared/ui";
 
-import { adminQueries, type AdminUser, lookupUser,type Moderation } from "../api/admin";
+import { adminQueries, type AdminUser, deleteStory, lookupUser,type Moderation } from "../api/admin";
 import { dateTime } from "../lib/format";
 
 import { AdReviewQueue } from "./ad-review-queue";
@@ -82,6 +82,7 @@ export function ModerationSection() {
       </div>
       <UserLookup onFound={setCard} />
       <OfficialStoryPublisher onPublished={() => void client.invalidateQueries({ queryKey: storyQueries.baseKey })} />
+      <StoryModerationQueue />
       <ChatLookup />
       <Directory onOpenUser={setCard} />
       <MailCheck />
@@ -133,6 +134,45 @@ export function ModerationSection() {
       </SettingsSection>
       {card ? <UserCard key={card.id} user={card} onChanged={syncUser} onClose={() => setCard(null)} /> : null}
     </SettingsPage>
+  );
+}
+
+function StoryModerationQueue() {
+  const client = useQueryClient();
+  const query = useQuery(adminQueries.stories());
+  const [busy, setBusy] = useState<string | null>(null);
+  const stories = query.data?.stories ?? [];
+  const remove = async (id: string) => {
+    if (!(await askConfirm("Удалить эту историю за нарушение правил? Действие необратимо."))) return;
+    setBusy(id);
+    try {
+      await deleteStory(id);
+      await client.invalidateQueries({ queryKey: adminQueries.stories().queryKey });
+      toast("История удалена");
+    } catch (err) {
+      toast(errorText(err, "Не удалось удалить историю"), { error: true });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <SettingsSection title={`Истории на проверке (${stories.length})`} caption="Администратор может удалить любую активную историю. Автор получит уведомление.">
+      {query.isPending ? <p className={styles.hint}>Загружаем…</p> : null}
+      {query.isError ? <p className={styles.error}>{errorText(query.error, "Не удалось загрузить истории")}</p> : null}
+      {!query.isPending && !stories.length ? <p className={styles.empty}>Активных историй нет</p> : null}
+      {stories.map((story) => (
+        <div key={story.id} className={styles.storyModerationRow}>
+          {story.kind === "video" ? <video className={styles.storyModerationMedia} src={story.url} muted playsInline /> : <img className={styles.storyModerationMedia} src={story.url} alt="" />}
+          <div className={styles.rowBody}>
+            <strong className={styles.rowName}>{story.author.name}</strong>
+            <span className={styles.rowMeta}>{[story.author.username ? `@${story.author.username}` : null, dateTime(story.createdAt)].filter(Boolean).join(" · ")}</span>
+          </div>
+          <button type="button" className={`${styles.outline} ${styles.danger}`} disabled={busy === story.id} onClick={() => void remove(story.id)}>
+            {busy === story.id ? "Удаляем…" : "Удалить"}
+          </button>
+        </div>
+      ))}
+    </SettingsSection>
   );
 }
 

@@ -8,6 +8,7 @@ import { AdminCatalogService } from "./admin-catalog.service.js";
 import { AdminLegalService } from "./admin-legal.service.js";
 import { AdminModerationService } from "./admin-moderation.service.js";
 import { AdminServerService } from "./admin-server.service.js";
+import { StoriesService } from "../stories/stories.service.js";
 import {
   banSchema,
   bulkDeleteSchema,
@@ -58,6 +59,7 @@ export class AdminController {
     private readonly moderation: AdminModerationService,
     private readonly catalog: AdminCatalogService,
     private readonly server: AdminServerService,
+    private readonly stories: StoriesService,
   ) {}
 
   @Get("lookup")
@@ -96,6 +98,16 @@ export class AdminController {
   @Get("moderation")
   public overview(@Req() req: Request) {
     return this.moderation.overview(req.uid!);
+  }
+
+  @Get("stories")
+  public storiesList(@Req() req: Request) {
+    return this.moderation.recentStories(req.uid!);
+  }
+
+  @Delete("stories/:id")
+  public deleteStory(@Req() req: Request, @Param("id") id: string) {
+    return this.stories.remove(req.uid!, id);
   }
 
   @Get("users/:id/reports")

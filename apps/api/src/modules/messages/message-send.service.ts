@@ -129,7 +129,8 @@ export class MessageSendService {
       const request = asRecord(body.forwardedFrom);
       const sourceMsg = typeof request.messageId === "string" ? this.messages.findById(request.messageId) : undefined;
       const source = sourceMsg ? this.chats.findById(sourceMsg.chatId) : undefined;
-      if (!sourceMsg || !source?.memberIds.includes(uid) || sourceMsg.deletedForIds?.includes(uid)) {
+      const canReadSource = source?.type === "channel" ? !!source.isPublic || source.memberIds.includes(uid) : !!source?.memberIds.includes(uid);
+      if (!sourceMsg || !source || !canReadSource || sourceMsg.deletedForIds?.includes(uid)) {
         throw new ApiError(404, "Исходное сообщение не найдено");
       }
       if (source.protectedBy?.length || source.secret) throw new ApiError(403, "В этом чате запрещена пересылка");

@@ -4,6 +4,21 @@
 export const EXPORT_W = 1080;
 export const EXPORT_H = 1920;
 
+/** Набор фильтров редактора историй — совместим с CSS filter и CanvasRenderingContext2D.filter. */
+export const STORY_FILTERS = [
+  { id: "original", label: "Оригинал", value: "none" },
+  { id: "vivid", label: "Яркий", value: "saturate(1.45) contrast(1.08)" },
+  { id: "warm", label: "Тёплый", value: "sepia(0.2) saturate(1.2) brightness(1.05)" },
+  { id: "cool", label: "Холодный", value: "saturate(0.9) hue-rotate(14deg) brightness(1.05)" },
+  { id: "mono", label: "Ч/б", value: "grayscale(1) contrast(1.08)" },
+  { id: "film", label: "Плёнка", value: "sepia(0.28) contrast(1.16) saturate(0.85)" },
+  { id: "fade", label: "Выцветший", value: "brightness(1.08) contrast(0.86) saturate(0.72)" },
+] as const;
+
+export type StoryFilter = (typeof STORY_FILTERS)[number]["id"];
+
+export const storyFilterValue = (id: StoryFilter) => STORY_FILTERS.find((filter) => filter.id === id)?.value ?? "none";
+
 export type Layer = {
   id: number;
   type: "text" | "emoji" | "image";
@@ -45,7 +60,7 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, w: number, h: number) {
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, w: number, h: number, filter: StoryFilter) {
   // Текстовая historia — оформление «как статья»: тёмный градиентный фон вместо пустого белого.
   if (!img) {
     try {
@@ -74,17 +89,19 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, 
     sx = 0;
     sy = (img.naturalHeight - sh) / 2;
   }
+  ctx.filter = storyFilterValue(filter);
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  ctx.filter = "none";
 }
 
 /** JPEG 1080×1920 с наложенными слоями; без фона — на белом. */
-export async function bakeStory(bg: HTMLImageElement | null, layers: readonly Layer[]): Promise<File> {
+export async function bakeStory(bg: HTMLImageElement | null, layers: readonly Layer[], filter: StoryFilter = "original"): Promise<File> {
   const canvas = document.createElement("canvas");
   canvas.width = EXPORT_W;
   canvas.height = EXPORT_H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas недоступен");
-  drawCover(ctx, bg, EXPORT_W, EXPORT_H);
+  drawCover(ctx, bg, EXPORT_W, EXPORT_H, filter);
 
   for (const layer of layers) {
     ctx.save();

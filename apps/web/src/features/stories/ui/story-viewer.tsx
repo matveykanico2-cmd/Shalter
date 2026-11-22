@@ -608,8 +608,8 @@ function StoryAttachment({ item, onAction }: { item: { kind: string; meta?: Reco
   const meta = item.meta ?? {};
   if (item.kind === "poll") {
     const options = Array.isArray(meta.options) ? meta.options.filter((v): v is string => typeof v === "string") : [];
-    const voterIds = Array.isArray(meta.voterIds) ? meta.voterIds : [];
-    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>?</span><h2>{String(meta.question ?? "Опрос")}</h2>{options.map((option, index) => <button type="button" key={`${option}-${index}`} className={styles.attachmentOption} onClick={() => onAction("vote", index)}>{option} <small>{Array.isArray(voterIds[index]) ? voterIds[index].length : 0}</small></button>)}</div>;
+    const votes = Array.isArray(meta.votes) ? meta.votes : [];
+    return <div className={styles.attachmentCard}><span className={styles.attachmentIcon}>?</span><h2>{String(meta.question ?? "Опрос")}</h2>{options.map((option, index) => <button type="button" key={`${option}-${index}`} className={styles.attachmentOption} onClick={() => onAction("vote", index)}>{option} <small>{typeof votes[index] === "number" ? votes[index] : 0}</small></button>)}</div>;
   }
   if (item.kind === "checklist") {
     const values = Array.isArray(meta.items) ? meta.items.filter((v): v is { text?: unknown; done?: unknown } => !!v && typeof v === "object") : [];

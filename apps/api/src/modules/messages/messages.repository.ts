@@ -210,32 +210,34 @@ export class MessagesRepository {
    * Текст без изменений не перешифровывается — шифротекст в базе остаётся прежним.
    */
   public mutate(id: string, fn: (message: Message) => Message): Message | undefined {
-    const row = this.db.select().from(messages).where(eq(messages.id, id)).get();
-    const existing = this.toMessage(row);
-    if (!row || !existing) return undefined;
-    const updated = fn(existing);
-    this.db
-      .update(messages)
-      .set({
-        text: (updated.text ?? "") === existing.text ? row.text : sealText(existing.chatId, id, updated.text, this.secretKeyOf),
-        hasLink: textCrypto().hasLink(updated.text),
-        editedAt: updated.editedAt ?? null,
-        pinned: updated.pinned ? 1 : 0,
-        forwardedFrom: updated.forwardedFrom ? JSON.stringify(updated.forwardedFrom) : null,
-        attachments: sealAttachments(existing.chatId, id, updated.attachments, this.secretKeyOf),
-        keyboard: updated.keyboard ? JSON.stringify(updated.keyboard) : null,
-        reactions: JSON.stringify(updated.reactions ?? []),
-        readByIds: JSON.stringify(updated.readByIds ?? []),
-        deletedForIds: JSON.stringify(updated.deletedForIds ?? []),
-        anchorForPostId: updated.anchorForPostId ?? null,
-        discussionAnchorId: updated.discussionAnchorId ?? null,
-        views: updated.views ?? 0,
-        commentCount: updated.commentCount ?? 0,
-        linkPreview: updated.linkPreview ? JSON.stringify(updated.linkPreview) : null,
-        report: updated.report ? JSON.stringify(updated.report) : null,
-      })
-      .where(eq(messages.id, id))
-      .run();
+    this.db.transaction((tx) => {
+      const row = tx.select().from(messages).where(eq(messages.id, id)).get();
+      const existing = this.toMessage(row);
+      if (!row || !existing) return;
+      const updated = fn(existing);
+      tx
+        .update(messages)
+        .set({
+          text: (updated.text ?? "") === existing.text ? row.text : sealText(existing.chatId, id, updated.text, this.secretKeyOf),
+          hasLink: textCrypto().hasLink(updated.text),
+          editedAt: updated.editedAt ?? null,
+          pinned: updated.pinned ? 1 : 0,
+          forwardedFrom: updated.forwardedFrom ? JSON.stringify(updated.forwardedFrom) : null,
+          attachments: sealAttachments(existing.chatId, id, updated.attachments, this.secretKeyOf),
+          keyboard: updated.keyboard ? JSON.stringify(updated.keyboard) : null,
+          reactions: JSON.stringify(updated.reactions ?? []),
+          readByIds: JSON.stringify(updated.readByIds ?? []),
+          deletedForIds: JSON.stringify(updated.deletedForIds ?? []),
+          anchorForPostId: updated.anchorForPostId ?? null,
+          discussionAnchorId: updated.discussionAnchorId ?? null,
+          views: updated.views ?? 0,
+          commentCount: updated.commentCount ?? 0,
+          linkPreview: updated.linkPreview ? JSON.stringify(updated.linkPreview) : null,
+          report: updated.report ? JSON.stringify(updated.report) : null,
+        })
+        .where(eq(messages.id, id))
+        .run();
+    });
     return this.findById(id);
   }
 

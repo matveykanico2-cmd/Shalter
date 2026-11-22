@@ -7,7 +7,7 @@ import { hasUnseen, type NewStoryItem, openStoryViewer, type StoryGroup,storyQue
 import { useWsEvent } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
 import { plural } from "@/shared/lib/presence";
-import { askText, Avatar, Icon, toast } from "@/shared/ui";
+import { askText, Avatar, Button, Dialog, Icon, toast } from "@/shared/ui";
 
 import { postStory, postTextStory } from "../model/post-story";
 
@@ -25,12 +25,14 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ file: File | null; resolve: (f: { file: File; sound?: File } | null) => void } | null>(null);
   const [creating, setCreating] = useState<"media" | null>(null);
-  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [storyAttachments, setStoryAttachments] = useState<NewStoryItem[]>([]);
+  const [attachmentBuilder, setAttachmentBuilder] = useState<"poll" | "checklist" | null>(null);
   /** Выбранные файлы для одной истории — можно добавить ещё фото/видео перед публикацией. */
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const refetch = () => void queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+  // После публикации и событий websocket обновляем именно активную ленту сразу,
+  // чтобы новая история не появлялась только после полной перезагрузки страницы.
+  const refetch = () => void queryClient.refetchQueries({ queryKey: storyQueries.feed().queryKey, type: "active" });
   useWsEvent("story:new", refetch);
   // Видео истории обработано (H.264 1080p) — подтягиваем, чтобы играла обработанная версия.
   useWsEvent("story:updated", refetch);
@@ -60,7 +62,7 @@ export function StoriesBar({ me }: { me: SelfUser }) {
         progress: setProgress,
         attachments: storyAttachments,
       });
-      if (posted) await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+      if (posted) await queryClient.refetchQueries({ queryKey: storyQueries.feed().queryKey, type: "active" });
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
@@ -68,7 +70,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
       setProgress(null);
       setSelectedFiles([]);
       setStoryAttachments([]);
-      setAttachmentsOpen(false);
     }
   };
 
@@ -83,52 +84,34 @@ export function StoriesBar({ me }: { me: SelfUser }) {
   // «Текст» — пустой белый холст в редакторе; готовая картинка уходит как фото-история.
   const textStory = async () => {
     const result = await new Promise<{ file: File; sound?: File } | null>((resolve) => setEditing({ file: null, resolve }));
-    if (!result) return;
+    if (!result) {
+      setStoryAttachments([]);
+      return;
+    }
     try {
       setProgress("Загружаем историю…");
       await postTextStory(result.file, result.sound, storyAttachments);
-      await queryClient.invalidateQueries({ queryKey: storyQueries.baseKey });
+      await queryClient.refetchQueries({ queryKey: storyQueries.feed().queryKey, type: "active" });
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
       setStoryAttachments([]);
-      setAttachmentsOpen(false);
     }
   };
 
-  const attachmentStory = async (kind: "poll" | "checklist" | "contact" | "location" | "game" | "dice") => {
-    const titleLabel = kind === "poll" ? "Вопрос опроса" : kind === "checklist" ? "Название чек-листа" : kind === "contact" ? "Имя контакта" : kind === "location" ? "Название места" : kind === "game" ? "Название игры" : "Название броска";
-    const title = await askText(titleLabel, { placeholder: "Введите название", okLabel: kind === "poll" || kind === "checklist" ? "Дальше" : "Опубликовать" });
+  const attachmentStory = async (kind: "contact" | "location" | "game" | "dice") => {
+    const titleLabel = kind === "contact" ? "Имя контакта" : kind === "location" ? "Название места" : kind === "game" ? "Название игры" : "Название броска";
+    const title = await askText(titleLabel, { placeholder: "Введите название", okLabel: "Опубликовать" });
     if (!title?.trim()) return;
-    if (!["poll", "checklist"].includes(kind)) {
-      const details = await askText(kind === "contact" ? "Телефон или ник контакта" : kind === "location" ? "Адрес или координаты" : "Описание", { placeholder: "Можно оставить пустым", okLabel: "Опубликовать" });
-      try {
-        setProgress("Добавляем вложение…");
-        setStoryAttachments((items) => [...items, { kind, meta: { title: title.trim(), text: details?.trim() ?? "" } }]);
-        setAttachmentsOpen(false);
-      } catch (err) {
-        toast(errorText(err, "Не удалось выложить историю"), { error: true });
-      } finally {
-        setProgress(null);
-        setAttachmentsOpen(false);
-      }
-      return;
-    }
-    const raw = await askText(kind === "poll" ? "Варианты ответа через запятую" : "Пункты через запятую", { placeholder: kind === "poll" ? "Море, горы, город" : "Позвонить, купить продукты", okLabel: "Опубликовать" });
-    const values = (raw ?? "").split(",").map((v) => v.trim()).filter(Boolean).slice(0, 10);
-    if (values.length < 2) {
-      toast(kind === "poll" ? "Добавьте минимум два варианта" : "Добавьте минимум два пункта", { error: true });
-      return;
-    }
+    const details = await askText(kind === "contact" ? "Телефон или ник контакта" : kind === "location" ? "Адрес или координаты" : "Описание", { placeholder: "Можно оставить пустым", okLabel: "Опубликовать" });
     try {
       setProgress("Добавляем вложение…");
-      setStoryAttachments((items) => [...items, { kind, meta: kind === "poll" ? { question: title.trim(), options: values, votes: values.map(() => 0) } : { title: title.trim(), items: values.map((text) => ({ text, done: false })) } }]);
+      setStoryAttachments((items) => [...items, { kind, meta: { title: title.trim(), text: details?.trim() ?? "" } }]);
     } catch (err) {
       toast(errorText(err, "Не удалось выложить историю"), { error: true });
     } finally {
       setProgress(null);
-      setAttachmentsOpen(false);
     }
   };
 
@@ -191,19 +174,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
             <button type="button" className={styles.createAction} title="История" onClick={addStory}>
               <Icon name="Image" size={18} /> История
             </button>
-            <button type="button" className={styles.createAction} title="Добавить вложение" aria-label="Добавить вложение" onClick={() => setAttachmentsOpen((open) => !open)}>
-              <Icon name="Paperclip" size={18} />
-            </button>
-            {attachmentsOpen ? (
-              <div className={styles.attachmentChoice} aria-label="Вложения истории">
-                <button type="button" className={styles.createAction} title="Опрос" onClick={() => void attachmentStory("poll")}><Icon name="BarChart" size={18} /> Опрос</button>
-                <button type="button" className={styles.createAction} title="Чек-лист" onClick={() => void attachmentStory("checklist")}><Icon name="CheckCheck" size={18} /> Чек-лист</button>
-                <button type="button" className={styles.createAction} title="Контакт" onClick={() => void attachmentStory("contact")}><Icon name="User" size={18} /> Контакт</button>
-                <button type="button" className={styles.createAction} title="Геопозиция" onClick={() => void attachmentStory("location")}><Icon name="MapPin" size={18} /> Место</button>
-                <button type="button" className={styles.createAction} title="Игра" onClick={() => void attachmentStory("game")}><Icon name="Zap" size={18} /> Игра</button>
-                <button type="button" className={styles.createAction} title="Кубик" onClick={() => void attachmentStory("dice")}><Icon name="Star" size={18} /> Кубик</button>
-              </div>
-            ) : null}
             <button type="button" className={styles.createClose} aria-label="Закрыть" onClick={() => setCreating(null)}><Icon name="X" size={16} /></button>
           </div>
         ) : null}
@@ -269,9 +239,6 @@ export function StoriesBar({ me }: { me: SelfUser }) {
             </button>
           </div> : null}
           <div className={styles.mediaSelectionActions}>
-            <button type="button" className={styles.mediaSelectionCancel} onClick={() => { setCreating("media"); setAttachmentsOpen(true); }}>
-              <Icon name="Paperclip" size={14} /> Вложение
-            </button>
             <button type="button" className={styles.mediaSelectionCancel} onClick={() => setSelectedFiles([])}>
               Отмена
             </button>
@@ -289,6 +256,20 @@ export function StoriesBar({ me }: { me: SelfUser }) {
             setEditing(null);
             editing.resolve(result);
           }}
+          onAttachment={(kind) => {
+            if (kind === "poll" || kind === "checklist") setAttachmentBuilder(kind);
+            else void attachmentStory(kind);
+          }}
+        />
+      ) : null}
+      {attachmentBuilder ? (
+        <StoryAttachmentBuilder
+          kind={attachmentBuilder}
+          onClose={() => setAttachmentBuilder(null)}
+          onSave={(items) => {
+            setStoryAttachments((current) => [...current, ...items]);
+            setAttachmentBuilder(null);
+          }}
         />
       ) : null}
     </div>
@@ -305,4 +286,48 @@ function attachmentLabel(kind: NewStoryItem["kind"]) {
     case "dice": return "Кубик";
     default: return "Вложение";
   }
+}
+
+type PollQuestion = { question: string; options: string[] };
+
+function StoryAttachmentBuilder({ kind, onClose, onSave }: { kind: "poll" | "checklist"; onClose: () => void; onSave: (items: NewStoryItem[]) => void }) {
+  const [title, setTitle] = useState("");
+  const [questions, setQuestions] = useState<PollQuestion[]>([{ question: "", options: ["", ""] }]);
+  const [items, setItems] = useState(["", ""]);
+  const isPoll = kind === "poll";
+  const updateQuestion = (index: number, value: string) => setQuestions((current) => current.map((item, i) => (i === index ? { ...item, question: value } : item)));
+  const updateOption = (questionIndex: number, optionIndex: number, value: string) => setQuestions((current) => current.map((item, i) => i === questionIndex ? { ...item, options: item.options.map((option, j) => j === optionIndex ? value : option) } : item));
+  const save = () => {
+    if (isPoll) {
+      const valid = questions.filter((item) => item.question.trim() && item.options.filter((option) => option.trim()).length >= 2);
+      if (!valid.length) return;
+      onSave(valid.map((item) => {
+        const options = item.options.map((option) => option.trim()).filter(Boolean);
+        return { kind: "poll", meta: { question: item.question.trim(), options, votes: options.map(() => 0) } };
+      }));
+      return;
+    }
+    const values = items.map((item) => item.trim()).filter(Boolean);
+    if (!title.trim() || values.length < 2) return;
+    onSave([{ kind: "checklist", meta: { title: title.trim(), items: values.map((text) => ({ text, done: false })) } }]);
+  };
+  const canSave = isPoll
+    ? questions.some((item) => item.question.trim() && item.options.filter((option) => option.trim()).length >= 2)
+    : !!title.trim() && items.filter((item) => item.trim()).length >= 2;
+  return (
+    <Dialog title={isPoll ? "Создать опрос" : "Создать чек-лист"} onClose={onClose} className={styles.builderDialog}>
+      <p className={styles.builderHint}>{isPoll ? "Добавьте один или несколько вопросов и варианты ответа." : "Добавьте название и любое количество пунктов."}</p>
+      {!isPoll ? <input className={styles.builderInput} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название чек-листа" aria-label="Название чек-листа" autoFocus /> : null}
+      {isPoll ? questions.map((item, questionIndex) => (
+        <div className={styles.builderBlock} key={questionIndex}>
+          <div className={styles.builderBlockHeader}><strong>Вопрос {questionIndex + 1}</strong>{questions.length > 1 ? <button type="button" onClick={() => setQuestions((current) => current.filter((_, i) => i !== questionIndex))}>Удалить</button> : null}</div>
+          <input className={styles.builderInput} value={item.question} onChange={(e) => updateQuestion(questionIndex, e.target.value)} placeholder="Например, Куда пойдём?" aria-label={`Вопрос ${questionIndex + 1}`} autoFocus={questionIndex === 0} />
+          {item.options.map((option, optionIndex) => <input className={styles.builderInput} key={optionIndex} value={option} onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)} placeholder={`Вариант ${optionIndex + 1}`} aria-label={`Вариант ${optionIndex + 1} вопроса ${questionIndex + 1}`} />)}
+          <button type="button" className={styles.builderAdd} onClick={() => setQuestions((current) => current.map((question, i) => i === questionIndex ? { ...question, options: [...question.options, ""] } : question))}><Icon name="Plus" size={15} /> Добавить вариант</button>
+        </div>
+      )) : items.map((item, index) => <input className={styles.builderInput} key={index} value={item} onChange={(e) => setItems((current) => current.map((value, i) => i === index ? e.target.value : value))} placeholder={`Пункт ${index + 1}`} aria-label={`Пункт ${index + 1}`} autoFocus={index === 0} />)}
+      {isPoll ? <button type="button" className={styles.builderAdd} onClick={() => setQuestions((current) => [...current, { question: "", options: ["", ""] }])}><Icon name="Plus" size={15} /> Добавить вопрос</button> : <button type="button" className={styles.builderAdd} onClick={() => setItems((current) => [...current, ""])}><Icon name="Plus" size={15} /> Добавить пункт</button>}
+      <div className={styles.builderFooter}><Button variant="secondary" onClick={onClose}>Отмена</Button><Button disabled={!canSave} onClick={save}>Добавить в историю</Button></div>
+    </Dialog>
+  );
 }

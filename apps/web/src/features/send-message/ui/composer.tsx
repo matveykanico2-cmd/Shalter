@@ -647,7 +647,7 @@ export function Composer(props: Props) {
   };
   // Обложка загружается как фото (окно ждёт: «Публикация…»), потом статья уходит
   // сообщением с article: true — временный пузырь сразу статьёй. Не ушла — окно снова с черновиком.
-  const sendArticle = async ({ text: articleText, title, body, cover }: { text: string; title: string; body: string; cover: File | null }) => {
+  const sendArticle = async ({ text: articleText, cover }: { text: string; title: string; body: string; cover: File | null }) => {
     const atts: OutgoingAttachment[] = [];
     if (cover) {
       const { uploaded, error: uploadError } = await uploads.upload([{ file: cover, kind: "image" }]);
@@ -658,11 +658,12 @@ export function Composer(props: Props) {
     const options: SendOptions = { ...takeIdentity(), article: true };
     onCancelReply();
     onSent?.();
-    send(articleText, reply, atts, undefined, options).catch((err: unknown) => {
-      setError(err instanceof TypeError ? "Нет связи с сервером — статья не опубликована" : errorText(err, "Не удалось опубликовать статью"));
-      setArticle({ initial: { title, body, cover } });
-    });
-    return null;
+    try {
+      await send(articleText, reply, atts, undefined, options);
+      return null;
+    } catch (err) {
+      return err instanceof TypeError ? "Нет связи с сервером — статья не опубликована" : errorText(err, "Не удалось опубликовать статью");
+    }
   };
 
   // GPS → координаты; не вышло — окно выбора места (примерное по IP или поиск адреса),
@@ -875,7 +876,7 @@ export function Composer(props: Props) {
     <div className={thread ? `${styles.composer} ${styles.thread}` : styles.composer}>
       {/* Отказ сервера — как тост старого клиента (role="status"): текст остаётся в поле. */}
       {error ? (
-        <p className={styles.error} role="status">
+        <p className={styles.error} role="alert">
           <EmojiText text={error} />
         </p>
       ) : null}

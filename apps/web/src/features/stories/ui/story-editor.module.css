@@ -85,6 +85,39 @@
   object-fit: cover;
   pointer-events: none;
 }
+.filters {
+  display: flex;
+  width: min(88vw, 420px);
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+.filters::-webkit-scrollbar { display: none; }
+.filter {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 58px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.filterPreview {
+  display: block;
+  width: 42px;
+  height: 42px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f4a261, #6c63ff 52%, #1d3557);
+}
+.filterActive { color: #fff; font-weight: 700; }
+.filterActive .filterPreview { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.22); }
 .layer {
   position: absolute;
   display: inline-flex;

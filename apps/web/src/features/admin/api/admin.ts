@@ -61,6 +61,16 @@ export type NewPromoCode = {
 export type ExportEntry = z.infer<typeof exportsBody>["exports"][number];
 /** Срок выдачи: дней или навсегда. */
 export type GrantTerm = { days: number } | { forever: true };
+export type AdminStory = {
+  id: string;
+  userId: string;
+  kind: string;
+  url: string;
+  createdAt: string;
+  expiresAt: string;
+  items: unknown[];
+  author: { id?: string; name: string; username?: string | null };
+};
 
 const baseKey = ["admin"] as const;
 const q = encodeURIComponent;
@@ -74,6 +84,8 @@ export const adminQueries = {
       queryKey: [...baseKey, "user-reports", userId],
       queryFn: ({ signal }) => http.get<z.infer<typeof userReportsBody>>(`/api/admin/users/${q(userId)}/reports`, signal),
     }),
+  stories: () =>
+    queryOptions({ queryKey: [...baseKey, "stories"], queryFn: ({ signal }) => http.get<{ stories: AdminStory[] }>("/api/admin/stories", signal) }),
   adReview: () => queryOptions({ queryKey: [...baseKey, "ad-review"], queryFn: ({ signal }) => http.get<ReviewList>("/api/ads/review", signal) }),
   server: () =>
     queryOptions({ queryKey: [...baseKey, "server"], queryFn: ({ signal }) => http.get<ServerStats>("/api/admin/server", signal) }),
@@ -123,6 +135,7 @@ export const bulkDelete = (items: { id: string; kind: string }[], reason: string
 export const deleteChat = (chatId: string, reason: string) => http.delete<unknown>(`/api/chats/${q(chatId)}`, { reason });
 export const deleteBot = (botId: string, reason: string) => http.delete<unknown>(`/api/admin/bots/${q(botId)}`, { reason });
 export const mailStatus = () => http.get<MailStatus>("/api/admin/mail-status");
+export const deleteStory = (storyId: string) => http.delete<unknown>(`/api/admin/stories/${q(storyId)}`);
 
 // ——— Метки и статусы ———
 type LabelFields = { short: string; label: string; hint: string; color: string };

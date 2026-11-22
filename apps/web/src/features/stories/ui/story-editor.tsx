@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "@/shared/ui";
 
 import { storyStickerPacks } from "../api/sticker-packs";
-import { bakeStory, baseFontFraction, IMAGE_WIDTH_FRACTION, type Layer, loadImage } from "../lib/story-canvas";
+import { bakeStory, baseFontFraction, IMAGE_WIDTH_FRACTION, type Layer, loadImage,STORY_FILTERS, type StoryFilter, storyFilterValue } from "../lib/story-canvas";
 
 import styles from "./story-editor.module.css";
 
@@ -21,18 +21,20 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 let uid = 0;
 
+export type StoryAttachmentKind = "poll" | "checklist" | "contact" | "location" | "game" | "dice";
+
 /**
  * Редактор фото истории — как openStoryEditor в public/js/components/storyEditor.js: текст «Aa»,
  * эмодзи и картинки поверх фото, перетаскивание, поворот и масштаб за уголок. «Готово» —
  * новый JPEG 1080×1920, «Пропустить» — исходный файл, «Отмена» и Esc — null.
  * Без файла — статья: белый холст и сразу поле для текста.
  */
-export function StoryEditor({ file, onDone }: { file: File | null; onDone: (result: { file: File; sound?: File } | null) => void }) {
+export function StoryEditor({ file, onDone, onAttachment }: { file: File | null; onDone: (result: { file: File; sound?: File } | null) => void; onAttachment?: (kind: StoryAttachmentKind) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState<HTMLImageElement | null>(null);
-  const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: "#ffffff", bg: false }));
+  const [initialText] = useState<Layer | null>(() => (file ? null : { id: ++uid, type: "text", text: "Текст", x: 0.5, y: 0.5, scale: 1, rotation: 0, color: "#1b2130", bg: false }));
   const [layers, setLayers] = useState<Layer[]>(() => (initialText ? [initialText] : []));
   const [selectedId, setSelectedId] = useState<number | null>(initialText?.id ?? null);
   const [editingId, setEditingId] = useState<number | null>(initialText?.id ?? null);
@@ -40,7 +42,9 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
   const [stickersOpen, setStickersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [sound, setSound] = useState<File | null>(null);
+  const [filter, setFilter] = useState<StoryFilter>("original");
   const soundUrl = useMemo(() => (sound ? URL.createObjectURL(sound) : null), [sound]);
   const [stage, setStage] = useState({ width: 320, height: 568 });
   const urls = useRef<string[]>([]);
@@ -94,7 +98,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
 
   const addLayer = (partial: Omit<Layer, "id" | "color" | "bg">) => {
     // На белом холсте белый текст не виден — там по умолчанию тёмный.
-    const layer: Layer = { id: ++uid, color: file ? "#ffffff" : "#ffffff", bg: false, ...partial };
+    const layer: Layer = { id: ++uid, color: file ? "#ffffff" : "#1b2130", bg: false, ...partial };
     setLayers((list) => [...list, layer]);
     setSelectedId(layer.id);
     return layer;
@@ -150,7 +154,7 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
     setBusy(true);
     try {
       if (file && !bg) throw new Error("нет фона");
-      onDone({ file: await bakeStory(bg, layers), ...(sound ? { sound } : {}) });
+      onDone({ file: await bakeStory(bg, layers, filter), ...(sound ? { sound } : {}) });
     } catch {
       if (file) onDone({ file, ...(sound ? { sound } : {}) });
       else setBusy(false);
@@ -167,6 +171,11 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             <Icon name="X" size={20} />
           </button>
           <div className={styles.tools}>
+            {onAttachment ? (
+              <button type="button" className={styles.tool} title="Добавить вложение" aria-label="Добавить вложение" onClick={() => { setActionsOpen(false); setAttachmentsOpen((open) => !open); }}>
+                <Icon name="Paperclip" size={18} />
+              </button>
+            ) : null}
             <button type="button" className={styles.tool} title="Текст" onClick={addText}>
               Aa
             </button>
@@ -199,8 +208,19 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
           ) : null}
         </div>
 
+        {attachmentsOpen && onAttachment ? (
+          <div className={styles.actionPanel} aria-label="Вложения истории">
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("poll"); }}><Icon name="BarChart" size={17} />Опрос</button>
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("checklist"); }}><Icon name="CheckCheck" size={17} />Чек-лист</button>
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("contact"); }}><Icon name="User" size={17} />Контакт</button>
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("location"); }}><Icon name="MapPin" size={17} />Место</button>
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("game"); }}><Icon name="Zap" size={17} />Игра</button>
+            <button type="button" onClick={() => { setAttachmentsOpen(false); onAttachment("dice"); }}><Icon name="Star" size={17} />Кубик</button>
+          </div>
+        ) : null}
+
         <div ref={stageRef} className={file ? styles.stage : `${styles.stage} ${styles.blank}`} onPointerDown={(e) => e.target === e.currentTarget && setSelectedId(null)}>
-          {bg ? <img className={styles.bg} src={bg.src} alt="" /> : null}
+          {bg ? <img className={styles.bg} style={{ filter: storyFilterValue(filter) }} src={bg.src} alt="" /> : null}
           {layers.map((layer) => (
             <LayerView
               key={layer.id}
@@ -220,6 +240,22 @@ export function StoryEditor({ file, onDone }: { file: File | null; onDone: (resu
             />
           ))}
         </div>
+
+        {file ? (
+          <div className={styles.filters} aria-label="Фильтры">
+            {STORY_FILTERS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={filter === item.id ? `${styles.filter} ${styles.filterActive}` : styles.filter}
+                onClick={() => setFilter(item.id)}
+              >
+                <span className={styles.filterPreview} style={{ filter: item.value }} aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {soundUrl ? (
           <div className={styles.soundChip}>

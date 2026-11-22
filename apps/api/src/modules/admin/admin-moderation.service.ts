@@ -11,6 +11,7 @@ import { REASON_LABELS } from "../reports/lib/report-reasons.js";
 import type { Report } from "../reports/model/domain.js";
 import { ReportsRepository } from "../reports/reports.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
+import { StoriesRepository } from "../stories/stories.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminAccessService } from "./admin-access.service.js";
 import { DataExportsRepository } from "./data-exports.repository.js";
@@ -60,6 +61,7 @@ export class AdminModerationService {
     private readonly sessions: SessionsRepository,
     private readonly exports: DataExportsRepository,
     private readonly realtime: RealtimeService,
+    private readonly stories: StoriesRepository,
   ) {}
 
   /** Группа, канал или бот по ссылке, @нику, id или коду приглашения. */
@@ -106,6 +108,17 @@ export class AdminModerationService {
       labeled: this.users.listLabeled().map((u) => ({ ...userLabel(u), safetyLabelAt: u.safetyLabelAt || null })),
       labels: this.labels.list(),
       statusCatalog: this.statuses.list(),
+    };
+  }
+
+  /** Активные истории для Instagram-подобной очереди модерации. */
+  public recentStories(uid: string) {
+    this.access.require(uid, "moderation");
+    return {
+      stories: this.stories.listRecent().map((story) => ({
+        ...story,
+        author: userLabel(this.users.findById(story.userId), story.userId),
+      })),
     };
   }
 

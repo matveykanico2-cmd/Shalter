@@ -137,9 +137,9 @@ export function ArticleEditor({ initial, editing = false, onSubmit, onClose }: P
           </button>
         </div>
       ) : (
-        <button type="button" className={styles.coverAdd} disabled={busy} onClick={() => coverInput.current?.click()}>
-          <Icon name="Image" size={24} />
-          <span>Добавить обложку</span>
+        <button type="button" className={styles.coverAdd} disabled={busy} onClick={() => coverInput.current?.click()} title="Добавить вложение к статье">
+          <Icon name="Paperclip" size={24} />
+          <span>Добавить вложение</span>
         </button>
       )}
       <input ref={coverInput} type="file" accept="image/*" hidden onChange={pickCover} data-testid="article-cover" />

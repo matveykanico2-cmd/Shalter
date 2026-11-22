@@ -13,7 +13,7 @@ import type { User } from "../users/model/domain.js";
 import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { STORY_TTL_MS } from "./lib/story.mapper.js";
-import type { Story, StoryItem } from "./model/domain.js";
+import type { Story, StoryComment, StoryItem } from "./model/domain.js";
 import type { CreateChannelStoryDto, CreateStoryDto, EditStoryCommentDto, StoryAttachmentActionDto, StoryCommentDto } from "./model/schemas/story.schema.js";
 import { StoriesRepository } from "./stories.repository.js";
 import { StoryAudienceService } from "./story-audience.service.js";
@@ -42,8 +42,33 @@ const newStoryId = (now: number) => `st_${now}_${randomBytes(4).toString("hex")}
 // Кто посмотрел и лайкнул — видит только автор (или админ канала).
 function storyFor(st: Story, uid: string, author: object | null) {
   const own = st.userId === uid || !!(author as { canManage?: boolean } | null)?.canManage;
+  const items = st.items.map((item) => {
+    if (!item.meta || (item.kind !== "poll" && item.kind !== "checklist")) return item;
+    const meta = { ...item.meta } as Record<string, unknown>;
+    // Внутренние ID участников нужны только серверу для повторного голосования
+    // и отметок. Клиенту отдаём только публичные счётчики и состояния.
+    if (item.kind === "poll") delete meta.voterIds;
+    if (Array.isArray(meta.questions)) {
+      meta.questions = meta.questions.map((question) => {
+        if (!question || typeof question !== "object" || Array.isArray(question)) return question;
+        const safe = { ...(question as Record<string, unknown>) };
+        delete safe.voterIds;
+        return safe;
+      });
+    }
+    if (item.kind === "checklist" && Array.isArray(meta.items)) {
+      meta.items = meta.items.map((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const safe = { ...(value as Record<string, unknown>) };
+        delete safe.doneByIds;
+        return safe;
+      });
+    }
+    return { ...item, meta };
+  });
   const out: Partial<Story> & Record<string, unknown> = {
     ...st,
+    items,
     viewed: st.viewedByIds.includes(uid),
     liked: st.likedByIds.includes(uid),
     likeCount: st.likedByIds.length,
@@ -177,7 +202,7 @@ export class StoriesService {
     if (item.kind === "poll") {
       if (dto.action !== "vote" || dto.optionIndex === undefined) throw new ApiError(400, "Нужно выбрать вариант");
       const options = Array.isArray(meta.options) ? meta.options : [];
-      if (dto.optionIndex >= options.length) throw new ApiError(400, "Вариант не найден");
+      if (dto.optionIndex < 0 || dto.optionIndex >= options.length) throw new ApiError(400, "Вариант не найден");
       const voterIds = Array.from({ length: options.length }, (_, i) => new Set<string>(Array.isArray(meta.voterIds?.[i]) ? meta.voterIds[i] : []));
       voterIds.forEach((ids) => ids.delete(uid));
       voterIds[dto.optionIndex]!.add(uid);
@@ -204,7 +229,7 @@ export class StoriesService {
     this.visibleStory(uid, id);
     const comments = this.stories.listComments(id);
     const byId = new Map(this.uniqueUsers(comments.map((c) => c.userId)).map((u) => [u.id, publicUser(u)]));
-    return { comments: comments.map((c) => ({ ...c, author: byId.get(c.userId) ?? null })) };
+    return { comments: comments.map((c) => ({ ...this.commentFor(c, uid), author: byId.get(c.userId) ?? null })) };
   }
 
   public addComment(uid: string, id: string, dto: StoryCommentDto) {
@@ -226,8 +251,9 @@ export class StoriesService {
       parentId,
     });
     const author = publicUser(this.users.findById(uid)!);
-    this.realtime.broadcastToUsers(this.audienceForStory(visible), { type: "story:commented", storyId: id, comment: { ...comment, author } });
-    return { comment: { ...comment, author } };
+    const publicComment = { ...this.commentFor(comment, uid), author };
+    this.realtime.broadcastToUsers(this.audienceForStory(visible), { type: "story:commented", storyId: id, comment: publicComment });
+    return { comment: publicComment };
   }
 
   public likeComment(uid: string, id: string, commentId: string) {
@@ -241,9 +267,8 @@ export class StoriesService {
       storyId: id,
       commentId: comment.id,
       likeCount: comment.likeCount,
-      likedByIds: comment.likedByIds,
     });
-    return { comment, liked: comment.likedByIds.includes(uid), likeCount: comment.likeCount };
+    return { comment: this.commentFor(comment, uid), liked: comment.likedByIds.includes(uid), likeCount: comment.likeCount };
   }
 
   public editComment(uid: string, id: string, commentId: string, dto: EditStoryCommentDto) {
@@ -256,13 +281,14 @@ export class StoriesService {
     if (!text) throw new ApiError(400, "empty comment");
 
     const comment = this.stories.editComment(found.comment.id, text);
+    if (!comment) throw new ApiError(404, "not found");
     const author = publicUser(this.users.findById(uid)!);
     this.realtime.broadcastToUsers(this.audienceForStory(found.story), {
       type: "story:comment-updated",
       storyId: found.story.id,
-      comment: { ...comment, author },
+      comment: { ...this.commentFor(comment, uid), author },
     });
-    return { comment: { ...comment, author } };
+    return { comment: { ...this.commentFor(comment, uid), author } };
   }
 
   public deleteComment(uid: string, id: string, commentId: string) {
@@ -387,6 +413,15 @@ export class StoriesService {
   private storyForOne(st: Story, uid: string) {
     const author = isChannelId(st.userId) ? { canManage: isChannelStaff(this.chats.findById(st.userId), uid) } : null;
     return storyFor(st, uid, author);
+  }
+
+  /** В ответе комментария оставляем только состояние лайка текущего пользователя. */
+  private commentFor(comment: StoryComment, uid: string) {
+    const { likedByIds, ...safe } = comment;
+    return {
+      ...safe,
+      liked: likedByIds.includes(uid),
+    };
   }
 
   private audienceForStory(story: Story): string[] {
