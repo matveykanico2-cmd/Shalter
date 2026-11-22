@@ -321,7 +321,14 @@ export function ChatList({ meId }: { meId: string }) {
     // может быть скрыта, поэтому повторное измерение здесь затёрло бы его нулевыми метриками.
     if (!before && currentId) return;
     if (!before || currentId || !returnPosition.current || !scrollRef.current) return;
-    const saved = returnPosition.current;
+    const pinnedRow = rows.some((row) => row.kind === "chat" && row.chat.id === before && row.chat.pinned);
+    // Возврат из закреплённого чата должен вернуть его в видимую область.
+    // Иначе сохранённый offset списка мог оставить пользователя ниже закреплённых
+    // строк после display:none на мобильном экране — сверху оказывались обычные чаты.
+    const saved = pinnedRow
+      ? { key: before, top: 0, offset: 0 }
+      : returnPosition.current;
+    returnPosition.current = saved;
     // Нативное значение возвращаем сразу: после display:none оно могло стать нулевым.
     scrollRef.current.scrollTop = saved.offset;
     virtualizer.scrollToOffset(saved.offset, { align: "start" });
