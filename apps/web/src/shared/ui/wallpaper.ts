@@ -85,6 +85,10 @@ export const WALLPAPER_GROUPS = [
     ],
   },
   {
+    label: "Грамлик",
+    items: [{ id: "gramlik", label: "Грамлик" }],
+  },
+  {
     label: "Своё",
     items: [{ id: "custom", label: "Своё фото" }],
   },
@@ -95,6 +99,12 @@ const IDS: readonly string[] = WALLPAPER_GROUPS.flatMap((g) => g.items.map((i) =
 /** Класс и фон для элемента с обоями — как paintWallpaper; неизвестный id — обои по умолчанию. */
 export function wallpaperProps(w: Wallpaper | null | undefined): { className: string; style?: CSSProperties } {
   if (w?.id === "custom" && w.image) return { className: styles.custom ?? "", style: { backgroundImage: `url(${w.image})` } };
+  if (w?.id === "gramlik") {
+    return {
+      className: styles.gramlik ?? "",
+      style: { backgroundImage: "url('/brand/gramlik-wallpaper.png')" },
+    };
+  }
   return { className: styles[w && IDS.includes(w.id) ? w.id : "default"] ?? "" };
 }
 

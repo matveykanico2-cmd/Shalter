@@ -167,6 +167,10 @@ export function ChatTips() {
   const cards = [<AppearanceCard key="appearance" />, <ChatsCard key="chats" filter={filter} onFilter={setFilter} />];
   return (
     <div className={styles.tips}>
+      <div className={styles.mascot} aria-hidden="true">
+        <img src="/brand/gramlik-mascot.png" alt="" loading="eager" />
+        <span>Грамлик рядом</span>
+      </div>
       <button
         type="button"
         className={styles.toggle}
