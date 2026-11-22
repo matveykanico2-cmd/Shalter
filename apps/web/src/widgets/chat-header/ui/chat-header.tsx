@@ -9,12 +9,13 @@ import { ChatMenu } from "@/features/chat-actions";
 import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { useStartLiveItem } from "@/features/live";
 import { ScheduledList } from "@/features/send-message";
+import { ChannelStoryButton } from "@/features/stories";
 import { useTopicsToggle } from "@/features/topics";
 
-import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
+import { isChatAdmin, type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
 import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
-import { storyQueries } from "@/entities/story";
+import { openStoryViewer, storyQueries } from "@/entities/story";
 import { openUserProfile, ProfileStatusBadge } from "@/entities/user";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
@@ -62,6 +63,7 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
   const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
   const subtitle = hideMembers && !typing ? null : chatSubtitle(chat, members, meId, typing, now, botUsers);
   const stories = useQuery({ ...storyQueries.ofUser(other?.id ?? ""), enabled: chat.type === "dm" && !!other && !other.isBot }).data?.group ?? null;
+  const channelStories = useQuery({ ...storyQueries.ofUser(chat.id), enabled: chat.type === "channel" }).data?.group ?? null;
   const openAvatar = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
     if (chat.type === "dm" && other) openUserProfile(other.id);
@@ -108,6 +110,26 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
               {avatar}
             </span>
           </span>
+        ) : chat.type === "channel" && channelStories ? (
+          <span
+            className={styles.avatarStoryButton}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (channelStories.stories.length) openStoryViewer([channelStories], 0);
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Открыть истории канала"
+            onKeyDown={(event) => {
+              if ((event.key === "Enter" || event.key === " ") && channelStories.stories.length) {
+                event.preventDefault();
+                event.stopPropagation();
+                openStoryViewer([channelStories], 0);
+              }
+            }}
+          >
+            <span className={channelStories.stories.length ? styles.avatarStoryRing : undefined}>{avatar}</span>
+          </span>
         ) : (
           avatar
         )}
@@ -148,6 +170,22 @@ export function ChatHeader({ chat, members, me, typing, hideMembers = false, onS
       </div>
       {bot ? <BotAppButton bot={bot} chatId={chat.id} /> : null}
       <div className={styles.actions}>
+        {chat.type === "channel" && isChatAdmin(chat, meId) ? (
+          <ChannelStoryButton chatId={chat.id}>
+            {(open, progress) => (
+              <button
+                type="button"
+                className={styles.storyAction}
+                title={progress ?? "Добавить историю канала"}
+                aria-label={progress ?? "Добавить историю канала"}
+                onClick={open}
+                disabled={!!progress}
+              >
+                <Icon name="Plus" size={19} />
+              </button>
+            )}
+          </ChannelStoryButton>
+        ) : null}
         <CallButtons chat={chat} me={me} />
         <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
         {/* «i» — после «Ещё», как .info-toggle в chatView.js. */}
