@@ -471,14 +471,14 @@
   line-height: 1.1;
 }
 
-/* Время с галочками: в конце последней строки текста, если там есть место. */
+/* Время и статус доставки — один неразрывный блок в конце текста. Не используем
+   float: он мог отрывать галочку от времени на узких пузырях и при переносах. */
 .meta {
   position: relative;
   top: 0;
   display: inline-flex;
-  float: right;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   margin-left: 8px;
   vertical-align: baseline;
   color: var(--color-muted);
@@ -512,12 +512,15 @@
 
 .metaRow {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  min-height: 16px;
+  margin-top: 3px;
 }
 
 .metaRow .meta {
   top: 0;
-  float: none;
+  margin-left: auto;
 }
 
 .tick {
