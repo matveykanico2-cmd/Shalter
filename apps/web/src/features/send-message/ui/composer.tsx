@@ -874,9 +874,9 @@ export function Composer(props: Props) {
 
   return (
     <div className={thread ? `${styles.composer} ${styles.thread}` : styles.composer}>
-      {/* Отказ сервера — как тост старого клиента (role="status"): текст остаётся в поле. */}
+      {/* Отказ сервера — статусное уведомление; текст остаётся в поле для повторной отправки. */}
       {error ? (
-        <p className={styles.error} role="alert">
+        <p className={styles.error} role="status" aria-live="polite">
           <EmojiText text={error} />
         </p>
       ) : null}
