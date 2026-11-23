@@ -15,11 +15,12 @@ export const chatAdsQueries = {
       staleTime: 5 * 60_000,
     }),
   /** Объявление для ленты канала (GET /api/ads/serve?placement=chat). */
-  chat: (chatId: string) =>
+  chat: (chatId: string, enabled = true) =>
     queryOptions({
       queryKey: ["ads", "chat", chatId],
       queryFn: ({ signal }) => http.get<z.infer<typeof serveBody>>("/api/ads/serve?placement=chat", signal),
       staleTime: Infinity,
+      enabled: Boolean(chatId) && enabled,
     }),
 };
 

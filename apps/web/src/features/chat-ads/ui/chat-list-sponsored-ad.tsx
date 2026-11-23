@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { internalAdRoute } from "@/shared/lib/ad-link";
@@ -12,8 +12,13 @@ export function ChatListSponsoredAd({ ad }: { ad: ServedAd }) {
   const navigate = useNavigate();
   const key = `shalter.ad.hidden.${ad.id}`;
   const [hidden, setHidden] = useState(() => localStorage.getItem(key) === "1");
+  const [imageFailed, setImageFailed] = useState(false);
+  const clickInFlight = useRef(false);
   const open = async () => {
+    if (clickInFlight.current) return;
+    clickInFlight.current = true;
     await clickAd(ad.id).catch(() => {});
+    clickInFlight.current = false;
     if (!ad.url) return;
     const internal = internalAdRoute(ad.url);
     if (internal) void navigate(internal);
@@ -27,7 +32,7 @@ export function ChatListSponsoredAd({ ad }: { ad: ServedAd }) {
     <div className={styles.wrap}>
       <button type="button" className={styles.ad} aria-label={`Реклама: ${ad.title || ad.text}`} onClick={() => void open()}>
         <span className={styles.picture}>
-          {ad.imageUrl ? <img src={ad.imageUrl} alt="" loading="lazy" /> : <Icon name="Megaphone" size={24} />}
+          {ad.imageUrl && !imageFailed ? <img src={ad.imageUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} /> : <Icon name="Megaphone" size={24} />}
         </span>
         <span className={styles.body}>
           <span className={styles.head}>

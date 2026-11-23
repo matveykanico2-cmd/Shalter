@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { internalAdRoute } from "@/shared/lib/ad-link";
@@ -13,14 +13,21 @@ const ABOUT = "Рекламу в каналах показывает Shalter: т
 
 /** Рекламное сообщение в конце ленты канала — SponsoredMessage в public/js/views/chatView.js (tweb is-sponsored). */
 export function SponsoredMessage({ chatId, premium }: { chatId: string; premium: boolean }) {
-  const ad = useQuery(chatAdsQueries.chat(chatId)).data?.ad ?? null;
+  const query = useQuery(chatAdsQueries.chat(chatId, !premium));
+  const ad = query.data?.ad ?? null;
   const [hidden, setHidden] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const clickInFlight = useRef(false);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const navigate = useNavigate();
   if (!ad || hidden) return null;
 
   const open = async (a: ServedAd) => {
-    await clickAd(a.id).catch(() => {});
+    if (clickInFlight.current) return;
+    clickInFlight.current = true;
+    await clickAd(a.id).catch(() => {}).finally(() => {
+      clickInFlight.current = false;
+    });
     if (!a.url) return;
     const internal = internalAdRoute(a.url);
     if (internal) void navigate(internal);
@@ -44,7 +51,7 @@ export function SponsoredMessage({ chatId, premium }: { chatId: string; premium:
             <Icon name="More" size={18} />
           </button>
         </div>
-        {ad.imageUrl ? <img className={styles.image} src={ad.imageUrl} alt="" loading="lazy" /> : null}
+        {ad.imageUrl && !imageFailed ? <img className={styles.image} src={ad.imageUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} /> : null}
         <p className={styles.title}>{ad.title || "Реклама"}</p>
         {ad.text ? <p className={styles.text}>{ad.text}</p> : null}
         <button type="button" className={styles.open} onClick={() => void open(ad)}>
