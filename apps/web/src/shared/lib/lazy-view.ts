@@ -2,6 +2,30 @@ import { type ComponentType, lazy, type LazyExoticComponent } from "react";
 
 const RELOAD_KEY = "shalter:lazy-reload";
 
+const getReloadPath = () => {
+  try {
+    return sessionStorage.getItem(RELOAD_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setReloadPath = (path: string) => {
+  try {
+    sessionStorage.setItem(RELOAD_KEY, path);
+  } catch {
+    // Private browsing can disable sessionStorage; ErrorBoundary handles the error.
+  }
+};
+
+const clearReloadPath = () => {
+  try {
+    sessionStorage.removeItem(RELOAD_KEY);
+  } catch {
+    // No-op when storage is unavailable.
+  }
+};
+
 const isChunkLoadError = (error: unknown) => {
   const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
   return /dynamically imported module|loading chunk|chunkloaderror|importing a module script/i.test(text);
@@ -16,11 +40,11 @@ export function lazyView<P extends object>(load: () => Promise<ComponentType<P>>
   return lazy(async () => {
     try {
       const component = await load();
-      sessionStorage.removeItem(RELOAD_KEY);
+      clearReloadPath();
       return { default: component };
     } catch (error) {
-      if (isChunkLoadError(error) && sessionStorage.getItem(RELOAD_KEY) !== location.pathname) {
-        sessionStorage.setItem(RELOAD_KEY, location.pathname);
+      if (isChunkLoadError(error) && getReloadPath() !== location.pathname) {
+        setReloadPath(location.pathname);
         location.reload();
         await new Promise<never>(() => {});
       }
