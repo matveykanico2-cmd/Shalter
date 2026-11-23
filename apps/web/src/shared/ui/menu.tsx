@@ -143,12 +143,12 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
                   item.onClick?.();
                 }}
               >
-                {item.icon ? <Icon name={item.icon} size={18} style={{ color: item.iconColor }} /> : null}
+                {item.icon ? <Icon name={item.icon} size={22} style={{ color: item.iconColor }} /> : null}
                 <span>{item.label}</span>
               </button>
             ) : (
               <p key={item.label} className={styles.caption}>
-                {item.icon ? <Icon name={item.icon} size={18} /> : null}
+                {item.icon ? <Icon name={item.icon} size={22} /> : null}
                 <span>{item.label}</span>
               </p>
             )

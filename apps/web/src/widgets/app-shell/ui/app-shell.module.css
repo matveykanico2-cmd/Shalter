@@ -259,12 +259,12 @@
   .railButton,
   .account {
     display: flex;
-    width: min(58px, 16vw);
-    height: 52px;
+    width: min(64px, 18vw);
+    height: 56px;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     border-radius: 18px;
-    font-size: 10px;
+    font-size: 11px;
     text-decoration: none;
   }
 
@@ -278,6 +278,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .railButton svg,
+  .rail > a svg {
+    width: 24px;
+    height: 24px;
   }
 
   .mainOpen {

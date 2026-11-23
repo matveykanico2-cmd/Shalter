@@ -192,7 +192,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
         </button>
         {LINKS.map((l) => (
           <NavLink key={l.to} to={l.to} className={linkClass(l.active(pathname))} title={l.label} aria-label={l.label}>
-            <Icon name={l.icon} size={20} />
+            <Icon name={l.icon} size={24} />
             <span className={styles.railLabel}>
               {l.label}
               {l.label === "Чаты" && user.isPremium ? <Icon name="Star" size={12} className={styles.premiumChatStar} aria-hidden="true" /> : null}
@@ -201,7 +201,7 @@ export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
         ))}
         <span className={styles.spacer} />
         <NavLink to="/settings" className={linkClass(pathname.startsWith("/settings"))} title="Настройки" aria-label="Настройки">
-          <Icon name="Settings" size={20} />
+          <Icon name="Settings" size={24} />
           <span className={styles.railLabel}>Настройки</span>
         </NavLink>
       </nav>
