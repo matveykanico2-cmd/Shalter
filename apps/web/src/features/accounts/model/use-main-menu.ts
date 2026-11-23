@@ -48,6 +48,12 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
     // маршрут SPA: navigate() показывал домашний экран с «Выберите чат».
     window.location.assign(url);
   };
+  // Bestgram остаётся отдельным лёгким приложением, но доступен из главного меню
+  // Shalter. URL можно переопределить на production-домене без пересборки кода.
+  const openBestgram = () => {
+    const url = (import.meta.env.VITE_BESTGRAM_URL || "/bestgram").trim();
+    openExternally(url);
+  };
 
   return [
     { label: me.name || me.phone || "Аккаунт" },
@@ -61,6 +67,7 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
     { icon: "Archive", label: "Архив", onClick: () => void navigate("/archive") },
     { icon: "Users", label: "Контакты", onClick: () => void navigate("/contacts") },
     { icon: "Phone", label: "Звонки", onClick: () => void navigate("/calls") },
+    { icon: "Globe", label: "Bestgram", onClick: openBestgram },
     ...extra,
     { icon: "Settings", label: "Настройки", onClick: () => void navigate("/settings") },
     {
