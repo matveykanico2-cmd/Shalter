@@ -72,15 +72,19 @@ export function FeedView({ me }: { me: SelfUser }) {
 
   const toggleLike = async (post: FeedPost) => {
     toggle(liked, post.message.id, setLiked);
-    await reactToMessage(post.chat.id, post.message.id, "❤️");
-    await queryClient.invalidateQueries({ queryKey: messageQueries.chatHistories(post.chat.id) });
+    try {
+      await reactToMessage(post.chat.id, post.message.id, "❤️");
+      await queryClient.invalidateQueries({ queryKey: messageQueries.chatHistories(post.chat.id) });
+    } catch {
+      toggle(liked, post.message.id, setLiked);
+    }
   };
 
   return (
     <div className={styles.view}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Shalter</p>
+          <p className={styles.eyebrow}>Shalter Social</p>
           <h1>Лента</h1>
         </div>
         <button type="button" className={styles.explore} onClick={() => void navigate("/discover-channels")}>
@@ -111,7 +115,7 @@ export function FeedView({ me }: { me: SelfUser }) {
         {chatsQuery.isPending || historyQueries.some((query) => query.isPending) ? <div className={styles.empty}>Загружаем новости…</div> : posts.length ? (
           <div className={styles.posts}>
             {posts.map((post) => {
-              const key = post.chat.id;
+              const key = post.message.id;
               const isLiked = liked.has(key);
               const isSaved = saved.has(key);
               return (
@@ -130,9 +134,9 @@ export function FeedView({ me }: { me: SelfUser }) {
                     <Attachments attachments={post.attachments} />
                   </button>
                   <div className={styles.actions}>
-                    <button type="button" aria-label={isLiked ? "Убрать лайк" : "Поставить лайк"} className={isLiked ? styles.actionActive : undefined} onClick={() => void toggleLike(post)}><Icon name="Star" size={20} /><span>{post.views + (isLiked ? 1 : 0)}</span></button>
-                    <button type="button" aria-label="Открыть комментарии" onClick={() => void navigate(`/chat/${post.chat.id}`)}><Icon name="MessageCircle" size={20} /><span>{post.comments}</span></button>
-                    <button type="button" aria-label={isSaved ? "Убрать из сохранённых" : "Сохранить"} className={`${styles.save} ${isSaved ? styles.actionActive : ""}`} onClick={() => toggle(saved, key, setSaved)}><Icon name="Bookmark" size={20} /></button>
+                    <button type="button" aria-label={isLiked ? "Убрать лайк" : "Поставить лайк"} className={isLiked ? styles.actionActive : undefined} onClick={() => void toggleLike(post)}><Icon name="Heart" size={22} /><span className={styles.actionLabel}>Нравится</span></button>
+                    <button type="button" aria-label="Открыть комментарии" onClick={() => void navigate(`/chat/${post.chat.id}`)}><Icon name="MessageCircle" size={22} /><span>{post.comments}</span></button>
+                    <button type="button" aria-label={isSaved ? "Убрать из сохранённых (только на этом устройстве)" : "Сохранить (только на этом устройстве)"} className={`${styles.save} ${isSaved ? styles.actionActive : ""}`} onClick={() => toggle(saved, key, setSaved)}><Icon name="Bookmark" size={22} /></button>
                   </div>
                 </article>
               );
