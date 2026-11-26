@@ -72,7 +72,7 @@ function RightColumn() {
       <Suggestions />
       <footer className="mt-8 text-xs leading-5 text-muted/70">
         About · Help · Press · API · Jobs · Privacy · Terms · Locations · Language
-        <div className="mt-4 uppercase">© {new Date().getFullYear()} Instagram</div>
+        <div className="mt-4 uppercase">© {new Date().getFullYear()} shalter · Производство: Николенко Матвей</div>
       </footer>
     </aside>
   );
@@ -82,6 +82,7 @@ export default function HomePage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const [loadedOnce, setLoadedOnce] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -91,6 +92,7 @@ export default function HomePage() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    setFeedError(null);
     try {
       if (reset) seed.current = Math.floor(Math.random() * 1_000_000) + 1; // new shuffle each visit
       const offset = reset ? 0 : posts.length;
@@ -98,6 +100,8 @@ export default function HomePage() {
       setPosts((p) => (reset ? d.posts : [...p, ...d.posts.filter((n) => !p.some((x) => x.id === n.id))]));
       setHasMore(d.hasMore);
       setLoadedOnce(true);
+    } catch (e) {
+      setFeedError(e instanceof Error ? e.message : "Couldn't load your feed.");
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -141,6 +145,19 @@ export default function HomePage() {
                 <Spinner />
               </div>
             )}
+            {feedError && !loading && (
+              <div className="mx-3 my-8 rounded-xl border border-border bg-secondary/40 px-5 py-6 text-center">
+                <h2 className="text-base font-semibold">Your feed couldn&apos;t load</h2>
+                <p className="mt-1 text-muted">Check your connection and try again.</p>
+                <button
+                  type="button"
+                  onClick={() => load(true)}
+                  className="mt-4 rounded-lg bg-link px-4 py-2 text-sm font-semibold text-white hover:bg-link-hover"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
             {loadedOnce && !hasMore && posts.length > 0 && (
               <div className="flex flex-col items-center py-10 text-center">
                 <CircleCheck size={80} strokeWidth={1} className="story-ring rounded-full text-white" />
@@ -150,7 +167,7 @@ export default function HomePage() {
             )}
             {loadedOnce && posts.length === 0 && (
               <div className="px-4 py-8">
-                <h2 className="mb-1 text-xl font-semibold">Welcome to Instagram</h2>
+                <h2 className="mb-1 text-xl font-semibold">Welcome to shalter</h2>
                 <p className="mb-6 text-muted">Follow people to start seeing the photos and videos they share.</p>
                 <Suggestions limit={15} big />
               </div>

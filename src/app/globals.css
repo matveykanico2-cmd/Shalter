@@ -23,6 +23,31 @@
   color-scheme: light;
 }
 
+.brand-mark {
+  background: linear-gradient(135deg, #6d28d9 0%, #2563eb 58%, #fb7185 100%);
+  box-shadow: 0 5px 16px rgba(79, 70, 229, 0.28);
+}
+
+.chat-thread {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 92%, var(--link) 8%), var(--bg) 38%);
+}
+
+.chat-theme-midnight .chat-thread { background: radial-gradient(circle at top right, rgba(37, 99, 235, .25), transparent 42%), #0f172a; }
+.chat-theme-sunset .chat-thread { background: linear-gradient(145deg, #fff1f2, #ffedd5 52%, #fef3c7); }
+.chat-theme-forest .chat-thread { background: linear-gradient(145deg, #ecfdf5, #d1fae5 48%, #dcfce7); }
+.chat-theme-ocean .chat-thread { background: linear-gradient(145deg, #eff6ff, #dbeafe 48%, #cffafe); }
+:root[data-theme="dark"] .chat-theme-sunset .chat-thread { background: linear-gradient(145deg, #3a1d2b, #3c2a1b); }
+:root[data-theme="dark"] .chat-theme-forest .chat-thread { background: linear-gradient(145deg, #102b25, #163b2c); }
+:root[data-theme="dark"] .chat-theme-ocean .chat-thread { background: linear-gradient(145deg, #12253f, #12343d); }
+:root .chat-wallpaper-dots .chat-thread { background-image: radial-gradient(rgba(0, 149, 246, .18) 1px, transparent 1px); background-size: 18px 18px; }
+:root .chat-wallpaper-stars .chat-thread { background-image: radial-gradient(rgba(124, 58, 237, .2) 1px, transparent 1px), radial-gradient(rgba(236, 72, 153, .15) 1px, transparent 1px); background-position: 0 0, 9px 9px; background-size: 18px 18px; }
+:root .chat-wallpaper-waves .chat-thread { background-image: repeating-radial-gradient(ellipse at 0 0, transparent 0 18px, rgba(37, 99, 235, .12) 19px 20px); }
+:root .chat-wallpaper-sunset .chat-thread { background-image: linear-gradient(135deg, rgba(251, 113, 133, .12), rgba(245, 158, 11, .15)); }
+
+:root[data-theme="dark"] .chat-thread {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, #4a5df9 12%), var(--bg) 42%);
+}
+
 /* data-theme is set before paint by the script in layout.tsx (system default or the saved choice). */
 :root[data-theme="dark"] {
   --bg: #0c1014;
@@ -71,6 +96,37 @@ body {
   color: var(--fg);
   font-size: 14px;
   line-height: 18px;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+textarea {
+  max-width: 100%;
+}
+
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Keep content clear of the notch in landscape (viewport-fit=cover). */

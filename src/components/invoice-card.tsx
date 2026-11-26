@@ -82,14 +82,14 @@ export function InvoiceCardView({ invoice }: { invoice: InvoiceCard }) {
 }
 
 /** Voice-note placeholder: looks like Instagram's voice bubble, but there is no audio. */
-export function VoiceBubble({ seconds, mine }: { seconds: number; mine: boolean }) {
+export function VoiceBubble({ seconds, mine, url }: { seconds: number; mine: boolean; url?: string | null }) {
   const bars = Array.from({ length: 28 }, (_, i) => 4 + Math.round(Math.abs(Math.sin(i * 1.7 + seconds)) * 14));
   return (
     <span
-      title="Voice message (placeholder, no audio)"
+      title={url ? "Voice message" : "Voice message (placeholder)"}
       className={`flex items-center gap-2 rounded-[18px] px-3 py-2 ${mine ? "bg-bubble-mine text-white" : "bg-bubble-them"}`}
     >
-      <Play size={16} className="fill-current" />
+      {url ? <audio controls preload="metadata" src={url} className="h-8 max-w-[180px]" /> : <Play size={16} className="fill-current" />}
       <span className="flex h-5 items-center gap-[2px]">
         {bars.map((h, i) => (
           <span key={i} className="w-[2px] rounded-full bg-current opacity-80" style={{ height: h }} />
@@ -98,7 +98,7 @@ export function VoiceBubble({ seconds, mine }: { seconds: number; mine: boolean 
       <span className="text-xs tabular-nums">
         {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
       </span>
-      <Mic size={12} className="opacity-60" />
+      {!url && <Mic size={12} className="opacity-60" />}
     </span>
   );
 }

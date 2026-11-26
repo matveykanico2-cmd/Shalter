@@ -8,7 +8,7 @@ export type UserLite = {
   verified: boolean;
 };
 
-export type Me = UserLite & { email: string; bio: string; website: string };
+export type Me = UserLite & { email: string; phone?: string | null; lastName: string; bio: string; website: string; privateAccount: boolean; showActivity: boolean; allowMessages: boolean };
 
 export type Media = { url: string; kind: "image" | "video" };
 
@@ -38,6 +38,7 @@ export type Comment = {
 };
 
 export type Profile = UserLite & {
+  lastName: string;
   bio: string;
   website: string;
   postCount: number;
@@ -91,7 +92,7 @@ export type InvoiceCard = {
 };
 
 /** "welcome" is the automatic first message of a conversation (src/config/welcome-message.mjs). */
-export type MessageKind = "text" | "post" | "voice" | "invoice" | "receipt" | "welcome";
+export type MessageKind = "text" | "post" | "voice" | "media" | "call" | "gift" | "poll" | "invoice" | "receipt" | "welcome";
 
 export type Message = {
   id: number;
@@ -103,12 +104,38 @@ export type Message = {
   invoice: InvoiceCard | null;
   /** Length of a voice note (placeholder only, no audio). */
   voiceSeconds: number | null;
+  voiceUrl: string | null;
+  media: Media | null;
+  call: { type: "audio" | "video"; status: "outgoing" | "missed" | "ended" } | null;
+  gift: { id: number | null; name: string; emoji: string; price: number } | null;
+  poll: { question: string; options: { text: string; votes: number; voted: boolean }[]; totalVotes: number } | null;
+  editedAt: number | null;
+  pinnedAt: number | null;
+  replyTo: { id: number; senderId: number; text: string } | null;
+  reactions: { emoji: string; count: number; reacted: boolean }[];
 };
 
 export type Conversation = {
   id: number;
+  kind: "direct" | "group" | "channel";
+  title: string | null;
+  memberCount: number;
+  theme?: string;
   other: UserLite;
   lastMessage: { text: string; senderId: number; createdAt: number; kind: MessageKind } | null;
   unread: boolean;
   updatedAt: number;
+};
+
+export type Community = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  birthday: string | null;
+  ownerId: number;
+  memberCount: number;
+  isPrivate: boolean;
+  joined: boolean;
+  role: "owner" | "admin" | "member" | null;
 };

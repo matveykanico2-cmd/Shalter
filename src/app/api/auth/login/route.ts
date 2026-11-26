@@ -6,7 +6,8 @@ export const POST = route(async (req) => {
   const body = await jsonBody<{ login: string; password: string }>(req);
   const login = String(body.login ?? "").trim();
   const user = get<{ id: number; password_hash: string }>(
-    "SELECT id, password_hash FROM users WHERE username = ? OR email = ?",
+    "SELECT id, password_hash FROM users WHERE username = ? OR email = ? OR phone = ?",
+    login,
     login,
     login,
   );

@@ -1,13 +1,6 @@
-import { redirect } from "next/navigation";
-import { IS_DEMO_EXPORT } from "@/lib/demo-build";
-
-// Login and sign-up pages: send logged-in users straight to their feed.
-// (The static demo has no cookies; its login form just signs you in as the demo user.)
+// Auth pages stay reachable even when another account is already logged in.
+// This is required for password recovery, email verification and multi-account use.
 export default async function AuthLayout({ children }: LayoutProps<"/">) {
-  if (!IS_DEMO_EXPORT) {
-    const { currentUser } = await import("@/lib/server/auth");
-    if (await currentUser()) redirect("/");
-  }
   return (
     <div className="flex min-h-screen flex-col">
       <div className="flex flex-1 items-center justify-center px-4 py-8">{children}</div>
@@ -17,7 +10,7 @@ export default async function AuthLayout({ children }: LayoutProps<"/">) {
             <span key={l}>{l}</span>
           ))}
         </div>
-        English © {new Date().getFullYear()} Instagram
+        English © {new Date().getFullYear()} shalter · Производство: Николенко Матвей
       </footer>
     </div>
   );

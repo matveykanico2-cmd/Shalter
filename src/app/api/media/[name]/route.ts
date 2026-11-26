@@ -7,7 +7,9 @@ import { MIME_BY_EXT, UPLOAD_DIR } from "@/lib/server/media";
 export async function GET(req: Request, { params }: { params: Promise<{ name: string }> }) {
   const name = path.basename((await params).name);
   const file = path.join(UPLOAD_DIR, name);
-  const type = MIME_BY_EXT[path.extname(name).toLowerCase()];
+  const ext = path.extname(name).toLowerCase();
+  const audio = new URL(req.url).searchParams.get("audio") === "1";
+  const type = audio ? ({ ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".webm": "audio/webm" } as Record<string, string>)[ext] : MIME_BY_EXT[ext];
   if (!type || !fs.existsSync(file)) return new Response("Not found", { status: 404 });
 
   const size = fs.statSync(file).size;

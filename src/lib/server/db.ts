@@ -1,6 +1,8 @@
 import "server-only";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import { openDatabase } from "../../../db/migrate.mjs";
+import { migrate, openDatabase } from "../../../db/migrate.mjs";
+
+let schemaChecked = false;
 
 declare global {
   var __snapgramDb: DatabaseSync | undefined;
@@ -8,6 +10,13 @@ declare global {
 
 export function db() {
   globalThis.__snapgramDb ??= openDatabase();
+  // Next dev can preserve the global SQLite connection across HMR while this
+  // module is evaluated again. Re-run the idempotent migration once per module
+  // instance so newly added columns are available without a manual restart.
+  if (!schemaChecked) {
+    migrate(globalThis.__snapgramDb);
+    schemaChecked = true;
+  }
   return globalThis.__snapgramDb;
 }
 

@@ -9,7 +9,9 @@ import { Spinner } from "@/components/ui";
 export default function StoriesPage() {
   const { username } = useParams<{ username: string }>();
   const router = useRouter();
-  const { data } = useApi<{ groups: StoryGroup[] }>(`/api/stories?include=${encodeURIComponent(username)}`);
+  const { data, error, reload } = useApi<{ groups: StoryGroup[] }>(`/api/stories?include=${encodeURIComponent(username)}`);
+
+  if (error) return <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-[#1a1a1a] px-6 text-center text-white"><p>Истории не загрузились.</p><p className="text-sm text-white/60">{error}</p><button type="button" className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black" onClick={reload}>Повторить</button><button type="button" className="text-sm font-semibold text-link" onClick={() => router.push("/")}>На главную</button></div>;
 
   if (!data)
     return (

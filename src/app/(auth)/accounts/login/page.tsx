@@ -25,11 +25,6 @@ export default function LoginPage() {
     }
   };
 
-  const tryDemo = () => {
-    setLogin("demo");
-    setPassword("password123");
-  };
-
   return (
     <div className="w-full max-w-[350px]">
       <div className="mb-2.5 border-separator px-10 pb-6 pt-10 sm:border">
@@ -47,11 +42,8 @@ export default function LoginPage() {
           </button>
         </form>
         <Divider />
-        <button onClick={tryDemo} className="w-full text-center text-sm font-semibold text-link-text">
-          Use the demo account
-        </button>
         {error && <p className="mt-4 text-center text-sm text-danger">{error}</p>}
-        <p className="mt-4 text-center text-xs text-link-text">Forgot password?</p>
+        <Link href="/accounts/forgot-password" className="mt-4 block text-center text-xs text-link-text">Forgot password?</Link>
       </div>
       <div className="border-separator py-5 text-center sm:border">
         Don&apos;t have an account?{" "}

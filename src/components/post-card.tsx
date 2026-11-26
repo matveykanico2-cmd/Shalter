@@ -63,10 +63,14 @@ export function PostMenu({
             label: "Delete",
             danger: true,
             onClick: async () => {
-              await api(`/api/posts/${post.id}`, { method: "DELETE" });
-              toast("Post deleted.");
-              onClose();
-              onDeleted();
+              try {
+                await api(`/api/posts/${post.id}`, { method: "DELETE" });
+                toast("Post deleted.");
+                onClose();
+                onDeleted();
+              } catch (error) {
+                toast((error as Error).message || "Post could not be deleted.");
+              }
             },
           },
         ]}

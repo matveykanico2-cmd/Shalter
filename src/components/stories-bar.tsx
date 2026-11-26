@@ -10,7 +10,7 @@ import { Avatar, Spinner } from "./ui";
 
 export function StoriesBar() {
   const { me, toast } = useApp();
-  const { data, reload } = useApi<{ groups: StoryGroup[] }>("/api/stories");
+  const { data, error, reload } = useApi<{ groups: StoryGroup[] }>("/api/stories");
   const scroller = useRef<HTMLDivElement>(null);
   // The Instagram app shows bigger story circles on phones.
   const ringSize = useIsPhone() ? 80 : 62;
@@ -60,6 +60,7 @@ export function StoriesBar() {
 
   return (
     <div className="relative mb-2 md:mb-6 md:mt-2 md:border-0">
+      {error && <div className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger"><span>Истории не загрузились</span><button type="button" onClick={reload} className="font-bold">Повторить</button></div>}
       <div
         ref={scroller}
         className="no-scrollbar flex gap-3 overflow-x-auto px-3 py-2.5 max-md:gap-2.5 max-md:pb-3 md:px-1"

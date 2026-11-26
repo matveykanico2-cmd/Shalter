@@ -1,6 +1,6 @@
-# Instagram
+# shalter
 
-An Instagram-style social app: feed, stories, reels, explore, profiles, likes, comments, saves, follows, notifications and direct messages.
+A social app: feed, stories, reels, explore, profiles, likes, comments, saves, follows, notifications and direct messages.
 
 Built with Next.js 16 + React 19 + Tailwind CSS 4. Data is stored in a local SQLite database (Node's built-in `node:sqlite`, so there is nothing extra to install) and uploaded photos and videos go to the `uploads/` folder.
 
@@ -8,11 +8,27 @@ Built with Next.js 16 + React 19 + Tailwind CSS 4. Data is stored in a local SQL
 
 ```bash
 npm install
-npm run seed     # optional: demo users, posts, reels, stories and chats (wipes existing data)
+npm run seed     # optional: local seed data, posts, reels, stories and chats (wipes existing data)
 npm run dev      # then open http://localhost:3000
 ```
 
-Demo login: **demo** / **password123** (every seeded account uses the same password, e.g. `lena.travels`). Some of the seeded demo photos and videos load from the internet.
+Create a real account at `/accounts/emailsignup`, then connect additional accounts from the More menu.
+
+### Password recovery and optional Yandex email
+
+Email confirmation is disabled. Password recovery checks the account's email and phone number together, then allows a one-time password change for 30 minutes without sending a letter. Yandex SMTP is optional and is used only for the admin's manual test email; if enabled, copy `.env.example` to `.env.local`, fill in `YANDEX_EMAIL` and `YANDEX_APP_PASSWORD`, then restart the server. shalter uses `smtp.yandex.ru` over SSL on port `465`.
+
+### Production launch
+
+```bash
+npm ci
+cp .env.example .env.local
+# set APP_URL, SNAPGRAM_ADMIN_PHONE and a persistent SNAPGRAM_DB path
+npm run check
+NODE_ENV=production npm run start -- -p 3000
+```
+
+Use a reverse proxy with HTTPS for production WebRTC and Web Push. Set `VAPID_*` when browser push is needed. The SQLite database and `uploads/` directory must be on persistent storage and backed up.
 
 ## Features
 
@@ -25,6 +41,11 @@ Demo login: **demo** / **password123** (every seeded account uses the same passw
 - **Profile**: post, follower and following counts, follower and following lists, and Posts / Reels / Saved tabs.
 - **Notifications**: likes, comments, comment likes and follows, grouped by Today, This week and so on.
 - **Messages**: inbox, one-to-one chats that update live (every 2 seconds), shared posts, and unread badges.
+- **Groups, channels and live**: group chats, owner-published channels, communities, live rooms and viewer presence.
+- **Calls and voice**: WebRTC audio/video calls, microphone recording, reactions, replies, edit/unsend, themes and read states.
+- **Security**: phone login, multi-account switching, privacy settings, password changes, secure email reset tokens and an admin panel.
+- **Bots**: create a bot in `/bots`, add it to a group or channel through member management, configure `/commands`, then call `POST /api/bots/webhook` with `{ "token", "conversationId", "text" }`. Tokens are shown once and stored hashed.
+- **Push**: configure VAPID keys, then enable browser notifications in Settings. New social notifications are delivered through the Service Worker when the browser supports Web Push.
 - **Look**: light and dark mode (in the "More" menu), and layouts for desktop, tablet and phone.
 
 ## Layout
@@ -34,7 +55,7 @@ Demo login: **demo** / **password123** (every seeded account uses the same passw
 - `src/app/(main)/**` — pages that need a logged-in user
 - `src/app/(auth)/**` — log in and sign up pages
 - `src/components/**` — UI components
-- `scripts/seed.mjs` — demo data
+- `scripts/seed.mjs` — local seed data
 
 ## Phase 1 — Blink statement parser
 
@@ -115,12 +136,3 @@ Open **More → Reconciliation** (`/reconcile`), drop in a statement PDF, and re
 - **Privacy:** the uploaded PDF isn't saved. Only parsed rows are stored, with the account number masked. Parse errors are never logged.
 - **Accuracy on synthetic data** (30 random seeds, 901 payments plus decoys): 96.3% of payments linked to exactly the right orders, 0 wrong auto-matches, 0 decoys linked. The misses are left *unmatched* for manual review. They're payment shapes beyond the search (for example a deposit, then one transfer paying three invoices).
 - **Tests:** `tests/reconcile/` covers name matching, every match shape, the date window, ambiguity, rejected pairs, and a full seed → statement → parse → match run that checks against the known answers and that protected tables are unchanged.
-
-## Online demo (GitHub Pages)
-
-A read-only copy of the app runs at **https://ahmadzhassouneh.github.io/instagram-clone/**, signed in as `dabos_print`.
-
-- GitHub Pages only serves files, so the demo is a static build (`DEMO_EXPORT=1`) that answers the app's API calls in the browser from a snapshot in `demo/` (`src/lib/demo.ts`).
-- Sent messages, likes, saves and follows are kept in the visitor's own browser (localStorage); uploads, profile edits and new chats aren't available.
-- `.github/workflows/pages.yml` builds and publishes it on every push to `main`.
-- To refresh the snapshot: `npm run dev`, then `npm run demo:snapshot`, then commit `demo/`.

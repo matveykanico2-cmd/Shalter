@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
-import { Bookmark, Camera, ChevronDown, ChevronLeft, Clapperboard, Grid3x3, Menu, MoreHorizontal, Settings, SquarePlus, UserPlus } from "lucide-react";
+import { Bookmark, Camera, ChevronDown, ChevronLeft, Clapperboard, Gift, Grid3x3, Menu, MoreHorizontal, Pin, Settings, SquarePlus, UserPlus } from "lucide-react";
 import { api, compact, useApi, useOnCreated } from "@/lib/client";
 import type { Post, Profile } from "@/lib/types";
 import { useApp } from "@/components/app-context";
 import { PostGrid } from "@/components/post-view";
 import { HighlightsRow } from "@/components/highlights";
 import { FollowButton, RichText, UserListModal } from "@/components/social";
-import { Avatar, NotFound, SecondaryButton, Spinner, Verified } from "@/components/ui";
+import { Avatar, SecondaryButton, Spinner, Verified } from "@/components/ui";
 
 type Tab = "posts" | "reels" | "saved";
 
@@ -79,8 +79,10 @@ function ProfileContent() {
   const { setCreateOpen, toast } = useApp();
   const tab = (search.get("tab") as Tab) || "posts";
 
-  const profileReq = useApi<{ profile: Profile }>(`/api/users/${username}`);
-  const postsReq = useApi<{ posts: Post[] }>(profileReq.data ? `/api/users/${username}/posts?tab=${tab}` : null);
+  const profileUrl = username ? `/api/users/${encodeURIComponent(username)}` : null;
+  const profileReq = useApi<{ profile: Profile }>(profileUrl);
+  const postsReq = useApi<{ posts: Post[] }>(profileReq.data && username ? `/api/users/${encodeURIComponent(username)}/posts?tab=${tab}` : null);
+  const giftsReq = useApi<{ gifts: { id: number; name: string; emoji: string; price: number; pinned: boolean; createdAt: number; senderUsername: string }[] }>(profileReq.data && username ? `/api/users/${encodeURIComponent(username)}/gifts` : null);
   const [list, setList] = useState<"followers" | "following" | "mutual" | null>(null);
 
   const { reload: reloadProfile } = profileReq;
@@ -92,7 +94,7 @@ function ProfileContent() {
     }, [reloadProfile, reloadPosts]),
   );
 
-  if (profileReq.error) return <NotFound />;
+  if (profileReq.error) return <div className="mx-auto max-w-[520px] px-6 py-20 text-center"><h2 className="text-xl font-bold">Profile could not be loaded</h2><p className="mt-2 text-sm text-muted">{profileReq.error}</p><button type="button" onClick={profileReq.reload} className="mt-5 font-semibold text-link">Try again</button></div>;
   const p = profileReq.data?.profile;
   if (!p)
     return (
@@ -163,6 +165,15 @@ function ProfileContent() {
   ];
 
   const posts = postsReq.data?.posts;
+  const toggleGift = async (gift: { id: number; pinned: boolean }) => {
+    if (!username) return;
+    try {
+      await api(`/api/users/${encodeURIComponent(username)}/gifts`, { method: "PATCH", body: { id: gift.id, pinned: !gift.pinned } });
+      giftsReq.reload();
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[975px] md:px-5 md:pt-8">
@@ -218,7 +229,7 @@ function ProfileContent() {
             <Stat n={p.followingCount} label="following" onClick={() => setList("following")} />
           </div>
           <div className="mt-5">
-            {p.name && <div className="font-semibold">{p.name}</div>}
+            {(p.name || p.lastName) && <div className="font-semibold">{[p.name, p.lastName].filter(Boolean).join(" ")}</div>}
             {p.isBusiness && p.businessCategory && <div className="text-muted">{p.businessCategory}</div>}
             {p.bio && (
               <div className="whitespace-pre-line">
@@ -246,7 +257,7 @@ function ProfileContent() {
           </div>
         </div>
         <div className="px-4 pt-3">
-          {p.name && <div className="font-semibold">{p.name}</div>}
+          {(p.name || p.lastName) && <div className="font-semibold">{[p.name, p.lastName].filter(Boolean).join(" ")}</div>}
           {p.isBusiness && p.businessCategory && <div className="text-muted">{p.businessCategory}</div>}
           {p.bio && (
             <div className="whitespace-pre-line">
@@ -279,6 +290,7 @@ function ProfileContent() {
         </div>
       </section>
 
+      {giftsReq.error ? <div className="mb-5 px-4 text-center text-sm text-muted"><span>Gifts could not be loaded.</span><button type="button" onClick={giftsReq.reload} className="ml-2 font-semibold text-link">Retry</button></div> : giftsReq.data?.gifts.length ? <section className="mb-8 px-4 md:px-0"><div className="mb-3 flex items-center gap-2 text-sm font-bold"><Gift size={17} className="text-link" />Gifts</div><div className="flex gap-3 overflow-x-auto pb-1">{giftsReq.data.gifts.map((gift) => <div key={gift.id} className="relative flex min-w-[112px] flex-col items-center rounded-2xl border border-border bg-elevated px-3 py-3 text-center shadow-sm"><span className="text-4xl">{gift.emoji}</span><span className="mt-1 text-xs font-bold">{gift.name}</span><span className="text-[10px] text-muted">from @{gift.senderUsername}</span>{p.isMe && <button type="button" onClick={() => void toggleGift(gift)} className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${gift.pinned ? "bg-link/10 text-link" : "bg-field text-muted"}`}><Pin size={10} />{gift.pinned ? "Pinned" : "Pin"}</button>}</div>)}</div></section> : null}
       <HighlightsRow username={p.username} isMe={p.isMe} />
 
       <div className="flex justify-center gap-14 border-t border-separator max-md:justify-around max-md:gap-0 max-md:border-t-0">
@@ -298,7 +310,9 @@ function ProfileContent() {
         ))}
       </div>
 
-      {!posts ? (
+      {postsReq.error ? (
+        <div className="flex flex-col items-center px-8 py-16 text-center"><p className="text-danger">Posts could not be loaded.</p><button type="button" onClick={postsReq.reload} className="mt-4 font-semibold text-link">Try again</button></div>
+      ) : !posts ? (
         <div className="flex justify-center py-16">
           <Spinner />
         </div>

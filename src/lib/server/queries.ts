@@ -2,6 +2,7 @@ import "server-only";
 import type { SQLInputValue } from "node:sqlite";
 import { all, get, run, now } from "./db";
 import type { Comment, FollowUser, Media, Post, UserLite } from "@/lib/types";
+import { sendPush } from "./push";
 
 type UserCols = { uid: number; username: string; name: string; avatar: string | null; verified: number };
 
@@ -128,6 +129,7 @@ export function notify(userId: number, actorId: number, type: string, postId: nu
     text,
     now(),
   );
+  void sendPush(userId, { title: "shalter", body: text || `${type} activity`, url: postId ? `/p/${postId}` : "/notifications" });
 }
 
 export function unnotify(userId: number, actorId: number, type: string, postId: number | null = null) {

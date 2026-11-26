@@ -61,7 +61,7 @@ export const POST = route(async (req) => {
   if (!(file instanceof File) || file.size === 0) throw new HttpError(400, "Choose a photo or video.");
   const media = await saveUpload(file);
   const t = now();
-  run(
+  const { id } = run(
     "INSERT INTO stories (user_id, url, kind, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
     me.id,
     media.url,
@@ -69,4 +69,5 @@ export const POST = route(async (req) => {
     t,
     t + DAY,
   );
+  return { id };
 });

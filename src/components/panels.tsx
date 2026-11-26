@@ -71,7 +71,7 @@ export function SearchBox({ onNavigate, compactInput = false }: { onNavigate?: (
         </div>
       </Link>
       {removable && (
-        <button onClick={() => forget(u.id)} className="px-6 text-muted" aria-label="Remove">
+        <button type="button" onClick={() => forget(u.id)} className="px-6 text-muted" aria-label="Remove">
           <X size={18} />
         </button>
       )}
@@ -93,7 +93,7 @@ export function SearchBox({ onNavigate, compactInput = false }: { onNavigate?: (
             (loading ? (
               <Spinner size={16} className="absolute right-3 top-1/2 -translate-y-1/2" />
             ) : (
-              <button onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted" aria-label="Clear">
+              <button type="button" onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted" aria-label="Clear">
                 <CircleX size={16} className="fill-muted text-secondary" />
               </button>
             ))}
@@ -112,6 +112,7 @@ export function SearchBox({ onNavigate, compactInput = false }: { onNavigate?: (
               <span className="text-base font-semibold">Recent</span>
               {recent.length > 0 && (
                 <button
+                  type="button"
                   className="font-semibold text-link hover:text-link-text"
                   onClick={() => {
                     setRecent([]);

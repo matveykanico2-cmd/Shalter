@@ -1,10 +1,11 @@
 {
-  "name": "snapgram",
+  "name": "shalter",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "check": "npm run lint && npx tsc --noEmit && npm test && npm run build",
     "start": "next start",
     "lint": "eslint",
     "seed": "node scripts/seed.mjs",
@@ -13,22 +14,25 @@
     "fixtures:statements": "tsx scripts/fixtures-statements.mts",
     "seed:business": "tsx scripts/seed-business.mts",
     "seed:business:clean": "tsx scripts/seed-business-clean.mts",
-    "import:test-chats": "node scripts/import-test-conversations.mjs",
-    "demo:snapshot": "tsx scripts/demo-snapshot.mts"
+    "import:test-chats": "node scripts/import-test-conversations.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.49.0",
     "next": "16.3.8",
+    "nodemailer": "^10.6.1",
     "pdfjs-dist": "^6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "web-push": "^4.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.19.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "pdf-lib": "^1.17.1",

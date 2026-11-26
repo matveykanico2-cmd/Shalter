@@ -8,7 +8,7 @@ const grandHotel = Grand_Hotel({ variable: "--font-grand-hotel", weight: "400", 
 const THEME_SCRIPT = `try{var t=localStorage.getItem("snapgram:theme");document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){document.documentElement.dataset.theme="light"}`;
 
 export const metadata: Metadata = {
-  title: "Instagram",
+  title: "shalter",
   description: "Share photos, videos and stories with your friends.",
 };
 

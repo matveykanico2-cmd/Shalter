@@ -44,9 +44,19 @@ export function Avatar({
 
 function DefaultAvatar() {
   return (
-    <svg viewBox="0 0 150 150" className="h-full w-full rounded-full bg-[#dbdbdb] dark:bg-[#363636]">
-      <circle cx="75" cy="58" r="28" fill="#fff" opacity="0.9" />
-      <path d="M22 130c8-26 30-40 53-40s45 14 53 40" fill="#fff" opacity="0.9" />
+    <svg viewBox="0 0 150 150" className="h-full w-full rounded-full" role="img" aria-label="Default avatar">
+      <defs>
+        <linearGradient id="shalter-avatar-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#7c3aed" />
+          <stop offset="0.55" stopColor="#2563eb" />
+          <stop offset="1" stopColor="#ec4899" />
+        </linearGradient>
+      </defs>
+      <rect width="150" height="150" rx="75" fill="url(#shalter-avatar-gradient)" />
+      <circle cx="118" cy="30" r="34" fill="#fff" opacity="0.13" />
+      <circle cx="32" cy="132" r="48" fill="#111827" opacity="0.12" />
+      <path d="M43 80c13 12 51 12 64 0" fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" opacity="0.92" />
+      <path d="M51 60c8-12 20-17 31-17 12 0 23 5 31 17" fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" opacity="0.92" />
     </svg>
   );
 }
@@ -120,7 +130,7 @@ export function Modal({
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       {showClose && (
-        <button onClick={onClose} className="absolute right-3 top-3 p-2 text-white" aria-label="Close">
+        <button type="button" onClick={onClose} className="absolute right-3 top-3 p-2 text-white" aria-label="Close">
           <X size={28} />
         </button>
       )}
@@ -143,6 +153,7 @@ export function OptionsMenu({
         {[...options, { label: "Cancel", onClick: onClose }].map((o, i) => (
           <button
             key={o.label}
+            type="button"
             onClick={o.onClick}
             className={`min-h-12 px-2 py-1 text-sm active:bg-hover ${i > 0 ? "border-t border-border" : ""} ${
               "danger" in o && o.danger ? "font-bold text-danger" : "bold" in o && o.bold ? "font-bold" : ""
@@ -190,7 +201,7 @@ export function NotFound() {
       <p className="text-base">
         The link you followed may be broken, or the page may have been removed.{" "}
         <Link href="/" className="text-link-text">
-          Go back to Instagram.
+          Go back to shalter.
         </Link>
       </p>
     </div>

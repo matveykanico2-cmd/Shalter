@@ -127,13 +127,17 @@ export function StoryViewer({
 
   const deleteStory = async () => {
     setMenu(false);
-    await api(`/api/stories/${story.id}`, { method: "DELETE" });
-    toast("Story deleted.");
-    const remaining = group.stories.filter((x) => x.id !== story.id);
-    if (remaining.length === 0) return close();
-    setGroups(groups.map((x, i) => (i === g ? { ...x, stories: remaining } : x)));
-    setS(Math.min(s, remaining.length - 1));
-    setProgress(0);
+    try {
+      await api(`/api/stories/${story.id}`, { method: "DELETE" });
+      toast("Story deleted.");
+      const remaining = group.stories.filter((x) => x.id !== story.id);
+      if (remaining.length === 0) return close();
+      setGroups(groups.map((x, i) => (i === g ? { ...x, stories: remaining } : x)));
+      setS(Math.min(s, remaining.length - 1));
+      setProgress(0);
+    } catch (error) {
+      toast((error as Error).message || "Story could not be deleted.");
+    }
   };
 
   const deleteHighlight = async () => {
